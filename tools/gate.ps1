@@ -1,6 +1,6 @@
 #requires -Version 7
 <#
-  vrc-patterns gate: compile + lint + decompile-equality over every entry.
+  vrc-patterns gate: compile + round-trip + decompile-equality over every entry.
 
   Boots Unity batchmode against the workspace TestEditor (which loads the avatar-tools package by
   file: ref, so it always has the current CompileController/ControllerFixpoint) and runs

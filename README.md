@@ -17,8 +17,8 @@ concept to implementation. (Substrate patterns whose canonical YAML lives in
 ## Using an entry
 
 - **Agent, in-workspace:** read the entry's `controller.yaml` + README Interface stanza; lift/adapt.
-- **Unity:** this package is listed in a project's `vpm-manifest.json`; entries import at
-  `Packages/com.ryan6vrc.patterns/<entry>/`.
+- **Unity:** a project takes it as a package dependency (AvatarProject uses a `file:` ref in
+  `Packages/manifest.json`); entries import at `Packages/com.ryan6vrc.patterns/<entry>/`.
 
 ## Gate
 
