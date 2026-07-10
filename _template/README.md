@@ -4,7 +4,6 @@ A minimal one-param toggle. Copy this folder to start a new entry; it demonstrat
 skeleton. Not a shipping gimmick — a proof and a mold.
 
 **Provenance:** authored for scaffolding; no upstream asset.
-**Verification rung:** 1 (static — compiles clean, round-trips to the fixpoint, decompile-equality holds; see `../tools/gate.ps1`).
 
 ## Interface
 
