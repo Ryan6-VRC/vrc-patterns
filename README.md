@@ -22,5 +22,5 @@ concept to implementation. (Substrate patterns whose canonical YAML lives in
 
 ## Gate
 
-`tools/gate.ps1` compiles + lints every entry and checks decompile-equality for entries with `built/`.
-Run it before merging.
+`tools/gate.ps1` compiles + validates every entry and checks controller decompile-equality for entries
+with `built/`. Run it before merging.

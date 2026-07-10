@@ -8,7 +8,7 @@ YAML is the source of truth; built Unity assets are regenerable.
     <entry-name>/
       README.md          # prose + the Interface stanza + verification rung + provenance
       controller.yaml    # the YAML source (CompileController); declares basis, role, parameters
-      built/             # committed ONLY when a GUID references it (see tiers): .controller (+ .meta), *_Parameters.asset
+      built/             # committed ONLY when a GUID references it (see tiers): .controller + *_Parameters.asset (each + .meta)
       assets/            # owned, self-contained materials/meshes
       <entry>.prefab     # the drop-in, referencing built/ by GUID via an MA/VRCFury merge component
 
@@ -44,8 +44,10 @@ external dependency is declared loudly in the Interface stanza.
 ## Verification rung
 
 Each entry's README states its top rung (1 static / 2 bake / 3 emulator — see `../docs/verify.md`).
-The gate (`tools/gate.ps1`) proves rung 1 for every entry: it compiles clean, lints clean, and — for
-entries with `built/` — the committed artifact matches what the YAML compiles to (decompile-equality).
+The gate (`tools/gate.ps1`) proves rung 1 for every entry: `controller.yaml` compiles clean (validation
+is folded into the compile), round-trips to the decompile fixpoint, and — for entries with `built/` — the
+committed **controller** matches what the YAML compiles to (decompile-equality). It does not yet verify the
+`*_Parameters.asset` (the `vrc:` synced/saved surface), so keep that asset in sync with the YAML by hand.
 
 ## Provenance / PII
 
