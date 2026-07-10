@@ -1,0 +1,32 @@
+# _template — reference mold for a vrc-patterns entry.
+# A minimal one-param toggle: Template_Toggle shows/hides a child "Cube" renderer.
+# Not a shipping gimmick — it exercises the full compile → built → merge chain.
+
+schema: 1
+controller: Template_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  Template_Toggle: { type: bool, default: false, vrc: { synced: true, saved: true } }
+
+layers:
+  - name: Template
+    states:
+      Hidden:
+        motion: { clip: hide }
+        transitions:
+          - { to: Shown, when: [ Template_Toggle is true ] }
+      Shown:
+        motion: { clip: show }
+        transitions:
+          - { to: Hidden, when: [ Template_Toggle is false ] }
+    default: Hidden
+
+clips:
+  hide: { set: { "Cube/MeshRenderer.enabled": 0 } }
+  show: { set: { "Cube/MeshRenderer.enabled": 1 } }
