@@ -1,0 +1,97 @@
+# color-adjust — study entry: driving a shader's own color/hue property, two shapes.
+#
+# lilToon _MainTexHSVG is ONE vec4 property (.x Hue .y Saturation .z Value .w Gamma). Two facts govern
+# how you drive it, and they pull against each other:
+#   1. The animator keys individual float channels, and under WD-ON a channel a clip does NOT key
+#      reverts to the material default — so a clip must account for every channel it means to hold.
+#   2. If you give each of H/S/V its own Override layer, the layers fight: every layer writes the whole
+#      vec4, so the LAST override layer wins all four channels and the earlier sliders go dead.
+# The fix satisfies both: ONE WD-ON Direct tree in which each slider drives ONLY its own channel (a 1D
+# sub-tree writing just .x, or .y, or .z), plus a constant .w. Because each channel is written by exactly
+# one child, the three sliders compose (no override fight) AND every channel is always written (no
+# revert). This is the blendtree-math "stack per-channel writes in one Direct tree" idiom applied to a
+# vec4. The BrokenDemo layer is the counterexample kept for study: a clip that keys only .x, on its own
+# placeholder mesh, so the WD-ON revert of the un-keyed channels is witnessable in isolation.
+#
+# Poiyomi _MainHueShift is a scalar float: one slider, one tree, none of this applies.
+# Clips bind by name against placeholder mesh paths (Body / BodyBroken) — Pattern-in-spirit; a consumer
+# RepathClips onto their own mesh. Dangling bindings against these placeholders are expected.
+
+schema: 1
+controller: ColorAdjust_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  HueSlider:  { type: float, default: 0, vrc: { synced: true, saved: true } }   # -> _MainTexHSVG.x
+  SatSlider:  { type: float, default: 1, vrc: { synced: true, saved: true } }   # -> _MainTexHSVG.y
+  ValSlider:  { type: float, default: 1, vrc: { synced: true, saved: true } }   # -> _MainTexHSVG.z
+  HueShift:   { type: float, default: 0, vrc: { synced: true, saved: true } }   # Poiyomi _MainHueShift scalar
+  ShowBroken: { type: bool,  default: false, vrc: { synced: true, saved: true } }
+  One:        { type: float, default: 1.0 }   # constant, never driven — full-weight helper for the Direct compose tree
+
+layers:
+  # ONE WD-ON Direct tree composes H/S/V: each slider's 1D sub-tree writes only its own channel, weighted
+  # by One (full weight). Each channel has exactly one writer, so the sliders compose and nothing reverts.
+  - name: Compose
+    states:
+      "Compose (WD ON)":
+        motion:
+          tree: direct
+          children:
+            - tree: 1d
+              param: HueSlider
+              directWeight: One
+              children:
+                - { clip: hue_x0, threshold: 0.0 }
+                - { clip: hue_x1, threshold: 1.0 }
+            - tree: 1d
+              param: SatSlider
+              directWeight: One
+              children:
+                - { clip: sat_y0, threshold: 0.0 }
+                - { clip: sat_y1, threshold: 1.0 }
+            - tree: 1d
+              param: ValSlider
+              directWeight: One
+              children:
+                - { clip: val_z0, threshold: 0.0 }
+                - { clip: val_z1, threshold: 1.0 }
+            - { clip: gamma_w, directWeight: One }   # .w held at 1 (lilToon gamma), always written
+    default: "Compose (WD ON)"
+  - name: PoiHueDrive   # Poiyomi scalar — separate property, no vec4 trap
+    states:
+      Drive:
+        motion: { tree: 1d, param: HueShift, children: [ { clip: poi_min, threshold: 0.0 }, { clip: poi_max, threshold: 1.0 } ] }
+    default: Drive
+  - name: BrokenDemo   # the counterexample, on its OWN placeholder mesh (BodyBroken) so it can't clobber Compose:
+    states:            # ShowBroken toggles between a correct all-4-channel clip and one that keys only .x.
+      Baseline:
+        motion: { clip: broken_baseline }
+        transitions:
+          - { to: Broken, when: [ ShowBroken is true ] }
+      Broken:
+        motion: { clip: broken-hue_only_x }
+        transitions:
+          - { to: Baseline, when: [ ShowBroken is false ] }
+    default: Baseline
+
+clips:
+  # Compose: each clip writes exactly ONE channel (the sub-tree endpoints); composition + WD keep the rest intact.
+  hue_x0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0 } }
+  hue_x1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }
+  sat_y0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 0.0 } }
+  sat_y1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0 } }
+  val_z0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 0.0 } }
+  val_z1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0 } }
+  gamma_w: { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
+  # Poiyomi scalar
+  poi_min: { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 0.0 } }
+  poi_max: { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 1.0 } }
+  # Broken-demo counterexample, on its own placeholder mesh (BodyBroken):
+  broken_baseline:   { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
+  broken-hue_only_x: { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }   # TRAP: keys only .x — under WD-ON the un-keyed y/z/w revert to the material default

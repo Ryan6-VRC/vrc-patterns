@@ -8,7 +8,7 @@ YAML is the source of truth; built Unity assets are regenerable.
     <entry-name>/
       README.md          # prose + the Interface stanza + provenance
       controller.yaml    # the YAML source (CompileController); declares basis, role, parameters
-      built/             # committed ONLY when a GUID references it (see tiers): .controller + *_Parameters.asset (each + .meta)
+      built/             # committed when a GUID references it, OR for a declared study/reference entry (see tiers): .controller (+ *_Parameters.asset) (+ .meta)
       assets/            # owned, self-contained materials/meshes
       <entry>.prefab     # the drop-in, referencing built/ by GUID via an MA/VRCFury merge component
 
@@ -18,7 +18,9 @@ The one axis that changes behavior: **does the entry ship a GUID-consumer** (a p
 references `built/`)? Read it off which files exist:
 
 - **Pattern** — `controller.yaml` only. No `built/`: an agent lifts the YAML and recompiles in its
-  own project with its own GUID. Committing `built/` here is pure review noise.
+  own project with its own GUID. Committing `built/` here is review noise UNLESS the entry is a
+  declared study/reference entry — then `built/` is the point (a DBT graph is legible only in the
+  animator window), and the gate holds it to decompile-equality like any `built/`.
 - **Asset-bound** — adds `assets/`. `built/` committed (an asset references it).
 - **Module** — adds `<entry>.prefab`. `built/` committed; the prefab references it by GUID.
 

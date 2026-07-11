@@ -1,0 +1,424 @@
+# blendtree-math — study entry: the Direct-Blend-Tree math idiom catalog. One canonical idiom per
+# primitive (add, subtract, multiply, negate/remap, clamp, divide), the 1D-vs-Direct-child method
+# contrast shown once (on `add`), the composed min/max, the smoothing family, and an owned frametime rig.
+#
+# WD-ON: every DBT state here is Write-Defaults ON and carries "(WD ON)" in its name (vrc.school's own
+# caution — a Direct-tree AAP write with WD off leaves the param undriven the instant the state loses
+# full weight). Inputs are plain floats (drivable); every computed value is `aap: true` — a bare
+# declared-param clip write compiles to an animator-parameter curve, no scene binding needed.
+#
+# THE ONE HARD CONSTRAINT threading all of this: a parameter used AS a Direct-tree `directWeight` is
+# clamped to >=0 by Unity — only a clip's authored curve VALUE (`set:`) may carry a negative sign. So
+# `A`/`B` and the genuine clamp0 outputs (MaxRelu, MinRelu) stay >=0 by construction and are reused as
+# weights; a genuinely signed intermediate (MaxDiff, MinDiff, LinDelta) is read back through a 1D tree
+# instead (a 1D tree's blend PARAMETER, unlike a Direct weight, is never clamped), and is never itself
+# used as a directWeight. `One` is a constant (never driven) full-weight helper for that 1D-identity-pass
+# shape, and doubles as the divide idiom's "weight-1 dummy" numerator.
+#
+# LINEAR SMOOTHING LIMIT-CYCLES (known, inherent — see README): its step needs a computed delta
+# (LinTarget - SmoothedLin), which can't be same-frame as the step that consumes it, so a 1-frame
+# feedback delay makes SmoothedLin oscillate by +-one step around the target. Near a ZERO target that
+# cycle dips SmoothedLin slightly negative; this idiom, for simplicity, still uses SmoothedLin as a
+# directWeight (the carry + the delta's neg term), so Unity clamps the dip to 0 and the low end distorts
+# — SmoothedLin is therefore NOT a "safe-as-weight" >=0 intermediate, and the up-ramp proof doesn't
+# exercise this. The exponential smoother has none of this: it feeds SmoothedExp/SmoothTarget directly
+# as blend params, no computed intermediate, no signed feedback.
+#
+# `add` is the one place both idioms appear side by side (`Add_Direct`, `Add_1D`) — both target the same
+# `SumOut` AAP purely so the two graphs sit next to each other for a human to compare in the Animator
+# window; don't wire both into a real build at once (whichever layer sits later in `layers:` wins that
+# param for the frame — see each layer's comment). Every other primitive picks ONE canonical idiom
+# (Direct-child, unless the construction needs 1D).
+#
+# min/max are DERIVED, not primitives: max(a,b) = b + clamp0(a-b), min(a,b) = b - clamp0(b-a), where
+# clamp0 = clamp to [0, +inf) (ReLU). Each is three ordered layers (diff -> relu -> recombine): layer
+# order is dependency order here, because a later layer's Direct/1D tree reads an earlier layer's
+# same-frame AAP write. The relu stage reuses the `clamp`-shaped 1D (threshold 0 -> 0, threshold 1 -> 1),
+# which on a bounded [-1,1] difference domain is exactly clamp-to-[0,+inf).
+#
+# The frametime rig (`TimeRamp` + `FrameTimeCalc`, last two layers) is OWNED here, not borrowed from
+# VRCFury's FrameTimeService (see README) — self-contained: a `tangents: linear` ramp makes the `Time`
+# AAP equal elapsed seconds (flat tangents would stair-step it — most frames read Delta=0, spiking at key
+# boundaries). `TimeRamp` runs as an earlier layer than `FrameTimeCalc`, so the calc layer reads a fresh
+# `Time` and computes FrameTime = Time - LastTime, then stages LastTime = Time for next frame. `FrameTime`
+# is exposed as a usable AAP; multiply it into a smoothing step via the `multiply` idiom above to make
+# that step frame-rate independent (not fully wired here to keep the graph legible — see README).
+#
+# Generalized from standard VRChat DBT-math constructions (vrc.school Advanced Blend Trees); no
+# real-avatar naming.
+
+schema: 1
+controller: BlendtreeMath_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # shared generic inputs for the primitive catalog. A/B live in [0,1] and are used as Direct-tree
+  # weights below, so they must stay >=0 (the hard constraint above).
+  A:   { type: float, default: 0.0 }
+  B:   { type: float, default: 0.0 }
+  One: { type: float, default: 1.0 }   # constant, never driven — full-weight helper for 1D-identity-pass children and the divide numerator
+
+  # add — dual idiom (Add_Direct + Add_1D), both write SumOut for direct comparison
+  SumOut: { type: float, aap: true }
+
+  # subtract
+  DiffOut: { type: float, aap: true }
+
+  # multiply (positive-only: A, B must stay >=0)
+  ProdOut: { type: float, aap: true }
+
+  # negate/remap
+  RemapIn: { type: float, default: 0.0 }   # working range [-1, 1]
+  NegOut:  { type: float, aap: true }
+
+  # clamp
+  ClampIn:  { type: float, default: 0.0 }   # any range; saturates to [0, 1] outside it
+  ClampOut: { type: float, aap: true }
+
+  # divide (Normalize Blend Values) — divides by (1 + DivInput), not DivInput; see the Divide layer comment
+  DivInput: { type: float, default: 0.0 }   # >=0 (used as a Direct weight)
+  DivOut:   { type: float, aap: true }
+  DivDummy: { type: float, aap: true }       # throwaway — animates nothing meaningful, exists only to inflate the pre-normalize weight sum
+
+  # min/max — composed/derived (see the six Max*/Min* layers below), with intermediate AAPs
+  MaxDiff: { type: float, aap: true }   # signed (A - B); read back via a 1D tree, never used as a weight
+  MaxRelu: { type: float, aap: true }   # >=0 by construction — safe to use as a weight downstream
+  MaxOut:  { type: float, aap: true }
+  MinDiff: { type: float, aap: true }   # signed (B - A); read back via a 1D tree, never used as a weight
+  MinRelu: { type: float, aap: true }   # >=0 by construction — safe to use as a weight downstream
+  MinOut:  { type: float, aap: true }
+
+  # exponential smoothing (mirrors the smoother fixture; docs/gimmicks.md "AAP exponential smoother")
+  SmoothTarget: { type: float, default: 0.0 }
+  ExpKeep:      { type: float, default: 0.9 }   # lambda: fraction of the OLD value kept per frame
+  ExpMix:       { type: float, default: 0.1 }   # 1 - lambda: fraction of the NEW target mixed in
+  SmoothedExp:  { type: float, aap: true }
+
+  # linear smoothing (single-layer canonical; LinStep intermediate removed)
+  LinTarget:   { type: float, default: 0.0 }
+  LinDelta:    { type: float, aap: true }   # LinTarget - SmoothedLin, computed in-tree; read as the step 1D's blend param (never a weight)
+  SmoothedLin: { type: float, aap: true }   # the smoothed output (tracks LinTarget)
+
+  # frametime rig — owned (README: VRCFury-borrow is a deliberate non-default choice, not the shipped behavior)
+  Time:      { type: float, aap: true }
+  LastTime:  { type: float, aap: true }
+  FrameTime: { type: float, aap: true }
+
+layers:
+  # --- add: the one place both idioms appear, side by side ---
+  - name: Add_Direct
+    states:
+      "AddDirect (WD ON)":
+        # Direct-child method: SumOut = A + B. Higher precision, works for any positive number, but
+        # A/B must stay >=0 (each is a raw directWeight, and Unity clamps a child's weight to >=0).
+        motion:
+          tree: direct
+          children:
+            - { clip: sum_one, directWeight: A }
+            - { clip: sum_one, directWeight: B }
+    default: "AddDirect (WD ON)"
+  - name: Add_1D
+    states:
+      "Add1D (WD ON)":
+        # 1D-child method: each input is identity-mapped 0..1 through its own 1D tree (full weight via
+        # `One`), and the two sub-trees stack (Direct trees sum their children). The 1D method is the one
+        # that CAN stay signed — but only if its thresholds span the signed range (see NegateRemap's
+        # [-1,1]); as configured here the [0,1] thresholds clamp a negative input to 0, so A=-0.5 reads 0,
+        # not -0.5. Lower precision than Direct-child. Writes the SAME SumOut AAP as Add_Direct purely for
+        # comparison — see the file header before wiring both into one build.
+        motion:
+          tree: direct
+          children:
+            - tree: 1d
+              param: A
+              directWeight: One
+              children:
+                - { clip: add1d_zero, threshold: 0.0 }
+                - { clip: add1d_one,  threshold: 1.0 }
+            - tree: 1d
+              param: B
+              directWeight: One
+              children:
+                - { clip: add1d_zero, threshold: 0.0 }
+                - { clip: add1d_one,  threshold: 1.0 }
+    default: "Add1D (WD ON)"
+
+  # --- subtract ---
+  - name: Subtract
+    states:
+      "Subtract (WD ON)":
+        # Direct-child method: DiffOut = A - B. The sign lives in the clip's curve value (diff_neg =
+        # -1), not in the weight, so A/B stay >=0 as directWeights — no positive-only caveat needed.
+        motion:
+          tree: direct
+          children:
+            - { clip: diff_pos, directWeight: A }
+            - { clip: diff_neg, directWeight: B }
+    default: "Subtract (WD ON)"
+
+  # --- multiply ---
+  - name: Multiply
+    states:
+      "Multiply (WD ON)":
+        # Nested Direct trees: the inner tree's single child is scaled by B, then the whole inner tree
+        # (now worth B) is itself scaled by the outer directWeight A, giving ProdOut = A * B. Positive-
+        # only: both A and B are raw directWeights.
+        motion:
+          tree: direct
+          children:
+            - tree: direct
+              directWeight: A
+              children:
+                - { clip: prod_one, directWeight: B }
+    default: "Multiply (WD ON)"
+
+  # --- negate/remap ---
+  - name: NegateRemap
+    states:
+      "NegateRemap (WD ON)":
+        # The canonical remap: a 1D tree's own clamp-and-lerp math (Blend(f<=min)=A, Blend(f>=max)=B,
+        # lerp between) IS the remap. Here [-1,1] -> [1,-1] (negation); any [inMin,inMax] -> [outAtMin,
+        # outAtMax] follows the same two-threshold shape with different clip constants.
+        motion:
+          tree: 1d
+          param: RemapIn
+          children:
+            - { clip: neg_at_min, threshold: -1.0 }
+            - { clip: neg_at_max, threshold: 1.0 }
+    default: "NegateRemap (WD ON)"
+
+  # --- clamp ---
+  - name: Clamp
+    states:
+      "Clamp (WD ON)":
+        # 1D natural saturation: below threshold 0 the tree holds ClampOut at 0, above threshold 1 it
+        # holds ClampOut at 1, identity in between — clamps ClampIn to [0, 1]. This exact shape (0 at
+        # the low threshold, 1 at the high) is reused as the ReLU stage in the composed min/max below.
+        motion:
+          tree: 1d
+          param: ClampIn
+          children:
+            - { clip: clamp_zero, threshold: 0.0 }
+            - { clip: clamp_one,  threshold: 1.0 }
+    default: "Clamp (WD ON)"
+
+  # --- divide (Normalize Blend Values) ---
+  - name: Divide
+    states:
+      "Divide (WD ON)":
+        # normalized:true turns on "Normalize Blend Values": once the raw weight sum exceeds 1, every
+        # child's weight is divided by that sum. div_dummy (weight DivInput, animates nothing real) is
+        # a throwaway that inflates the sum; div_one (weight One=1) carries the real output. Weight sum
+        # = DivInput + 1, so DivOut = 1 / (DivInput + 1) — this divides by (1 + DivInput), NOT DivInput
+        # (the vrc.school caveat).
+        motion:
+          tree: direct
+          normalized: true
+          children:
+            - { clip: div_dummy, directWeight: DivInput }
+            - { clip: div_one,   directWeight: One }
+    default: "Divide (WD ON)"
+
+  # --- min/max: composed/derived, NOT primitives ---
+  # max(a,b) = b + clamp0(a-b). Three ordered layers; each reads the previous layer's same-frame write.
+  - name: MaxDiffCalc
+    states:
+      "MaxDiffCalc (WD ON)":
+        # stage 1 (subtract idiom): MaxDiff = A - B (signed; not used as a weight downstream)
+        motion:
+          tree: direct
+          children:
+            - { clip: maxdiff_pos, directWeight: A }
+            - { clip: maxdiff_neg, directWeight: B }
+    default: "MaxDiffCalc (WD ON)"
+  - name: MaxReluCalc
+    states:
+      "MaxReluCalc (WD ON)":
+        # stage 2 (clamp-shaped 1D, reused): MaxRelu = clamp0(MaxDiff) — on the bounded [-1,1] domain of
+        # A-B, the clamp-to-[0,1] shape IS clamp-to-[0,+inf). Reading MaxDiff through the 1D's PARAM
+        # (not a weight) is exactly why the signed intermediate is safe here.
+        motion:
+          tree: 1d
+          param: MaxDiff
+          children:
+            - { clip: maxrelu_zero, threshold: 0.0 }
+            - { clip: maxrelu_one,  threshold: 1.0 }
+    default: "MaxReluCalc (WD ON)"
+  - name: MaxOutCalc
+    states:
+      "MaxOutCalc (WD ON)":
+        # stage 3 (add idiom): MaxOut = B + MaxRelu. Both B and MaxRelu are >=0 by construction, so both
+        # are safe to use directly as directWeights here.
+        motion:
+          tree: direct
+          children:
+            - { clip: maxout_one, directWeight: B }
+            - { clip: maxout_one, directWeight: MaxRelu }
+    default: "MaxOutCalc (WD ON)"
+  # min(a,b) = b - clamp0(b-a). Symmetric to max; three ordered layers.
+  - name: MinDiffCalc
+    states:
+      "MinDiffCalc (WD ON)":
+        # stage 1 (subtract idiom): MinDiff = B - A (signed; not used as a weight downstream)
+        motion:
+          tree: direct
+          children:
+            - { clip: mindiff_pos, directWeight: B }
+            - { clip: mindiff_neg, directWeight: A }
+    default: "MinDiffCalc (WD ON)"
+  - name: MinReluCalc
+    states:
+      "MinReluCalc (WD ON)":
+        # stage 2 (clamp-shaped 1D, reused): MinRelu = clamp0(MinDiff)
+        motion:
+          tree: 1d
+          param: MinDiff
+          children:
+            - { clip: minrelu_zero, threshold: 0.0 }
+            - { clip: minrelu_one,  threshold: 1.0 }
+    default: "MinReluCalc (WD ON)"
+  - name: MinOutCalc
+    states:
+      "MinOutCalc (WD ON)":
+        # stage 3 (subtract idiom): MinOut = B - MinRelu. Both B and MinRelu are >=0, so the sign lives
+        # in minout_neg's clip value, same as the canonical Subtract layer above.
+        motion:
+          tree: direct
+          children:
+            - { clip: minout_pos, directWeight: B }
+            - { clip: minout_neg, directWeight: MinRelu }
+    default: "MinOutCalc (WD ON)"
+
+  # --- smoothing family ---
+  - name: ExpSmooth
+    states:
+      "ExpSmooth (WD ON)":
+        # Exponential smoothing (mirrors the smoother fixture exactly, params renamed local to this
+        # entry): SmoothedExp_next = ExpKeep * SmoothedExp + ExpMix * SmoothTarget, ExpMix = 1 - ExpKeep.
+        # Framerate-dependent by design (docs/gimmicks.md) — see FrameTime below to compensate.
+        motion:
+          tree: direct
+          children:
+            - tree: 1d
+              param: SmoothedExp
+              directWeight: ExpKeep
+              children:
+                - { clip: expsm_min, threshold: 0.0 }
+                - { clip: expsm_max, threshold: 1.0 }
+            - tree: 1d
+              param: SmoothTarget
+              directWeight: ExpMix
+              children:
+                - { clip: expsm_min, threshold: 0.0 }
+                - { clip: expsm_max, threshold: 1.0 }
+    default: "ExpSmooth (WD ON)"
+  - name: LinSmooth
+    states:
+      "LinSmooth (WD ON)":
+        # Linear smoothing — vrc.school canonical SINGLE Direct tree (like ExpSmooth, not a multi-layer
+        # chain): in one tree, compute LinDelta = LinTarget - SmoothedLin (two stacked writes) AND apply
+        # SmoothedLin += clamp(LinDelta, -0.1, +0.1) (a self-weighted carry + a full-weight clamped-step
+        # 1D over LinDelta). The step 1D's two keys (-0.1,-0.1)/(0.1,0.1) form the straight line through
+        # (0,0): identity inside [-0.1,0.1], saturating to +-0.1 outside — that IS the clamp.
+        #
+        # WHY IT LIMIT-CYCLES (known; see README): the step 1D reads LinDelta at FRAME START, so it lags
+        # the true (LinTarget - SmoothedLin) by one frame. Near the target that stale +-0.1 delta keeps
+        # pushing a full step, overshooting by +-one step forever. Collapsing the old 3-layer version
+        # (LinDiffCalc -> LinStepCalc -> LinApplyCalc) into this one tree cut the delay from 2 frames to
+        # the irreducible 1, halving the oscillation (+-0.1 vs +-0.2) — but the idiom cannot fully settle.
+        # 0.1 is a compile-time step; scale a normalized clamp(-1,1) by a live StepSize via `multiply`,
+        # or by `FrameTime`, to tune / frame-rate-normalize it.
+        motion:
+          tree: direct
+          children:
+            - { clip: lindelta_pos, directWeight: LinTarget }    # LinDelta += LinTarget * 1
+            - { clip: lindelta_neg, directWeight: SmoothedLin }  # LinDelta += SmoothedLin * -1
+            - { clip: lincarry,     directWeight: SmoothedLin }  # SmoothedLin += SmoothedLin * 1 (self-weighted carry)
+            - tree: 1d
+              param: LinDelta
+              directWeight: One                                   # clamped step added at full weight
+              children:
+                - { clip: linstep_neg, threshold: -0.1 }
+                - { clip: linstep_pos, threshold: 0.1 }
+    default: "LinSmooth (WD ON)"
+
+  # --- frametime rig (owned; see README for the VRCFury-borrow note) ---
+  - name: TimeRamp
+    states:
+      "Ramp (WD ON)":
+        motion: { clip: time_ramp }
+    default: "Ramp (WD ON)"
+  - name: FrameTimeCalc
+    states:
+      "Calc (WD ON)":
+        motion:
+          tree: direct
+          children:
+            - { clip: ft_pos, directWeight: Time }      # FrameTime += Time * 1
+            - { clip: ft_neg, directWeight: LastTime }  # FrameTime += LastTime * -1  -> FrameTime = Time - LastTime
+            - { clip: lt_set, directWeight: Time }       # LastTime += Time * 1 (WD ON additive) -> LastTime = Time
+    default: "Calc (WD ON)"
+
+clips:
+  # add
+  sum_one:    { set: { SumOut: 1.0 } }
+  add1d_zero: { set: { SumOut: 0.0 } }
+  add1d_one:  { set: { SumOut: 1.0 } }
+
+  # subtract
+  diff_pos: { set: { DiffOut: 1.0 } }
+  diff_neg: { set: { DiffOut: -1.0 } }
+
+  # multiply
+  prod_one: { set: { ProdOut: 1.0 } }
+
+  # negate/remap
+  neg_at_min: { set: { NegOut: 1.0 } }
+  neg_at_max: { set: { NegOut: -1.0 } }
+
+  # clamp
+  clamp_zero: { set: { ClampOut: 0.0 } }
+  clamp_one:  { set: { ClampOut: 1.0 } }
+
+  # divide
+  div_dummy: { set: { DivDummy: 0.0 } }
+  div_one:   { set: { DivOut: 1.0 } }
+
+  # max (composed)
+  maxdiff_pos:  { set: { MaxDiff: 1.0 } }
+  maxdiff_neg:  { set: { MaxDiff: -1.0 } }
+  maxrelu_zero: { set: { MaxRelu: 0.0 } }
+  maxrelu_one:  { set: { MaxRelu: 1.0 } }
+  maxout_one:   { set: { MaxOut: 1.0 } }
+
+  # min (composed)
+  mindiff_pos:  { set: { MinDiff: 1.0 } }
+  mindiff_neg:  { set: { MinDiff: -1.0 } }
+  minrelu_zero: { set: { MinRelu: 0.0 } }
+  minrelu_one:  { set: { MinRelu: 1.0 } }
+  minout_pos:   { set: { MinOut: 1.0 } }
+  minout_neg:   { set: { MinOut: -1.0 } }
+
+  # exponential smoothing
+  expsm_min: { set: { SmoothedExp: 0.0 } }
+  expsm_max: { set: { SmoothedExp: 1.0 } }
+
+  # linear smoothing (single-layer canonical)
+  lindelta_pos: { set: { LinDelta: 1.0 } }
+  lindelta_neg: { set: { LinDelta: -1.0 } }
+  lincarry:     { set: { SmoothedLin: 1.0 } }
+  linstep_neg:  { set: { SmoothedLin: -0.1 } }
+  linstep_pos:  { set: { SmoothedLin: 0.1 } }
+
+  # frametime rig: slope-1 linear ramp; Time = elapsed seconds. Huge range -> never needs loop-time
+  # within a session. tangents: linear is REQUIRED — flat (default) tangents would make Time a
+  # staircase (Delta reads as 0 most frames, spiking at key boundaries).
+  time_ramp: { curves: { Time: { tangents: linear, keys: [ [0, 0], [10000000, 10000000] ] } } }
+  ft_pos: { set: { FrameTime: 1.0 } }
+  ft_neg: { set: { FrameTime: -1.0 } }
+  lt_set: { set: { LastTime: 1.0 } }

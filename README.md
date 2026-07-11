@@ -6,12 +6,12 @@ Reusable, verified VRChat avatar patterns, controllers, and drop-in gimmick modu
 ## Find by pattern
 
 Left column = the pattern name as it appears in `docs/gimmicks.md`, so you can jump straight from
-concept to implementation. (Substrate patterns whose canonical YAML lives in
-`vrc-unity-tools/fixtures/animator-substrate/` are linked, not copied.)
+concept to implementation.
 
 | Pattern (`gimmicks.md`) | Tier | Entry |
 |---|---|---|
-| _(seed entries land here in a later session)_ | | |
+| Hue / color slider (drive shader property) | Pattern (study) | [`color-adjust`](color-adjust/) |
+| DBT math (add/subtract/multiply/divide/clamp/remap, min/max, smoothing, frametime) | Pattern (study) | [`blendtree-math`](blendtree-math/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 
 ## Using an entry
