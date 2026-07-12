@@ -11,7 +11,9 @@ concept to implementation.
 | Pattern (`gimmicks.md`) | Tier | Entry |
 |---|---|---|
 | Hue / color slider (drive shader property) | Pattern (study) | [`color-adjust`](color-adjust/) |
+| HSV→RGB compute (write RGB color) | Pattern (study) | [`hsv-rgb`](hsv-rgb/) |
 | DBT math (add/subtract/multiply/divide/clamp/remap, min/max, smoothing, frametime) | Pattern (study) | [`blendtree-math`](blendtree-math/) |
+| AAP exponential smoother (frametime-aware) | Pattern (study) | [`smooth-frametime`](smooth-frametime/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 
 ## Using an entry

@@ -1,0 +1,160 @@
+# hsv-rgb — compute RGB from H/S/V and WRITE a plain color property (_Color), authored as ONE always-on
+# WD-ON Direct-tree layer (the shippable cost model — all math is nested children of one root Direct tree,
+# not one-idiom-per-layer). This is the case color-adjust names and declares out of scope: color-adjust
+# drives a shader's OWN hue property (lilToon _MainTexHSVG); this one COMPUTES RGB itself and writes a
+# generic _Color. Pure feed-forward (no feedback) → it just settles ~2-3 frames after an input change.
+#
+# THE DECOMPOSITION (why the six-sector HSV->RGB algorithm never appears). Factor S and V out
+# multiplicatively:  RGB_c = m + C·hue_c(H),  where  C = V·S (chroma),  m = V − C (the achromatic floor),
+# and hue_c(H) is the fully-saturated color of channel c. The textbook algorithm's sector index and its
+# X = C·(1 − |H·6 mod 2 − 1|) term are exactly a piecewise-linear TRAPEZOID in H per channel — so the
+# whole branch-on-sector dissolves into a 1D blend tree's keys (the trapezoid tables below). C and m are
+# both ≥0 for inputs in [0,1] (m = V(1−S) ≥ 0), so both are usable as Direct directWeights — the one hard
+# `directWeight ≥ 0` constraint (see blendtree-math) is satisfied for free. Endpoints are continuous
+# (R(0)=R(1)=1; G,B=0 at both ends), so H clamped to [0,1] is clean; a consumer needing cyclic hue extends
+# the keys past the ends (not shipped).
+#
+# THE WD-ON WEIGHT-DEFICIT TRAP (the one that bites this construction — measured, not theoretical). A
+# non-normalized Direct tree writes  out = Σ(w_i·v_i) + (1 − Σw_i)·default  when Σw_i < 1: WD-ON fills the
+# MISSING weight with the binding's *default*. For an AAP that default is 0 (harmless — the C/m computes
+# rely on it). For a _Color channel the default is the MATERIAL's color (e.g. white) — so a naive
+# `{ floor at weight m ; hue at weight C }` sub-tree, whose weights sum to m + C = V, silently blends
+# (1−V)·white into every channel whenever V < 1. It looks correct only at V = 1 (Σw = 1, no deficit). The
+# fix: a third zero-value SINK child at weight (1−V) brings each channel's weights to m + C + (1−V) = 1, so
+# the deficit — and the material default with it — vanishes. This is the sum-to-1 discipline the smoother's
+# convex α-pair also needs, here forced by WD-fill rather than by overshoot.
+#
+# THE ONE-WRITER-PER-CHANNEL TRAP (color-adjust's idiom, extended). Every one of .r/.g/.b/.a must be
+# written every frame or WD-ON reverts it to the material default. Each channel is one root child (a Direct
+# sub-tree summing floor + hue + sink); one tree, not one Override layer per channel, so the channels also
+# don't fight (color-adjust fact 2).
+#
+# BINDING SUFFIX IS .r/.g/.b/.a — _Color is a *Color* property. color-adjust used .x/.y/.z ONLY because
+# _MainTexHSVG is a *Vector*; _Color.x parses and lints clean but the by-name write lands on NOTHING (a
+# wrong suffix on a Color is silently inert). The MPB proof (README) reads .r/.g/.b back and catches it.
+#
+# Clips bind by name against a placeholder mesh path (Body/SkinnedMeshRenderer) — Pattern-in-spirit; a
+# consumer RepathClips onto their own renderer + material. Dangling bindings against this placeholder are
+# expected. Generalized from standard VRChat DBT-math HSV constructions; no real-avatar naming.
+
+schema: 1
+controller: HsvRgb_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # inputs — drivable floats, NOT synced/saved (a consumer decides); assumed in [0,1]
+  H:   { type: float, default: 0.0 }
+  S:   { type: float, default: 1.0 }
+  V:   { type: float, default: 1.0 }
+  One: { type: float, default: 1.0 }   # constant, never driven — full-weight helper for the Direct compose tree
+
+  # computed intermediates (pure animator params)
+  C:         { type: float, aap: true }   # chroma = V·S       (≥0, used as a directWeight)
+  M:         { type: float, aap: true }   # match  = V − C     (≥0, used as a directWeight)
+  OneMinusV: { type: float, aap: true }   # 1 − V, the sink weight that closes each channel's Σw to 1
+
+layers:
+  # ONE WD-ON Direct tree. First compute C, M, OneMinusV as AAPs (read frame-start by the channel sub-trees
+  # below — the ~2-3-frame feed-forward settle), then write each _Color channel as m·1 + C·hue_c(H) + (1−V)·0.
+  - name: Compose
+    states:
+      "Compose (WD ON)":
+        motion:
+          tree: direct
+          children:
+            # --- C = V·S (multiply idiom: outer weight V × inner weight S × clip value 1) ---
+            - tree: direct
+              directWeight: V
+              children:
+                - { clip: c_one, directWeight: S }
+
+            # --- M = V − C (subtract idiom: +V·1 and +C·(−1) summed) ---
+            - tree: direct
+              directWeight: One
+              children:
+                - { clip: m_pos, directWeight: V }
+                - { clip: m_neg, directWeight: C }
+
+            # --- OneMinusV = 1 − V (subtract idiom) — the per-channel sink weight ---
+            - tree: direct
+              directWeight: One
+              children:
+                - { clip: omv_pos, directWeight: One }
+                - { clip: omv_neg, directWeight: V }
+
+            # --- _Color.r = M·1 + C·hue_r(H) + (1−V)·0   (R trapezoid: 1,1,0,0,1,1) ---
+            - tree: direct
+              directWeight: One
+              children:
+                - { clip: cr1, directWeight: M }          # + M   (achromatic floor)
+                - { clip: cr0, directWeight: OneMinusV }  # + 0   (sink: closes Σw to 1 so WD doesn't fill white)
+                - tree: 1d
+                  param: H
+                  directWeight: C                         # + C·hue_r(H)
+                  children:
+                    - { clip: cr1, threshold: 0.0 }
+                    - { clip: cr1, threshold: 0.16667 }
+                    - { clip: cr0, threshold: 0.33333 }
+                    - { clip: cr0, threshold: 0.66667 }
+                    - { clip: cr1, threshold: 0.83333 }
+                    - { clip: cr1, threshold: 1.0 }
+
+            # --- _Color.g = M·1 + C·hue_g(H) + (1−V)·0   (G trapezoid: 0,1,1,0,0) ---
+            - tree: direct
+              directWeight: One
+              children:
+                - { clip: cg1, directWeight: M }
+                - { clip: cg0, directWeight: OneMinusV }
+                - tree: 1d
+                  param: H
+                  directWeight: C
+                  children:
+                    - { clip: cg0, threshold: 0.0 }
+                    - { clip: cg1, threshold: 0.16667 }
+                    - { clip: cg1, threshold: 0.5 }
+                    - { clip: cg0, threshold: 0.66667 }
+                    - { clip: cg0, threshold: 1.0 }
+
+            # --- _Color.b = M·1 + C·hue_b(H) + (1−V)·0   (B trapezoid: 0,0,1,1,0) ---
+            - tree: direct
+              directWeight: One
+              children:
+                - { clip: cb1, directWeight: M }
+                - { clip: cb0, directWeight: OneMinusV }
+                - tree: 1d
+                  param: H
+                  directWeight: C
+                  children:
+                    - { clip: cb0, threshold: 0.0 }
+                    - { clip: cb0, threshold: 0.33333 }
+                    - { clip: cb1, threshold: 0.5 }
+                    - { clip: cb1, threshold: 0.83333 }
+                    - { clip: cb0, threshold: 1.0 }
+
+            # --- _Color.a = 1 (constant, weight One so Σw = 1; always written so WD-ON doesn't revert alpha) ---
+            - { clip: ca1, directWeight: One }
+    default: "Compose (WD ON)"
+
+clips:
+  # computed intermediates
+  c_one:   { set: { C: 1.0 } }           # C = V·S·1
+  m_pos:   { set: { M: 1.0 } }           # +V
+  m_neg:   { set: { M: -1.0 } }          # −C
+  omv_pos: { set: { OneMinusV: 1.0 } }   # +1
+  omv_neg: { set: { OneMinusV: -1.0 } }  # −V
+
+  # per-channel writes on the placeholder renderer path. .r/.g/.b/.a (NOT .x/.y/.z — _Color is a Color).
+  # Each channel reuses one 0-clip and one 1-clip; the 1-clip doubles as the m-floor term (value 1 × M),
+  # the 0-clip doubles as the (1−V) sink (value 0).
+  cr0: { set: { "Body/SkinnedMeshRenderer.material._Color.r": 0.0 } }
+  cr1: { set: { "Body/SkinnedMeshRenderer.material._Color.r": 1.0 } }
+  cg0: { set: { "Body/SkinnedMeshRenderer.material._Color.g": 0.0 } }
+  cg1: { set: { "Body/SkinnedMeshRenderer.material._Color.g": 1.0 } }
+  cb0: { set: { "Body/SkinnedMeshRenderer.material._Color.b": 0.0 } }
+  cb1: { set: { "Body/SkinnedMeshRenderer.material._Color.b": 1.0 } }
+  ca1: { set: { "Body/SkinnedMeshRenderer.material._Color.a": 1.0 } }

@@ -1,0 +1,327 @@
+# smooth-frametime — frametime-aware, clean-settling float smoothing, authored as ONE always-on WD-ON
+# Direct-tree layer (the shippable cost model — NOT blendtree-math's one-idiom-per-layer study layout).
+# All math is nested children of the single root Direct tree, so every blend param / directWeight is read
+# at FRAME START: a computed intermediate feeds the next stage one frame stale, and a feed-forward chain
+# of depth D settles ~D frames after an input change. That is fine and intended here (a smoother's job is
+# lag). The exponential's S-reads-itself is the intended one-frame recurrence, not a defect.
+#
+# THE ONE HARD CONSTRAINT (see blendtree-math): a parameter used AS a Direct `directWeight` is clamped to
+# >=0 by Unity — only a clip's authored curve VALUE (`set:`) may carry a sign. So every weight here is a
+# non-negative quantity (inputs in [0,1], the alpha/W pairs, FrameTime, |Δ|), and every signed quantity
+# (Delta, SignDelta, the negation constants) lives in a clip value or is read through a 1D PARAM (never a
+# weight). SignDelta's ± is carried by the step 1D's -1/+1 clip values, not by a weight.
+#
+# Three constructions share one tree and one owned frametime rig (Time/LastTime/FrameTime as children):
+#   - exponential smoother, clamp01 alpha  -> SmoothedExpClamp
+#   - exponential smoother, remap   alpha  -> SmoothedExpRemap   (genuinely frametime-independent)
+#   - hybrid (constant-velocity feel, exp landing) -> SmoothedHybrid
+# Assumes inputs in [0,1]. Generalized from standard VRChat DBT-math constructions; no real-avatar naming.
+#
+# Same-frame convexity traps (both handled): the alpha pair (Alpha*/OneMinusAlpha*) are two 1D children
+# over the SAME frame-start RateStep so they sum to 1 that frame; likewise W/OneMinusW over the same
+# CrossDiff. The hybrid's near term reads SmoothedHybrid & Target as blend PARAMS *inside* the tree that
+# writes SmoothedHybrid — materializing the near-next-state as a separate child AAP and selecting it would
+# add a second feedback frame and limit-cycle (the spec's central caveat).
+
+schema: 1
+controller: SmoothFrametime_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # inputs — drivable floats, NOT synced/saved (a consumer decides); assumed in [0,1]
+  Target:    { type: float, default: 0.0 }
+  rate:      { type: float, default: 6.0 }    # exponential rate: alpha ~ 1 - e^(-rate*dt)
+  maxSpeed:  { type: float, default: 2.0 }    # hybrid constant-velocity cap (units/second)
+  crossover: { type: float, default: 0.1 }    # hybrid far->near handoff distance (|Δ| below this => exp home)
+  One:       { type: float, default: 1.0 }    # constant, never driven — full-weight helper for 1D-identity children
+
+  # owned frametime rig
+  Time:      { type: float, aap: true }
+  LastTime:  { type: float, aap: true }
+  FrameTime: { type: float, aap: true }       # one-frame-old dt (reads a frame-start Time) — correct for smoothing
+
+  # alpha
+  RateStep:          { type: float, aap: true }   # FrameTime * rate
+  AlphaClamp:         { type: float, aap: true }   # clamp(RateStep,0,1)
+  OneMinusAlphaClamp: { type: float, aap: true }   # 1 - clamp(RateStep,0,1)
+  AlphaRemap:         { type: float, aap: true }   # 1 - e^(-RateStep)  (sampled)
+  OneMinusAlphaRemap: { type: float, aap: true }   # e^(-RateStep)      (sampled, identical thresholds)
+
+  # exponential smoothers  S := (1-alpha)*S + alpha*Target
+  SmoothedExpClamp: { type: float, aap: true }
+  SmoothedExpRemap: { type: float, aap: true }
+
+  # hybrid
+  Delta:          { type: float, aap: true }   # Target - SmoothedHybrid (signed; read via 1D params only)
+  AbsDelta:       { type: float, aap: true }   # |Delta|  (>=0, usable as a weight)
+  CrossDiff:      { type: float, aap: true }   # crossover - AbsDelta (signed; read via 1D param only)
+  W:              { type: float, aap: true }   # crossover weight: ~1 near target, 0 far (band above CrossDiff=0)
+  OneMinusW:      { type: float, aap: true }   # 1 - W (complementary 1D over the same CrossDiff)
+  SignDelta:      { type: float, aap: true }   # ~sign(Delta) in [-1,1] (steep 1D; carried as clip value downstream)
+  SmoothedHybrid: { type: float, aap: true }
+
+layers:
+  - name: Smooth
+    states:
+      "Smooth (WD ON)":
+        motion:
+          tree: direct
+          children:
+            # --- owned frametime rig ---
+            - { clip: time_ramp, directWeight: One }          # Time = elapsed seconds (linear ramp clip)
+            - tree: direct                                    # FrameTime = Time - LastTime ; LastTime := Time
+              directWeight: One
+              children:
+                - { clip: ft_pos, directWeight: Time }
+                - { clip: ft_neg, directWeight: LastTime }
+                - { clip: lt_set, directWeight: Time }
+
+            # --- RateStep = FrameTime * rate (multiply idiom) ---
+            - tree: direct
+              directWeight: rate
+              children:
+                - { clip: ratestep_one, directWeight: FrameTime }
+
+            # --- alpha pair, clamp01: two 1D children over the SAME RateStep (sum to 1 same frame) ---
+            - tree: 1d
+              param: RateStep
+              directWeight: One
+              children:
+                - { clip: aclamp_lo, threshold: 0.0 }   # AlphaClamp 0
+                - { clip: aclamp_hi, threshold: 1.0 }   # AlphaClamp 1
+            - tree: 1d
+              param: RateStep
+              directWeight: One
+              children:
+                - { clip: omclamp_lo, threshold: 0.0 }  # OneMinusAlphaClamp 1
+                - { clip: omclamp_hi, threshold: 1.0 }  # OneMinusAlphaClamp 0
+
+            # --- alpha pair, remap: sample 1-e^(-x) and e^(-x) at IDENTICAL thresholds (sum to 1) ---
+            # Denser near 0 than the tail: 1-e^(-x) is concave, so a coarse chord there underestimates alpha
+            # at high fps (small RateStep). RateStep = rate*dt is CONSTANT per fps, so a key ON each sampled
+            # value is exact — 0.1/0.2/0.5 land on 60/30/12fps at rate 6. 12 keys (kept deliberately modest —
+            # keyframe count is a real cost); the remap is sampling-accurate, not analytically exact.
+            - tree: 1d
+              param: RateStep
+              directWeight: One
+              children:
+                - { clip: aremap_000, threshold: 0.0 }
+                - { clip: aremap_010, threshold: 0.1 }
+                - { clip: aremap_020, threshold: 0.2 }
+                - { clip: aremap_030, threshold: 0.3 }
+                - { clip: aremap_040, threshold: 0.4 }
+                - { clip: aremap_050, threshold: 0.5 }
+                - { clip: aremap_070, threshold: 0.7 }
+                - { clip: aremap_100, threshold: 1.0 }
+                - { clip: aremap_150, threshold: 1.5 }
+                - { clip: aremap_200, threshold: 2.0 }
+                - { clip: aremap_300, threshold: 3.0 }
+                - { clip: aremap_400, threshold: 4.0 }
+            - tree: 1d
+              param: RateStep
+              directWeight: One
+              children:
+                - { clip: omremap_000, threshold: 0.0 }
+                - { clip: omremap_010, threshold: 0.1 }
+                - { clip: omremap_020, threshold: 0.2 }
+                - { clip: omremap_030, threshold: 0.3 }
+                - { clip: omremap_040, threshold: 0.4 }
+                - { clip: omremap_050, threshold: 0.5 }
+                - { clip: omremap_070, threshold: 0.7 }
+                - { clip: omremap_100, threshold: 1.0 }
+                - { clip: omremap_150, threshold: 1.5 }
+                - { clip: omremap_200, threshold: 2.0 }
+                - { clip: omremap_300, threshold: 3.0 }
+                - { clip: omremap_400, threshold: 4.0 }
+
+            # --- exponential smoother (clamp01 alpha): SmoothedExpClamp := (1-a)*S + a*Target ---
+            - tree: direct
+              directWeight: One
+              children:
+                - tree: 1d
+                  param: SmoothedExpClamp
+                  directWeight: OneMinusAlphaClamp
+                  children:
+                    - { clip: sec_lo, threshold: 0.0 }
+                    - { clip: sec_hi, threshold: 1.0 }
+                - tree: 1d
+                  param: Target
+                  directWeight: AlphaClamp
+                  children:
+                    - { clip: sec_lo, threshold: 0.0 }
+                    - { clip: sec_hi, threshold: 1.0 }
+
+            # --- exponential smoother (remap alpha): SmoothedExpRemap := (1-a)*S + a*Target ---
+            - tree: direct
+              directWeight: One
+              children:
+                - tree: 1d
+                  param: SmoothedExpRemap
+                  directWeight: OneMinusAlphaRemap
+                  children:
+                    - { clip: ser_lo, threshold: 0.0 }
+                    - { clip: ser_hi, threshold: 1.0 }
+                - tree: 1d
+                  param: Target
+                  directWeight: AlphaRemap
+                  children:
+                    - { clip: ser_lo, threshold: 0.0 }
+                    - { clip: ser_hi, threshold: 1.0 }
+
+            # --- hybrid chain (feed-forward: Delta -> AbsDelta -> CrossDiff -> W/OneMinusW) ---
+            - tree: direct                                    # Delta = Target - SmoothedHybrid (subtract idiom)
+              directWeight: One
+              children:
+                - { clip: delta_pos, directWeight: Target }
+                - { clip: delta_neg, directWeight: SmoothedHybrid }
+            - tree: 1d                                        # AbsDelta = |Delta| (V-shape over [-1,1])
+              param: Delta
+              directWeight: One
+              children:
+                - { clip: abs_lo,  threshold: -1.0 }
+                - { clip: abs_mid, threshold: 0.0 }
+                - { clip: abs_hi,  threshold: 1.0 }
+            - tree: direct                                    # CrossDiff = crossover - AbsDelta (subtract idiom)
+              directWeight: One
+              children:
+                - { clip: cross_pos, directWeight: crossover }
+                - { clip: cross_neg, directWeight: AbsDelta }
+            - tree: 1d                                        # W: 0 at CrossDiff<=0 (far), 1 at CrossDiff>=band (near)
+              param: CrossDiff
+              directWeight: One
+              children:
+                - { clip: w_lo, threshold: 0.0 }
+                - { clip: w_hi, threshold: 0.05 }
+            - tree: 1d                                        # OneMinusW: complementary over the SAME CrossDiff
+              param: CrossDiff
+              directWeight: One
+              children:
+                - { clip: omw_lo, threshold: 0.0 }
+                - { clip: omw_hi, threshold: 0.05 }
+            - tree: 1d                                        # SignDelta ~ sign(Delta), steep ramp saturating +-1
+              param: Delta
+              directWeight: One
+              children:
+                - { clip: sign_lo, threshold: -0.05 }
+                - { clip: sign_hi, threshold: 0.05 }
+
+            # --- hybrid final write: SmoothedHybrid := OneMinusW*(S + maxSpeed*FrameTime*SignDelta)
+            #                                          + W*((1-a)*S + a*Target)   [alpha = clamp01] ---
+            - tree: direct
+              directWeight: One
+              children:
+                # far carry: OneMinusW * S
+                - tree: 1d
+                  param: SmoothedHybrid
+                  directWeight: OneMinusW
+                  children:
+                    - { clip: sh_lo, threshold: 0.0 }
+                    - { clip: sh_hi, threshold: 1.0 }
+                # far step: OneMinusW * maxSpeed * FrameTime * SignDelta  (sign carried by clip value)
+                - tree: direct
+                  directWeight: OneMinusW
+                  children:
+                    - tree: direct
+                      directWeight: maxSpeed
+                      children:
+                        - tree: 1d
+                          param: SignDelta
+                          directWeight: FrameTime
+                          children:
+                            - { clip: shsign_lo, threshold: -1.0 }
+                            - { clip: shsign_hi, threshold: 1.0 }
+                # near term (exp home): W * ((1-a)*S + a*Target), reads S & Target as blend params in-tree
+                - tree: direct
+                  directWeight: W
+                  children:
+                    - tree: 1d
+                      param: SmoothedHybrid
+                      directWeight: OneMinusAlphaClamp
+                      children:
+                        - { clip: sh_lo, threshold: 0.0 }
+                        - { clip: sh_hi, threshold: 1.0 }
+                    - tree: 1d
+                      param: Target
+                      directWeight: AlphaClamp
+                      children:
+                        - { clip: sh_lo, threshold: 0.0 }
+                        - { clip: sh_hi, threshold: 1.0 }
+    default: "Smooth (WD ON)"
+
+clips:
+  # frametime rig — slope-1 linear ramp; Time = elapsed seconds. tangents: linear is REQUIRED (flat
+  # tangents would stair-step Time, so FrameTime would read 0 most frames and spike at key boundaries).
+  time_ramp: { curves: { Time: { tangents: linear, keys: [ [0, 0], [10000000, 10000000] ] } } }
+  ft_pos: { set: { FrameTime: 1.0 } }
+  ft_neg: { set: { FrameTime: -1.0 } }
+  lt_set: { set: { LastTime: 1.0 } }
+
+  # RateStep = FrameTime * rate
+  ratestep_one: { set: { RateStep: 1.0 } }
+
+  # alpha clamp01
+  aclamp_lo:  { set: { AlphaClamp: 0.0 } }
+  aclamp_hi:  { set: { AlphaClamp: 1.0 } }
+  omclamp_lo: { set: { OneMinusAlphaClamp: 1.0 } }
+  omclamp_hi: { set: { OneMinusAlphaClamp: 0.0 } }
+
+  # alpha remap: Alpha = 1 - e^(-x), OneMinusAlpha = e^(-x), at x = 0,0.1,0.2,0.3,0.4,0.5,0.7,1,1.5,2,3,4
+  aremap_000: { set: { AlphaRemap: 0.0 } }
+  aremap_010: { set: { AlphaRemap: 0.095163 } }
+  aremap_020: { set: { AlphaRemap: 0.181269 } }
+  aremap_030: { set: { AlphaRemap: 0.259182 } }
+  aremap_040: { set: { AlphaRemap: 0.329680 } }
+  aremap_050: { set: { AlphaRemap: 0.393469 } }
+  aremap_070: { set: { AlphaRemap: 0.503415 } }
+  aremap_100: { set: { AlphaRemap: 0.632121 } }
+  aremap_150: { set: { AlphaRemap: 0.776870 } }
+  aremap_200: { set: { AlphaRemap: 0.864665 } }
+  aremap_300: { set: { AlphaRemap: 0.950213 } }
+  aremap_400: { set: { AlphaRemap: 0.981684 } }
+  omremap_000: { set: { OneMinusAlphaRemap: 1.0 } }
+  omremap_010: { set: { OneMinusAlphaRemap: 0.904837 } }
+  omremap_020: { set: { OneMinusAlphaRemap: 0.818731 } }
+  omremap_030: { set: { OneMinusAlphaRemap: 0.740818 } }
+  omremap_040: { set: { OneMinusAlphaRemap: 0.670320 } }
+  omremap_050: { set: { OneMinusAlphaRemap: 0.606531 } }
+  omremap_070: { set: { OneMinusAlphaRemap: 0.496585 } }
+  omremap_100: { set: { OneMinusAlphaRemap: 0.367879 } }
+  omremap_150: { set: { OneMinusAlphaRemap: 0.223130 } }
+  omremap_200: { set: { OneMinusAlphaRemap: 0.135335 } }
+  omremap_300: { set: { OneMinusAlphaRemap: 0.049787 } }
+  omremap_400: { set: { OneMinusAlphaRemap: 0.018316 } }
+
+  # exp smoother identity passes (0->0, 1->1) — one clip pair per output param
+  sec_lo: { set: { SmoothedExpClamp: 0.0 } }
+  sec_hi: { set: { SmoothedExpClamp: 1.0 } }
+  ser_lo: { set: { SmoothedExpRemap: 0.0 } }
+  ser_hi: { set: { SmoothedExpRemap: 1.0 } }
+
+  # hybrid: Delta = Target - SmoothedHybrid
+  delta_pos: { set: { Delta: 1.0 } }
+  delta_neg: { set: { Delta: -1.0 } }
+  # AbsDelta = |Delta|
+  abs_lo:  { set: { AbsDelta: 1.0 } }
+  abs_mid: { set: { AbsDelta: 0.0 } }
+  abs_hi:  { set: { AbsDelta: 1.0 } }
+  # CrossDiff = crossover - AbsDelta
+  cross_pos: { set: { CrossDiff: 1.0 } }
+  cross_neg: { set: { CrossDiff: -1.0 } }
+  # W / OneMinusW (complementary)
+  w_lo:   { set: { W: 0.0 } }
+  w_hi:   { set: { W: 1.0 } }
+  omw_lo: { set: { OneMinusW: 1.0 } }
+  omw_hi: { set: { OneMinusW: 0.0 } }
+  # SignDelta ~ sign(Delta)
+  sign_lo: { set: { SignDelta: -1.0 } }
+  sign_hi: { set: { SignDelta: 1.0 } }
+  # hybrid write: identity pass over SmoothedHybrid/Target, and the signed step carrier
+  sh_lo:     { set: { SmoothedHybrid: 0.0 } }
+  sh_hi:     { set: { SmoothedHybrid: 1.0 } }
+  shsign_lo: { set: { SmoothedHybrid: -1.0 } }
+  shsign_hi: { set: { SmoothedHybrid: 1.0 } }

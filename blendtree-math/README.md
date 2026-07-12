@@ -4,13 +4,25 @@ The DBT-math primitives an agent reaches for when a gimmick needs arithmetic on 
 without a scripted behaviour: add, subtract, multiply, negate/remap, clamp, divide, the composed
 min/max, and the exponential/linear/frametime-independent smoothing family. Each primitive is isolated
 in its own layer so a human (or agent) can open one state's blend tree in the Animator window and read
-the idiom in isolation, without the others' graphs cluttering the view.
+the idiom in isolation, without the others' graphs cluttering the view — a **study layout, not a shipping
+one** (see the shipping note below).
 
 **Study entry:** this entry commits `built/` so the blend-tree graphs — the nested Direct trees, the
 composed min/max chains, and the 1D-vs-Direct contrast — are legible in the Animator window, where a
 blend tree reads far more clearly than in YAML (CONVENTIONS permits this for a declared study/reference
 entry). It is still Pattern tier: a consumer lifts the YAML and recompiles it in their own project with
 their own params/GUIDs, rather than referencing the committed controller by GUID.
+
+**Shipping: collapse the idioms you lift into one Direct Blend Tree layer — do not replicate the
+per-layer catalog.** Unity's per-layer runtime cost is super-linear (`gimmicks.md` §Blend tree patterns),
+and the optimizers (d4rk, VRCFury) merge blend-tree math into a single DBT regardless; the one-idiom-per-
+layer split here exists only so each graph reads alone. Folded into one always-on WD-ON Direct tree, every
+blend param / directWeight is read at frame start, so a computed intermediate feeds the next stage one
+frame stale and a feed-forward chain of depth D settles ~D frames after an input change (`verify.md`) —
+fine for the uses this math serves (a smoother's job is lag; a color a few frames behind a slider is
+invisible). The study layers that chain *same-frame* (composed min/max, the frametime rig's `Time`→`FrameTime`
+split) trade that exactness for the settle when collapsed; the exponential smoother's `S`-reads-itself
+feedback is already the intended one-frame recurrence and collapses with no change.
 
 **Provenance:** generalized from standard VRChat DBT-math constructions (vrc.school Advanced Blend
 Trees); no real-avatar naming.
