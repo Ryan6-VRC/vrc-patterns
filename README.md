@@ -5,10 +5,11 @@ Reusable, verified VRChat avatar patterns, controllers, and drop-in gimmick modu
 
 ## Find by pattern
 
-Left column = the pattern name as it appears in `docs/gimmicks.md`, so you can jump straight from
-concept to implementation.
+Keyed by capability — find the row that does what you need and jump to its entry. This table is the
+per-entry index for the library; `docs/gimmicks.md` is the durable techniques doc and routes here as a
+whole, not entry-by-entry.
 
-| Pattern (`gimmicks.md`) | Tier | Entry |
+| Capability | Tier | Entry |
 |---|---|---|
 | Hue / color slider (drive shader property) | Pattern (study) | [`color-adjust`](color-adjust/) |
 | HSV→RGB compute (write RGB color) | Pattern (study) | [`hsv-rgb`](hsv-rgb/) |
