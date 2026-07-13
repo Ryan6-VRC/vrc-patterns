@@ -48,6 +48,8 @@ external dependency is declared loudly in the Interface stanza.
 `tools/gate.ps1` is the admission bar — compile + round-trip + decompile-equality per entry. It does
 **not** check the `*_Parameters.asset`, so keep that `vrc:` synced/saved surface in step with the YAML by hand.
 
+Study/reference entries name every non-leaf blend-tree node (`name:`) and name clips by the value they write.
+
 ## Provenance / PII
 
 Entries generalized from real assets record their origin and what was abstracted away. This repo is

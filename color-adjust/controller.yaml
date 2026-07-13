@@ -37,61 +37,65 @@ parameters:
 layers:
   # ONE WD-ON Direct tree composes H/S/V: each slider's 1D sub-tree writes only its own channel, weighted
   # by One (full weight). Each channel has exactly one writer, so the sliders compose and nothing reverts.
-  - name: Compose
+  - name: Color/Compose
     states:
       "Compose (WD ON)":
         motion:
           tree: direct
+          name: Compose
           children:
             - tree: 1d
+              name: "Hue channel (.x)"
               param: HueSlider
               directWeight: One
               children:
-                - { clip: hue_x0, threshold: 0.0 }
-                - { clip: hue_x1, threshold: 1.0 }
+                - { clip: Hue_Zero, threshold: 0.0 }
+                - { clip: Hue_One, threshold: 1.0 }
             - tree: 1d
+              name: "Saturation channel (.y)"
               param: SatSlider
               directWeight: One
               children:
-                - { clip: sat_y0, threshold: 0.0 }
-                - { clip: sat_y1, threshold: 1.0 }
+                - { clip: Sat_Zero, threshold: 0.0 }
+                - { clip: Sat_One, threshold: 1.0 }
             - tree: 1d
+              name: "Value channel (.z)"
               param: ValSlider
               directWeight: One
               children:
-                - { clip: val_z0, threshold: 0.0 }
-                - { clip: val_z1, threshold: 1.0 }
-            - { clip: gamma_w, directWeight: One }   # .w held at 1 (lilToon gamma), always written
+                - { clip: Val_Zero, threshold: 0.0 }
+                - { clip: Val_One, threshold: 1.0 }
+            - { clip: Gamma_One, directWeight: One }   # .w held at 1 (lilToon gamma), always written
     default: "Compose (WD ON)"
-  - name: PoiHueDrive   # Poiyomi scalar — separate property, no vec4 trap
+  - name: Color/PoiHueDrive   # Poiyomi scalar — separate property, no vec4 trap
     states:
       Drive:
-        motion: { tree: 1d, param: HueShift, children: [ { clip: poi_min, threshold: 0.0 }, { clip: poi_max, threshold: 1.0 } ] }
+        motion: { tree: 1d, name: "Hue shift (scalar)", param: HueShift, children: [ { clip: PoiHue_Zero, threshold: 0.0 }, { clip: PoiHue_One, threshold: 1.0 } ] }
     default: Drive
-  - name: BrokenDemo   # the counterexample, on its OWN placeholder mesh (BodyBroken) so it can't clobber Compose:
+  - name: Color/BrokenDemo   # the counterexample, on its OWN placeholder mesh (BodyBroken) so it can't clobber Compose:
     states:            # ShowBroken toggles between a correct all-4-channel clip and one that keys only .x.
       Baseline:
-        motion: { clip: broken_baseline }
+        motion: { clip: Broken_Baseline_AllChannels }
         transitions:
           - { to: Broken, when: [ ShowBroken is true ] }
       Broken:
-        motion: { clip: broken-hue_only_x }
+        motion: { clip: Broken_HueOnly_RevertsUnkeyed }
         transitions:
           - { to: Baseline, when: [ ShowBroken is false ] }
     default: Baseline
 
 clips:
   # Compose: each clip writes exactly ONE channel (the sub-tree endpoints); composition + WD keep the rest intact.
-  hue_x0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0 } }
-  hue_x1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }
-  sat_y0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 0.0 } }
-  sat_y1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0 } }
-  val_z0:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 0.0 } }
-  val_z1:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0 } }
-  gamma_w: { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
+  Hue_Zero:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0 } }
+  Hue_One:   { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }
+  Sat_Zero:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 0.0 } }
+  Sat_One:   { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0 } }
+  Val_Zero:  { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 0.0 } }
+  Val_One:   { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0 } }
+  Gamma_One: { set: { "Body/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
   # Poiyomi scalar
-  poi_min: { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 0.0 } }
-  poi_max: { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 1.0 } }
+  PoiHue_Zero: { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 0.0 } }
+  PoiHue_One:  { set: { "Body/SkinnedMeshRenderer.material._MainHueShift": 1.0 } }
   # Broken-demo counterexample, on its own placeholder mesh (BodyBroken):
-  broken_baseline:   { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
-  broken-hue_only_x: { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }   # TRAP: keys only .x — under WD-ON the un-keyed y/z/w revert to the material default
+  Broken_Baseline_AllChannels:   { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 0.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.y": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.z": 1.0, "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.w": 1.0 } }
+  Broken_HueOnly_RevertsUnkeyed: { set: { "BodyBroken/SkinnedMeshRenderer.material._MainTexHSVG.x": 1.0 } }   # TRAP: keys only .x — under WD-ON the un-keyed y/z/w revert to the material default

@@ -1,6 +1,6 @@
 # hsv-rgb — compute RGB from H/S/V and WRITE a plain color property (_Color), authored as ONE always-on
-# WD-ON Direct-tree layer (the shippable cost model — all math is nested children of one root Direct tree,
-# not one-idiom-per-layer). This is the case color-adjust names and declares out of scope: color-adjust
+# WD-ON Direct-tree layer, all math nested as children of one root Direct tree. This is the case
+# color-adjust names and declares out of scope: color-adjust
 # drives a shader's OWN hue property (lilToon _MainTexHSVG); this one COMPUTES RGB itself and writes a
 # generic _Color. Pure feed-forward (no feedback) → it just settles ~2-3 frames after an input change.
 #
@@ -61,100 +61,110 @@ parameters:
 layers:
   # ONE WD-ON Direct tree. First compute C, M, OneMinusV as AAPs (read frame-start by the channel sub-trees
   # below — the ~2-3-frame feed-forward settle), then write each _Color channel as m·1 + C·hue_c(H) + (1−V)·0.
-  - name: Compose
+  - name: Color/Compose
     states:
       "Compose (WD ON)":
         motion:
           tree: direct
+          name: Compose
           children:
             # --- C = V·S (multiply idiom: outer weight V × inner weight S × clip value 1) ---
             - tree: direct
+              name: "Chroma C = V·S"
               directWeight: V
               children:
-                - { clip: c_one, directWeight: S }
+                - { clip: Chroma_One, directWeight: S }
 
             # --- M = V − C (subtract idiom: +V·1 and +C·(−1) summed) ---
             - tree: direct
+              name: "Match M = V−C"
               directWeight: One
               children:
-                - { clip: m_pos, directWeight: V }
-                - { clip: m_neg, directWeight: C }
+                - { clip: Match_Pos, directWeight: V }
+                - { clip: Match_Neg, directWeight: C }
 
             # --- OneMinusV = 1 − V (subtract idiom) — the per-channel sink weight ---
             - tree: direct
+              name: "1 − V (sink weight)"
               directWeight: One
               children:
-                - { clip: omv_pos, directWeight: One }
-                - { clip: omv_neg, directWeight: V }
+                - { clip: OneMinusV_Pos, directWeight: One }
+                - { clip: OneMinusV_Neg, directWeight: V }
 
             # --- _Color.r = M·1 + C·hue_r(H) + (1−V)·0   (R trapezoid: 1,1,0,0,1,1) ---
             - tree: direct
+              name: "R channel"
               directWeight: One
               children:
-                - { clip: cr1, directWeight: M }          # + M   (achromatic floor)
-                - { clip: cr0, directWeight: OneMinusV }  # + 0   (sink: closes Σw to 1 so WD doesn't fill white)
+                - { clip: Red_One,  directWeight: M }          # + M   (achromatic floor)
+                - { clip: Red_Zero, directWeight: OneMinusV }  # + 0   (sink: closes Σw to 1 so WD doesn't fill white)
                 - tree: 1d
+                  name: "R hue trapezoid"
                   param: H
-                  directWeight: C                         # + C·hue_r(H)
+                  directWeight: C                              # + C·hue_r(H)
                   children:
-                    - { clip: cr1, threshold: 0.0 }
-                    - { clip: cr1, threshold: 0.16667 }
-                    - { clip: cr0, threshold: 0.33333 }
-                    - { clip: cr0, threshold: 0.66667 }
-                    - { clip: cr1, threshold: 0.83333 }
-                    - { clip: cr1, threshold: 1.0 }
+                    - { clip: Red_One,  threshold: 0.0 }
+                    - { clip: Red_One,  threshold: 0.16667 }
+                    - { clip: Red_Zero, threshold: 0.33333 }
+                    - { clip: Red_Zero, threshold: 0.66667 }
+                    - { clip: Red_One,  threshold: 0.83333 }
+                    - { clip: Red_One,  threshold: 1.0 }
 
             # --- _Color.g = M·1 + C·hue_g(H) + (1−V)·0   (G trapezoid: 0,1,1,0,0) ---
             - tree: direct
+              name: "G channel"
               directWeight: One
               children:
-                - { clip: cg1, directWeight: M }
-                - { clip: cg0, directWeight: OneMinusV }
+                - { clip: Green_One,  directWeight: M }
+                - { clip: Green_Zero, directWeight: OneMinusV }
                 - tree: 1d
+                  name: "G hue trapezoid"
                   param: H
                   directWeight: C
                   children:
-                    - { clip: cg0, threshold: 0.0 }
-                    - { clip: cg1, threshold: 0.16667 }
-                    - { clip: cg1, threshold: 0.5 }
-                    - { clip: cg0, threshold: 0.66667 }
-                    - { clip: cg0, threshold: 1.0 }
+                    - { clip: Green_Zero, threshold: 0.0 }
+                    - { clip: Green_One,  threshold: 0.16667 }
+                    - { clip: Green_One,  threshold: 0.5 }
+                    - { clip: Green_Zero, threshold: 0.66667 }
+                    - { clip: Green_Zero, threshold: 1.0 }
 
             # --- _Color.b = M·1 + C·hue_b(H) + (1−V)·0   (B trapezoid: 0,0,1,1,0) ---
             - tree: direct
+              name: "B channel"
               directWeight: One
               children:
-                - { clip: cb1, directWeight: M }
-                - { clip: cb0, directWeight: OneMinusV }
+                - { clip: Blue_One,  directWeight: M }
+                - { clip: Blue_Zero, directWeight: OneMinusV }
                 - tree: 1d
+                  name: "B hue trapezoid"
                   param: H
                   directWeight: C
                   children:
-                    - { clip: cb0, threshold: 0.0 }
-                    - { clip: cb0, threshold: 0.33333 }
-                    - { clip: cb1, threshold: 0.5 }
-                    - { clip: cb1, threshold: 0.83333 }
-                    - { clip: cb0, threshold: 1.0 }
+                    - { clip: Blue_Zero, threshold: 0.0 }
+                    - { clip: Blue_Zero, threshold: 0.33333 }
+                    - { clip: Blue_One,  threshold: 0.5 }
+                    - { clip: Blue_One,  threshold: 0.83333 }
+                    - { clip: Blue_Zero, threshold: 1.0 }
 
             # --- _Color.a = 1 (constant, weight One so Σw = 1; always written so WD-ON doesn't revert alpha) ---
-            - { clip: ca1, directWeight: One }
+            - { clip: Alpha_One, directWeight: One }
     default: "Compose (WD ON)"
 
 clips:
   # computed intermediates
-  c_one:   { set: { C: 1.0 } }           # C = V·S·1
-  m_pos:   { set: { M: 1.0 } }           # +V
-  m_neg:   { set: { M: -1.0 } }          # −C
-  omv_pos: { set: { OneMinusV: 1.0 } }   # +1
-  omv_neg: { set: { OneMinusV: -1.0 } }  # −V
+  Chroma_One:    { set: { C: 1.0 } }           # C = V·S·1
+  Match_Pos:     { set: { M: 1.0 } }           # +V
+  Match_Neg:     { set: { M: -1.0 } }          # −C
+  OneMinusV_Pos: { set: { OneMinusV: 1.0 } }   # +1
+  OneMinusV_Neg: { set: { OneMinusV: -1.0 } }  # −V
 
   # per-channel writes on the placeholder renderer path. .r/.g/.b/.a (NOT .x/.y/.z — _Color is a Color).
   # Each channel reuses one 0-clip and one 1-clip; the 1-clip doubles as the m-floor term (value 1 × M),
   # the 0-clip doubles as the (1−V) sink (value 0).
-  cr0: { set: { "Body/SkinnedMeshRenderer.material._Color.r": 0.0 } }
-  cr1: { set: { "Body/SkinnedMeshRenderer.material._Color.r": 1.0 } }
-  cg0: { set: { "Body/SkinnedMeshRenderer.material._Color.g": 0.0 } }
-  cg1: { set: { "Body/SkinnedMeshRenderer.material._Color.g": 1.0 } }
-  cb0: { set: { "Body/SkinnedMeshRenderer.material._Color.b": 0.0 } }
-  cb1: { set: { "Body/SkinnedMeshRenderer.material._Color.b": 1.0 } }
-  ca1: { set: { "Body/SkinnedMeshRenderer.material._Color.a": 1.0 } }
+  Red_Zero:   { set: { "Body/SkinnedMeshRenderer.material._Color.r": 0.0 } }
+  Red_One:    { set: { "Body/SkinnedMeshRenderer.material._Color.r": 1.0 } }
+  Green_Zero: { set: { "Body/SkinnedMeshRenderer.material._Color.g": 0.0 } }
+  Green_One:  { set: { "Body/SkinnedMeshRenderer.material._Color.g": 1.0 } }
+  Blue_Zero:  { set: { "Body/SkinnedMeshRenderer.material._Color.b": 0.0 } }
+  Blue_One:   { set: { "Body/SkinnedMeshRenderer.material._Color.b": 1.0 } }
+  Alpha_One:  { set: { "Body/SkinnedMeshRenderer.material._Color.a": 1.0 } }

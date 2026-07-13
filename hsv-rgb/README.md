@@ -33,10 +33,11 @@ real-avatar naming.
 
 ## One DBT, and the WD-ON sum-to-1 sink (the lesson)
 
-**One always-on WD-ON Direct Blend Tree layer**, all the math as nested children — the shippable cost
-model (`smooth-frametime` carries the same note): per-layer runtime cost is super-linear and the optimizers
-merge blend-tree math into one tree regardless, so the internal cost is tree depth, not layer count. A
-consumer lifts and uses this; it is not one-idiom-per-layer study scaffolding.
+**One always-on WD-ON Direct Blend Tree layer**, all the math as nested children — the layer/cost
+doctrine (why structure is free at runtime, and the behavior-preserving upload-flatten) lives in
+`docs/gimmicks.md`, "Layers are author-time legibility, not runtime structure." This entry is a pure
+feed-forward compute; its only depth consequence is the ~2–3-frame settle, not frametime. A consumer
+lifts and uses this.
 
 The decomposition factors `S` and `V` out multiplicatively — `RGB_c = m + C·hue_c(H)`, with `C = V·S`
 (chroma), `m = V − C` (the achromatic floor), and `hue_c(H)` the fully-saturated channel colour, an exact

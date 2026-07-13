@@ -1,21 +1,27 @@
 # smooth-frametime — frametime-aware, clean-settling float smoothing (Pattern, study)
 
-Three float-smoothing constructions sharing **one** always-on WD-ON Direct Blend Tree layer and one
-owned frametime rig (`Time`/`LastTime`/`FrameTime` as children): the exponential smoother in its two
-α-flavours (`clamp01`, `remap`) and the constant-velocity-feel **hybrid** that still lands. A convex
-blend `S = (1−α)·S + α·Target` with `α∈[0,1]` cannot overshoot and both weights are `≥0` by
-construction — the one hard `directWeight ≥ 0` constraint (see `blendtree-math`) is satisfied for free.
+Three float-smoothing constructions — the exponential smoother in two α-flavours (`clamp01`, `remap`)
+and a constant-velocity-feel **hybrid** that still lands — over one owned frametime rig. Authored as two
+cosmetic always-on WD-ON Direct-tree layers: `Smooth/FrameTime` (the shared front-end — the rig plus
+`RateStep` and both α pairs) and `Smooth/Smoothers` (the three constructions, reading the front-end's
+AAPs). Opening one tree in the Animator window reads one concern with named nodes and value-named clips.
+A convex blend `S = (1−α)·S + α·Target` with `α∈[0,1]` cannot overshoot and both weights are `≥0` by
+construction, so the one hard `directWeight ≥ 0` constraint (see `blendtree-math`) is satisfied for free.
 
-**Single DBT (study → ship).** This entry *is* the collapsed form `blendtree-math`'s shipping note
-prescribes — all the math is nested children of one root Direct tree, not one-idiom-per-layer. The
-cost model is tree depth, not layer count (per-layer runtime cost is super-linear; the optimizers merge
-DBT math into one tree regardless). The consequence, proven below: every blend param / directWeight is
+**Layers are author-time legibility, not runtime structure** (`docs/gimmicks.md`, the bullet of that
+name): both dominant FX optimizers flatten always-on Direct-tree layers into one tree on upload, and an
+AAP is invisible to every reader until the next frame whether they share a tree or sit in different
+layers. The front-end→smoother split is therefore a legibility choice, not a correctness requirement —
+timing is identical to the same math in a single tree; the only differences are sub-`1e-5`
+float-summation-order artifacts, far inside the `2e-3` bar. Every blend param / directWeight is
 read at frame start, so a feed-forward chain of depth D fills over ~D frames after an input change (the
-settle table's first ~3 frames of zero output). The exponential's `S`-reads-itself is the *intended*
-one-frame recurrence, not a defect; the hybrid's near-term reads `SmoothedHybrid`/`Target` as blend
-params **inside** the tree that writes `SmoothedHybrid` (materializing the near-next-state as a separate
-AAP would add a second feedback frame and limit-cycle — the caveat `blendtree-math`'s linear smoother
-demonstrates).
+settle table's first ~3 zero rows). The exponential's `S`-reads-itself is the *intended* one-frame
+recurrence, not a defect; the hybrid's near-term reads `SmoothedHybrid`/`Target` as blend params **inside**
+the tree that writes `SmoothedHybrid` (materializing the near-next-state as a separate AAP would add a
+second feedback frame and limit-cycle — the caveat `blendtree-math`'s linear smoother demonstrates). This
+is Pattern tier: a consumer lifts the YAML and recompiles it with their own params/GUIDs; `built/` is
+committed only so the graphs are readable without a compile. Generalized from standard VRChat DBT-math
+smoother constructions (vrc.school Advanced Blend Trees); no real-avatar naming.
 
 ## Interface
 
@@ -27,18 +33,11 @@ demonstrates).
 - **Outputs (all AAPs, `aap: true`):** `SmoothedExpClamp`, `SmoothedExpRemap`, `SmoothedHybrid`, plus
   the owned rig (`Time`/`LastTime`/`FrameTime`) and the intermediates (`RateStep`, the
   `Alpha*`/`OneMinusAlpha*` pairs, `Delta`/`AbsDelta`/`CrossDiff`/`W`/`OneMinusW`/`SignDelta`).
-- **Seam:** none shipped (Pattern tier, lifted as YAML). `RepathClips` is moot — every clip writes an
-  animator parameter, not a scene binding, so there is nothing to repath. `basis` ↔ MA `pathMode` per
-  `_template`.
-- **Dependencies:** none. Owns its frametime rig rather than borrowing VRCFury's `FrameTimeService`
-  (that service's update-ordering contract is undocumented — fragile for a lifted library entry).
-- **Required assets:** none.
-
-## Provenance
-
-Generalized from standard VRChat DBT-math smoother constructions (vrc.school Advanced Blend Trees). The
-hybrid follows a constant-velocity-feel / exponential-landing "blush" smoother design intent — no
-real-avatar naming.
+- **Seam:** none shipped (Pattern tier, lifted as YAML). Every clip writes an animator parameter, not a
+  scene binding, so there is nothing to repath. `basis` ↔ MA `pathMode` per `_template`.
+- **Dependencies / required assets:** none. Owns its frametime rig rather than borrowing VRCFury's
+  `FrameTimeService` (that service's update-ordering contract is undocumented — fragile for a lifted
+  library entry).
 
 ## Measured behavior
 
@@ -83,11 +82,11 @@ per-frame factor `e^(−rate·dt)` composes to `e^(−rate·τ)`). `Target=1`, r
 
 | dt | `remap` ratio | `clamp01` ratio |
 |---|---|---|
-| 1/60 | 0.049784 | 0.042392 |
-| 1/30 | 0.049784 | 0.035184 |
-| 1/12 | 0.049787 | 0.015625 |
+| 1/60 | 0.049782 | 0.042391 |
+| 1/30 | 0.049779 | 0.035186 |
+| 1/12 | 0.049786 | 0.015625 |
 
-**`remap` is frametime-independent** — spread **3e-6** across 60/30/12 fps, essentially exact and far
+**`remap` is frametime-independent** — spread **7e-6** across 60/30/12 fps — measurement-floor noise, far
 inside tolerance. **`clamp01` is the first-order contrast** — spread **2.7e-2**, visibly framerate-*dependent*
 (it linearizes `1−e^(−x)`, so it converges faster the larger the per-frame step, i.e. the lower the fps).
 
@@ -100,13 +99,12 @@ framerates, which land on keys:
 |---|---|---|---|---|---|
 | 1/60 | 0.1 | 0.095163 | 0.095163 | 0.904837 | 0.904837 |
 | 1/30 | 0.2 | 0.181269 | 0.181269 | 0.818731 | 0.818731 |
-| 1/12 | 0.5 | 0.393469 | 0.393469 | 0.606532 | 0.606531 |
+| 1/12 | 0.5 | 0.393469 | 0.393469 | 0.606531 | 0.606531 |
 
-The `Alpha`+`OneMinusAlpha` pair sums to 1 every frame (the convexity trap is handled) *and* now tracks
-the true exponential. **Study lesson:** `remap` trades tree nodes for precision — its frametime-independence
-is real but bounded by 1D key density, so keys must be dense in the operating `RateStep` band (an earlier
-coarse `0.5`-spaced set undersampled the `0`↔`0.5` gap and broke coincidence at high fps). `clamp01` is
-the cheaper, honestly-framerate-*dependent* flavour when exact independence isn't needed.
+The `Alpha`+`OneMinusAlpha` pair sums to 1 every frame (the convexity trap is handled) *and* tracks the
+true exponential. `remap` trades tree nodes for precision — its frametime-independence is real but bounded
+by 1D key density, so keys must be dense in the operating `RateStep` band. `clamp01` is the cheaper,
+honestly-framerate-*dependent* flavour when exact independence isn't needed.
 
 ### Hybrid landing
 
