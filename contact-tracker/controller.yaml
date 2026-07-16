@@ -1,0 +1,180 @@
+# contact-tracker — latching proximity tracker (Module tier).
+# Tracks one point on another player (default: a hand) with zero position sync: 6 coincident
+# Proximity receivers acquire, filters animate shut to latch, a crawler-servo position
+# constraint chases the latched sender. Every client re-derives the cage locally — receivers
+# are localOnly:0 by necessity, and the tracked position does NOT late-sync (documented).
+#
+# Provenance: generalized from a Remy project's ContactTracker_Fx (VRCFury conversion of VRLabs
+# Contact-Tracker, MIT). Mechanism confirmed against both sources; vestigial Size motion-time
+# bindings and orphaned transitions not ported.
+#
+# Empirical constants (runtime.md 90% rule — change only with an emulator test):
+#   acquisition scale 0.15 (prefab TrackingPoints localScale; receiver radius 1 => 0.15 m)
+#   tracking cage scale x3 absolute (prefab VRCScaleConstraint ScaleOffset, World.prefab source)
+#   probe spread +/-0.5 local (tracking clip)
+#   settle dwell 1.0 s park-brake hold, then release (tracking clip; source of the
+#     Infinity-slope stepped key in the ancestor — approximated flat with a key one frame early)
+#   loss threshold 0.00001, acquisition threshold >0 (transitions)
+
+schema: 1
+controller: ContactTracker_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  ContactTracker/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }  # off is the reset
+  # Sensing (proximity) — never synced, never menu-exposed; listed in the params asset for legibility.
+  ContactTracker/X+: float
+  ContactTracker/X-: float
+  ContactTracker/Y+: float
+  ContactTracker/Y-: float
+  ContactTracker/Z+: float
+  ContactTracker/Z-: float
+
+layers:
+  # Mode machine. Deterministic resume: every state re-derives from Enable + live proximity
+  # alone (Reset has a direct edge to Tracking, so a culled/re-shown copy relatches in place).
+  - name: Control
+    states:
+      Reset:                      # Enable off — parked at ResetPosition, filters open, cage collapsed
+        motion: { clip: reset }
+        transitions:
+          - to: Searching
+            when: [ ContactTracker/Enable is true, ContactTracker/X+ less 0.00001, ContactTracker/X- less 0.00001, ContactTracker/Y+ less 0.00001, ContactTracker/Y- less 0.00001, ContactTracker/Z+ less 0.00001, ContactTracker/Z- less 0.00001 ]
+          - to: Tracking
+            when: [ ContactTracker/Enable is true, ContactTracker/X+ greater 0, ContactTracker/X- greater 0, ContactTracker/Y+ greater 0, ContactTracker/Y- greater 0, ContactTracker/Z+ greater 0, ContactTracker/Z- greater 0 ]
+      Searching:                  # filters open, probes coincident, crawler self-holds (park brake 1)
+        motion: { clip: searching }
+        transitions:
+          - to: Reset
+            when: [ ContactTracker/Enable is false ]
+          - to: Tracking
+            when: [ ContactTracker/X+ greater 0, ContactTracker/X- greater 0, ContactTracker/Y+ greater 0, ContactTracker/Y- greater 0, ContactTracker/Z+ greater 0, ContactTracker/Z- greater 0 ]
+      Tracking:                   # filters shut (latched), cage spread + absolute scale, park released after dwell
+        motion: { clip: tracking }
+        transitions:
+          - to: Searching         # lost — recollapse and self-hold where it stands (freeze, not snap-home)
+            when: [ ContactTracker/X+ less 0.00001, ContactTracker/X- less 0.00001, ContactTracker/Y+ less 0.00001, ContactTracker/Y- less 0.00001, ContactTracker/Z+ less 0.00001, ContactTracker/Z- less 0.00001 ]
+          - to: Reset
+            when: [ ContactTracker/Enable is false ]
+    default: Reset
+
+  # Crawler servo: raw proximity => constraint source weight, always on (WD ON), raw additive
+  # weights (constraint normalizes by sum). Park brake (source6) is owned by the Control layer.
+  - name: CrawlerServo
+    states:
+      Crawl:
+        motion:
+          tree: direct
+          name: CrawlerServo
+          normalized: false
+          children:
+            - { clip: crawl_xp, directWeight: ContactTracker/X+ }
+            - { clip: crawl_xn, directWeight: ContactTracker/X- }
+            - { clip: crawl_yp, directWeight: ContactTracker/Y+ }
+            - { clip: crawl_yn, directWeight: ContactTracker/Y- }
+            - { clip: crawl_zp, directWeight: ContactTracker/Z+ }
+            - { clip: crawl_zn, directWeight: ContactTracker/Z- }
+    default: Crawl
+
+clips:
+  # Each Control state owns the full rig-property set explicitly (no reliance on WD revert),
+  # mirroring the ancestor's full-ownership clips.
+  reset:
+    set:
+      TrackingPoints/VRCParentConstraint.m_Enabled: 1        # parked at ResetPosition
+      TrackingPoints/VRCPositionConstraint.m_Enabled: 0      # crawler off
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
+      TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: 0
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X+/Transform.m_LocalPosition.x: 0       # probes coincident
+      TrackingPoints/X+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/X+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.z: 0
+
+  searching:
+    set:
+      TrackingPoints/VRCParentConstraint.m_Enabled: 0
+      TrackingPoints/VRCPositionConstraint.m_Enabled: 1      # crawler on, self-held
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
+      TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: 1   # park brake full
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X+/Transform.m_LocalPosition.x: 0
+      TrackingPoints/X+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/X+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/X-/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Y+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Y-/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Z+/Transform.m_LocalPosition.z: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Z-/Transform.m_LocalPosition.z: 0
+
+  tracking:
+    seconds: 1.0
+    set:
+      TrackingPoints/VRCParentConstraint.m_Enabled: 0
+      TrackingPoints/VRCPositionConstraint.m_Enabled: 1
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # cage inflates to absolute meters
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z-/VRCContactReceiver.allowOthers: 0
+    curves:
+      # Park brake: hold 1 for the settle dwell, then release (ancestor uses a stepped key at
+      # t=1.0; approximated with a flat-tangent hold key one frame before the drop).
+      TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: [ [0, 1], [0.9833333, 1], [1, 0] ]
+      # Probe spread: coincident for one frame (the latch samples first), then the +/-0.5 cage.
+      TrackingPoints/X+/Transform.m_LocalPosition.x: [ [0, 0], [0.016666668, 0.5] ]
+      TrackingPoints/X-/Transform.m_LocalPosition.x: [ [0, 0], [0.016666668, -0.5] ]
+      TrackingPoints/Y+/Transform.m_LocalPosition.y: [ [0, 0], [0.016666668, 0.5] ]
+      TrackingPoints/Y-/Transform.m_LocalPosition.y: [ [0, 0], [0.016666668, -0.5] ]
+      TrackingPoints/Z+/Transform.m_LocalPosition.z: [ [0, 0], [0.016666668, 0.5] ]
+      TrackingPoints/Z-/Transform.m_LocalPosition.z: [ [0, 0], [0.016666668, -0.5] ]
+
+  # Crawler DBT leaves: each writes exactly its probe's source weight; the direct-tree weight
+  # (raw proximity) scales it, and the constraint normalizes by the weight sum.
+  crawl_xp: { set: { TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: 1 } }
+  crawl_xn: { set: { TrackingPoints/VRCPositionConstraint.Sources.source1.Weight: 1 } }
+  crawl_yp: { set: { TrackingPoints/VRCPositionConstraint.Sources.source2.Weight: 1 } }
+  crawl_yn: { set: { TrackingPoints/VRCPositionConstraint.Sources.source3.Weight: 1 } }
+  crawl_zp: { set: { TrackingPoints/VRCPositionConstraint.Sources.source4.Weight: 1 } }
+  crawl_zn: { set: { TrackingPoints/VRCPositionConstraint.Sources.source5.Weight: 1 } }

@@ -16,6 +16,7 @@ whole, not entry-by-entry.
 | DBT math (add/subtract/multiply/divide/clamp/remap, min/max, smoothing, frametime) | Pattern (study) | [`blendtree-math`](blendtree-math/) |
 | AAP exponential smoother (frametime-aware) | Pattern (study) | [`smooth-frametime`](smooth-frametime/) |
 | Grab a prop, world-drop it, re-grab in place (0-bit drop) | Module | [`grabprop`](grabprop/) |
+| Latch onto + track another player's point (hand/head), 1 synced bit | Module | [`contact-tracker`](contact-tracker/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 
 ## Using an entry
