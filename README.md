@@ -15,9 +15,16 @@ whole, not entry-by-entry.
 | HSV→RGB compute (write RGB color) | Pattern (study) | [`hsv-rgb`](hsv-rgb/) |
 | DBT math (add/subtract/multiply/divide/clamp/remap, min/max, smoothing, frametime) | Pattern (study) | [`blendtree-math`](blendtree-math/) |
 | AAP exponential smoother (frametime-aware) | Pattern (study) | [`smooth-frametime`](smooth-frametime/) |
-| Grab a prop, world-drop it, re-grab in place (0-bit drop) | Module | [`grab-prop`](grab-prop/) |
+| Grab a prop, world-drop it, re-grab in place (0-bit drop, usable by everyone) | Module | [`grab-prop`](grab-prop/) |
 | Latch onto + track another player's point (hand/head), 1 synced bit | Module | [`contact-tracker`](contact-tracker/) |
+| Grab a prop, release-arbitrated to own head / another player's head / world (2 synced bits, usable by everyone) | Module | [`drop-on-player`](drop-on-player/) |
 | — reference mold — | Module | [`_template/`](_template/) |
+
+The prop Modules are **usable by every player in the instance**, not just the wearer: the grab
+physbone is open to everyone (`allowGrabbing: True`) and natively synced, so anyone can take,
+carry, and place the prop — the wearer's client arbitrates and syncs the outcome. That is the
+novelty these entries package; the simpler forms of prop-carry (a toggle-anchored held prop, a
+wearer-only grab) serve only the owning player.
 
 ## Using an entry
 
