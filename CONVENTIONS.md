@@ -22,7 +22,8 @@ references `built/`)? Read it off which files exist:
   declared study/reference entry — then `built/` is the point (a DBT graph is legible only in the
   animator window), and the gate holds it to decompile-equality like any `built/`.
 - **Asset-bound** — adds `assets/`. `built/` committed (an asset references it).
-- **Module** — adds `<entry>.prefab`. `built/` committed; the prefab references it by GUID.
+- **Module** — adds `<entry>.prefab` (one or more prefab variants). `built/` committed; the prefab
+  references it by GUID.
 
 ## The Interface stanza (fixed README slot)
 
@@ -30,11 +31,34 @@ references `built/`)? Read it off which files exist:
 what the YAML cannot, so adapting an entry never means reverse-engineering the prefab:
 
 - **Params** — in/out, synced/saved.
-- **Seam** — MA MergeAnimator vs VRCFury FullController, the anchor, and the binding frame
-  (`basis:` ↔ MA `pathMode`). CompileController is frame-blind, so the merge component's frame is
-  load-bearing — record it.
+- **Seam** — which framework merges it (MA `MergeAnimator` vs VRCFury `FullController`), the anchor,
+  and the **binding frame the merge resolves**: MA `basis:` ↔ `pathMode`; VRCF resolves per binding
+  relative to the component's object (`rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), plus any
+  `rewriteBindings`. CompileController is frame-blind, so this is load-bearing — record it.
 - **Dependencies** — physbones/contacts/menu params the entry assumes exist.
 - **Required assets** — and any hard external dependency.
+
+## Module tier
+
+A Module entry is a drop-in gimmick: the prefab composes onto an avatar and ships its own menu front
+(`gimmicks.md` §Packaging — enable/options/failsafe inside the module, never left to the consumer).
+
+- **Seam ruling:** VRCFury (`FullController`/`Toggle`/`ApplyDuringUpload`) for behavior; MA `BoneProxy`
+  only for anchors whose placement must be visible while authoring (VRCF ArmatureLink snaps at build).
+  **Invariant:** VRCF-animated clip bindings live on the prop subtree and never path through an
+  MA-moved node — the build-time reparent breaks them silently. Pure-VRCF is the default when no
+  anchor needs edit-time placement (`grabprop`).
+- **Variants** are prefab-level only (shape/size/anchor overrides) and share the entry's one
+  `controller.yaml` + `built/`. A variant that changes clips or receiver count is its own entry,
+  never a second controller in the folder (the controller-fork drift trap).
+- **Params:** sensing params (contact/PB outputs) never synced, saved, or menu-exposed; the enable is
+  synced-unsaved (off-is-reset). The Toggle/menu component is the sync authority for its param;
+  `built/*_Parameters.asset` is legibility only.
+- **No prefab builder.** The `<entry>.prefab` is the shipped artifact and its own source — the entry
+  README's rig/constants section plus `controller.yaml` carry what a rebuild needs. Don't commit a
+  regenerator script: reflection against a framework's internal model (VRCFury `VF.Model.*`) rots
+  unrun and then lies about reproducing. Capture construction as prose; promote a genuinely reusable
+  recipe to shared tooling, not per-entry `dev~/`.
 
 ## Asset-closure rule
 

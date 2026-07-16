@@ -1,0 +1,145 @@
+# grabprop — sample-and-hold world-drop (gimmicks.md §Constraint patterns "Sample-and-hold drop").
+# A grabbable physbone carries the prop live (native grab sync); release freezes the prop in place
+# and re-samples a hold cell so a re-grab picks up seamlessly. Zero synced params for the drop;
+# 1 synced bit total (GrabProp/Enable). Late joiners park hidden (fail-visible) until they witness
+# a grab.
+#
+# Constraint cells (paths are prefab-root relative; the VRCFury FullController sits on that root):
+#   Container       — payload mount; position constraint follows SourcePosition. Its component
+#                     m_Enabled OFF = the freeze (a disabled constraint holds its transform).
+#   SourcePosition  — sample-and-hold cell; constraint samples DropPosition (the bone tip in a
+#                     world-frozen rotation frame) while IsActive, holds while not.
+#   GrabPosition    — the bone chain's rest home; multiplexes [ResetPosition, Container].
+#
+# Empirical constants (runtime.md 90% rule) — every one labeled:
+#   released pulse: freeze at t=0, re-sample window [0.25, 0.50) s  [EMPIRICAL: emulator sweep]
+#   remote settle dwell: 1.0 s (timer clip)                         [EMPIRICAL: in-game candidate]
+# Stepped keys are emulated with one-frame hold keys (schema has no stepped tangents); identical
+# at the 60 Hz solver step.
+
+schema: 1
+controller: GrabProp_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  GrabProp/Enable:   { type: bool, default: false, vrc: { synced: true, saved: false } }
+  GrabBone_IsGrabbed: bool     # sensing — minted by the grab physbone (parameter: GrabBone); never synced
+  IsLocal:            bool     # VRC built-in
+
+layers:
+  - name: GrabProp/Control
+    states:
+      # Remote settle dwell: remotes wait out the timer so synced params land before routing;
+      # without it a late-join remote can flash the prop at the reset anchor (Off->On on a
+      # default-false Enable that flips when the real value arrives). Local skips it.
+      Timer:
+        motion: { clip: timer }
+        transitions:
+          - { to: Disabled,     when: [ IsLocal is true ] }
+          - { to: Waiting, when: [ IsLocal is false ], exitTime: 1.0 }
+      Disabled:
+        motion: { clip: disabled }
+        transitions:
+          - { to: Idle, when: [ GrabProp/Enable is true ] }
+      Idle:
+        motion: { clip: idle }
+        transitions:
+          - { to: Disabled,     when: [ GrabProp/Enable is false ] }
+          - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
+      Grabbed:
+        motion: { clip: grabbed }
+        transitions:
+          - { to: Disabled,      when: [ GrabProp/Enable is false ] }
+          - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
+      # Release choreography: t=0 the Container constraint disables (prop freezes where dropped)
+      # and GrabPosition re-anchors onto the frozen Container (bone chain snaps home to the prop);
+      # t=0.25 SourcePosition re-samples the settled tip; t=0.5 it holds. Ready never re-enables
+      # the Container constraint - the frozen transform IS the hold; the sample exists so a re-grab
+      # (which re-enables it) picks up at the drop point instead of teleporting.
+      # No grab exit: the pulse length is a re-grab lockout - why the sweep wants it short.
+      Released:
+        motion: { clip: released }
+        transitions:
+          - { to: Ready, when: [], exitTime: 1.0 }
+      Ready:
+        motion: { clip: ready }
+        transitions:
+          - { to: Disabled,     when: [ GrabProp/Enable is false ] }
+          - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
+      # Late-join park: hidden until a grab is witnessed (fail-visible - never shown at a wrong
+      # spot). The grab physbone lives OUTSIDE the hidden Container branch so a grab can always
+      # re-establish the prop.
+      Waiting:
+        motion: { clip: waiting }
+        transitions:
+          - { to: Disabled,     when: [ GrabProp/Enable is false ] }
+          - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
+    default: Timer
+
+# Every clip writes the same six bindings (WD-mode-proof: semantics identical under WD ON or a
+# VRCFury WD-OFF conversion). Weights: source0 = ResetPosition, source1 = Container.
+clips:
+  disabled:
+    set:
+      "Container/GameObject.m_IsActive": 0
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+  timer:        # disabled pose held for the remote settle dwell  [EMPIRICAL: 1.0 s]
+    seconds: 1.0
+    set:
+      "Container/GameObject.m_IsActive": 0
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+  idle:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+  grabbed:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+  released:     # the pulse  [EMPIRICAL: sample window [0.25, 0.50) s - sweep target]
+    length: 0.5
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 0
+      "GrabPosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+    curves:
+      "SourcePosition/VRCPositionConstraint.IsActive": [ [0, 0], [0.2333, 0], [0.25, 1], [0.4833, 1], [0.5, 0] ]
+  ready:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 0
+      "SourcePosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+  waiting:
+    set:
+      "Container/GameObject.m_IsActive": 0
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
