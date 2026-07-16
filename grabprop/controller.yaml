@@ -14,8 +14,8 @@
 # Empirical constants (runtime.md 90% rule) — every one labeled:
 #   released pulse: freeze at t=0, re-sample window [0.25, 0.50) s  [EMPIRICAL: emulator sweep]
 #   remote settle dwell: 1.0 s (timer clip)                         [EMPIRICAL: in-game candidate]
-# Stepped keys are emulated with one-frame hold keys (schema has no stepped tangents); identical
-# at the 60 Hz solver step.
+# The released pulse is an explicit stepped curve (0 → 1 at 0.25 → 0 at 0.5): each key's value holds
+# until the next, so IsActive snaps rather than eases — sample-rate-independent, no phantom hold keys.
 
 schema: 1
 controller: GrabProp_Fx
@@ -126,7 +126,7 @@ clips:
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
     curves:
-      "SourcePosition/VRCPositionConstraint.IsActive": [ [0, 0], [0.2333, 0], [0.25, 1], [0.4833, 1], [0.5, 0] ]
+      "SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
   ready:
     set:
       "Container/GameObject.m_IsActive": 1
