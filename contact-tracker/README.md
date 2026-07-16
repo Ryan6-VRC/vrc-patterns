@@ -19,11 +19,12 @@ Two prefabs, one controller:
 ## Interface
 
 - **Params:** `ContactTracker/Enable` (bool, in) — synced, unsaved; off is the reset (recalls the
-  cage to `ResetPosition`). The six `ContactTracker/{X,Y,Z}±` floats are sensing — never synced,
+  cage to `HomeAnchor`). The six `ContactTracker/{X,Y,Z}±` floats are sensing — never synced,
   never menu-exposed.
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root` — clip paths bind
-  relative to the prefab root, so the internal hierarchy names are load-bearing. Menu (one Enable
-  toggle) ships inside the module.
+  relative to the prefab root, so the internal hierarchy names are load-bearing. The FullController
+  merges `built/ContactTracker_Fx_Parameters.asset` (`prms`); `ContactTracker/Enable` rides
+  `globalParams`, and a VRCFury `Toggle` (`useGlobalParam`) is the menu front inside the module.
 - **Dependencies:** none. Receivers are `localOnly: 0` **by necessity** — remote clients run the
   tracker to re-derive the cage; flipping them local-only breaks remote copies silently.
 - **Required assets:** `assets/World.prefab` — never-instantiated scale reference; sourcing it in

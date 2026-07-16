@@ -1,4 +1,4 @@
-# grabprop — sample-and-hold world-drop (gimmicks.md §Constraint patterns "Sample-and-hold drop").
+# grab-prop — sample-and-hold world-drop (gimmicks.md §Constraint patterns "Sample-and-hold drop").
 # A grabbable physbone carries the prop live (native grab sync); release freezes the prop in place
 # and re-samples a hold cell so a re-grab picks up seamlessly. Zero synced params for the drop;
 # 1 synced bit total (GrabProp/Enable). Late joiners park hidden (fail-visible) until they witness
@@ -9,7 +9,7 @@
 #                     m_Enabled OFF = the freeze (a disabled constraint holds its transform).
 #   SourcePosition  — sample-and-hold cell; constraint samples DropPosition (the bone tip in a
 #                     world-frozen rotation frame) while IsActive, holds while not.
-#   GrabPosition    — the bone chain's rest home; multiplexes [ResetPosition, Container].
+#   GrabPosition    — the bone chain's rest home; multiplexes [HomeAnchor, Container].
 #
 # Empirical constants (runtime.md 90% rule) — every one labeled:
 #   released pulse: freeze at t=0, re-sample window [0.25, 0.50) s  [EMPIRICAL: emulator sweep]
@@ -35,7 +35,7 @@ layers:
   - name: GrabProp/Control
     states:
       # Remote settle dwell: remotes wait out the timer so synced params land before routing;
-      # without it a late-join remote can flash the prop at the reset anchor (Off->On on a
+      # without it a late-join remote can flash the prop at the home anchor (Off->On on a
       # default-false Enable that flips when the real value arrives). Local skips it.
       Timer:
         motion: { clip: timer }
@@ -45,9 +45,9 @@ layers:
       Disabled:
         motion: { clip: disabled }
         transitions:
-          - { to: Idle, when: [ GrabProp/Enable is true ] }
-      Idle:
-        motion: { clip: idle }
+          - { to: Anchored, when: [ GrabProp/Enable is true ] }
+      Anchored:
+        motion: { clip: anchored }
         transitions:
           - { to: Disabled,     when: [ GrabProp/Enable is false ] }
           - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
@@ -58,16 +58,16 @@ layers:
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
       # Release choreography: t=0 the Container constraint disables (prop freezes where dropped)
       # and GrabPosition re-anchors onto the frozen Container (bone chain snaps home to the prop);
-      # t=0.25 SourcePosition re-samples the settled tip; t=0.5 it holds. Ready never re-enables
+      # t=0.25 SourcePosition re-samples the settled tip; t=0.5 it holds. Dropped never re-enables
       # the Container constraint - the frozen transform IS the hold; the sample exists so a re-grab
       # (which re-enables it) picks up at the drop point instead of teleporting.
       # No grab exit: the pulse length is a re-grab lockout - why the sweep wants it short.
       Released:
         motion: { clip: released }
         transitions:
-          - { to: Ready, when: [], exitTime: 1.0 }
-      Ready:
-        motion: { clip: ready }
+          - { to: Dropped, when: [], exitTime: 1.0 }
+      Dropped:
+        motion: { clip: dropped }
         transitions:
           - { to: Disabled,     when: [ GrabProp/Enable is false ] }
           - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
@@ -82,7 +82,7 @@ layers:
     default: Timer
 
 # Every clip writes the same six bindings (WD-mode-proof: semantics identical under WD ON or a
-# VRCFury WD-OFF conversion). Weights: source0 = ResetPosition, source1 = Container.
+# VRCFury WD-OFF conversion). Weights: source0 = HomeAnchor, source1 = Container.
 clips:
   disabled:
     set:
@@ -101,7 +101,7 @@ clips:
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
-  idle:
+  anchored:
     set:
       "Container/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
@@ -127,7 +127,7 @@ clips:
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
     curves:
       "SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
-  ready:
+  dropped:
     set:
       "Container/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 0

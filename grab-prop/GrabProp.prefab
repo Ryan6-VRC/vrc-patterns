@@ -266,7 +266,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: ee38ee4947f49c54f87d2e7433d34ebc, type: 2}
+  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -300,7 +300,7 @@ GameObject:
   - component: {fileID: 3513548472707984526}
   - component: {fileID: 1926521021784116912}
   m_Layer: 0
-  m_Name: grabprop
+  m_Name: GrabProp
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -359,11 +359,17 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: 872f062da658c3a4cb9a4f6bc0437732|Packages/com.ryan6vrc.patterns/grabprop/built/GrabProp_Fx.controller
+            id: 872f062da658c3a4cb9a4f6bc0437732|Packages/com.ryan6vrc.patterns/grab-prop/built/GrabProp_Fx.controller
             objRef: {fileID: 9100000, guid: 872f062da658c3a4cb9a4f6bc0437732, type: 2}
           type: 5
         menus: []
-        prms: []
+        prms:
+        - parameters:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 
+            objRef: {fileID: 11400000, guid: 6111bc4f8944aaf4fb9a55870a92c39b, type: 2}
         smoothedPrms: []
         globalParams:
         - GrabProp/Enable
@@ -990,7 +996,7 @@ GameObject:
   m_Component:
   - component: {fileID: 241317074848716863}
   m_Layer: 0
-  m_Name: ResetPosition
+  m_Name: HomeAnchor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

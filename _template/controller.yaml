@@ -4,7 +4,7 @@
 
 schema: 1
 controller: Template_Fx
-basis: avatar-root
+basis: mount-root
 role: fx
 
 defaults:
@@ -12,7 +12,7 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
-  Template_Toggle: { type: bool, default: false, vrc: { synced: true, saved: true } }
+  Template_Toggle: { type: bool, default: false, vrc: { synced: true, saved: false } }  # synced-unsaved: off is the reset
 
 layers:
   - name: Template

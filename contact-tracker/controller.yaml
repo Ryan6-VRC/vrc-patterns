@@ -40,7 +40,7 @@ layers:
   # alone (Reset has a direct edge to Tracking, so a culled/re-shown copy relatches in place).
   - name: Control
     states:
-      Reset:                      # Enable off — parked at ResetPosition, filters open, cage collapsed
+      Reset:                      # Enable off — parked at HomeAnchor, filters open, cage collapsed
         motion: { clip: reset }
         transitions:
           - to: Searching
@@ -86,7 +86,7 @@ clips:
   # mirroring the ancestor's full-ownership clips.
   reset:
     set:
-      TrackingPoints/VRCParentConstraint.m_Enabled: 1        # parked at ResetPosition
+      TrackingPoints/VRCParentConstraint.m_Enabled: 1        # parked at HomeAnchor
       TrackingPoints/VRCPositionConstraint.m_Enabled: 0      # crawler off
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
       TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: 0

@@ -1,4 +1,4 @@
-# grabprop — sample-and-hold world-drop (Module tier)
+# grab-prop — sample-and-hold world-drop (Module tier)
 
 Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-grab it in place.
 The drop costs **zero synced params**: every client replays the same release choreography off the
@@ -7,42 +7,44 @@ patterns "Sample-and-hold drop"). Module total: **1 synced bit** (`GrabProp/Enab
 
 **Provenance:** generalized from a Remy GestureTools GrabProp (VRLabs World-Constraint ancestry).
 Abstracted away: the avatar-specific payload mesh and its feedback-glow controller, the MA BoneProxy
-on the reset anchor (now a plain GO — see Interface), a vestigial constraint source, and a dead
+on the home anchor (now a plain GO — see Interface), a vestigial constraint source, and a dead
 GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.
 
 ## Interface
 
 - **Params:**
   - `GrabProp/Enable` (bool, in) — synced, **unsaved**. The menu front (VRCFury Toggle on the
-    prefab root). Off-is-reset: toggling off/on recalls a dropped prop to the reset anchor.
+    prefab root). Off-is-reset: toggling off/on recalls a dropped prop to the home anchor.
   - `GrabBone_IsGrabbed` (bool, sensing) — minted by the grab physbone (`parameter: GrabBone`),
     never synced/saved/menu-exposed; the native grab sync regenerates it per client.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0`), so
   every clip binding resolves **prop-root relative** (`basis: mount-root`). Pure VRCFury — no MA
-  half. `GrabProp/Enable` is exported via `globalParams` (unprefixed; the Toggle drives it).
+  half. The FullController merges `built/GrabProp_Fx_Parameters.asset` (the built form of the
+  YAML's `vrc:` block — the sync surface); `GrabProp/Enable` is exported via `globalParams` and
+  the Toggle drives it.
 - **Dependencies:** none beyond the VRC SDK + VRCFury. Drop the prefab anywhere under the avatar.
-- **Required assets:** `assets/GrabProp_Mat.mat` (Unity Standard — swap the `Payload` sphere for
-  your prop mesh, keep it under `Container`).
+- **Required assets:** none — `Payload` is a placeholder sphere on Unity's built-in default
+  material; swap it for your prop mesh, keep it under `Container`.
 
 ## The one thing to know before using it
 
-**`ResetPosition` is deliberately unanchored.** The module root is frozen to world at load-in
-(`FreezeToWorld` constraint, enabled during upload), so out of the box the reset home is a fixed
-world spot — the avatar's spawn point. For a follow-me home (prop returns to your hip/chest),
-anchor `ResetPosition` yourself: MA BoneProxy on it, or constrain it to a bone. It is referenced
-only as a constraint source, so moving or re-parenting it is safe. If you BoneProxy it, keep the
-module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of the re-parented
-subtree — VRCF clip bindings must not path through an MA-moved node.
+**`HomeAnchor` is deliberately not bone-anchored.** The module root is frozen to world at load-in
+(`FreezeToWorld` constraint, enabled during upload), so out of the box the home is a fixed world
+spot — the avatar's spawn point. For a follow-me home (prop returns to your hip/chest), anchor
+`HomeAnchor` yourself: MA BoneProxy on it, or constrain it to a bone. It is referenced only as a
+constraint source, so moving or re-parenting it is safe. If you BoneProxy it, keep the module's
+animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of the re-parented subtree —
+VRCF clip bindings must not path through an MA-moved node.
 
 ## How it works
 
-`GrabPosition` (the bone chain's rest home) multiplexes `[ResetPosition, Container]`. The grab
+`GrabPosition` (the bone chain's rest home) multiplexes `[HomeAnchor, Container]`. The grab
 physbone's tip is measured by `DropPosition`, a child of a world-rotation-frozen frame; the
 `SourcePosition` cell samples it; `Container` (the payload mount) follows `SourcePosition`.
 
 Release choreography (`Released`, 0.5 s): at t=0 the Container constraint **disables** — a disabled
 constraint holds its transform, that is the freeze — and the bone chain re-anchors onto the frozen
-prop; at t=0.25 `SourcePosition` re-samples the settled tip; at t=0.5 it holds. `Ready` keeps the
+prop; at t=0.25 `SourcePosition` re-samples the settled tip; at t=0.5 it holds. `Dropped` keeps the
 constraint disabled (the frozen transform is the hold); the sample exists so a re-grab, which
 re-enables it, picks up at the drop point instead of teleporting.
 
@@ -72,10 +74,10 @@ constraint, source weights swapped by the clips.
 
     GrabProp                          root — VRCFury FullController + Toggle
     ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint follows SourcePosition; holds Payload
-    │  └─ Payload                     sphere, GrabProp_Mat — swap for your mesh, keep under Container
+    │  └─ Payload                     sphere, built-in default material — swap for your mesh, keep under Container
     ├─ SourcePosition (0, 0.8, 0.25)  VRCPositionConstraint follows DropPosition (sample-and-hold cell)
-    ├─ ResetPosition  (0, 0.8, 0.25)  plain GO — the consumer anchors it (see above)
-    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint, sources [source0 ResetPosition, source1 Container]
+    ├─ HomeAnchor     (0, 0.8, 0.25)  plain GO — the consumer anchors it (see above)
+    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint, sources [source0 HomeAnchor, source1 Container]
     │  └─ GrabBone                    VRCPhysBone (parameter GrabBone → mints GrabBone_IsGrabbed)
     │     └─ GrabBone_End (0, .02, 0)
     │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld — world-stable rotation frame
