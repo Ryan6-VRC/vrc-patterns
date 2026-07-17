@@ -26,6 +26,14 @@ layers:
         transitions:
           - { to: Hidden, when: [ Template_Toggle is false ] }
     default: Hidden
+    # Hand arrangement (CONVENTIONS.md §Graph layout) — the mold ships one so every entry
+    # copied from it starts arranged: lifecycle descends from the default state below Entry;
+    # unused Any/Exit park stacked above Entry.
+    layout:
+      nodes: { Hidden: [30, 180], Shown: [30, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
 clips:
   hide: { set: { "Cube/MeshRenderer.enabled": 0 } }

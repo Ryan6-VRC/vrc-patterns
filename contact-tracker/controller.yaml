@@ -62,6 +62,13 @@ layers:
           - to: Reset
             when: [ ContactTracker/Enable is false ]
     default: Reset
+    # Hand arrangement (CONVENTIONS.md §Graph layout): lifecycle descends from the default
+    # state under Entry; Tracking left, Searching right; unused Any/Exit parked top-left.
+    layout:
+      nodes: { Reset: [30, 180], Tracking: [-90, 250], Searching: [150, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
   # Crawler servo: raw proximity => constraint source weight, always on (WD ON), raw additive
   # weights (constraint normalizes by sum). Park brake (source6) is owned by the Control layer.

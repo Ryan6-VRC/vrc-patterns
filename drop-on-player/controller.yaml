@@ -173,6 +173,24 @@ layers:
           - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
           - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
     default: Timer
+    # Hand arrangement (CONVENTIONS.md §Graph layout): boot spine descends Timer -> Disabled;
+    # the remote-only pair (Waiting, Lost) shares the left column with Anchored; Grabbed is the
+    # central hub, midway between home (Anchored) and Lost, over Tracked in the center column;
+    # the release pulse falls right to Dropped. Any/Exit parked top-left.
+    layout:
+      nodes:
+        Timer:    [30, 180]
+        Waiting:  [-330, 250]
+        Disabled: [150, 250]
+        Anchored: [-330, 320]
+        Released: [390, 320]
+        Grabbed:  [30, 390]
+        Lost:     [-330, 460]
+        Tracked:  [30, 565]
+        Dropped:  [390, 565]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
   # Crawler servo (contact-tracker idiom): raw proximity => constraint source weight, always on
   # (WD ON), raw additive weights (constraint normalizes by sum). Park brake (source6) is owned

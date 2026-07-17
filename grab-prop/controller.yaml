@@ -80,6 +80,21 @@ layers:
           - { to: Disabled,     when: [ GrabProp/Enable is false ] }
           - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
     default: Timer
+    # Hand arrangement (CONVENTIONS.md §Graph layout): boot spine descends Timer -> Disabled;
+    # remote park (Waiting) in the left lane; the carry band Anchored | Grabbed | Released reads
+    # left-to-right with the world-drop outcome (Dropped) above Released; Any/Exit parked top-left.
+    layout:
+      nodes:
+        Timer:    [30, 180]
+        Waiting:  [-210, 250]
+        Disabled: [30, 250]
+        Dropped:  [270, 320]
+        Anchored: [-210, 390]
+        Grabbed:  [30, 390]
+        Released: [270, 390]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
 # Every clip writes the same six bindings (WD-mode-proof: semantics identical under WD ON or a
 # VRCFury WD-OFF conversion). Weights: source0 = HomeAnchor, source1 = Container.

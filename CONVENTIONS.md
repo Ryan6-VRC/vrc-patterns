@@ -85,6 +85,21 @@ home) are different behaviors; don't force one word onto both. Transient states 
 (`Released`, `Searching`, `Timer`, `Waiting`). State names must not be YAML literals — `On`/`Off`
 parse as booleans (`animator-schema.md`).
 
+Rig object names collide across stacked Modules — `grab-prop` and `drop-on-player` both ship a
+bone named `GrabBone`, so find-by-name is ambiguous the moment both are worn: resolve by path or
+physbone chainId, and give future entries unique bone names.
+
+## Graph layout
+
+A committed machine with two or more states carries a hand-authored `layout:` block
+(`animator-schema.md` §layout) — the compiler's default grid erases the structure the YAML
+explains. The arrangement shows the machine's story at a glance: lifecycle descends from the
+default state below Entry; same-stage alternatives fan left/right at one height; states only one
+audience ever reaches get their own lane. Unused Any/Exit park stacked above Entry; move Exit only
+where a machine actually exits through it. Snap states to shared rows and columns where the graph
+offers them. Node overlap and near-collinear transitions that visually merge are defects; plain
+crossings in a dense graph are not. `drop-on-player` is the worked example.
+
 ## Asset-closure rule
 
 VPM's identical-GUID-everywhere property holds only for in-package GUIDs. **Ship self-contained simple

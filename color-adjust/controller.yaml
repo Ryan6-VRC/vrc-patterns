@@ -83,6 +83,12 @@ layers:
         transitions:
           - { to: Baseline, when: [ ShowBroken is false ] }
     default: Baseline
+    # Hand arrangement (CONVENTIONS.md §Graph layout): default below Entry, toggle target under it.
+    layout:
+      nodes: { Baseline: [30, 180], Broken: [30, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
 clips:
   # Compose: each clip writes exactly ONE channel (the sub-tree endpoints); composition + WD keep the rest intact.
