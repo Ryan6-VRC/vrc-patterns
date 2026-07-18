@@ -9,17 +9,30 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$AtelierRoot = (Resolve-Path "$PSScriptRoot/../..").Path,
+  [string]$AtelierRoot = '',
   [string]$Unity = 'C:/Program Files/Unity/Hub/Editor/2022.3.22f1/Editor/Unity.exe'
 )
 $ErrorActionPreference = 'Stop'
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$log  = Join-Path $PSScriptRoot 'gate.log'
+
+# Default AtelierRoot from the repo's MAIN checkout (git worktree list line 1), whose parent is the
+# Atelier workspace root — correct from the main checkout and from any git-worktree slice, where a
+# fixed ../.. hop would land in the worktrees dir instead.
+if (-not $AtelierRoot) {
+  $mainWt = (& git -C $root worktree list --porcelain | Select-Object -First 1) -replace '^worktree ', ''
+  $AtelierRoot = (Resolve-Path (Join-Path $mainWt '..')).Path
+}
 $editor = Join-Path $AtelierRoot 'TestEditor'
-$root   = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$log    = Join-Path $PSScriptRoot 'gate.log'
 
 if (-not (Test-Path $editor)) {
+  $setup = Join-Path $AtelierRoot 'tools/setup-test-editor.ps1'
+  if (-not (Test-Path $setup)) {
+    Write-Error "AtelierRoot '$AtelierRoot' has no tools/setup-test-editor.ps1 — pass -AtelierRoot <path to the Atelier workspace root>."
+    exit 1
+  }
   Write-Host "TestEditor missing — provisioning."
-  & pwsh (Join-Path $AtelierRoot 'tools/setup-test-editor.ps1') -Sync
+  & pwsh $setup -Sync
 }
 
 if (Test-Path $log) { Remove-Item $log }
