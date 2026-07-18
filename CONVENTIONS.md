@@ -3,6 +3,12 @@
 Reusable avatar building blocks. Primary reader: an agent with the full Atelier workspace.
 YAML is the source of truth; built Unity assets are regenerable.
 
+The general avatar-tooling doctrine an entry *embodies* — module seams and the build-order that
+constrains them, gimmick packaging, graph-layout legibility, the binding schema — lives in the
+workspace docs (`nondestructive.md`, `gimmicks.md`, `animator-schema.md`). This file is only the
+mechanics a contributor **to vrc-patterns itself** needs: the entry's shape on disk, the README
+Interface slot, and the gate.
+
 ## An entry is a folder
 
     <entry-name>/
@@ -14,16 +20,16 @@ YAML is the source of truth; built Unity assets are regenerable.
 
 ## Tier is derived, not assigned
 
-The one axis that changes behavior: **does the entry ship a GUID-consumer** (a prefab/asset that
-references `built/`)? Read it off which files exist:
+One axis changes an entry's shape: **does it ship a GUID-consumer** (a prefab/asset referencing
+`built/`)? Read it off which files exist — the gate keys off the same signal (any prefab/`assets`/`built`
+entry must ship a built controller per document). Two shapes exist:
 
-- **Pattern** — `controller.yaml` only. No `built/`: an agent lifts the YAML and recompiles in its
-  own project with its own GUID. Committing `built/` here is review noise UNLESS the entry is a
-  declared study/reference entry — then `built/` is the point (a DBT graph is legible only in the
-  animator window), and the gate holds it to decompile-equality like any `built/`.
-- **Asset-bound** — adds `assets/`. `built/` committed (an asset references it).
-- **Module** — adds `<entry>.prefab` (one or more prefab variants). `built/` committed; the prefab
-  references it by GUID.
+- **Pattern** — `controller.yaml`, plus `built/` for the study/reference form (which every current
+  Pattern is): a DBT graph is legible only in the animator window, so `built/` is committed and held to
+  decompile-equality like any `built/`. A pure lift-and-recompile Pattern would ship `controller.yaml`
+  alone — none exist yet.
+- **Module** — adds `<entry>.prefab` (one or more variants), and `assets/` when it ships owned
+  meshes/materials. `built/` committed; the prefab references it by GUID.
 
 ## The Interface stanza (fixed README slot)
 
@@ -32,101 +38,12 @@ what the YAML cannot, so adapting an entry never means reverse-engineering the p
 
 - **Params** — in/out, synced/saved.
 - **Seam** — which framework merges it (MA `MergeAnimator` vs VRCFury `FullController`), the anchor,
-  and the **binding frame the merge resolves**: MA `basis:` ↔ `pathMode`; VRCF resolves per binding
-  relative to the component's object (`rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), plus any
-  `rewriteBindings`. CompileController is frame-blind, so this is load-bearing — record it.
+  and the **binding frame the merge resolves** (MA `basis:` ↔ `pathMode`; VRCF per-binding,
+  `basis: mount-root` ↔ `rootBindingsApplyToAvatar: 0`). CompileController is frame-blind, so this is
+  load-bearing — record it; `nondestructive.md` owns the frame mechanics and the build-order that makes
+  the seam choice matter.
 - **Dependencies** — physbones/contacts/menu params the entry assumes exist.
 - **Required assets** — and any hard external dependency.
-
-## Module tier
-
-A Module entry is a drop-in gimmick: the prefab composes onto an avatar and ships its own menu front
-(`gimmicks.md` §Packaging — enable/options/failsafe inside the module, never left to the consumer).
-
-- **Seam ruling:** VRCFury (`FullController`/`Toggle`/`ApplyDuringUpload`) for behavior; MA `BoneProxy`
-  only for anchors whose placement must be visible while authoring (VRCF ArmatureLink snaps at build).
-  Pure-VRCF is the default when no anchor needs edit-time placement (`grab-prop`).
-  **Invariant:** VRCF-animated clip bindings live on the prop subtree and never path through an
-  MA-moved node — the build-time reparent breaks them silently (mechanism below). Anchor GOs are
-  exempt by construction: constraint sources are object references, path-immune.
-- **Seam ordering — why the invariant holds (measured).** Every MA pass runs inside NDMF's
-  preprocess hook (callbackOrder **-11000**); VRCFury applies at **-10000** and re-resolves each
-  merged binding against the **post-MA** hierarchy by a nearest-match prefix walk up from the
-  FullController's object (`ClipRewritersService.CreateNearestMatchPathRewriter`) — it does not
-  track objects across moves. So a node moved *with* the module (the module root itself
-  MA-anchored) keeps its component-relative path and is safe, while a binding through a node MA
-  moved *out* of the module subtree (an interior BoneProxy) finds no valid prefix and **silently
-  disappears from the merged FX** (probe: the moved binding dropped, its unmoved sibling in the
-  same clip rewrote fine; no error, no warning). The reverse direction breaks symmetrically: an
-  MA-merged animation pathing through a node VRCFury later moves (ArmatureLink) — MA's paths
-  froze at -11000 and nothing repaths after. Both directions are why behavior lives in VRCF and
-  MA touches only anchor nodes that carry no animated bindings.
-  The same escape hits VRCFury's **param-name rewrite**: FullController prefixes the parameter
-  fields of receivers/raycasts/physbones only within its component's subtree
-  (`FullControllerBuilder`), so a param-carrying component MA moved out of the module keeps the
-  bare name and its writes bridge to nothing (measured: a receiver under a BoneProxy-moved
-  anchor read 0 forever, no error). Sense from inside the module — constrain a sense point to
-  the anchor (`held-prop`'s `StowSense`), never parent it there.
-- **Variants** are prefab-level only (shape/size/anchor overrides) and share the entry's one
-  `controller.yaml` + `built/`. A variant that changes clips or receiver count is its own entry,
-  never a second controller in the folder (the controller-fork drift trap).
-- **Params:** sensing params (contact/PB outputs) never synced, saved, or menu-exposed; the enable is
-  synced-unsaved (off-is-reset). The YAML `vrc:` block is the source of truth; the compiler emits it
-  as `built/*_Parameters.asset` and the prefab's FullController **merges that asset (`prms`)** — the
-  prefab a human studies is self-describing, and complex entries will need the merge anyway. Intent
-  params ride `globalParams` (stable OSC-facing names; sensing stays instance-prefixed).
-- **Menu front:** a VRCFury `Toggle` driving the global enable (`useGlobalParam`), never a
-  hand-authored `VRCExpressionsMenu` asset — the Toggle's menu placement is a string path, so moving
-  a control into a submenu is an edit, not nested-menu-asset surgery. The Toggle references its
-  enable by name (`globalParam`), not by declaring it — so that name must be the one the FullController
-  exports via `globalParams` (the `prms` param the enable rides — above). A Toggle param absent from
-  `globalParams` leaves `RewriteParamName` free to instance-prefix the controller's copy while the
-  Toggle drives the bare name: a stranded toggle, no build error.
-- **No prefab builder.** The `<entry>.prefab` is the shipped artifact and its own source — the entry
-  README's rig/constants section plus `controller.yaml` carry what a rebuild needs. Don't commit a
-  regenerator script: reflection against a framework's internal model (VRCFury `VF.Model.*`) rots
-  unrun and then lies about reproducing. Capture construction as prose; promote a genuinely reusable
-  recipe to shared tooling, not per-entry `dev~/`.
-
-## Naming: rest modes and anchors
-
-Prop-family entries name states by **where the prop rests / who carries it**, and constraint-source
-attachment GOs as `<X>Anchor` (`HomeAnchor`); future multi-anchor entries extend the family
-(`gimmicks.md` "Anchor multiplexer"):
-
-- **Grabbed** — carried by the grab physbone (native sync).
-- **Anchored** — active constraint source to a named anchor GO; re-derivable, late-syncs.
-- **Dropped** — disabled/zero-source constraint holding its transform (world-frozen); no late-sync.
-- **Tracked** — crawler cage chasing a latched sender; no late-sync.
-
-The off-state is named by what off *does* — `Disabled` (hides the module) and `Reset` (parks it
-home) are different behaviors; don't force one word onto both. Transient states name their event
-(`Released`, `Searching`, `Timer`, `Waiting`). State names must not be YAML literals — `On`/`Off`
-parse as booleans (`animator-schema.md`).
-
-Rig object names collide across stacked Modules — `grab-prop` and `drop-on-player` both ship a
-bone named `GrabBone`, so find-by-name is ambiguous the moment both are worn: resolve by path or
-physbone chainId, and give future entries unique bone names.
-
-## Graph layout
-
-A committed machine with two or more states carries a hand-authored `layout:` block
-(`animator-schema.md` §layout) — the compiler's default grid erases the structure the YAML
-explains. The arrangement shows the machine's story at a glance: lifecycle descends from the
-default state below Entry; same-stage alternatives fan left/right at one height; states only one
-audience ever reaches get their own lane. Unused Any/Exit park stacked above Entry; move Exit only
-where a machine actually exits through it. Snap states to shared rows and columns where the graph
-offers them. Node overlap and near-collinear transitions that visually merge are defects; plain
-crossings in a dense graph are not. `drop-on-player` is the worked example.
-
-## Asset-closure rule
-
-VPM's identical-GUID-everywhere property holds only for in-package GUIDs. **Ship self-contained simple
-materials** (Unity Standard or a VPM-pinnable shader) — never a Poiyomi/lilToon dependency in library
-content (Poiyomi is not VPM-pinnable; a consumer without it gets pink materials). A material is shipped
-only when it carries content: placeholder primitives (swap-me payload spheres, demo cubes) use Unity's
-built-in default material, not an owned stock `.mat`. Any unavoidable external dependency is declared
-loudly in the Interface stanza.
 
 ## The gate
 
