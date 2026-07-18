@@ -17,6 +17,7 @@ whole, not entry-by-entry.
 | AAP exponential smoother (frametime-aware) | Pattern (study) | [`smooth-frametime`](smooth-frametime/) |
 | Grab a prop, world-drop it, re-grab in place (0-bit drop, usable by everyone) | Module | [`grab-prop`](grab-prop/) |
 | Latch onto + track another player's point (hand/head), 1 synced bit | Module | [`contact-tracker`](contact-tracker/) |
+| Same, at 4 receivers instead of 6 — exact within a fixed ±1.5 m volume, no chase (low contact budget) | Module | [`contact-tracker-box`](contact-tracker-box/) |
 | Grab a prop, release-arbitrated to own head / another player's head / world (2 synced bits, usable by everyone) | Module | [`drop-on-player`](drop-on-player/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 

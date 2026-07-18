@@ -1,0 +1,138 @@
+# contact-tracker-box — 4-box face-proximity latching tracker (Module tier).
+# The low-contact-budget sibling of contact-tracker: 4 face-proximity box receivers replace the
+# 6-sphere cage, and an absolute readout replaces the crawler servo. The +/-X box pair yields the
+# sender's x from the reading difference (sender radius cancels) and its radius from the sum; the
+# single Y+/Z+ boxes are radius-compensated. The reconstruction is linear in the four readings, so
+# it compiles to one non-normalized direct blend tree writing Output's localPosition — exact in one
+# step (probe-measured 0.0000 m worst case over the +/-1.2 m core, all sender radii), no
+# convergence dynamics, no step-response envelope. Latch is inherited from contact-tracker:
+# allowOthers animated 1->0 at acquisition (filters check only at acquisition, runtime.md).
+#
+# Provenance: contact-tracker (G5b) structure + the G5d box-contact probe (numbers in README).
+#
+# Empirical constants (runtime.md 90% rule — change only with an emulator test):
+#   acquisition scale 0.15 (prefab TrackingPoints localScale; boxes 6x6x3 => 0.9x0.9x0.45 m,
+#     core intersection ~0.45 m cube)
+#   tracking scale x1 absolute (prefab VRCScaleConstraint ScaleOffset, World.prefab source;
+#     boxes 6x6x3 m, faces at +/-1.5 m, working core |x|,|y|,|z| <= 1.5 m)
+#   readout coefficients 1.5 / 3 (readout_* clips) — derived from face position 1.5 and depth 3;
+#     change the box geometry and these must be re-derived together
+#   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
+#
+# Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —
+# one dead receiver breaks the reconstruction, where a dead sphere probe only degrades the servo.
+# Inside the +/-1.5 m core all four read strictly >0, so ANY-loss fires only at the boundary.
+
+schema: 1
+controller: ContactTrackerBox_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  ContactTrackerBox/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }  # off is the reset
+  # Sensing (face proximity) — never synced, never menu-exposed; listed in the params asset for legibility.
+  ContactTrackerBox/X+: float
+  ContactTrackerBox/X-: float
+  ContactTrackerBox/Y+: float
+  ContactTrackerBox/Z+: float
+  # Constant-1 direct weight carrying the latch clip inside the readout tree; never driven.
+  ContactTrackerBox/One: { type: float, default: 1, scratch: true }
+
+layers:
+  # Mode machine. Deterministic resume: every state re-derives from Enable + live proximity
+  # alone (Reset has a direct edge to Tracking, so a culled/re-shown copy relatches in place).
+  - name: Control
+    states:
+      Reset:                      # Enable off — Output parked at origin, filters open, boxes at acquisition scale
+        motion: { clip: idle }
+        transitions:
+          - to: Searching
+            when: [ ContactTrackerBox/Enable is true, ContactTrackerBox/X+ less 0.00001, ContactTrackerBox/X- less 0.00001, ContactTrackerBox/Y+ less 0.00001, ContactTrackerBox/Z+ less 0.00001 ]
+          - to: Tracking
+            when: [ ContactTrackerBox/Enable is true, ContactTrackerBox/X+ greater 0, ContactTrackerBox/X- greater 0, ContactTrackerBox/Y+ greater 0, ContactTrackerBox/Z+ greater 0 ]
+      Searching:                  # filters open, waiting for a sender inside the acquisition core
+        motion: { clip: idle }
+        transitions:
+          - to: Reset
+            when: [ ContactTrackerBox/Enable is false ]
+          - to: Tracking
+            when: [ ContactTrackerBox/X+ greater 0, ContactTrackerBox/X- greater 0, ContactTrackerBox/Y+ greater 0, ContactTrackerBox/Z+ greater 0 ]
+      Tracking:                   # filters shut (latched), boxes at absolute scale, Output = live reconstruction
+        motion:
+          tree: direct
+          name: BoxReadout
+          normalized: false
+          children:
+            - { clip: latch,      directWeight: ContactTrackerBox/One }
+            - { clip: readout_xp, directWeight: ContactTrackerBox/X+ }
+            - { clip: readout_xn, directWeight: ContactTrackerBox/X- }
+            - { clip: readout_yp, directWeight: ContactTrackerBox/Y+ }
+            - { clip: readout_zp, directWeight: ContactTrackerBox/Z+ }
+        transitions:
+          - to: Searching         # ANY-loss — the readout is broken the moment one box goes dark
+            when: [ ContactTrackerBox/X+ less 0.00001 ]
+          - to: Searching
+            when: [ ContactTrackerBox/X- less 0.00001 ]
+          - to: Searching
+            when: [ ContactTrackerBox/Y+ less 0.00001 ]
+          - to: Searching
+            when: [ ContactTrackerBox/Z+ less 0.00001 ]
+          - to: Reset
+            when: [ ContactTrackerBox/Enable is false ]
+    default: Reset
+    # Hand arrangement (CONVENTIONS.md §Graph layout), mirroring contact-tracker: lifecycle
+    # descends from Reset under Entry; Tracking left, Searching right; unused Any/Exit parked.
+    layout:
+      nodes: { Reset: [30, 180], Tracking: [-90, 250], Searching: [150, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+clips:
+  # Reset and Searching are property-identical (no crawler to park, no brake to hold): filters
+  # open, acquisition scale, Output at origin. One clip serves both states.
+  idle:
+    set:
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output parked at origin (the home)
+      TrackingPoints/Output/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Output/Transform.m_LocalPosition.z: 0
+
+  # Latch: rides the readout tree at constant weight 1 (One). Non-normalized direct children sum
+  # per binding over the clips that write it, so these values pass through unscaled while the
+  # readout_* clips below sum into Output's position.
+  latch:
+    set:
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # boxes inflate to absolute meters
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
+
+  # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
+  # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
+  # z = 3*Z+ - 1.5 - r, whose constants cancel into pure per-reading coefficients.
+  readout_xp:
+    set:
+      TrackingPoints/Output/Transform.m_LocalPosition.x: 1.5
+      TrackingPoints/Output/Transform.m_LocalPosition.y: -1.5
+      TrackingPoints/Output/Transform.m_LocalPosition.z: -1.5
+  readout_xn:
+    set:
+      TrackingPoints/Output/Transform.m_LocalPosition.x: -1.5
+      TrackingPoints/Output/Transform.m_LocalPosition.y: -1.5
+      TrackingPoints/Output/Transform.m_LocalPosition.z: -1.5
+  readout_yp:
+    set:
+      TrackingPoints/Output/Transform.m_LocalPosition.y: 3
+  readout_zp:
+    set:
+      TrackingPoints/Output/Transform.m_LocalPosition.z: 3
