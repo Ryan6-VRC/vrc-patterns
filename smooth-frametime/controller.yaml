@@ -44,7 +44,14 @@ defaults:
 parameters:
   # inputs — drivable floats, NOT synced/saved (a consumer decides); assumed in [0,1]
   Target:    { type: float, default: 0.0 }
-  rate:      { type: float, default: 6.0 }    # exponential rate: alpha ~ 1 - e^(-rate*dt)
+  # λ pair, selected by IsLocal (a vendor outfit-smoother's IsLocal-λ, survey-verified; OSCmooth ships the
+  # same fork). EQUAL BY DEFAULT — the guard: a local/remote λ split is warranted only when the two
+  # clients see genuinely different input (mostly OSC-driven: local gets the immediate high-res
+  # update, remote is capped ~10 Hz at reduced resolution). Absent that input asymmetry one λ is
+  # correct — splitting is EDITING these two defaults at install, never the shipped state.
+  rateLocal:  { type: float, default: 6.0 }   # exponential rate, wearer's client: alpha ~ 1 - e^(-rate*dt)
+  rateRemote: { type: float, default: 6.0 }   # exponential rate, remote viewers (raise smoothing = lower rate)
+  IsLocal:    { type: float }                 # VRC built-in, float-declared for blend-param use (vendor-DBT/OSCmooth idiom)
   maxSpeed:  { type: float, default: 2.0 }    # hybrid constant-velocity cap (units/second)
   crossover: { type: float, default: 0.1 }    # hybrid far->near handoff distance (|Δ| below this => exp home)
   One:       { type: float, default: 1.0 }    # constant, never driven — full-weight helper for 1D-identity children
@@ -55,7 +62,10 @@ parameters:
   FrameTime: { type: float, aap: true }       # one-frame-old dt (reads a frame-start Time) — correct for smoothing
 
   # alpha
-  RateStep:           { type: float, aap: true }   # FrameTime * rate
+  # Default 6.0 so the frame-0 read (before the first AAP write lands) already carries the shared
+  # λ — the selection stage adds no startup-fill frame to the settle chain.
+  RateSelected:       { type: float, aap: true, default: 6.0 }   # IsLocal·rateLocal + (1−IsLocal)·rateRemote
+  RateStep:           { type: float, aap: true }   # FrameTime * RateSelected
   AlphaClamp:         { type: float, aap: true }   # clamp(RateStep,0,1)
   OneMinusAlphaClamp: { type: float, aap: true }   # 1 - clamp(RateStep,0,1)
   AlphaRemap:         { type: float, aap: true }   # 1 - e^(-RateStep)  (sampled)
@@ -94,10 +104,30 @@ layers:
                 - { clip: FrameTime_Neg, directWeight: LastTime }  # FrameTime += LastTime * -1
                 - { clip: LastTime_Set,  directWeight: Time }      # LastTime = Time (stages this frame's Time)
 
-            # --- RateStep = FrameTime * rate (multiply idiom) ---
+            # --- λ selection: RateSelected = IsLocal·rateLocal + (1−IsLocal)·rateRemote ---
+            # A 1D over IsLocal picks the branch; each branch is the multiply idiom over its λ
+            # param, so both constants stay in param DEFAULTS (install-time tunable, no tree edit).
+            - tree: 1d
+              name: "λ by IsLocal"
+              param: IsLocal
+              directWeight: One
+              children:
+                - tree: direct
+                  name: "remote λ"
+                  threshold: 0.0
+                  children:
+                    - { clip: RateSelected_One, directWeight: rateRemote }
+                - tree: direct
+                  name: "local λ"
+                  threshold: 1.0
+                  children:
+                    - { clip: RateSelected_One, directWeight: rateLocal }
+
+            # --- RateStep = FrameTime * RateSelected (multiply idiom; λ is one frame stale — a
+            #     constant after selection, so no settle cost) ---
             - tree: direct
-              name: "RateStep = FrameTime·rate"
-              directWeight: rate
+              name: "RateStep = FrameTime·λ"
+              directWeight: RateSelected
               children:
                 - { clip: RateStep_One, directWeight: FrameTime }
 
@@ -322,8 +352,9 @@ clips:
   FrameTime_Neg: { set: { FrameTime: -1.0 } }
   LastTime_Set:  { set: { LastTime: 1.0 } }
 
-  # RateStep = FrameTime * rate
-  RateStep_One: { set: { RateStep: 1.0 } }
+  # λ selection + RateStep
+  RateSelected_One: { set: { RateSelected: 1.0 } }
+  RateStep_One:     { set: { RateStep: 1.0 } }
 
   # alpha clamp01
   AlphaClamp_Zero:         { set: { AlphaClamp: 0.0 } }

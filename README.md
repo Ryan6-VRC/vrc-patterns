@@ -19,13 +19,16 @@ whole, not entry-by-entry.
 | Latch onto + track another player's point (hand/head), 1 synced bit | Module | [`contact-tracker`](contact-tracker/) |
 | Same, at 4 receivers instead of 6 — exact within a fixed ±1.5 m volume, no chase (low contact budget) | Module | [`contact-tracker-box`](contact-tracker-box/) |
 | Grab a prop, release-arbitrated to own head / another player's head / world (2 synced bits, usable by everyone) | Module | [`drop-on-player`](drop-on-player/) |
+| Stow/hand multi-anchor prop, physical gesture take/place + grip pose (1 synced int) | Module | [`held-prop`](held-prop/) |
+| N-zone touch reaction, debounced + arbitrated, sync-only-the-divergent-outcome (2 synced bits) | Module | [`zone-touch`](zone-touch/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 
-The prop Modules are **usable by every player in the instance**, not just the wearer: the grab
-physbone is open to everyone (`allowGrabbing: True`) and natively synced, so anyone can take,
-carry, and place the prop — the wearer's client arbitrates and syncs the outcome. That is the
-novelty these entries package; the simpler forms of prop-carry (a toggle-anchored held prop, a
-wearer-only grab) serve only the owning player.
+The physbone prop Modules (`grab-prop`, `drop-on-player`) are **usable by every player in the
+instance**, not just the wearer: the grab physbone is open to everyone (`allowGrabbing: True`)
+and natively synced, so anyone can take, carry, and place the prop — the wearer's client
+arbitrates and syncs the outcome. That is the novelty those entries package. `held-prop` is the
+deliberate opposite pole: **wearer-only by authorization** (`allowSelf`-only sensing — no
+stranger can take your prop), anchored by constraint rather than carried by physbone.
 
 ## Using an entry
 

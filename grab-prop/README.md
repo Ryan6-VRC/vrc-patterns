@@ -32,9 +32,10 @@ GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.
 (`FreezeToWorld` constraint, enabled during upload), so out of the box the home is a fixed world
 spot — the avatar's spawn point. For a follow-me home (prop returns to your hip/chest), anchor
 `HomeAnchor` yourself: MA BoneProxy on it, or constrain it to a bone. It is referenced only as a
-constraint source, so moving or re-parenting it is safe. If you BoneProxy it, keep the module's
-animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of the re-parented subtree —
-VRCF clip bindings must not path through an MA-moved node.
+constraint source (an object reference — path-immune), so moving or re-parenting it is safe. If
+you BoneProxy it, keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`)
+out of the re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes
+at build (CONVENTIONS §Seam ordering has the measured mechanism).
 
 ## How it works
 

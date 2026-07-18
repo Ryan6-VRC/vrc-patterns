@@ -1,0 +1,131 @@
+# held-prop — the multi-anchor self-syncing prop (gimmicks.md §Constraint patterns "Anchor
+# multiplexer"). One prop, one VRCParentConstraint over [StowAnchor, HandAnchor]; states select
+# source weights via clips. Take/place is PHYSICAL: hand-near + gesture arms, gesture RELEASE
+# commits (zero-timer anti-misfire — an accidental Fist near the prop does nothing until you let
+# go near it). Menu holds only the enable; every outcome rides one synced banded mode int.
+#
+# Wire surface: HeldProp/Mode (synced int, 8 bits — accepted deliberately: it simplifies the
+# machine and the VRCFury Parameter Compressor reclaims the width; only Add-type drivers block
+# compressor membership, and this document stamps with Set only).
+#   0  Hidden   (off-is-reset; prop hidden, parked at stow)
+#   1  Stowed   (anchored to StowAnchor)
+#   2  Held     (anchored to HandAnchor; the Gesture-playable grip layer keys on this value)
+#   3+ invalid  (guard edges route remotes to Stowed; local states re-stamp on entry)
+# Menu intent (HeldProp/Enable) is UNSYNCED — the mode int carries the outcome (the same split
+# drop-on-player ships). Every rest state is re-derivable from Mode alone, so there is no
+# Waiting/Timer band: a late joiner poses correctly the moment the int arrives.
+#
+# Sensing (never synced): two proximity receivers on the wearer's own hand (allowSelf only —
+# self-touch as authorization, no stranger can take the prop; localOnly — remotes pose from Mode):
+#   HeldProp/NearProp on the prop (arm a take), HeldProp/NearStow on the stow anchor (arm a place).
+# GestureRight is the VRC built-in; Fist (1) is the grip gesture. Swap the conditions for
+# GestureLeft to make a left-hand prop.
+#
+# Empirical constants (runtime.md 90% rule):
+#   anchor crossfade 0.25 s      [EMPIRICAL: emulator — glide reads clean vs teleport; feel-tunable]
+#   grip blend 0.15 s            [gesture.yaml; EMPIRICAL: same sweep]
+#   arm threshold greater 0, disarm less 0.00001   [contact-tracker lineage]
+
+schema: 1
+controller: HeldProp_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # The synced outcome — written only by the wearer's localOnly drivers on mode-state entry.
+  HeldProp/Mode:     { type: int, default: 0, vrc: { synced: true, saved: false } }
+  # Menu intent — local-only (unsynced); the Toggle drives it, the int carries the outcome.
+  HeldProp/Enable:   { type: bool, default: false, vrc: { synced: false, saved: false } }
+  # Sensing — never synced, never menu-exposed; listed in the params asset for legibility.
+  HeldProp/NearProp: float     # own-hand proximity at the prop (allowSelf, localOnly)
+  HeldProp/NearStow: float     # own-hand proximity at the stow anchor (allowSelf, localOnly)
+  GestureRight: int            # VRC built-in
+  IsLocal: bool                # VRC built-in
+
+layers:
+  # Mode machine. Local edges arbitrate off live sensors + gesture and stamp Mode; remote edges
+  # pose from Mode alone. TakeArmed/PlaceArmed are local-only transients (remotes never enter —
+  # they hold the origin pose, so remotes see nothing until the commit stamps the int).
+  - name: HeldProp/Control
+    states:
+      Hidden:
+        behaviours:
+          - driver: { localOnly: true, set: { HeldProp/Mode: 0 } }
+        motion: { clip: hidden }
+        transitions:
+          - { to: Stowed, when: [ IsLocal is true, HeldProp/Enable is true ] }
+          - { to: Stowed, when: [ IsLocal is false, HeldProp/Mode equals 1 ] }
+          - { to: Held,   when: [ IsLocal is false, HeldProp/Mode equals 2 ], duration: 0.25 }
+          # Guard: an invalid synced value poses the safe visible default (the vendor reference implementation's sanitizer).
+          - { to: Stowed, when: [ IsLocal is false, HeldProp/Mode greater 2 ] }
+      Stowed:
+        behaviours:
+          - driver: { localOnly: true, set: { HeldProp/Mode: 1 } }
+        motion: { clip: stowed }
+        transitions:
+          - { to: Hidden, when: [ IsLocal is true, HeldProp/Enable is false ] }
+          - { to: Hidden, when: [ IsLocal is false, HeldProp/Mode equals 0 ] }
+          - { to: Held,   when: [ IsLocal is false, HeldProp/Mode equals 2 ], duration: 0.25 }
+          - { to: TakeArmed, when: [ IsLocal is true, HeldProp/NearProp greater 0, GestureRight equals 1 ] }
+      # Armed: grip is held near the prop. Disarm (hand leaves) outranks commit so a same-frame
+      # leave+release takes nothing; the commit edge is the gesture RELEASE.
+      TakeArmed:
+        motion: { clip: stowed }
+        transitions:
+          - { to: Hidden, when: [ IsLocal is true, HeldProp/Enable is false ] }
+          - { to: Stowed, when: [ HeldProp/NearProp less 0.00001 ] }
+          - { to: Held,   when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      Held:
+        behaviours:
+          - driver: { localOnly: true, set: { HeldProp/Mode: 2 } }
+        motion: { clip: held }
+        transitions:
+          - { to: Hidden, when: [ IsLocal is true, HeldProp/Enable is false ] }
+          - { to: Hidden, when: [ IsLocal is false, HeldProp/Mode equals 0 ] }
+          - { to: Stowed, when: [ IsLocal is false, HeldProp/Mode equals 1 ], duration: 0.25 }
+          - { to: Stowed, when: [ IsLocal is false, HeldProp/Mode greater 2 ], duration: 0.25 }
+          - { to: PlaceArmed, when: [ IsLocal is true, HeldProp/NearStow greater 0, GestureRight equals 1 ] }
+      PlaceArmed:
+        motion: { clip: held }
+        transitions:
+          - { to: Hidden, when: [ IsLocal is true, HeldProp/Enable is false ] }
+          - { to: Held,   when: [ HeldProp/NearStow less 0.00001 ] }
+          - { to: Stowed, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+    default: Hidden
+    # Lifecycle descends Hidden -> Stowed -> Held below Entry; the armed transients fan right of
+    # their origin states (local-only lane). Any/Exit parked above Entry.
+    layout:
+      nodes:
+        Hidden:     [30, 180]
+        Stowed:     [30, 300]
+        TakeArmed:  [330, 300]
+        Held:       [30, 420]
+        PlaceArmed: [330, 420]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Constraint source map (VRCParentConstraint on Container): source0 StowAnchor, source1 HandAnchor.
+# Every clip owns the full rig-property set explicitly (no reliance on WD revert; the semantics
+# survive a VRCFury WD-OFF conversion). A transition's duration crossfades the weights — the prop
+# glides between anchors instead of teleporting.
+clips:
+  hidden:
+    set:
+      "Container/GameObject.m_IsActive": 0
+      "Container/VRCParentConstraint.Sources.source0.Weight": 1
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+  stowed:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 1
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+  held:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 1

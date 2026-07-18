@@ -1,0 +1,189 @@
+# zone-touch — N-zone touch reaction done right (the corrected vendor touch-spots package; mechanism from
+# the Remy headpat, generalized — gimmicks.md §Contacts "Sync only the divergent outcome").
+# Every client's copy of this machine runs on its OWN receivers (localOnly:0, allowSelf+Others):
+# the common-case reaction reproduces per-client at 0 synced bits, 0 latency. Synced bits are
+# spent only on what remotes cannot re-derive:
+#   ZoneTouch/Enable  (1 bit)  — gates REMOTE sensing too: off must silence every client's
+#                                receivers, so the enable is synced (receiver GOs animate off).
+#   ZoneTouch/Special (1 bit)  — the divergent outcome: a local random roll (driver type Random)
+#                                selects the rare special reaction; remotes follow the bool.
+# Level-handshake rearm: the wearer's dwell is the only clock — local drops Special on release
+# (Cooldown entry), remotes leave Special on the FALLING EDGE and re-arm. No remote timers to
+# skew; late-join-safe (unsaved default-0).
+#
+# The five vendor defects this structure is built against (each is an emulator assertion):
+#   1 sensing params synced+saved      -> sensing floats never synced/saved, params-asset legible
+#   2 no debounce                      -> Cooldown dwell; re-touch inside it is ignored
+#   3 no arbitration (last-write-wins) -> one machine, one writer; the React ladder is the
+#                                         arbiter (list order = priority, Zone1 wins ties)
+#   4 AnyState self-retrigger          -> no AnyState; React holds while touched, plays once
+#   5 default-on kill switch           -> Enable default-false, Disabled is the default state
+#
+# Empirical constants (runtime.md 90% rule):
+#   debounce dwell 0.5 s        [EMPIRICAL: emulator — re-fire window; feel-tunable]
+#   special chance 0.02         [driver Random; consumer-tunable odds]
+#   release threshold less 0.00001, touch greater 0   [contact-tracker lineage]
+
+schema: 1
+controller: ZoneTouch_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  ZoneTouch/Enable:  { type: bool, default: false, vrc: { synced: true, saved: false } }
+  ZoneTouch/Special: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  # Sensing — never synced/saved; listed in the params asset for legibility. localOnly:0
+  # receivers: every client's own copy senses the toucher.
+  ZoneTouch/Zone1: float
+  ZoneTouch/Zone2: float
+  ZoneTouch/Zone3: float
+  # The roll residue — local-only decision memory, kept out of the params asset.
+  ZoneTouch/RollHit: { type: bool, scratch: true }
+  IsLocal: bool              # VRC built-in
+
+layers:
+  - name: ZoneTouch/Control
+    states:
+      # Default OFF (defect 5). Off-is-reset: entry clears Special locally; the clip disables
+      # every receiver GO, so remotes' sensing dies with the synced Enable.
+      Disabled:
+        behaviours:
+          - driver: { localOnly: true, set: { ZoneTouch/Special: 0 } }
+        motion: { clip: zt_disabled }
+        transitions:
+          - { to: Idle, when: [ ZoneTouch/Enable is true ] }
+      Idle:
+        motion: { clip: zt_idle }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          # The synced special outranks local sensing: a remote (or late joiner) lands here and
+          # follows the bool without ever seeing a contact.
+          - { to: Special, when: [ ZoneTouch/Special is true ] }
+          # Arbitration ladder (defect 3): first match wins, Zone1 > Zone2 > Zone3 on coincident
+          # touches; one machine means one writer on the reaction rig.
+          - { to: React1, when: [ ZoneTouch/Zone1 greater 0 ] }
+          - { to: React2, when: [ ZoneTouch/Zone2 greater 0 ] }
+          - { to: React3, when: [ ZoneTouch/Zone3 greater 0 ] }
+      # One React state per zone so a per-zone reaction is a clip swap, not surgery. Entry rolls
+      # the special odds ONCE per touch episode (local; chance is the consumer-tunable knob).
+      # The reaction plays once and holds while the zone stays touched (defect 4) — no self edge.
+      React1:
+        behaviours:
+          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+        motion: { clip: zt_react }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
+          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone1 less 0.00001 ] }
+      React2:
+        behaviours:
+          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+        motion: { clip: zt_react }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
+          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone2 less 0.00001 ] }
+      React3:
+        behaviours:
+          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+        motion: { clip: zt_react }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
+          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone3 less 0.00001 ] }
+      # The divergent branch. Local stamps the bool on entry (the roll is why remotes can't
+      # re-derive this); local exit is the WEARER's release (any-zone check — the dwell state is
+      # the clock), remote exit is the falling edge. RollHit clears on entry so the residue
+      # can't re-fire next episode.
+      Special:
+        behaviours:
+          - driver: { localOnly: true, set: { ZoneTouch/Special: 1, ZoneTouch/RollHit: 0 } }
+        motion: { clip: zt_special }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Cooldown, when: [ IsLocal is true, ZoneTouch/Zone1 less 0.00001, ZoneTouch/Zone2 less 0.00001, ZoneTouch/Zone3 less 0.00001 ] }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/Special is false ] }
+      # Debounce dwell (defect 2): no zone edge leaves here, so a re-touch inside the window is
+      # ignored. Entry drops Special — the falling edge remotes rearm on.
+      Cooldown:
+        behaviours:
+          - driver: { localOnly: true, set: { ZoneTouch/Special: 0 } }
+        motion: { clip: zt_cooldown }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Idle, when: [], exitTime: 1.0 }
+    default: Disabled
+    # Lifecycle descends Disabled -> Idle; the React fan spreads one row below Idle; the
+    # divergent lane (Special) sits right, Cooldown closes the loop under the fan.
+    layout:
+      nodes:
+        Disabled: [30, 180]
+        Idle:     [30, 300]
+        React1:   [-270, 420]
+        React2:   [30, 420]
+        React3:   [330, 420]
+        Special:  [630, 420]
+        Cooldown: [30, 540]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Rig: Zones/Zone1..3 each carry a proximity VRCContactReceiver (consumer moves/anchors the zone
+# GOs); ReactProxy is the placeholder output (swap its clips for your reaction). Every clip owns
+# the full rig-property set explicitly (no reliance on WD revert; survives WD-OFF conversion).
+clips:
+  zt_disabled:
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 0
+      "Zones/Zone2/GameObject.m_IsActive": 0
+      "Zones/Zone3/GameObject.m_IsActive": 0
+      "ReactProxy/Transform.m_LocalScale.x": 1
+      "ReactProxy/Transform.m_LocalScale.y": 1
+      "ReactProxy/Transform.m_LocalScale.z": 1
+  zt_idle:
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+      "ReactProxy/Transform.m_LocalScale.x": 1
+      "ReactProxy/Transform.m_LocalScale.y": 1
+      "ReactProxy/Transform.m_LocalScale.z": 1
+  # Common reaction: one scale pulse, then hold at rest while the touch persists (plays once —
+  # the machine, not the clip, decides when a new episode starts).
+  zt_react:
+    length: 0.5
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+    curves:
+      "ReactProxy/Transform.m_LocalScale.x": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
+      "ReactProxy/Transform.m_LocalScale.y": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
+      "ReactProxy/Transform.m_LocalScale.z": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
+  # Special reaction: sustained double-size while the bool holds — visibly distinct from the
+  # pulse so the divergent branch reads at a glance (and in a render diff).
+  zt_special:
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+      "ReactProxy/Transform.m_LocalScale.x": 2
+      "ReactProxy/Transform.m_LocalScale.y": 2
+      "ReactProxy/Transform.m_LocalScale.z": 2
+  # Debounce dwell  [EMPIRICAL: 0.5 s]
+  zt_cooldown:
+    seconds: 0.5
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+      "ReactProxy/Transform.m_LocalScale.x": 1
+      "ReactProxy/Transform.m_LocalScale.y": 1
+      "ReactProxy/Transform.m_LocalScale.z": 1

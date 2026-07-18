@@ -19,7 +19,12 @@ MonoBehaviour:
     saved: 0
     defaultValue: 0
     networkSynced: 0
-  - name: rate
+  - name: rateLocal
+    valueType: 1
+    saved: 0
+    defaultValue: 6
+    networkSynced: 0
+  - name: rateRemote
     valueType: 1
     saved: 0
     defaultValue: 6
@@ -53,6 +58,11 @@ MonoBehaviour:
     valueType: 1
     saved: 0
     defaultValue: 0
+    networkSynced: 0
+  - name: RateSelected
+    valueType: 1
+    saved: 0
+    defaultValue: 6
     networkSynced: 0
   - name: RateStep
     valueType: 1

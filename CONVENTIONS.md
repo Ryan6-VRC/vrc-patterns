@@ -45,9 +45,28 @@ A Module entry is a drop-in gimmick: the prefab composes onto an avatar and ship
 
 - **Seam ruling:** VRCFury (`FullController`/`Toggle`/`ApplyDuringUpload`) for behavior; MA `BoneProxy`
   only for anchors whose placement must be visible while authoring (VRCF ArmatureLink snaps at build).
+  Pure-VRCF is the default when no anchor needs edit-time placement (`grab-prop`).
   **Invariant:** VRCF-animated clip bindings live on the prop subtree and never path through an
-  MA-moved node — the build-time reparent breaks them silently. Pure-VRCF is the default when no
-  anchor needs edit-time placement (`grab-prop`).
+  MA-moved node — the build-time reparent breaks them silently (mechanism below). Anchor GOs are
+  exempt by construction: constraint sources are object references, path-immune.
+- **Seam ordering — why the invariant holds (measured).** Every MA pass runs inside NDMF's
+  preprocess hook (callbackOrder **-11000**); VRCFury applies at **-10000** and re-resolves each
+  merged binding against the **post-MA** hierarchy by a nearest-match prefix walk up from the
+  FullController's object (`ClipRewritersService.CreateNearestMatchPathRewriter`) — it does not
+  track objects across moves. So a node moved *with* the module (the module root itself
+  MA-anchored) keeps its component-relative path and is safe, while a binding through a node MA
+  moved *out* of the module subtree (an interior BoneProxy) finds no valid prefix and **silently
+  disappears from the merged FX** (probe: the moved binding dropped, its unmoved sibling in the
+  same clip rewrote fine; no error, no warning). The reverse direction breaks symmetrically: an
+  MA-merged animation pathing through a node VRCFury later moves (ArmatureLink) — MA's paths
+  froze at -11000 and nothing repaths after. Both directions are why behavior lives in VRCF and
+  MA touches only anchor nodes that carry no animated bindings.
+  The same escape hits VRCFury's **param-name rewrite**: FullController prefixes the parameter
+  fields of receivers/raycasts/physbones only within its component's subtree
+  (`FullControllerBuilder`), so a param-carrying component MA moved out of the module keeps the
+  bare name and its writes bridge to nothing (measured: a receiver under a BoneProxy-moved
+  anchor read 0 forever, no error). Sense from inside the module — constrain a sense point to
+  the anchor (`held-prop`'s `StowSense`), never parent it there.
 - **Variants** are prefab-level only (shape/size/anchor overrides) and share the entry's one
   `controller.yaml` + `built/`. A variant that changes clips or receiver count is its own entry,
   never a second controller in the folder (the controller-fork drift trap).

@@ -26,18 +26,35 @@ smoother constructions (vrc.school Advanced Blend Trees); no real-avatar naming.
 ## Interface
 
 - **Params (in, float, NOT synced/saved — a consumer decides):** `Target` (the value to chase),
-  `rate` (exponential rate; `α ≈ 1 − e^(−rate·dt)`), `maxSpeed` (hybrid constant-velocity cap,
-  units/s), `crossover` (hybrid far→near handoff distance — a *live* param: `CrossDiff = crossover −
-  |Δ|`), and `One` (a constant helper, never driven — leave at default). **Inputs assumed in `[0,1]`**
-  (the reused clamp/ReLU 1D shapes saturate at 1).
+  `rateLocal` / `rateRemote` (the exponential-rate λ pair, selected by `IsLocal`;
+  `α ≈ 1 − e^(−rate·dt)`; **equal by default — see §λ by IsLocal**), `maxSpeed` (hybrid
+  constant-velocity cap, units/s), `crossover` (hybrid far→near handoff distance — a *live*
+  param: `CrossDiff = crossover − |Δ|`), `IsLocal` (VRC built-in, float-declared for blend-param
+  use — the vendor-DBT/OSCmooth idiom), and `One` (a constant helper, never driven — leave at
+  default). **Inputs assumed in `[0,1]`** (the reused clamp/ReLU 1D shapes saturate at 1).
 - **Outputs (all AAPs, `aap: true`):** `SmoothedExpClamp`, `SmoothedExpRemap`, `SmoothedHybrid`, plus
-  the owned rig (`Time`/`LastTime`/`FrameTime`) and the intermediates (`RateStep`, the
-  `Alpha*`/`OneMinusAlpha*` pairs, `Delta`/`AbsDelta`/`CrossDiff`/`W`/`OneMinusW`/`SignDelta`).
+  the owned rig (`Time`/`LastTime`/`FrameTime`) and the intermediates (`RateSelected`, `RateStep`,
+  the `Alpha*`/`OneMinusAlpha*` pairs, `Delta`/`AbsDelta`/`CrossDiff`/`W`/`OneMinusW`/`SignDelta`).
 - **Seam:** none shipped (Pattern tier, lifted as YAML). Every clip writes an animator parameter, not a
   scene binding, so there is nothing to repath. `basis` ↔ MA `pathMode` per `_template`.
 - **Dependencies / required assets:** none. Owns its frametime rig rather than borrowing VRCFury's
   `FrameTimeService` (that service's update-ordering contract is undocumented — fragile for a lifted
   library entry).
+
+## λ by IsLocal
+
+The rate the smoothers consume is `RateSelected = IsLocal·rateLocal + (1−IsLocal)·rateRemote` —
+a 1D-on-IsLocal selection stage (a vendor outfit smoother's construction, survey-verified; the Plum FT
+add-on's OSCmooth Local/Remote paths are the same fork at scale). Both constants live in param
+**defaults**, so tuning is an install-time edit, no tree surgery; `RateSelected`'s own default
+matches, so the selection adds no startup-fill frame.
+
+**The guard — don't split reflexively.** A local/remote λ split is warranted only when the two
+clients see *genuinely different input*: mostly OSC-driven params, where the wearer's client gets
+the immediate high-resolution update while remotes receive it capped to ~10 Hz at reduced
+resolution (bool-encoded or 8-bit-float synced params) — heavier remote smoothing masks that
+jitter. Absent that input asymmetry one λ is correct, which is why the shipped defaults are
+**equal**: the split exists as two editable numbers, not as shipped behavior.
 
 ## Measured behavior
 
@@ -105,6 +122,18 @@ The `Alpha`+`OneMinusAlpha` pair sums to 1 every frame (the convexity trap is ha
 true exponential. `remap` trades tree nodes for precision — its frametime-independence is real but bounded
 by 1D key density, so keys must be dense in the operating `RateStep` band. `clamp01` is the cheaper,
 honestly-framerate-*dependent* flavour when exact independence isn't needed.
+
+### λ selection (IsLocal fork)
+
+Same venue, `rateLocal=6, rateRemote=2`, warm hold-then-step. `IsLocal=1` → `RateSelected` reads
+**6.0000**, warm residual ratio over 0.5 s = 0.051546 (ideal `e^−3` = 0.049787); `IsLocal=0` →
+`RateSelected` = **2.0000**, ratio 0.380180 (ideal `e^−1` = 0.367879). Deviations are measurement
+artifacts, not selection error: the rate-6 arm reads residuals near float precision, and the
+rate-2 arm runs at `RateStep = 0.033` — between the 12-key remap samples, so the documented chord
+error applies (densify keys if you operate there). With the shipped **equal** defaults the
+hold-then-step run reproduces the pre-λ measurements byte-identically (`f5 C=0.409510
+R=0.393471`, `f20 C=0.878423`) — the selection stage adds no startup-fill frame
+(`RateSelected`'s declared default carries the frame-0 read).
 
 ### Hybrid landing
 
