@@ -36,7 +36,7 @@ Two prefabs, one controller:
 | Constant | Value | Measured behavior |
 |---|---|---|
 | Acquisition scale | 0.15 (TrackingPoints localScale) | sphere: latch ≤0.12 m radial, miss ≥0.30. capsule: latch ≤0.55 axial / ≤0.12 radial, miss ≥0.75 / ≥0.30 |
-| Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m for both shapes (SDK source: capsule proximity = distance to the axis *segment* normalized by radius — height extends the axis, radius alone sets falloff); steady-state probe reading ≈ 0.517 |
+| Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m for both shapes (radius alone sets the falloff length — height just extends the capsule axis, not the falloff; see `runtime.md` §Contacts); steady-state probe reading ≈ 0.517 |
 | Probe spread | ±0.5 local (tracking clip) | ±1.5 m world in tracking; sets the step-response limit below |
 | Settle dwell | 1.0 s park-brake hold (tracking clip) | brake=1 damps the acquisition transient (smooth traverse, no leapfrog); releases as a snap at 1.0 s. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
 | Loss / acquire thresholds | all six <0.00001 / >0 | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
