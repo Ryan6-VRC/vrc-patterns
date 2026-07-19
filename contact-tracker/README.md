@@ -25,8 +25,11 @@ Two prefabs, one controller:
   relative to the prefab root, so the internal hierarchy names are load-bearing. The FullController
   merges `built/ContactTracker_Fx_Parameters.asset` (`prms`); `ContactTracker/Enable` rides
   `globalParams`, and a VRCFury `Toggle` (`useGlobalParam`) is the menu front inside the module.
-- **Dependencies:** none. Receivers are `localOnly: 0` **by necessity** — remote clients run the
-  tracker to re-derive the cage; flipping them local-only breaks remote copies silently.
+- **Dependencies:** none to build; **compose `anti-cull` alongside** (its README §When a module
+  needs this) — the re-derivation below runs only while a remote client evaluates the wearer's
+  animator, which is why VRLabs ships the same mechanism inside its tracker prefabs. Receivers are
+  `localOnly: 0` **by necessity** — remote clients run the tracker to re-derive the cage; flipping
+  them local-only breaks remote copies silently.
 - **Required assets:** `assets/World.prefab` — never-instantiated scale reference; sourcing it in
   the scale constraint makes the tracking cage absolute-meters (avatar-scale-immune). Do not
   instantiate or delete it.
