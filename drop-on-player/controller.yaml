@@ -19,12 +19,12 @@
 # Empirical constants (runtime.md 90% rule) — every one labeled:
 #   released pulse: freeze t=0, re-sample window [0.25, 0.50) s   [EMPIRICAL: grab-prop emulator sweep]
 #   remote release-settle: 0.5 s (= pulse length; remotes route by pair at pulse end, covering
-#     the sync tick so a world-drop doesn't flash through a stale mode)  [EMPIRICAL: RemyDoll attach dwell]
+#     the sync tick so a world-drop doesn't flash through a stale mode)  [EMPIRICAL: source-avatar attach dwell]
 #   remote boot dwell: 1.0 s (timer clip)                          [EMPIRICAL: grab-prop in-game candidate]
 #   cage acquisition/tracking scales, probe spread, park-brake ramp 1.0 s  [EMPIRICAL: contact-tracker sweep]
 #   loss threshold 0.00001, acquisition threshold >0 (transitions)
 #
-# Deliberate deltas from the RemyDoll ancestor (survey §6): no banded mode int (2 direct bools —
+# Deliberate deltas from the source ancestor (survey §6): no banded mode int (2 direct bools —
 # few exclusive states, gimmicks.md §Packaging); no 6 s world-band dwell (it existed for
 # Custom-Object-Sync repair — no COS here; the non-derivable bands park in Waiting instead); no
 # 7th arbitration receiver (the 6 cage receivers, parked ON the prop with filters open, are the

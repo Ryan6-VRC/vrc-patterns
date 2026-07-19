@@ -11,7 +11,7 @@ for other people's clients: every remote client skins and draws it at all times,
 view-culling protection those clients would otherwise apply. Compose it deliberately, and only
 once per avatar.
 
-**Provenance:** generalized from a Remy GestureTools anti-cull (VRLabs ancestry — VRLabs ships this
+**Provenance:** generalized from a private production avatar's anti-cull (VRLabs ancestry — VRLabs ships this
 mechanism *inside* its contact-tracker prefabs because trackers are unreliable without it; it was
 split out to share one instance across gimmicks). Mechanism verbatim — cube, constraint values,
 layer — and in-game efficacy is carried by the source's production history across every avatar it

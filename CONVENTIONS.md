@@ -56,4 +56,6 @@ Study/reference entries name every non-leaf blend-tree node (`name:`) and name c
 ## Provenance / PII
 
 Entries generalized from real assets record their origin and what was abstracted away. This repo is
-**public**: scrub project specifics, paths, and real names; the "Remy" persona is acceptable.
+**public**: scrub project specifics, paths, and real names — including persona and private-project
+names in provenance lines. Cite an upstream open-source ancestor by name; refer to a private source
+avatar generically.

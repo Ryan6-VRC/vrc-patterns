@@ -11,7 +11,7 @@ stamps with Set). The menu holds only the enable, unsynced — the int carries t
 
 **Provenance:** the anchor-multiplexer + self-syncing-mode-int mechanism as vendor-proven by
 a vendor reference implementation (sensor → synced mode → actuator separation, commit-on-gesture-release, the
-invalid-value guard) and in-house by the Remy GestureTools multiplexer (our named pattern,
+invalid-value guard) and in-house by our own anchor multiplexer (our named pattern,
 `gimmicks.md` §Constraint patterns). Nothing avatar-specific survives: placeholder payload,
 plain-humanoid anchor targets, standard `Hand` tag sensing.
 

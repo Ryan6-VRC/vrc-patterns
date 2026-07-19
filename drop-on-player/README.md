@@ -9,7 +9,7 @@ release-time **arbitration** between them, and the 2-bool mode sync that lets ev
 the outcome, are what this entry ships. Module total: **2 synced bits** (`DropOnPlayer/Out`,
 `DropOnPlayer/Worn`).
 
-**Provenance:** generalized from a Remy doll system (RemyDoll — GrabProp + ContactTracker composed).
+**Provenance:** generalized from a private production avatar's carried-doll system (grab-prop + contact-tracker composed).
 Kept: release-routing arbitration, mode fusion with off-is-reset, the remote release-settle dwell,
 freeze-on-loss. Abstracted away: the Custom-Object-Sync half (late-join-exact world drops — its 6 s
 world-band dwell and ~¼ of the ancestor's FSM exist only for that), the 5-way self-body anchor
@@ -49,11 +49,11 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
 | Constant | Value | Locked by |
 |---|---|---|
 | Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | grab-prop emulator sweep |
-| Remote release-settle | 0.5 s (= pulse length; remotes route by pair at pulse end) | RemyDoll attach dwell; in-game batch owns it |
+| Remote release-settle | 0.5 s (= pulse length; remotes route by pair at pulse end) | measured on the source avatar; in-game batch owns it |
 | Remote boot dwell | 1.0 s (`timer` clip) | grab-prop in-game candidate |
 | Cage acquisition / tracking scale / spread / brake | 0.15 · ×3 · ±0.5 · 1.0 s | contact-tracker emulator sweep |
 | Loss / acquire thresholds | all six <0.00001 / >0 | contact-tracker |
-| Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (RemyDoll had one); revisit if too tight for a comfortable drop |
+| Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (the source had one); revisit if too tight for a comfortable drop |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
 
 ## How it works

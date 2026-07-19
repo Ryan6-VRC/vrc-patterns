@@ -5,7 +5,7 @@ The drop costs **zero synced params**: every client replays the same release cho
 natively-synced physbone grab, freezing the prop where it was dropped (`gimmicks.md` §Constraint
 patterns "Sample-and-hold drop"). Module total: **1 synced bit** (`GrabProp/Enable`).
 
-**Provenance:** generalized from a Remy GestureTools GrabProp (VRLabs World-Constraint ancestry).
+**Provenance:** generalized from a private production avatar's grab-prop (VRLabs World-Constraint ancestry).
 Abstracted away: the avatar-specific payload mesh and its feedback-glow controller, the MA BoneProxy
 on the home anchor (now a plain GO — see Interface), a vestigial constraint source, and a dead
 GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.

@@ -8,7 +8,7 @@ sensing too) and the outcome of a local random roll selecting the rare special r
 re-arm on the special bool's **falling edge**: the wearer's dwell is the single clock, no remote
 timers to skew, late-join-safe because both bits are unsaved default-0.
 
-**Provenance:** the Remy headpat mechanism, generalized (sync-only-the-divergent-outcome
+**Provenance:** a private production avatar's headpat mechanism, generalized (sync-only-the-divergent-outcome
 + level-handshake rearm, `gimmicks.md` §Contacts). The vendor baseline it corrects is the
 commercial touch-spots class — its five shipped defects are this entry's emulator assertion list
 (synced+saved sensing, no debounce, no arbitration, AnyState self-retrigger, default-on kill

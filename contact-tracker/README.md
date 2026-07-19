@@ -7,7 +7,7 @@ crosses the wire — and therefore **never late-syncs**: a late joiner sees the 
 it re-acquires. `Container` is the consumer surface — constrain your payload to it and replace
 `Marker`.
 
-**Provenance:** generalized from a Remy project's `ContactTracker_Fx` (itself a VRCFury conversion
+**Provenance:** generalized from a private production avatar's contact tracker (itself a VRCFury conversion
 of VRLabs Contact-Tracker, MIT). Vestigial Size motion-time bindings and orphaned transitions not ported.
 
 Two prefabs, one controller:
