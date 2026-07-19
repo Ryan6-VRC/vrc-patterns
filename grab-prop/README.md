@@ -22,7 +22,10 @@ GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.
   half. The FullController merges `built/GrabProp_Fx_Parameters.asset` (the built form of the
   YAML's `vrc:` block — the sync surface); `GrabProp/Enable` is exported via `globalParams` and
   the Toggle drives it.
-- **Dependencies:** none beyond the VRC SDK + VRCFury. Drop the prefab anywhere under the avatar.
+- **Dependencies:** none beyond the VRC SDK + VRCFury to build; **compose `anti-cull` alongside**
+  (its README §When a module needs this) — a dropped prop holds state through replayed choreography
+  while the wearer may be off-screen, and a remote client that view-culls the wearer stops replaying
+  it. Drop the prefab anywhere under the avatar.
 - **Required assets:** none — `Payload` is a placeholder sphere on Unity's built-in default
   material; swap it for your prop mesh, keep it under `Container`.
 

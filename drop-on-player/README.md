@@ -36,7 +36,10 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
   one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone (the mixed seam: the anchor's
   placement must be visible while authoring). `HeadMount` is referenced only as a constraint source
   and sender mount — no VRCF clip binding paths through it.
-- **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar.
+- **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull`
+  alongside** (its README §When a module needs this) — the tracked and dropped modes replay
+  choreography while the payload is away from the wearer, and a remote client that view-culls the
+  wearer stops replaying it.
 - **Required assets:** `assets/World.prefab` — never-instantiated scale reference for the tracking
   cage (absolute meters). Do not instantiate or delete it. `Payload` is a placeholder sphere on
   Unity's built-in default material — swap it, keep it under `Container`.

@@ -1,0 +1,58 @@
+# anti-cull — bounds-inflation view-cull defeat. A hidden 10 000-unit cube (backface-culled from
+# inside — everyone is inside it, so it draws nothing) inflates the avatar's renderer bounds so no
+# remote client's view culling ever skips the avatar. Defeats VIEW culling only; distance culling
+# is a client-side unload nothing defeats. 1 synced bit (AntiCull/Enable).
+#
+# Default ON is load-bearing (README §Interface): Enabled is the default state and the param
+# defaults true, so the avatar inflates on the animator's first frame — it can never spawn culled
+# with the toggle out of reach. Unsaved, so an off state never persists into a fresh load.
+#
+# The cube's size comes from the VRCScaleConstraint (ScaleAtRest 0, ScaleOffset 10000³, source =
+# a never-instantiated world-anchor prefab → world origin, scale 1 on every client), so the clips
+# animate only the gate: GameObject active + constraint GlobalWeight. Serialized rest state stays
+# zero-scale/inactive — the upload bounds check sees nothing.
+
+schema: 1
+controller: AntiCull_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  AntiCull/Enable: { type: bool, default: true, vrc: { synced: true, saved: false } }  # default-on + unsaved: see header
+
+layers:
+  - name: AntiCull
+    states:
+      Enabled:
+        motion: { clip: enable }
+        transitions:
+          - { to: Disabled, when: [ AntiCull/Enable is false ] }
+      Disabled:
+        motion: { clip: disable }
+        transitions:
+          - { to: Enabled, when: [ AntiCull/Enable is true ] }
+    default: Enabled
+    # Hand arrangement (CONVENTIONS.md §Graph layout): lifecycle descends from the default state
+    # below Entry; unused Any/Exit park stacked above Entry.
+    layout:
+      nodes: { Enabled: [30, 180], Disabled: [30, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Both clips write the same two bindings (WD-mode-proof): the child's active state and the
+# constraint's weight. Belt-and-suspenders — disable removes the renderer entirely AND collapses
+# the constrained scale to rest (0).
+clips:
+  enable:
+    set:
+      "Culling/GameObject.m_IsActive": 1
+      "Culling/VRCScaleConstraint.GlobalWeight": 1
+  disable:
+    set:
+      "Culling/GameObject.m_IsActive": 0
+      "Culling/VRCScaleConstraint.GlobalWeight": 0
