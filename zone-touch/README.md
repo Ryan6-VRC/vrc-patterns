@@ -31,15 +31,20 @@ shipped — asset closure; the headpat is the worked example to copy when you ad
   [ZoneTouch/Enable]`, Toggle drives it. Pure VRCFury — no MA half: the zone GOs are plain
   children the consumer moves or constrains (they are receiver roots only, safe to reparent).
 - **Dependencies:** VRC SDK + VRCFury.
-- **Required assets:** none — `ReactProxy` is a placeholder sphere on the built-in default
-  material; the reaction clips scale it. Replace the `zt_react`/`zt_special` clip content (or
-  the whole proxy) with your real reaction.
+- **Required assets:** none — `ReactProxy` is a unit-scale wrapper the reaction clips animate
+  (clip scale values read as multipliers of rest); the placeholder sphere is its child. Replace
+  the child (keep it under the wrapper) or the `zt_react`/`zt_special` clip content with your
+  real reaction.
 
 ## The things to know before wearing it
 
-- **Zones are yours to place.** `Zones/Zone1..3` ship as unanchored children of the module root.
-  Move each onto the body part it should sense (parent or constrain it there). Receiver tags are
-  `Hand`/`Finger` (community-standard toucher tags).
+- **Zones are yours to place — by constraint, never by reparent.** `Zones/Zone1..3` ship as
+  unanchored children of the module root; anchor each to the body part it should sense with a
+  VRCParentConstraint. The zone GOs are path-animated (the enable clips drive their
+  `m_IsActive`), so anything that moves them out of the module subtree — reparenting under a
+  bone, MA BoneProxy, VRCFury ArmatureLink — silently kills the enable clips (MA moves objects
+  before VRCFury resolves FullController paths). Receiver tags are `Hand`/`Finger`
+  (community-standard toucher tags).
 - **Arbitration is the transition ladder.** Coincident touches resolve Zone1 > Zone2 > Zone3 by
   list order — one machine, one writer, so there is no last-write-wins on the reaction rig
   (the vendor failure). Re-order the ladder to re-prioritize.
@@ -90,7 +95,8 @@ same `localOnly: 0` mechanism the headpat and the vendor package both demonstrat
     │  │                             allowSelf+allowOthers, localOnly:0 → ZoneTouch/Zone1
     │  ├─ Zone2                      (same, → ZoneTouch/Zone2)
     │  └─ Zone3                      (same, → ZoneTouch/Zone3)
-    └─ ReactProxy                    sphere, built-in default material — the placeholder output
+    └─ ReactProxy                    unit-scale wrapper — the clips animate this transform
+       └─ Sphere        (0.06)      placeholder sphere, built-in default material — swap this
 
 ## Rebuilding
 
