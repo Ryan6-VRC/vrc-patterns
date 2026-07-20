@@ -29,13 +29,14 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
   - `DropOnPlayer/SelfDetect`, `DropOnPlayer/{X,Y,Z}±` (floats) + `GrabBone_IsGrabbed` (bool) —
     sensing; never synced, never menu-exposed. The cage receivers are `localOnly: 0` **by
     necessity** (remotes re-derive the chase); `SelfDetect` is `localOnly: 1` (routing input only —
-    its outcome syncs as the pair).
+    its outcome syncs as the pair) and reads the wearer's own **standard Head sender** (allowSelf
+    + tag `Head`, Constant) — no custom sender to place or tune.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `basis: mount-root`) merging
   `built/DropOnPlayer_Fx_Parameters.asset`; `DropOnPlayer/Enable` + `DropOnPlayer/ToHead` ride
   `globalParams` with a VRCFury `Toggle` each as the menu front (ToHead as momentary/hold). **Plus
   one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone (the mixed seam: the anchor's
   placement must be visible while authoring). `HeadMount` is referenced only as a constraint source
-  and sender mount — no VRCF clip binding paths through it.
+  — no VRCF clip binding paths through it.
 - **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull`
   alongside** (its README §When a module needs this) — the tracked and dropped modes replay
   choreography while the payload is away from the wearer, and a remote client that view-culls the
@@ -55,17 +56,19 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
 | Loss / acquire thresholds | all six <0.00001 / >0 | contact-tracker |
 | Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (the source had one); revisit if too tight for a comfortable drop |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
+| Anchor offsets | +0.25 above the head bone (anchored) / +0.15 above the cage centroid (tracked) | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
 
 ## How it works
 
-The prop (`Container`) multiplexes three position sources: `HeadMount` (anchored), `SourcePosition`
-(the sample-and-hold cell — grabbed/dropped), `TrackingPoints` (the cage). The cage **rides the prop**
-(parent constraint → `Container`) whenever it isn't tracking, so at the release instant the cage is
-exactly at the prop — that is the arbitration geometry: the same six receivers that will track the
-target are the "is another player's head here" sensor.
+The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored),
+`SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage,
+plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't
+tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at
+head-contact level while the prop sits at hat level: the same six receivers that will track the
+target are the "is another player's head here" sensor, centered where a head actually is.
 
-**Release arbitration** (the wearer's transition ladder, priority top-down): private-tag self
-receiver fires → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers`
+**Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver
+fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers`
 shut and the crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the
 settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world
 drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
@@ -100,6 +103,11 @@ Emulator-proven in two batched sessions (Av3Emulator; details in the entry's PR)
   while allowSelf SelfDetect reads 1.000; a *real second avatar's* synthesized Head sender fires
   the cage, release on their head latches Tracked, and the cage chases the moving player
   (re-converges across a 1.4 m step).
+- **Composed avatar, post offset-restructure + off-state hygiene**: full lifecycle re-run —
+  geometry lands on the shipped offsets (prop +0.25 over the head bone anchored, +0.15 over the
+  cage tracked, frozen exactly at the drop point with no-teleport re-grab), Disabled leaves the
+  grab physbone and cage receivers dead, and the wearer's standard Head sender feeds SelfDetect
+  unaided (descriptor collider slots present; a minimal rig reads zero — `docs/verify.md`).
 
 Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side cage re-derivation
 (clone contact receivers freeze at their spawn-time values — never simulated), the witnessed
@@ -114,21 +122,35 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
 source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
 
     DropOnPlayer                      root — VRCFury FullController + 2 Toggles
-    ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount, source1 SourcePosition,
-    │  │                              source2 TrackingPoints]; holds the payload
+    ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/AnchorOffset,
+    │  │                              source1 SourcePosition, source2 TrackedPoint/RideOffset]
     │  ├─ Payload                     placeholder sphere — swap for your prop, keep under Container
-    │  └─ SelfDetect                  VRCContactReceiver: private tag, Proximity, radius 0.15,
-    │                                 allowSelf ON allowOthers OFF localOnly ON → DropOnPlayer/SelfDetect
+    │  └─ TrackingOffset (0,-0.15,0)  the sensed point below the prop — VRCContactReceiver: tag Head,
+    │                                 Constant, allowSelf ON allowOthers OFF localOnly ON →
+    │                                 DropOnPlayer/SelfDetect (the wearer's own standard Head sender);
+    │                                 also the cage's park source, so at release the cage sits at
+    │                                 head-contact level while the prop sits at hat level
     ├─ SourcePosition (0, 0.8, 0.25)  VRCPositionConstraint [source0 DropPosition, source1 TrackingPoints]
     │                                 — the sample-and-hold cell; samples the cage while Tracked
-    ├─ HeadMount                      MA BoneProxy → Head; carries a VRCContactSender: private tag,
-    │                                 Sphere, radius 0.1 — the self-anchor detection + anchor source
-    ├─ TrackingPoints (0, 0.8, 0.25)  localScale 0.15; VRCParentConstraint [Container] (park — rides the
+    ├─ HeadMount                      MA BoneProxy → Head (AsChildAtRoot — snaps to the head bone) +
+    │  │                              VRCHeadChop (target HeadMount, scale 1, AlwaysApply): the local
+    │  │                              player's head bone zero-scales in first person, which would
+    │  │                              collapse AnchorOffset onto the bone — the chop exemption keeps
+    │  │                              the wearer's own anchored prop at its offset
+    │  └─ AnchorOffset (0, 0.25, 0)   the anchored rest point, in the head-bone frame: the head bone
+    │                                 sits at the neck, so this lift is necessarily larger than
+    │                                 TrackingOffset (which measures from the head-contact center)
+    ├─ TrackedPoint   (0, 0.8, 0.25)  VRCPositionConstraint [source0 TrackingPoints] — rides the cage
+    │  └─ RideOffset  (0, 0.15, 0)    tracked-mode rest point, above the cage (which converges on the
+    │                                 target's head-contact center, inside the skull) — the prop rides
+    │                                 like a hat. Mirrors TrackingOffset; the EditorOnly rig keeps the
+    │                                 two aligned in edit mode (drag TrackingOffset, this follows)
+    ├─ TrackingPoints (0, 0.8, 0.25)  localScale 0.15; VRCParentConstraint [TrackingOffset] (park — rides the
     │  │                              prop); VRCPositionConstraint [sources 0–5 = probes, 6 = self (brake)];
     │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×3] (absolute meters)
     │  └─ X+ X- Y+ Y- Z+ Z-           6 probe GOs, each a VRCContactReceiver: tag Head, Proximity,
     │                                 radius 1 (×0.15 scale), allowSelf OFF allowOthers ON localOnly OFF
-    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount, source1 Container]
+    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint [source0 AnchorOffset, source1 Container]
     │  └─ GrabBone                    VRCPhysBone (parameter GrabBone) — grab-prop's rig verbatim:
     │     │                           pull 1, stiffness 0.2, spring 0, gravity 0, immobile 1 AllMotion,
     │     │                           radius 0.075, grabMovement 1, maxStretch 100000, allowPosing OFF,
@@ -138,12 +160,14 @@ source weights swapped by the clips; positions below are edit-time rest (0, 0.8,
     │           └─ DropPosition (0, -.02, 0)  measures the grabbed tip
     ├─ FreezeToWorld                  VRCParentConstraint drives root, FreezeToWorld; inactive in editor,
     │                                 ApplyDuringUpload TurnOn
-    └─ EditorOnly                     VRCPositionConstraint drives DropPosition from GrabPosition —
-                                      edit-time alignment; ApplyDuringUpload TurnOff
+    └─ EditorOnly                     edit-time alignment rig, ApplyDuringUpload TurnOff:
+                                      VRCPositionConstraint drives DropPosition from GrabPosition;
+                                      a second pins RideOffset to Container (parked pose ⇒ RideOffset
+                                      auto-mirrors TrackingOffset, any drag direction)
 
-**Private tag:** the sender/receiver pair ships tag `DropOnPlayerSelfHead`. Private-tag + allowSelf-only
-is the correctness of self-detection: a friend wearing the same module can't trip your self-anchor
-(their sender is "other"), and your own `Head`-tag senders can't either (different tag).
+**Self-detection correctness:** the receiver is allowSelf-only on the standard `Head` tag, so a friend
+wearing the same module (or any other player's head) can't trip your self-anchor — their senders are
+"other". The old private sender/receiver tag pair is gone; the standard sender needs no placement.
 
 ## Rebuilding
 

@@ -6,9 +6,9 @@ natively-synced physbone grab, freezing the prop where it was dropped (`gimmicks
 patterns "Sample-and-hold drop"). Module total: **1 synced bit** (`GrabProp/Enable`).
 
 **Provenance:** generalized from a private production avatar's grab-prop (VRLabs World-Constraint ancestry).
-Abstracted away: the avatar-specific payload mesh and its feedback-glow controller, the MA BoneProxy
-on the home anchor (now a plain GO — see Interface), a vestigial constraint source, and a dead
-GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.
+Abstracted away: the avatar-specific payload mesh and its feedback-glow controller, a vestigial
+constraint source, and a dead GameObject-active curve. Mechanism, constants, and hierarchy
+otherwise verbatim — including the ancestor's MA BoneProxy on the home anchor.
 
 ## Interface
 
@@ -31,14 +31,15 @@ GameObject-active curve. Mechanism, constants, and hierarchy otherwise verbatim.
 
 ## The one thing to know before using it
 
-**`HomeAnchor` is deliberately not bone-anchored.** The module root is frozen to world at load-in
-(`FreezeToWorld` constraint, enabled during upload), so out of the box the home is a fixed world
-spot — the avatar's spawn point. For a follow-me home (prop returns to your hip/chest), anchor
-`HomeAnchor` yourself: MA BoneProxy on it, or constrain it to a bone. It is referenced only as a
-constraint source (an object reference — path-immune), so moving or re-parenting it is safe. If
-you BoneProxy it, keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`)
-out of the re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes
-at build (CONVENTIONS §Seam ordering has the measured mechanism).
+**`HomeAnchor` rides the wearer.** It is an MA BoneProxy (Hips, AsChildAtRoot) with the recall
+target as its `Offset` child (0.1 up / 0.35 forward — drag it in edit mode): the prop rests on,
+and recalls to, the avatar, while the module root stays world-frozen (`FreezeToWorld`, enabled
+during upload) so drops hold their world spot. For a fixed world-spot home instead (recall to
+your spawn point), delete the BoneProxy. The anchor is referenced only as a constraint source
+(an object reference — path-immune), which is what makes proxying it safe; keep the module's
+animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a
+VRCF clip binding through an MA-moved node silently vanishes at build (CONVENTIONS §Seam
+ordering has the measured mechanism).
 
 ## How it works
 
@@ -80,8 +81,9 @@ constraint, source weights swapped by the clips.
     ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint follows SourcePosition; holds Payload
     │  └─ Payload                     sphere, built-in default material — swap for your mesh, keep under Container
     ├─ SourcePosition (0, 0.8, 0.25)  VRCPositionConstraint follows DropPosition (sample-and-hold cell)
-    ├─ HomeAnchor     (0, 0.8, 0.25)  plain GO — the consumer anchors it (see above)
-    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint, sources [source0 HomeAnchor, source1 Container]
+    ├─ HomeAnchor                     MA BoneProxy → Hips (AsChildAtRoot)
+    │  └─ Offset      (0, 0.1, 0.35)  the recall target — drag to taste (see above)
+    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint, sources [source0 HomeAnchor/Offset, source1 Container]
     │  └─ GrabBone                    VRCPhysBone (parameter GrabBone → mints GrabBone_IsGrabbed)
     │     └─ GrabBone_End (0, .02, 0)
     │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld — world-stable rotation frame

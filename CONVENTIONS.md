@@ -41,7 +41,10 @@ what the YAML cannot, so adapting an entry never means reverse-engineering the p
   and the **binding frame the merge resolves** (MA `basis:` ↔ `pathMode`; VRCF per-binding,
   `basis: mount-root` ↔ `rootBindingsApplyToAvatar: 0`). CompileController is frame-blind, so this is
   load-bearing — record it; `nondestructive.md` owns the frame mechanics and the build-order that makes
-  the seam choice matter.
+  the seam choice matter. A module's rest geometry (home, park, deploy point) **ships anchored to the
+  avatar** — an Anchor GO (MA `BoneProxy`, AsChildAtRoot) with an `Offset` child as the referenced
+  target; only object-referenced, never path-animated, nodes may be proxied (`gimmicks.md` §Packaging
+  owns the idiom). Unanchored rest geometry loads at the avatar-root origin — the wearer's feet.
 - **Dependencies** — physbones/contacts/menu params the entry assumes exist.
 - **Required assets** — and any hard external dependency.
 

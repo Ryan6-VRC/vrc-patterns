@@ -44,18 +44,22 @@ parameters:
 
 layers:
   # Mode machine. Deterministic resume: every state re-derives from Enable + live proximity
-  # alone (Reset has a direct edge to Tracking, so a culled/re-shown copy relatches in place).
+  # alone. Off-state hygiene (contact-tracker idiom): Reset kills the receiver GOs — a disabled
+  # receiver GO FREEZES its float at the last value, so Reset's entry driver zeroes the four
+  # floats and Reset exits on Enable alone. Resume-in-place survives via Searching (filters
+  # open, boxes at acquisition scale): a sender still inside the core relatches one frame later.
   - name: Control
     states:
-      Reset:                      # Enable off — Output parked at origin, filters open, boxes at acquisition scale
-        motion: { clip: idle }
+      Reset:                      # Enable off — Output parked at origin, receivers off, boxes at acquisition scale
+        behaviours:
+          # localOnly false: the floats are unsynced sensing — every client zeroes its own copy.
+          - driver: { set: { ContactTrackerBox/X+: 0, ContactTrackerBox/X-: 0, ContactTrackerBox/Y+: 0, ContactTrackerBox/Z+: 0 } }
+        motion: { clip: reset }
         transitions:
           - to: Searching
-            when: [ ContactTrackerBox/Enable is true, ContactTrackerBox/X+ less 0.00001, ContactTrackerBox/X- less 0.00001, ContactTrackerBox/Y+ less 0.00001, ContactTrackerBox/Z+ less 0.00001 ]
-          - to: Tracking
-            when: [ ContactTrackerBox/Enable is true, ContactTrackerBox/X+ greater 0, ContactTrackerBox/X- greater 0, ContactTrackerBox/Y+ greater 0, ContactTrackerBox/Z+ greater 0 ]
+            when: [ ContactTrackerBox/Enable is true ]
       Searching:                  # filters open, waiting for a sender inside the acquisition core
-        motion: { clip: idle }
+        motion: { clip: searching }
         transitions:
           - to: Reset
             when: [ ContactTrackerBox/Enable is false ]
@@ -93,18 +97,41 @@ layers:
       exit:  [50, 80]
 
 clips:
-  # Reset and Searching are property-identical (no crawler to park, no brake to hold): filters
-  # open, acquisition scale, Output at origin. One clip serves both states.
-  idle:
+  # Reset and Searching differ only in the receiver GOs (off-state hygiene): filters open,
+  # acquisition scale, Output at origin in both.
+  reset:
     set:
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
-      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X+/GameObject.m_IsActive: 0             # receivers off — the entry driver
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1    #   owns the frozen floats
+      TrackingPoints/X-/GameObject.m_IsActive: 0
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/GameObject.m_IsActive: 0
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
-      TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output parked at origin (the home)
+      TrackingPoints/Z+/GameObject.m_IsActive: 0
+      TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output collapsed to the rig center
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
+      Container/VRCParentConstraint.Sources.source0.Weight: 0  # marker parks at HomeAnchor/Offset,
+      Container/VRCParentConstraint.Sources.source1.Weight: 1  # riding the wearer
+
+  searching:
+    set:
+      TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
+      TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X+/GameObject.m_IsActive: 1
+      TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X-/GameObject.m_IsActive: 1
+      TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/GameObject.m_IsActive: 1
+      TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/GameObject.m_IsActive: 1
+      TrackingPoints/Output/Transform.m_LocalPosition.x: 0
+      TrackingPoints/Output/Transform.m_LocalPosition.y: 0
+      TrackingPoints/Output/Transform.m_LocalPosition.z: 0
+      Container/VRCParentConstraint.Sources.source0.Weight: 0
+      Container/VRCParentConstraint.Sources.source1.Weight: 1
 
   # Latch: rides the readout tree at constant weight 1 (One). Non-normalized direct children sum
   # per binding over the clips that write it, so these values pass through unscaled while the
@@ -113,9 +140,15 @@ clips:
     set:
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # boxes inflate to absolute meters
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
+      TrackingPoints/X+/GameObject.m_IsActive: 1
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/X-/GameObject.m_IsActive: 1
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y+/GameObject.m_IsActive: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z+/GameObject.m_IsActive: 1
+      Container/VRCParentConstraint.Sources.source0.Weight: 1  # marker follows the live readout
+      Container/VRCParentConstraint.Sources.source1.Weight: 0
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
