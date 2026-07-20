@@ -102,9 +102,11 @@ clips:
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
-      TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output parked at origin (the home)
+      TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output collapsed to the rig center
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
+      Container/VRCParentConstraint.Sources.source0.Weight: 0  # marker parks at HomeAnchor/Offset,
+      Container/VRCParentConstraint.Sources.source1.Weight: 1  # riding the wearer
 
   # Latch: rides the readout tree at constant weight 1 (One). Non-normalized direct children sum
   # per binding over the clips that write it, so these values pass through unscaled while the
@@ -116,6 +118,8 @@ clips:
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 0
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 0
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
+      Container/VRCParentConstraint.Sources.source0.Weight: 1  # marker follows the live readout
+      Container/VRCParentConstraint.Sources.source1.Weight: 0
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
