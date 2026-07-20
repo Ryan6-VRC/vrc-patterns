@@ -103,6 +103,11 @@ Emulator-proven in two batched sessions (Av3Emulator; details in the entry's PR)
   while allowSelf SelfDetect reads 1.000; a *real second avatar's* synthesized Head sender fires
   the cage, release on their head latches Tracked, and the cage chases the moving player
   (re-converges across a 1.4 m step).
+- **Composed avatar, post offset-restructure + off-state hygiene**: full lifecycle re-run —
+  geometry lands on the shipped offsets (prop +0.25 over the head bone anchored, +0.15 over the
+  cage tracked, frozen exactly at the drop point with no-teleport re-grab), Disabled leaves the
+  grab physbone and cage receivers dead, and the wearer's standard Head sender feeds SelfDetect
+  unaided (descriptor collider slots present; a minimal rig reads zero — `docs/verify.md`).
 
 Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side cage re-derivation
 (clone contact receivers freeze at their spawn-time values — never simulated), the witnessed
