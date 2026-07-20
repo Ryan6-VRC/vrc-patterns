@@ -93,18 +93,16 @@ Editing-the-rig trap: a freshly script-added VRC constraint starts with `IsActiv
 (measured: the animator drives `GlobalWeight` to 1 and the scale still reads rest, no error), so
 a rebuild that skips the field silently never solves. Serialized `IsActive: 1` is load-bearing.
 
-## Verified (emulator) and carried by provenance (in-game)
+## Verifying the install
 
-Emulator-proven (play mode, minimal rig): default path inflates with **zero input** — first-frame
-state is `Enabled`, `Culling` active at (10000, 10000, 10000), renderer bounds 10 km; toggle off
-deactivates the renderer (an inactive renderer contributes nothing to bounds — the constraint
-holds its last transform, which is why the GameObject-active write is the effective gate); toggle
-on re-inflates. The never-instantiated asset source resolves in editor play too (probed at a
-distinct offset). Serialized rest state stays inactive/zero-scale — the upload-bounds half.
+Nothing to drive — the default path inflates with zero input. In play, the `Culling` object should
+sit at kilometre scale and the renderer's bounds with it; toggled off, the renderer deactivates and
+contributes no bounds at all, since the GameObject-active write is the effective gate rather than
+the constraint (which just holds its last transform). Serialized rest state must stay inactive and
+zero-scale — that half is what keeps the uploaded bounds honest.
 
-Carried by the source's in-game production history, not re-measured here: that inflated bounds
-actually defeat view culling (the emulator cannot reproduce another client's culling decision —
-`docs/verify.md` §What the emulator reproduces).
+That inflated bounds actually defeat a remote client's view culling is in-game-only: the emulator
+cannot reproduce another client's culling decision (`docs/verify.md`).
 
 ## Rebuilding
 

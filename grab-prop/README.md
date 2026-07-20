@@ -38,8 +38,8 @@ during upload) so drops hold their world spot. For a fixed world-spot home inste
 your spawn point), delete the BoneProxy. The anchor is referenced only as a constraint source
 (an object reference — path-immune), which is what makes proxying it safe; keep the module's
 animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a
-VRCF clip binding through an MA-moved node silently vanishes at build (CONVENTIONS §Seam
-ordering has the measured mechanism).
+VRCF clip binding through an MA-moved node silently vanishes at build (`nondestructive.md` has the
+measured build order).
 
 ## How it works
 
@@ -57,7 +57,7 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Locked by |
 |---|---|---|
-| Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | emulator sweep (this entry's build) |
+| Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | emulator sweep |
 | Remote settle dwell | 1.0 s (`timer` clip) | in-game batch (network timing) |
 | Physbone constants | see Rig | emulator sweep (stiffness) |
 
@@ -70,6 +70,17 @@ never hides (IsLocal skips the park).
 §Constraints) — clients agree on the drop point because they replay the same clips off the synced
 grab, not because the frame is shared. Expect per-client drift on the order of the IK-delayed hand;
 exact placement needs a real position sync on top (out of scope — Custom-Object-Sync territory).
+
+## Verifying the install
+
+Enable on: the prop rests at `HomeAnchor/Offset` on the wearer's hips. Finding it at the avatar-root
+origin means the BoneProxy never resolved; finding the module frame drifting with the avatar instead
+of holding its world spot means `FreezeToWorld`'s `ApplyDuringUpload` did not fire. Grab and release
+it — the prop must freeze where dropped and a re-grab must pick up in place rather than teleporting,
+which is the sample cell landing.
+
+Two clients in-game, not the emulator: the remote settle dwell, and how far the per-client drift
+above actually opens up under real network conditions.
 
 ## Rig
 

@@ -217,10 +217,19 @@ layers:
 # grabbable; resetWhenDisabled 0 preserves pose) and the six cage-receiver GOs (no sensing while
 # off). A disabled receiver GO FREEZES its float at the last value — safe here because the floats
 # are only read from Grabbed's release ladder and Tracked's loss edges, states whose receivers
-# have been live for many frames by the time those edges evaluate. Timer/Waiting keep everything
-# alive: they are enabled-module states, and the witnessed grab is Waiting's only exit.
+# have been live for many frames by the time those edges evaluate. SelfDetect rides TrackingOffset
+# under Container, which these same clips deactivate — same freeze, same argument (it is read only
+# from Grabbed's ladder, where Container has been live throughout the carry). Timer/Waiting keep
+# everything alive: they are enabled-module states, and the witnessed grab is Waiting's only exit.
+# KNOWN SIMPLIFICATION — the GO kill is only half of force-release: a disabled physbone never
+# clears GrabBone_IsGrabbed (`runtime.md`), so toggling off mid-grab freezes it true and the next
+# enable re-enters Grabbed (and a stale true also opens Waiting/Lost's grab edges) until the
+# re-enabled bone republishes. Accepted: this is a library sample, not a module whose off must
+# interrupt an action. A consumer that needs a clean force-release adds a driver clearing the param
+# to Disabled — the write sticks precisely because the bone GO is inactive (`verify.md`).
 # Constraint source maps:
-#   Container/VRCPositionConstraint:      source0 HeadMount, source1 SourcePosition, source2 TrackingPoints
+#   Container/VRCPositionConstraint:      source0 HeadMount/AnchorOffset, source1 SourcePosition,
+#                                         source2 TrackedPoint/RideOffset
 #   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
 #   GrabPosition/VRCPositionConstraint:   source0 HeadMount/AnchorOffset, source1 Container
 #   TrackingPoints/VRCPositionConstraint: source0..5 the probes, source6 self (park brake)

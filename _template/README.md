@@ -17,3 +17,12 @@ skeleton, including the standard Module packaging. Not a shipping gimmick — a 
 - **Dependencies:** none (self-contained).
 - **Required assets:** none — `Cube` uses Unity's built-in default material. `assets/` holds owned
   self-contained content when an entry ships any (see `contact-tracker`'s `World.prefab`).
+
+## Verifying the install
+
+Drive `Template_Toggle` and watch the `Cube` renderer follow it. If the toggle moves but nothing
+renders, the merged clip is binding somewhere other than the child path `Cube` — the frame pairing
+in **Seam** is what went wrong.
+
+Write this slot for the agent installing the entry, never as a log of past runs — `CONVENTIONS.md`
+§Verifying the install has the rule.

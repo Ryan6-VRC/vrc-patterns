@@ -97,12 +97,18 @@ layers:
       exit:  [50, 80]
 
 # Every clip writes the same seven bindings (WD-mode-proof: semantics identical under WD ON or a
-# VRCFury WD-OFF conversion). Weights: source0 = HomeAnchor, source1 = Container.
+# VRCFury WD-OFF conversion). Weights: source0 = HomeAnchor/Offset, source1 = Container.
 # Off-state hygiene: Disabled kills the grab physbone's GO — an "off" module must not stay
 # grabbable (resetWhenDisabled 0 preserves the pose; DropPosition under it stops sampling,
 # harmless while nothing samples it). Every other state keeps the bone alive — Waiting NEEDS it
 # (the witnessed grab is its only exit), and Timer keeps the remote boot dwell from blinding a
 # remote to a grab in progress.
+# KNOWN SIMPLIFICATION — the GO kill is only half of force-release: a disabled physbone never
+# clears GrabBone_IsGrabbed (`runtime.md`), so toggling off mid-grab freezes it true and the next
+# enable re-enters Grabbed until the re-enabled bone republishes. Accepted: this is a library
+# sample, not a module whose off must interrupt an action. A consumer that needs a clean
+# force-release adds a driver clearing the param to Disabled — the write sticks precisely because
+# the bone GO is inactive (`verify.md`).
 clips:
   disabled:
     set:

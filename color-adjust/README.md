@@ -50,17 +50,17 @@ The `BrokenDemo` layer keeps the counterexample for study, on its own placeholde
 it can't clobber the compose layer: `broken-hue_only_x` keys only `.x`; `ShowBroken` toggles it against
 `broken_baseline` (all four channels), making fact 1 directly observable.
 
-## Measured behavior
+## Behavior
 
-Measured by hosting the built controller on an `Animator` over a cloned lilToon material (default
-`_MainTexHSVG = (0, 1, 1, 1)`) and reading the animated value from the renderer's `MaterialPropertyBlock`
-(where material animation lands):
+`_MainTexHSVG` against a lilToon default of `(0, 1, 1, 1)`. To re-measure after an edit, read the
+renderer's `MaterialPropertyBlock` — material animation lands there, and `sharedMaterial` stays at
+the authored value and reads as a false negative (`docs/verify.md`):
 
 - **Each slider drives only its channel:** HueSlider=0.8 → `(0.8, 1, 1, 1)`; SatSlider=0.3 →
   `(0, 0.3, 1, 1)`; ValSlider=0.2 → `(0, 1, 0.2, 1)`.
 - **The three compose:** Hue=0.6, Sat=0.4, Val=0.9 → `(0.6, 0.4, 0.9, 1.0)` — all three take effect at
   once.
-- **The trap, measured:** driving `broken-hue_only_x` (keys only `.x=1`) yields `(1, 1, 1, 1)` — the
+- **The trap:** driving `broken-hue_only_x` (keys only `.x=1`) yields `(1, 1, 1, 1)` — the
   un-keyed `.y`/`.z`/`.w` took the **material default** `(1, 1, 1)`, confirming fact 1. Here the default
   happens to equal the intended hold, so the damage is invisible; on a material whose default differs
   (a pre-saturated body, say), the same clip would silently reset saturation. Treat any clip that

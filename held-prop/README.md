@@ -38,7 +38,8 @@ plain-humanoid anchor targets, standard `Hand` tag sensing.
   `basis: mount-root`. MA `BoneProxy` on the two anchors only — placement you can see while
   authoring (VRCF ArmatureLink snaps at build). The seam invariant holds by construction: every
   animated binding targets the `Container` subtree, which no BoneProxy touches; the anchors carry
-  only constraint sources (object references, path-immune) — CONVENTIONS §Seam ordering.
+  only constraint sources (object references, path-immune) — `nondestructive.md` has the measured
+  build order.
 - **Dependencies:** VRC SDK + VRCFury + Modular Avatar (the two BoneProxies), and a **humanoid**
   avatar — the Gesture-playable merge refuses a generic rig (VRCFury errors at build) and the
   anchor BoneProxies resolve `Chest`/`RightHand` through the humanoid mapping.
@@ -71,22 +72,21 @@ Empirical constants (labeled in the YAMLs; `runtime.md` 90% rule):
 
 | Constant | Value | Locked by |
 |---|---|---|
-| Anchor crossfade | 0.25 s | emulator sweep (this entry's build) |
+| Anchor crossfade | 0.25 s | emulator sweep |
 | Grip blend | 0.15 s | same |
 | Arm / disarm thresholds | >0 / <0.00001 | contact-tracker lineage |
 | Grip pose muscle values | see gesture.yaml | eyeballed on the emulator rig; feel-tunable |
 
-## Verified (Av3Emulator, this entry's build)
+## Verifying the install
 
-On the minimal humanoid rig, post-bake: sync surface = `Mode` synced int only (Enable + both
-sensing floats unsynced); MA had genuinely moved `StowAnchor` under the Chest bone. Local flow:
-enable → Stowed(1); fist at the prop **arms without committing** (Mode holds 1 while gripped);
-release → Held(2) + weight crossfade; fist at the stow → release → Stowed(1); enable off →
-Hidden(0), prop hidden (off-is-reset). Remote clone re-derived the Stowed pose from the synced
-int alone (its own Enable never arrives — by design). Gesture half: the merged `HeldProp/Grip`
-layer enters `Grip` on `Mode == 2`. **Named residuals** (in-game / real-avatar): finger-bone
-muscle application (the test rig has no finger bones — stock humanoid retargeting; spot-check on
-first real compose) and true network timing.
+Post-bake the sync surface is the `Mode` int alone — Enable and both sensing floats unsynced — and
+MA must have moved `StowAnchor` under the Chest bone. Drive the local flow: enable → Stowed; a fist
+at the prop arms *without* committing (Mode holds while the grip is held); release → Held with the
+weight crossfade; enable off → Hidden. A remote clone re-derives the Stowed pose from the synced
+int alone, since its own Enable never arrives by design.
+
+Finger-bone muscle application only shows on a rig that has finger bones — spot-check it on the
+first real compose, along with true network timing.
 
 ## Rig
 
@@ -99,7 +99,7 @@ first real compose) and true network timing.
     │                                 localOnly → HeldProp/NearStow. Lives at the module ROOT and is
     │                                 position-CONSTRAINED to StowOffset — a receiver parented under the
     │                                 MA-moved anchor escapes VRCFury's param rewrite and reads 0 forever
-    │                                 (CONVENTIONS §Seam ordering; measured in this entry's build)
+    │                                 (`nondestructive.md`)
     ├─ StowAnchor     (0, 1.1, 0)     MA BoneProxy → Chest, AsChildAtRoot (zeroes to the bone at build)
     │  └─ StowOffset  (0, 0, 0.14)    plain GO — the consumer-editable stow offset; constraint source
     └─ HandAnchor                     MA BoneProxy → Right Hand, AsChildAtRoot
