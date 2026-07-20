@@ -37,16 +37,23 @@ parameters:
 
 layers:
   # Mode machine. Deterministic resume: every state re-derives from Enable + live proximity
-  # alone (Reset has a direct edge to Tracking, so a culled/re-shown copy relatches in place).
+  # alone. Off-state hygiene: Reset kills the receiver GOs (an "off" module must not keep
+  # sensing) — and a disabled receiver GO FREEZES its float at the last value, so Reset's entry
+  # driver zeroes the six floats (nothing rewrites them while the receivers are off) and Reset
+  # exits on Enable alone. Resume-in-place survives via Searching: its clip self-holds the cage
+  # where it stands with filters open, so a sender still in range relatches one frame later
+  # (Searching -> Tracking) with the identical latch geometry the old Reset -> Tracking direct
+  # edge gave.
   - name: Control
     states:
-      Reset:                      # Enable off — parked at HomeAnchor, filters open, cage collapsed
+      Reset:                      # Enable off — parked at HomeAnchor, receivers off, cage collapsed
+        behaviours:
+          # localOnly false: the floats are unsynced sensing — every client zeroes its own copy.
+          - driver: { set: { ContactTracker/X+: 0, ContactTracker/X-: 0, ContactTracker/Y+: 0, ContactTracker/Y-: 0, ContactTracker/Z+: 0, ContactTracker/Z-: 0 } }
         motion: { clip: reset }
         transitions:
           - to: Searching
-            when: [ ContactTracker/Enable is true, ContactTracker/X+ less 0.00001, ContactTracker/X- less 0.00001, ContactTracker/Y+ less 0.00001, ContactTracker/Y- less 0.00001, ContactTracker/Z+ less 0.00001, ContactTracker/Z- less 0.00001 ]
-          - to: Tracking
-            when: [ ContactTracker/Enable is true, ContactTracker/X+ greater 0, ContactTracker/X- greater 0, ContactTracker/Y+ greater 0, ContactTracker/Y- greater 0, ContactTracker/Z+ greater 0, ContactTracker/Z- greater 0 ]
+            when: [ ContactTracker/Enable is true ]
       Searching:                  # filters open, probes coincident, crawler self-holds (park brake 1)
         motion: { clip: searching }
         transitions:
@@ -98,11 +105,17 @@ clips:
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
       TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: 0
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
+      TrackingPoints/X+/GameObject.m_IsActive: 0
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X-/GameObject.m_IsActive: 0
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/GameObject.m_IsActive: 0
       TrackingPoints/Y-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y-/GameObject.m_IsActive: 0
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/GameObject.m_IsActive: 0
       TrackingPoints/Z-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z-/GameObject.m_IsActive: 0
       TrackingPoints/X+/Transform.m_LocalPosition.x: 0       # probes coincident
       TrackingPoints/X+/Transform.m_LocalPosition.y: 0
       TrackingPoints/X+/Transform.m_LocalPosition.z: 0
@@ -129,11 +142,17 @@ clips:
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
       TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: 1   # park brake full
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X+/GameObject.m_IsActive: 1
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/X-/GameObject.m_IsActive: 1
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y+/GameObject.m_IsActive: 1
       TrackingPoints/Y-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Y-/GameObject.m_IsActive: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z+/GameObject.m_IsActive: 1
       TrackingPoints/Z-/VRCContactReceiver.allowOthers: 1
+      TrackingPoints/Z-/GameObject.m_IsActive: 1
       TrackingPoints/X+/Transform.m_LocalPosition.x: 0
       TrackingPoints/X+/Transform.m_LocalPosition.y: 0
       TrackingPoints/X+/Transform.m_LocalPosition.z: 0
@@ -160,11 +179,17 @@ clips:
       TrackingPoints/VRCPositionConstraint.m_Enabled: 1
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # cage inflates to absolute meters
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
+      TrackingPoints/X+/GameObject.m_IsActive: 1
       TrackingPoints/X-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/X-/GameObject.m_IsActive: 1
       TrackingPoints/Y+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y+/GameObject.m_IsActive: 1
       TrackingPoints/Y-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Y-/GameObject.m_IsActive: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z+/GameObject.m_IsActive: 1
       TrackingPoints/Z-/VRCContactReceiver.allowOthers: 0
+      TrackingPoints/Z-/GameObject.m_IsActive: 1
     curves:
       # Park brake: hold 1 for the settle dwell, then release (ancestor uses a stepped key at
       # t=1.0; approximated with a flat-tangent hold key one frame before the drop).

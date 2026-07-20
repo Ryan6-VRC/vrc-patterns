@@ -62,8 +62,10 @@ Emulator-proven (Av3Emulator, VRCFury play build): full lifecycle Reset → Sear
 (filters shut) → **exact off-center track** (error 0.0000 m at (0.9, −0.7, 1.1) — not
 self-parked) → a second in-range sender ignored → ANY-loss at the face boundary → filters
 reopen/recollapse/recall → re-acquire → Enable-off recall (no latch while off, sender in core) →
-Reset→Tracking resume edge → world-freeze (volume stays put under avatar motion, tracking stays
-exact). Acquisition boundary bracketed as above.
+resume-in-place (re-enable with the sender in core relatches via Searching; the old
+Reset→Tracking direct edge is gone — Reset now runs receivers-off with driver-zeroed floats) →
+world-freeze (volume stays put under avatar motion, tracking stays exact). Acquisition boundary
+bracketed as above.
 
 Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side receiver firing, and
 the **capsule-sender bias** — real hand/finger senders are capsules, which read a constant offset

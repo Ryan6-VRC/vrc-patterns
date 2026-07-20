@@ -49,10 +49,14 @@ layers:
   - name: ZoneTouch/Control
     states:
       # Default OFF (defect 5). Off-is-reset: entry clears Special locally; the clip disables
-      # every receiver GO, so remotes' sensing dies with the synced Enable.
+      # every receiver GO, so remotes' sensing dies with the synced Enable. A disabled receiver
+      # GO freezes its float at the last value — the second driver zeroes the zone floats on
+      # every client (localOnly false; unsynced sensing) so a touch held at disable time can't
+      # replay a spurious React on re-enable.
       Disabled:
         behaviours:
           - driver: { localOnly: true, set: { ZoneTouch/Special: 0 } }
+          - driver: { set: { ZoneTouch/Zone1: 0, ZoneTouch/Zone2: 0, ZoneTouch/Zone3: 0 } }
         motion: { clip: zt_disabled }
         transitions:
           - { to: Idle, when: [ ZoneTouch/Enable is true ] }

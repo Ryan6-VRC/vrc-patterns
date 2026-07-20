@@ -212,7 +212,14 @@ layers:
     default: Crawl
 
 # Every Control clip owns the full rig-property set explicitly (no reliance on WD revert; the
-# semantics survive a VRCFury WD-OFF conversion). Constraint source maps:
+# semantics survive a VRCFury WD-OFF conversion).
+# Off-state hygiene: Disabled kills the grab physbone's GO (an "off" module must not stay
+# grabbable; resetWhenDisabled 0 preserves pose) and the six cage-receiver GOs (no sensing while
+# off). A disabled receiver GO FREEZES its float at the last value — safe here because the floats
+# are only read from Grabbed's release ladder and Tracked's loss edges, states whose receivers
+# have been live for many frames by the time those edges evaluate. Timer/Waiting keep everything
+# alive: they are enabled-module states, and the witnessed grab is Waiting's only exit.
+# Constraint source maps:
 #   Container/VRCPositionConstraint:      source0 HeadMount, source1 SourcePosition, source2 TrackingPoints
 #   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
 #   GrabPosition/VRCPositionConstraint:   source0 HeadMount, source1 Container
@@ -223,6 +230,7 @@ clips:
   disabled:
     set:
       "Container/GameObject.m_IsActive": 0
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 0
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -238,11 +246,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 0
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 0
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 0
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 0
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 0
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -266,6 +280,7 @@ clips:
     seconds: 1.0
     set:
       "Container/GameObject.m_IsActive": 0
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -281,11 +296,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -308,6 +329,7 @@ clips:
   anchored:
     set:
       "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -323,11 +345,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -350,6 +378,7 @@ clips:
   grabbed:
     set:
       "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -365,11 +394,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -393,6 +428,7 @@ clips:
     length: 0.5
     set:
       "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 0
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -407,11 +443,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -436,6 +478,7 @@ clips:
   dropped:      # also the Lost pose (remote loss freeze)
     set:
       "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 0
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -451,11 +494,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
@@ -479,6 +528,7 @@ clips:
     seconds: 1.0
     set:
       "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -493,11 +543,17 @@ clips:
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 1
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 1
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 0
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
     curves:
       # Park brake: hold 1 for the settle dwell, then release  [EMPIRICAL: 1.0 s, wear-test-owned]
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": [ [0, 1], [0.9833333, 1], [1, 0] ]
@@ -512,6 +568,7 @@ clips:
   waiting:      # late-join park: hidden, everything home; the grab physbone stays live outside
     set:
       "Container/GameObject.m_IsActive": 0
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -527,11 +584,17 @@ clips:
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
       "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y+/GameObject.m_IsActive": 1
       "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z+/GameObject.m_IsActive": 1
       "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
+      "TrackingPoints/Z-/GameObject.m_IsActive": 1
       "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
       "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
