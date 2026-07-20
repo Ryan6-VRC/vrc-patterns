@@ -26,9 +26,12 @@ One prefab, one controller: `ContactTrackerBox.prefab`.
 ## Interface
 
 - **Params:** `ContactTrackerBox/Enable` (bool, in) — synced, unsaved; off is the reset (recalls
-  `Container` to the rig origin). The four `ContactTrackerBox/{X+,X-,Y+,Z+}` floats are sensing —
-  never synced, never menu-exposed. `ContactTrackerBox/One` is a scratch constant (DBT carrier
-  weight), excluded from the params asset.
+  `Container` to the rig center — `TrackingPoints` rests 1.0 m above the module root so the
+  parked marker and the acquisition core sit at torso height, not on the floor; the rig cannot be
+  avatar-anchored like `contact-tracker`'s home because `TrackingPoints`' children are
+  path-animated). The four `ContactTrackerBox/{X+,X-,Y+,Z+}` floats are sensing — never synced,
+  never menu-exposed. `ContactTrackerBox/One` is a scratch constant (DBT carrier weight),
+  excluded from the params asset.
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root` — clip paths bind
   relative to the prefab root, so the internal hierarchy names are load-bearing. The FullController
   merges `built/ContactTrackerBox_Fx_Parameters.asset` (`prms`); `ContactTrackerBox/Enable` rides
