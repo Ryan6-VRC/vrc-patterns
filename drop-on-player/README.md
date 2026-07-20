@@ -55,6 +55,7 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
 | Loss / acquire thresholds | all six <0.00001 / >0 | contact-tracker |
 | Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (the source had one); revisit if too tight for a comfortable drop |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
+| Anchor offsets | +0.15 above the head bone (anchored) / +0.10 above the cage centroid (tracked) | RemyDoll ancestry (head-contact center ≈ +0.1 over the bone); per-avatar head size — wear-test owns them |
 
 ## How it works
 
@@ -114,15 +115,21 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
 source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
 
     DropOnPlayer                      root — VRCFury FullController + 2 Toggles
-    ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount, source1 SourcePosition,
-    │  │                              source2 TrackingPoints]; holds the payload
+    ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/Offset, source1 SourcePosition,
+    │  │                              source2 TrackedPoint]; holds the payload
     │  ├─ Payload                     placeholder sphere — swap for your prop, keep under Container
     │  └─ SelfDetect                  VRCContactReceiver: private tag, Proximity, radius 0.15,
     │                                 allowSelf ON allowOthers OFF localOnly ON → DropOnPlayer/SelfDetect
     ├─ SourcePosition (0, 0.8, 0.25)  VRCPositionConstraint [source0 DropPosition, source1 TrackingPoints]
     │                                 — the sample-and-hold cell; samples the cage while Tracked
-    ├─ HeadMount                      MA BoneProxy → Head; carries a VRCContactSender: private tag,
-    │                                 Sphere, radius 0.1 — the self-anchor detection + anchor source
+    ├─ HeadMount                      MA BoneProxy → Head (AsChildAtRoot — snaps to the head bone)
+    │  └─ Offset      (0, 0.15, 0)    the anchored rest point, in the head-bone frame: the head bone
+    │                                 sits at the neck, so the prop needs this lift to sit on the
+    │                                 head. Carries the VRCContactSender (private tag, Sphere,
+    │                                 radius 0.1) — self-anchor detection fires where the prop rests
+    ├─ TrackedPoint   (0, 0.8, 0.25)  VRCPositionConstraint [source0 TrackingPoints] + PositionOffset
+    │                                 (0, 0.10, 0) — tracked-mode rest point: the cage converges on the
+    │                                 target's head-contact center (inside the skull), this rides above it
     ├─ TrackingPoints (0, 0.8, 0.25)  localScale 0.15; VRCParentConstraint [Container] (park — rides the
     │  │                              prop); VRCPositionConstraint [sources 0–5 = probes, 6 = self (brake)];
     │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×3] (absolute meters)
