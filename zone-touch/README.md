@@ -10,9 +10,8 @@ timers to skew, late-join-safe because both bits are unsaved default-0.
 
 **Provenance:** a private production avatar's headpat mechanism, generalized (sync-only-the-divergent-outcome
 + level-handshake rearm, `gimmicks.md` §Contacts). The vendor baseline it corrects is the
-commercial touch-spots class — its five shipped defects are this entry's emulator assertion list
-(synced+saved sensing, no debounce, no arbitration, AnyState self-retrigger, default-on kill
-switch). Audio variant selection (parameter-indexed `VRCAnimatorPlayAudio`) is deliberately not
+commercial touch-spots class, whose five shipped defects this entry inverts: synced+saved sensing,
+no debounce, no arbitration, AnyState self-retrigger, default-on kill switch. Audio variant selection (parameter-indexed `VRCAnimatorPlayAudio`) is deliberately not
 shipped — asset closure; the headpat is the worked example to copy when you add sound.
 
 ## Interface
@@ -70,22 +69,21 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Locked by |
 |---|---|---|
-| Debounce dwell | 0.5 s | emulator sweep (this entry's build); feel-tunable |
+| Debounce dwell | 0.5 s | emulator sweep; feel-tunable |
 | Special chance | 0.02 | consumer preference, not physics |
 | Touch / release thresholds | >0 / <0.00001 | contact-tracker lineage |
 
-**Verified (Av3Emulator, this entry's build):** sync surface = Enable + Special only; a foreign
-sender (`allowOthers`) fired Zone1 and the pulse played once, holding without re-trigger while
-touched; coincident Zone1+Zone2 resolved to React1 (releasing sender 1 alone exited the machine —
-the ladder discriminator); a re-touch inside the 0.5 s cooldown was ignored (proxy pinned at 1.000)
-and fired cleanly after it; the forced roll entered Special on both clients (local scale 2.0, clone
-2.0 via the synced bool) and the release **falling edge** re-armed both; enable-off killed the zone
-receivers on the local *and* the clone.
+## Verifying the install
 
-**Remote-side sensing is in-game-only to *prove*** (emulator clones hold spawn-time contact
-fossils — `verify.md`): the emulator verifies the local machine, the allow-flag matrix, and the
-synced-bool channel against a clone; that remotes' own receivers fire for a real toucher is the
-same `localOnly: 0` mechanism the headpat and the vendor package both demonstrate live in-game.
+The sync surface is Enable + Special only. A foreign (`allowOthers`)
+sender on a zone fires its reaction once and holds without re-triggering while the touch persists;
+coincident Zone1+Zone2 resolves to React1, and releasing only sender 1 exits the machine — that is
+the ladder discriminator working. A re-touch inside the cooldown is ignored. Enable-off must kill
+the zone receivers on the clone as well as locally.
+
+That remotes' own receivers fire for a real toucher is in-game-only — emulator clones hold
+spawn-time contact fossils (`verify.md`). The emulator reaches the local machine, the allow-flag
+matrix, and the synced-bool channel against a clone.
 
 ## Rig
 

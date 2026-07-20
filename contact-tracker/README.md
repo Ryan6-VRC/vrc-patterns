@@ -48,16 +48,15 @@ Two prefabs, one controller:
 | Settle dwell | 1.0 s park-brake hold (tracking clip) | brake=1 damps the acquisition transient (smooth traverse, no leapfrog); releases as a snap at 1.0 s. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
 | Loss / acquire thresholds | all six <0.00001 / >0 | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
 
-## Verified (emulator) and handed off (in-game)
+## Verifying the install
 
-Emulator-proven in batched sessions: full lifecycle Reset → Searching → latch → chase
-(converges to 0.000 m on a continuously moving sender) → lock (a second in-range sender is
-ignored) → loss-freeze → re-acquire → Enable-off recall. `ApplyDuringUpload` enables the
-world-freeze root at build. Both variants' acquisition geometry bracketed as above.
+With Enable off the cage must sit at `HomeAnchor/Offset`, on the wearer; finding it at the
+avatar-root origin means the BoneProxy never resolved. Enable on, then put a scripted `Hand` sender
+(`docs/verify.md`) in the cage: all six floats leave zero together and `allowOthers` shuts on every
+probe. A partial latch means the acquisition scale no longer suits this avatar's contact placement.
 
-Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side receiver firing
-(the clone's rig, receivers, and replicated Enable were verified present; the emulator does not
-simulate contacts on non-local clones), real-IK chase feel, and the dwell length.
+Two clients in-game, not the emulator: remote-side receiver firing (clones never simulate
+contacts), chase feel under real IK, and whether the settle dwell is right.
 
 ## Traps
 

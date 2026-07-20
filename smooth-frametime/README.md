@@ -56,13 +56,11 @@ resolution (bool-encoded or 8-bit-float synced params) — heavier remote smooth
 jitter. Absent that input asymmetry one λ is correct, which is why the shipped defaults are
 **equal**: the split exists as two editable numbers, not as shipped behavior.
 
-## Measured behavior
+## Behavior
 
-Proven by compiling the built controller to a fresh-GUID scratch copy, hosting it on a bare `Animator`,
-and ticking `Animator.Update(dt)` in **edit mode** — no play mode (`docs/verify.md` → "Pure controller
-math skips play mode entirely"). `SetFloat` inputs, `GetFloat` AAP outputs. Faithful because AAP writes
-and blend-tree evaluation are stock Unity, identical to the FX playable. Tolerance `2e-3`. The rig reads
-`dt` exactly (`FrameTime = 0.016667` at `dt = 1/60`).
+The rig reads `dt` exactly (`FrameTime = 0.016667` at `dt = 1/60`). To re-measure after an edit,
+host the built controller on a bare `Animator` and tick `Animator.Update(dt)` in edit mode —
+`docs/verify.md` §"Pure controller math skips play mode entirely" owns the recipe.
 
 ### Settle table — `dt = 1/60`, `Target` stepped 0 → 1
 

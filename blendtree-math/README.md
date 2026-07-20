@@ -117,33 +117,32 @@ none free: a **smaller step** tightens the band and slows the ramp; a **`FrameTi
 normalizes it across framerates but still cycles; if you need a value that truly holds, **prefer the
 exponential smoother**.
 
-## Verified behavior
+## Behavior
 
-Measured by hosting the built controller on an `Animator` and ticking it deterministically at
-`dt = 1/60` (frametime rows also at `1/30`); a bare `Animator` is faithful, since AAP writes and
-blend-tree evaluation are standard Unity animator behavior identical to VRChat's FX playable. Single-hop
-idioms are exact the frame their inputs change; the derived rows are steady-state after their settle.
-Tolerance `2e-3`.
+Each idiom's output at `dt = 1/60`. Single-hop idioms are exact the frame their inputs change; the
+derived rows reach these values only after the settle noted against them. To re-measure after an
+edit, host the built controller on a bare `Animator` and tick it in edit mode — `docs/verify.md`
+§"Pure controller math skips play mode entirely" owns the recipe.
 
-| Idiom | Input(s) | Expected | Measured | Result |
-|---|---|---|---|---|
-| add (Direct child → `SumDirect`) | A=0.7, B=0.2 | 0.9 | 0.9000 | PASS |
-| add (1D child → `Sum1D`) | A=0.7, B=0.2 | 0.9 | 0.9000 | PASS |
-| subtract | A=0.7, B=0.2 | 0.5 | 0.5000 | PASS |
-| multiply | A=0.7, B=0.2 | 0.14 | 0.1400 | PASS |
-| divide (÷ 1+Input) | DivInput=3 | 0.25 | 0.2500 | PASS |
-| divide (÷ 1+Input) | DivInput=1 | 0.5 | 0.5000 | PASS |
-| negate | RemapIn=0.5 | −0.5 | −0.5000 | PASS |
-| remap ([−1,1]→[1,−1]) | RemapIn=−1.0 | 1.0 | 1.0000 | PASS |
-| clamp (saturate high) | ClampIn=1.5 | 1.0 | 1.0000 | PASS |
-| clamp (saturate low) | ClampIn=−0.5 | 0.0 | 0.0000 | PASS |
-| clamp (in-range identity) | ClampIn=0.4 | 0.4 | 0.4000 | PASS |
-| max (derived) | A=0.7, B=0.2 | 0.7 | 0.7000 (frame 3) | PASS |
-| min (derived) | A=0.7, B=0.2 | 0.2 | 0.2000 | PASS |
-| max (crossover) | A=0.2, B=0.7 | 0.7 | 0.7000 | PASS |
-| min (crossover) | A=0.2, B=0.7 | 0.2 | 0.2000 (frame 3) | PASS |
-| frametime rig | dt=1/60 | 0.016667 | 0.01667 | PASS |
-| frametime rig | dt=1/30 | 0.033333 | 0.03333 | PASS |
+| Idiom | Input(s) | Output |
+|---|---|---|
+| add (Direct child → `SumDirect`) | A=0.7, B=0.2 | 0.9000 |
+| add (1D child → `Sum1D`) | A=0.7, B=0.2 | 0.9000 |
+| subtract | A=0.7, B=0.2 | 0.5000 |
+| multiply | A=0.7, B=0.2 | 0.1400 |
+| divide (÷ 1+Input) | DivInput=3 | 0.2500 |
+| divide (÷ 1+Input) | DivInput=1 | 0.5000 |
+| negate | RemapIn=0.5 | −0.5000 |
+| remap ([−1,1]→[1,−1]) | RemapIn=−1.0 | 1.0000 |
+| clamp (saturate high) | ClampIn=1.5 | 1.0000 |
+| clamp (saturate low) | ClampIn=−0.5 | 0.0000 |
+| clamp (in-range identity) | ClampIn=0.4 | 0.4000 |
+| max (derived) | A=0.7, B=0.2 | 0.7000 (frame 3) |
+| min (derived) | A=0.7, B=0.2 | 0.2000 |
+| max (crossover) | A=0.2, B=0.7 | 0.7000 |
+| min (crossover) | A=0.2, B=0.7 | 0.2000 (frame 3) |
+| frametime rig | dt=1/60 | 0.01667 |
+| frametime rig | dt=1/30 | 0.03333 |
 
 The min/max crossover rows (A<B and A>B) confirm the composed idioms track the true extremum, not just
 one input, and show that the settling branch is whichever difference is positive.

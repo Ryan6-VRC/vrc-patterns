@@ -86,35 +86,19 @@ never crossed the wire).
 and put it on theirs — the wearer's client arbitrates from wherever the prop is, and their head is
 "another player's head". `allowPosing` off — persistence is always a constraint hold.
 
-## Verified (emulator) and handed off (in-game)
+## Verifying the install
 
-Emulator-proven in two batched sessions (Av3Emulator; details in the entry's PR):
+At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender.
+**Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads
+zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the
+anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage 0.15 below it at
+head-contact level; both offsets are per-avatar head-size constants, so re-check them on a new base
+rather than trusting the shipped values.
 
-- **Single avatar** (default polarity): full local lifecycle — boot → Disabled; Enable → Anchored
-  on the own head (SelfDetect saturates); grab-carry; all three release-arbitration branches
-  (self-tag → Anchored; scripted Head sender → Tracked with latch + spread + chase converging to
-  0.000 m on a moving target; neither → Released pulse → Dropped frozen exactly at the drop spot,
-  sample cell landed); loss → freeze with pair re-stamped `10`; ToHead recall; Enable-off from
-  every rest mode drives the pair to `00` as one code and reopens the filters. Remote clone:
-  pair replicates, boot dwell routes `01` → Anchored on the clone's head, `00` hides, live pair
-  flips drive the remote Anchored→Tracked latch. localOnly drivers correctly never run on the clone.
-- **Two avatars, `EnablePlayerContactPermissions` on** (per-player contact ids): the in-game
-  permission asymmetry reproduces — at the wearer's own head the allowOthers cage reads 0.000
-  while allowSelf SelfDetect reads 1.000; a *real second avatar's* synthesized Head sender fires
-  the cage, release on their head latches Tracked, and the cage chases the moving player
-  (re-converges across a 1.4 m step).
-- **Composed avatar, post offset-restructure + off-state hygiene**: full lifecycle re-run —
-  geometry lands on the shipped offsets (prop +0.25 over the head bone anchored, +0.15 over the
-  cage tracked, frozen exactly at the drop point with no-teleport re-grab), Disabled leaves the
-  grab physbone and cage receivers dead, and the wearer's standard Head sender feeds SelfDetect
-  unaided (descriptor collider slots present; a minimal rig reads zero — `docs/verify.md`).
-
-Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side cage re-derivation
-(clone contact receivers freeze at their spawn-time values — never simulated), the witnessed
-grab/release remote choreography (`_IsGrabbed` does not transport to the clone), the remote
-release-settle dwell length, real-IK chase feel, and culling interaction with a genuinely
-distant/occluded player. Late-join Waiting-hide is graph-proven off the pair; its in-game timing
-rides the same second-client session.
+Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold
+spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed`
+does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and
+culling against a genuinely distant or occluded player.
 
 ## Rig
 

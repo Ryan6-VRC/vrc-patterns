@@ -28,7 +28,7 @@ real-avatar naming.
   `_template` entry documents, or the repathed bindings land on the wrong node.
 - **Dependencies:** the target renderer must expose an RGB `_Color` property. By-name binding is inert —
   silently does nothing — on a material lacking `_Color`.
-- **Required assets:** none. The Unity Standard material used in the proof below is only a scaffold, not a
+- **Required assets:** none. The Unity Standard material used below is only a scaffold, not a
   shipped asset; the consumer supplies their own material.
 
 ## One DBT, and the WD-ON sum-to-1 sink (the lesson)
@@ -56,7 +56,7 @@ correct *only* at `V = 1`. The third zero-value sink child at weight `(1−V)` c
 `Σw = m + C + (1−V) = 1`, killing the deficit and the default-bleed with it. This is `color-adjust`'s
 "un-keyed channel reverts to the material default" trap (fact 1) reappearing at the sub-weight level —
 the same sum-to-1 discipline the smoother's convex α-pair needs, here forced by WD-fill rather than by
-overshoot. The measured behaviour below proves it: the `V = 0.5` row reads its computed RGB, **not** a
+overshoot. The `V = 0.5` row below reads its computed RGB, **not** a
 white-bleed.
 
 Two adjacent facts the naive author gets wrong:
@@ -73,32 +73,30 @@ Two adjacent facts the naive author gets wrong:
 The 2D-hue-wheel approximation an agent might reach for first is both approximate *and* costlier than this
 exact 1D decomposition — it is neither needed nor cheaper, so it is not built.
 
-## Measured behavior
+## Behavior
 
-Proven by compiling the built controller to a fresh-GUID scratch copy, hosting it on a bare `Animator`
-over a **cloned Unity Standard material** (default `_Color = (1, 1, 1, 1)` white) on a placeholder
-`SkinnedMeshRenderer`, and ticking `Animator.Update(1/60)` in **edit mode** — no play mode
-(`docs/verify.md` → "Pure controller math skips play mode entirely"). `SetFloat` the `H`/`S`/`V` inputs,
-settle 8 frames, then read `_Color` from the renderer's **`MaterialPropertyBlock`** (where material
-animation lands — `sharedMaterial` stays at the authored default and would read a false negative). Each
-row is checked against `UnityEngine.Color.HSVToRGB(H, S, V)`; tolerance `2e-3`, max observed error `2e-5`.
+`_Color` after an 8-frame settle, against a Unity Standard default of white. Every row matches
+`UnityEngine.Color.HSVToRGB(H, S, V)` to within `2e-3`. To re-measure after an edit, host the built
+controller on a bare `Animator` and tick it in edit mode (`docs/verify.md` §"Pure controller math
+skips play mode entirely"), reading `_Color` from the renderer's **`MaterialPropertyBlock`** —
+`sharedMaterial` stays at the authored default and reads as a false negative.
 
-| row | `H` | `S` | `V` | measured MPB `(.r, .g, .b, .a)` | `Color.HSVToRGB` | err |
-|---|---|---|---|---|---|---|
-| red | 0 | 1 | 1 | (1.0000, 0.0000, 0.0000, 1.0000) | (1, 0, 0) | 0.00000 |
-| yellow | 1/6 | 1 | 1 | (1.0000, 1.0000, 0.0000, 1.0000) | (1, 1, 0) | 0.00002 |
-| green | 2/6 | 1 | 1 | (0.0000, 1.0000, 0.0000, 1.0000) | (0, 1, 0) | 0.00002 |
-| cyan | 3/6 | 1 | 1 | (0.0000, 1.0000, 1.0000, 1.0000) | (0, 1, 1) | 0.00000 |
-| blue | 4/6 | 1 | 1 | (0.0000, 0.0000, 1.0000, 1.0000) | (0, 0, 1) | 0.00002 |
-| magenta | 5/6 | 1 | 1 | (1.0000, 0.0000, 1.0000, 1.0000) | (1, 0, 1) | 0.00002 |
-| white (S=0) | 0 | 0 | 1 | (1.0000, 1.0000, 1.0000, 1.0000) | (1, 1, 1) | 0.00000 |
-| desaturated (S=0.5) | 2/6 | 0.5 | 1 | (0.5000, 1.0000, 0.5000, 1.0000) | (0.5, 1, 0.5) | 0.00001 |
-| dimmed (V=0.5) | 4/6 | 1 | 0.5 | (0.0000, 0.0000, 0.5000, 1.0000) | (0, 0, 0.5) | 0.00001 |
-| black (V=0) | 0 | 0 | 0 | (0.0000, 0.0000, 0.0000, 1.0000) | (0, 0, 0) | 0.00000 |
+| row | `H` | `S` | `V` | `_Color` `(.r, .g, .b, .a)` |
+|---|---|---|---|---|
+| red | 0 | 1 | 1 | (1.0000, 0.0000, 0.0000, 1.0000) |
+| yellow | 1/6 | 1 | 1 | (1.0000, 1.0000, 0.0000, 1.0000) |
+| green | 2/6 | 1 | 1 | (0.0000, 1.0000, 0.0000, 1.0000) |
+| cyan | 3/6 | 1 | 1 | (0.0000, 1.0000, 1.0000, 1.0000) |
+| blue | 4/6 | 1 | 1 | (0.0000, 0.0000, 1.0000, 1.0000) |
+| magenta | 5/6 | 1 | 1 | (1.0000, 0.0000, 1.0000, 1.0000) |
+| white (S=0) | 0 | 0 | 1 | (1.0000, 1.0000, 1.0000, 1.0000) |
+| desaturated (S=0.5) | 2/6 | 0.5 | 1 | (0.5000, 1.0000, 0.5000, 1.0000) |
+| dimmed (V=0.5) | 4/6 | 1 | 0.5 | (0.0000, 0.0000, 0.5000, 1.0000) |
+| black (V=0) | 0 | 0 | 0 | (0.0000, 0.0000, 0.0000, 1.0000) |
 
 - **Six hue anchors** (S=V=1) land the primaries and secondaries exactly. `.a` holds `1.0000` on every
   row (the constant-alpha child).
-- **The sink fix, measured:** the **dimmed** row (`V = 0.5`) reads `(0, 0, 0.5)` — its red and green
+- **The sink fix:** the **dimmed** row (`V = 0.5`) reads `(0, 0, 0.5)` — its red and green
   channels are `0.0000`, **not** the `(1−V)·white = 0.5` bleed a missing sink would inject. The
   **desaturated** row (`S = 0.5`) reads `(0.5, 1, 0.5)`, its floor `m = V(1−S) = 0.5` correctly filled
   by the `m` child, not by the default. Both `V<1`/`S<1` rows match `Color.HSVToRGB` to `1e-5`, so the

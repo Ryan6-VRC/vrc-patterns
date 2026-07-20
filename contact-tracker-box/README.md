@@ -14,9 +14,9 @@ trade for exactness + budget is range**: the working volume is a fixed **±1.5 m
 world-frozen deployment point — the volume does not chase. Inside it, tracking is exact; outside
 it, loss.
 
-**Provenance:** `contact-tracker` (G5b) structure + the G5d box-contact probe. Probe (SDK 3.10.4,
-397-point sweep, sender radii 0.05/0.10/0.20): 4-box reconstruction worst-case error **0.0000 m**
-(radius estimate also exact); 6-sphere one-shot centroid worst case 1.21 m over the same grid.
+**Provenance:** `contact-tracker`'s structure with box receivers replacing the spheres. That swap is
+the reason this entry exists: 4-box reconstruction is **exact** (worst-case error 0.0000 m, radius
+estimate too) where a 6-sphere one-shot centroid reaches 1.21 m worst case over the same grid.
 Face proximity projects the sender center onto the +Z face *plane* (infinite laterally) and
 unlerps linearly across the box depth — axis-separable by construction, radius purely additive
 (`ContactManager` source; `runtime.md` §Contacts).
@@ -56,22 +56,17 @@ One prefab, one controller: `ContactTrackerBox.prefab`.
 | Readout coefficients | 1.5 / 3 (readout_* clips) | derived from face position 1.5 m and depth 3 m — re-derive together if the box geometry changes. The readout is uniform-scale-invariant (readings are geometry ratios), so exactness holds even at acquisition scale; the constraint pins *range* |
 | Loss / acquire thresholds | any <0.00001 / all four >0 | ANY-loss (vs contact-tracker's ALL): one dead box breaks the reconstruction, so partial reads never hold Tracking |
 
-## Verified (emulator) and handed off (in-game)
+## Verifying the install
 
-Emulator-proven (Av3Emulator, VRCFury play build): full lifecycle Reset → Searching → latch
-(filters shut) → **exact off-center track** (error 0.0000 m at (0.9, −0.7, 1.1) — not
-self-parked) → a second in-range sender ignored → ANY-loss at the face boundary → filters
-reopen/recollapse/recall → re-acquire → Enable-off recall (no latch while off, sender in core) →
-resume-in-place (re-enable with the sender in core relatches via Searching; the old
-Reset→Tracking direct edge is gone — Reset now runs receivers-off with driver-zeroed floats) →
-world-freeze (volume stays put under avatar motion, tracking stays exact). Acquisition boundary
-bracketed as above.
+Enable on, then put a scripted `Hand` sender (`docs/verify.md`) in the acquisition core: the four
+floats leave zero together, filters shut, and `Container` swaps off `HomeAnchor/Offset` onto the
+live readout. Walking the avatar must leave the tracking volume where it stands — it is
+world-frozen — while the parked marker rides the wearer.
 
-Needs two clients in-game (emulator boundary, `docs/verify.md`): remote-side receiver firing, and
-the **capsule-sender bias** — real hand/finger senders are capsules, which read a constant offset
-toward the near surface, bounded by the capsule's segment half-length projected per axis (probe:
-0.07–0.14 m with an oversized 0.3 m capsule; a few cm for a real hand collider). Constant, not
-jitter.
+Two clients in-game, not the emulator: remote-side receiver firing, and the **capsule-sender
+bias** — real hand and finger senders are capsules, which read a constant offset toward the near
+surface bounded by the capsule's segment half-length projected per axis (a few cm for a real hand
+collider). Constant, not jitter, so it reads as a small fixed tracking error rather than noise.
 
 ## Traps
 
