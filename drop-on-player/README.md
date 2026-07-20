@@ -56,7 +56,7 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
 | Loss / acquire thresholds | all six <0.00001 / >0 | contact-tracker |
 | Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (the source had one); revisit if too tight for a comfortable drop |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
-| Anchor offsets | +0.15 above the head bone (anchored) / +0.15 above the cage centroid (tracked) | RemyDoll ancestry: head contacts sit +0.1 over the bone, the doll rides +0.15 over the cage; per-avatar head size — wear-test owns them |
+| Anchor offsets | +0.25 above the head bone (anchored) / +0.15 above the cage centroid (tracked) | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
 
 ## How it works
 
@@ -132,8 +132,9 @@ source weights swapped by the clips; positions below are edit-time rest (0, 0.8,
     │  │                              player's head bone zero-scales in first person, which would
     │  │                              collapse AnchorOffset onto the bone — the chop exemption keeps
     │  │                              the wearer's own anchored prop at its offset
-    │  └─ AnchorOffset (0, 0.15, 0)   the anchored rest point, in the head-bone frame: the head bone
-    │                                 sits at the neck, so the prop needs this lift to sit on the head
+    │  └─ AnchorOffset (0, 0.25, 0)   the anchored rest point, in the head-bone frame: the head bone
+    │                                 sits at the neck, so this lift is necessarily larger than
+    │                                 TrackingOffset (which measures from the head-contact center)
     ├─ TrackedPoint   (0, 0.8, 0.25)  VRCPositionConstraint [source0 TrackingPoints] — rides the cage
     │  └─ RideOffset  (0, 0.15, 0)    tracked-mode rest point, above the cage (which converges on the
     │                                 target's head-contact center, inside the skull) — the prop rides
