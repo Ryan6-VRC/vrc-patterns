@@ -1,5 +1,7 @@
 # vrc-patterns
 
+> Part of the [Atelier](https://github.com/Ryan6-VRC/atelier) workspace — a code reference, not a standalone product. The docs that govern this code live in the meta-repo.
+
 Reusable, verified VRChat avatar patterns, controllers, and drop-in gimmick modules — YAML-sourced
 (`CompileController`), shaped as a VPM package. Read `CONVENTIONS.md` first; author against `_template/`.
 
