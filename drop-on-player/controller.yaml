@@ -222,10 +222,11 @@ layers:
 # Constraint source maps:
 #   Container/VRCPositionConstraint:      source0 HeadMount, source1 SourcePosition, source2 TrackingPoints
 #   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
-#   GrabPosition/VRCPositionConstraint:   source0 HeadMount, source1 Container
+#   GrabPosition/VRCPositionConstraint:   source0 HeadMount/AnchorOffset, source1 Container
 #   TrackingPoints/VRCPositionConstraint: source0..5 the probes, source6 self (park brake)
-#   TrackingPoints/VRCParentConstraint:   source0 Container (the cage rides the prop when not tracking —
-#                                         at release the cage IS at the prop: the arbitration geometry)
+#   TrackingPoints/VRCParentConstraint:   source0 Container/TrackingOffset (the cage rides the sensed
+#                                         point below the prop when not tracking — at release the cage
+#                                         sits at head-contact level under the prop: the arbitration geometry)
 clips:
   disabled:
     set:

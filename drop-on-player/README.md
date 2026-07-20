@@ -140,12 +140,12 @@ source weights swapped by the clips; positions below are edit-time rest (0, 0.8,
     │                                 target's head-contact center, inside the skull) — the prop rides
     │                                 like a hat. Mirrors TrackingOffset; the EditorOnly rig keeps the
     │                                 two aligned in edit mode (drag TrackingOffset, this follows)
-    ├─ TrackingPoints (0, 0.8, 0.25)  localScale 0.15; VRCParentConstraint [Container] (park — rides the
+    ├─ TrackingPoints (0, 0.8, 0.25)  localScale 0.15; VRCParentConstraint [TrackingOffset] (park — rides the
     │  │                              prop); VRCPositionConstraint [sources 0–5 = probes, 6 = self (brake)];
     │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×3] (absolute meters)
     │  └─ X+ X- Y+ Y- Z+ Z-           6 probe GOs, each a VRCContactReceiver: tag Head, Proximity,
     │                                 radius 1 (×0.15 scale), allowSelf OFF allowOthers ON localOnly OFF
-    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount, source1 Container]
+    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint [source0 AnchorOffset, source1 Container]
     │  └─ GrabBone                    VRCPhysBone (parameter GrabBone) — grab-prop's rig verbatim:
     │     │                           pull 1, stiffness 0.2, spring 0, gravity 0, immobile 1 AllMotion,
     │     │                           radius 0.075, grabMovement 1, maxStretch 100000, allowPosing OFF,
