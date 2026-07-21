@@ -9,8 +9,9 @@ target's motion (damping) or, with a second stage and a negative weight, rings a
 Depth 1 (damping) / 2 (spring), Quest-safe, one component per constrained object.
 
 This is a **structural** Module: the behavior lives in the constraint components, not an animator, so
-the entry ships prefabs and **no `controller.yaml`** — the gate (which compiles controllers) does not
-cover it (`CONVENTIONS.md` §The gate). Correctness rests on the install check below.
+the entry ships prefabs and **no `controller.yaml`** — the gate's compile pass skips it, though its
+prefab-integrity pass still checks the prefabs import with no missing scripts (`CONVENTIONS.md` §The
+gate). Behavioural correctness rests on the install check below.
 
 ## The three rigs
 
