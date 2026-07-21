@@ -118,6 +118,3 @@ the near surface (a few cm; constant, not jitter).
 - **Editing the rig:** VRC constraint `Sources` is a **struct** — `Sources.Add()` on a retrieved
   copy silently serializes nothing; assign through `SerializedObject` and set `IsActive`
   explicitly. A constraint at `GlobalWeight 0` drives to its `*AtRest` pose — it is not a no-op.
-- **Watch (unreproduced):** one prior session saw the tracking `VRCScaleConstraint` never inflate
-  after the bake (lossyScale stuck at rest with GW=1; signature: all four floats ≈ 0.678 at a
-  center latch). Not seen since the crawler rebuild; if hit, cycle Enable and report.
