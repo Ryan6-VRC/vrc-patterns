@@ -75,21 +75,34 @@ self-pat receivers. The chop scales the whole head subtree, **colliders and phys
 included**: a face-stretch chain parented under a chopped head collapses to ~0 in first person
 and you can't grab your own face — which is the entire gimmick. So:
 
+The production architecture (read off a live example; the distortion itself is ordinary
+skinning under grabbed deform bones — nothing chop-specific):
+
 - **Self-exempt the chain root** (`VRCHeadChop @1` targeting its own root — the mechanism
-  `headchop-mount` packages) to keep it grabbable in first person. The distortion itself
-  (bone scale/position driven by the physbone, or blendshapes) needs nothing further.
-- **On a conventional rig, the exempt chain additionally needs a mirror-side scale
-  compensation**: the exemption's scale-correction against the chopped parent is written into
-  real transforms, and the mirror clone — where the client *strips* VRCHeadChop, leaving the
-  parent unchopped — inherits it as visible distortion. The fix is a `VRCScaleConstraint`
-  reading the chopped bone, `IsActive`-gated by mirror detection at the **opposite polarity
-  from the fake chop: active in the mirror (`IsMirror > 0`), off on the real local copy.**
-  Getting that polarity backwards is the natural mistake — the fake chop protects the mirror
-  *from* an effect, the compensation applies an effect *only in* the mirror.
-- **On this proxy rig, none of that is needed**: the chain anchors to the exempt humanoid head
-  (`Head_Proxy`), whose scale never actually shrinks, so no compensation is written and there
-  is nothing to leak into mirrors. Deleting the mirror-detection dependency is the concrete
-  payoff of the inversion.
+  `headchop-mount` packages) to keep it grabbable in first person. Both variants carry it —
+  on the proxy rig it's redundant (the chain anchors under the exempt humanoid head) but it
+  makes the prefab portable across rigs.
+- **Insulate the chain's scale with an always-on `VRCScaleConstraint`** on the chain root,
+  sourcing a stable module transform (the prefab root) — the chain's world scale then never
+  depends on what the chop, the exemption compensation, or the mirror clone's stripped-chop
+  state did to its parent chain. Constraints apply post-animator on every copy, so this one
+  constraint absorbs most of the cross-context scale trouble.
+- **The conventional variant adds a mirror-gated compensator node**: a dedicated child GO
+  carrying a second `VRCScaleConstraint` whose source is retargeted onto the humanoid Head at
+  build (VRCFury `ConstraintRetarget`, bone = Head) and whose `IsActive` mirror detection
+  drives — **shipped off, armed only in the mirror (`IsMirror > 0`)**: the opposite polarity
+  from the fake chop, which is active everywhere *but* the mirror. Getting that backwards is
+  the natural mistake. The exact compensator arithmetic on a given rig is best re-read off a
+  production example or re-derived in the emulator's mirror clone — what is load-bearing here
+  is the shape: always-on insulation on the chain, head-reading compensation armed by mirror
+  state only where the chopped parent actually exists.
+- **The two variants are one prefab family, switched by controller omission**: the proxy
+  variant merges the stretch FX alone; the conventional variant merges the mirror-detection
+  controller *in addition*. With the driver controller omitted, the mirror parameter parks at
+  its declared default, which selects the branch permanently — defaults-as-configuration, no
+  controller fork (the ruling `docs/gimmicks.md` §Packaging states abstractly). The proxy
+  variant also drops the `ConstraintRetarget`, so its parked-on compensator reads nothing and
+  is inert.
 
 ## Ventriloquism (`HeadProxy/MoveHead`)
 
