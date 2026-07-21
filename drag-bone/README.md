@@ -61,9 +61,13 @@ Degenerate cases, and what fences each:
   that must ride a vertically-moving parent): two Plane `VRCPhysBoneCollider`s riding the bone
   root, facing each other at ±(radius + slack) around root height, with a nonzero bone radius.
   Measured (r 0.02, slack 0.005): tip vertical deviation ≤9 mm and zero yaw disturbance under
-  1 m of vertical root drive, horizontal tracking unchanged. The shipped prefab keeps the
-  follower — same fence, zero colliders — and never mount the rig on the rotating prop itself:
-  its aim output rotating its own solve frame is a feedback loop.
+  1 m of vertical root drive, horizontal tracking unchanged. Two colliders is the collider-fence
+  **minimum**: a plane is one-sided, and nothing can press the tip onto a single pane from the
+  far side — physbone gravity expresses only through `pull` (measured inert at pull 0), and
+  nonzero pull + gravity collapses the trail's horizontal component against the pane exactly
+  when the prop rests, undefining yaw. The shipped prefab keeps the follower — same fence,
+  **zero colliders** (colliders cost avatar performance rank) — and never mount the rig on the
+  rotating prop itself: its aim output rotating its own solve frame is a feedback loop.
 - **Pure 180° reversal:** an exactly-collinear reversal *pushes through* the tip instead of
   swinging it — heading reads backwards until any lateral motion breaks the symmetry, then
   recovers in a fast smooth swing (~3°/frame max, no snap). Real hand and locomotion paths
