@@ -55,7 +55,15 @@ Degenerate cases, and what fences each:
   can move the tip. Physbone angle limits cannot replace this: a hinge (`limitRotation` zero)
   confines swing to the bone-local X axis, the one tested reorientation (0,0,90) tracked one
   heading then froze at its limit mid-turn while still allowing a vertical trail, and cone/polar
-  limits are rest-axis-centered so they cannot exclude the poles. Keep `limitType None`.
+  limits are rest-axis-centered so they cannot exclude the poles — a 91° cone tested alongside
+  the sandwich below clamped legitimate rear headings mid-turn. Keep `limitType None`.
+  A **two-plane collider sandwich** *can* replace it where a planar follower won't fit (a rig
+  that must ride a vertically-moving parent): two Plane `VRCPhysBoneCollider`s riding the bone
+  root, facing each other at ±(radius + slack) around root height, with a nonzero bone radius.
+  Measured (r 0.02, slack 0.005): tip vertical deviation ≤9 mm and zero yaw disturbance under
+  1 m of vertical root drive, horizontal tracking unchanged. The shipped prefab keeps the
+  follower — same fence, zero colliders — and never mount the rig on the rotating prop itself:
+  its aim output rotating its own solve frame is a feedback loop.
 - **Pure 180° reversal:** an exactly-collinear reversal *pushes through* the tip instead of
   swinging it — heading reads backwards until any lateral motion breaks the symmetry, then
   recovers in a fast smooth swing (~3°/frame max, no snap). Real hand and locomotion paths
