@@ -6,7 +6,8 @@
 #     the mirror clone (+1); remotes park at the 0 default. Zero synced bits.
 #   VoiceProjection — ventriloquism: swaps the Head_Proxy position-constraint source between the
 #     deform Head (home) and the VoiceTarget socket, moving the humanoid head (viewpoint anchor,
-#     voice origin) without moving the deforming head.
+#     voice origin) without moving the deforming head's visible geometry (the wearer's own
+#     first-person chop pass still re-places its collapsed transform — see the README).
 #   FakeChop — animates the *deform* Head bone's scale to ~0 the way pre-VRCHeadChop avatars
 #     hid their heads. Gated IsLocal && IsMirror < 0: the mirror clone runs this same animator
 #     with IsLocal still true, so without the mirror gate the fake chop shrinks your head in
@@ -27,11 +28,14 @@ defaults:
 
 parameters:
   IsLocal: bool            # VRC builtin
-  HeadProxy/MoveHead: { type: bool, default: false, vrc: { synced: true, saved: false } }
-  HeadProxy/FakeChop: { type: bool, default: false, vrc: { synced: true, saved: false } }
-  # Mirror detection pair — never synced. DetectMirror is the race flag the local-only driver
-  # sets; a clone entering the machine with it already true routes to Mirror.
-  MirrorDetection/DetectMirror: bool
+  HeadProxy/MoveHead: { type: bool, default: false, vrc: { synced: true, saved: false } }  # remotely visible
+  # Unsynced: FakeChop's only consumer is gated IsLocal — no remote copy can act on it.
+  HeadProxy/FakeChop: { type: bool, default: false, vrc: { synced: false, saved: false } }
+  # Mirror detection pair — never synced. DetectMirror is pure race residue (the local-only
+  # driver's flag; a clone entering with it already true routes to Mirror) — scratch, out of
+  # the params asset. IsMirror stays listed deliberately: it is the layer's output signal a
+  # lifted consumer reads.
+  MirrorDetection/DetectMirror: { type: bool, scratch: true }
   MirrorDetection/IsMirror: { type: float, aap: true }   # -1 real local, +1 mirror clone, 0 remote
 
 layers:

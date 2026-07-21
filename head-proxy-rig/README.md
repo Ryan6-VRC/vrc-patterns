@@ -58,9 +58,13 @@ with in-game behavior of the production rig:
 - **Everything docked in an exempt slot follows the humanoid head.** Engage ventriloquism and
   `Head_NoChop` + its occupant relocate to the voice target; even the `@0` deform head's
   *position* tracks it (the re-place runs for every listed bone, exempt or not).
-- **Feedback trap:** if the humanoid head is constraint-sourced from something docked in an
-  exempt slot, the re-place closes a loop whose fixed point depends on evaluation order and IK
-  mode. Dock position sources on non-exempt nodes.
+- **Feedback trap:** if the humanoid head is constraint-sourced from something the chop
+  re-places, the loop closes and its fixed point depends on evaluation order and IK mode. The
+  discriminating property is **displacement, not exemption** — the re-place runs for every
+  listed bone, `@0` included, so any listed bone at non-zero offset from the humanoid head
+  re-forms the loop (this rig sources `Head_Proxy` from the listed `@0` deform head and
+  escapes only because they are co-located). Dock position sources on a node that is not
+  re-placed, or is co-located with the humanoid head.
 - **Root-distance release gate (in-game measured, not in any doc):** the client stops chopping
   a target bone once it's roughly **0.5–1 m from the avatar root/capsule** — eyeballed,
   unpinned, plausibly scale-relative. This is why ventriloquism in a tracking mode where the
@@ -91,7 +95,7 @@ skinning under grabbed deform bones — nothing chop-specific):
   carrying a second `VRCScaleConstraint` whose source is retargeted onto the humanoid Head at
   build (VRCFury `ConstraintRetarget`, bone = Head) and whose `IsActive` mirror detection
   drives — **shipped off, armed only in the mirror (`IsMirror > 0`)**: the opposite polarity
-  from the fake chop, which is active everywhere *but* the mirror. Getting that backwards is
+  from the fake chop, which is active only on the real local copy. Getting that backwards is
   the natural mistake. The exact compensator arithmetic on a given rig is best re-read off a
   production example or re-derived in the emulator's mirror clone — what is load-bearing here
   is the shape: always-on insulation on the chain, head-reading compensation armed by mirror
@@ -108,8 +112,11 @@ skinning under grabbed deform bones — nothing chop-specific):
 
 `Head_Proxy`'s position constraint has two sources: the deform head (home, @1) and
 `VoiceTarget` (@0). The `VoiceProjection` layer swaps the weights — voice, viewpoint, and IK
-head move to the socket; the deforming head never moves. The socket is a plain child of the
-avatar root: re-source it (or constrain it) to whatever should speak.
+head move to the socket. Nothing in the constraint graph drives the deform head, and its
+visible geometry (remotes, mirror) stays home — but in the wearer's own first-person pass the
+chop's re-place still drags its collapsed `@0` transform along (§Client chop model), which is
+what keeps the root-distance gate satisfied in hip-anchored tracking modes. The socket is a
+plain child of the avatar root: re-source it (or constrain it) to whatever should speak.
 
 ## Fake chop (`HeadProxy/FakeChop`) — for when the real chop releases
 
@@ -142,15 +149,30 @@ self-contained — lift it whole.
 
 ## Interface
 
-- **Params:** `HeadProxy/MoveHead`, `HeadProxy/FakeChop` (bool, in) — synced, unsaved.
-  `MirrorDetection/DetectMirror` (bool) and `MirrorDetection/IsMirror` (float AAP, -1/0/+1) are
-  internal — never synced, never menu-exposed.
+- **Params:** `HeadProxy/MoveHead` (bool, in) — synced, unsaved: ventriloquism is
+  remotely visible. `HeadProxy/FakeChop` (bool, in) — **unsynced**, unsaved: its only consumer
+  is gated `IsLocal`, so a synced bit would buy nothing. `MirrorDetection/DetectMirror` (bool,
+  scratch) and `MirrorDetection/IsMirror` (float AAP, -1/0/+1) are internal — never synced,
+  never menu-exposed; `IsMirror` stays listed in the params asset deliberately, as the output
+  a lifted consumer reads.
 - **Seam:** VRCFury `FullController` on the avatar root itself (`basis: avatar-root` — clip
   paths bind from the root); the two menu Toggles (`useGlobalParam`) front `MoveHead` and
   `FakeChop`, and both ride `globalParams`. `FixWriteDefaults` ships alongside. This entry *is*
   an avatar, not a mergeable — composing its ideas onto another avatar means rebuilding the
   rig, not dropping the prefab.
-- **Dependencies:** VRCFury. The demo FBX ships in `assets/` (VN3 — see `NOTICE`).
+- **Dependencies:** VRCFury.
+- **Required assets:** `assets/HeadProxyDemo.fbx` — the demo avatar (VN3 — see `NOTICE`).
+
+## Behavior
+
+The numeric contract, re-measurable in the emulator per the setup under §Verifying the install:
+
+- `MoveHead` on → `Head_Proxy` lands at `VoiceTarget`, and the exempt slot (+ occupant)
+  follows it — the head-anchored re-place, observed directly.
+- `FakeChop` on (with `EnableHeadScaling` off, simulating the released root-distance gate) →
+  deform head ≈ 0.0001 via the constraint; off → the `Restoring` pulse returns it to 1, then
+  the constraint deactivates at rest weights. That `Chopping` engages at all is the
+  `IsMirror = -1` proof — it's a hard transition condition.
 
 ## Verifying the install
 
@@ -161,13 +183,11 @@ a poisoned baseline — the exemption silently no-ops or throws docked objects h
 meters (that is the cache trap, not this entry breaking). Then, reading at a pause (frame
 boundary — mid-frame reads race the chop pass):
 
-- deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1 (compensated through
-  the chopped parent), `SlotPayload` at its authored scale, in place.
-- `MoveHead` on → `Head_Proxy` at `VoiceTarget`, and the exempt slot (+ occupant) follows it.
-- `FakeChop` on (with `EnableHeadScaling` off, simulating the released gate) → deform head
-  ≈ 0.0001 via the constraint; off → `Restoring` pulse returns it to 1 and the constraint
-  deactivates. That `Chopping` engages at all is the `IsMirror = -1` proof — it's a hard
-  transition condition.
+deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1 (compensated through
+the chopped parent), `SlotPayload` at its authored scale, in place. Wrong readings: the deform
+head at 1 means head scaling isn't enabled or some merged clip binds its scale (the Defaults
+layer trap, §Fake chop); the exemption no-opping or docked objects thrown hundreds of meters
+means the emulator's baseline cache was poisoned per the paragraph above — not this entry.
 
 What the emulator structurally cannot show for this entry: **any mirror-side visual** (its
 clones copy the local copy's transforms instead of stripping VRCHeadChop — mirror correctness

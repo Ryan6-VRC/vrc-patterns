@@ -20,7 +20,8 @@ defaults:
 
 parameters:
   # Preference, not gimmick state: saved so "show my own accessory" survives avatar load.
-  HeadChopMount/FirstPerson: { type: bool, default: true, vrc: { synced: true, saved: true } }
+  # Unsynced: head chop is first-person-local — remotes see no difference in either state.
+  HeadChopMount/FirstPerson: { type: bool, default: true, vrc: { synced: false, saved: true } }
 
 layers:
   - name: FirstPersonVisibility

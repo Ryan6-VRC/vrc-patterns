@@ -4,7 +4,10 @@ A head-riding mount whose payload stays full-size in the wearer's own first-pers
 shrinks the humanoid head bone (and everything under it) to ~0 locally so your own head doesn't
 fill the camera, and a `VRCHeadChop` targeting the mount at `scaleFactor 1` exempts it. The menu
 toggle animates the VRCHeadChop *holder* GO active — the component's `activeInHierarchy` gate —
-so the payload flips between visible-to-yourself and chopped with the head. Mirrors and other
+so the payload flips between visible-to-yourself and chopped with the head. The payload sits as
+a **sibling** of the holder, deliberately: the toggle gates only the exemption component, never
+the payload's own GO-active — a payload *under* the holder would vanish in every view when
+toggled off. Mirrors and other
 players are unaffected in both states. Replace `Payload` (a default-material cube) with your
 accessory — including an *interactive* one: the chop shrinks colliders and physbone chains
 with the head, so a self-grabbable or self-touchable head gimmick (the face-stretch class)
@@ -27,8 +30,9 @@ From the public VRChat docs unless marked otherwise:
 - The effect is first-person-local only: mirror clones and remote clients never apply it.
 - The component is animator-gateable — `activeInHierarchy && enabled` — which is what the
   toggle here drives.
-- Components overlapping on one bone **multiply** — lowest wins; you cannot un-chop a bone
-  another component chopped (Av3Emulator's reimplementation, MIT; not in the public docs).
+- Components overlapping on one bone **multiply** (the result is at or below the lowest
+  factor); you cannot un-chop a bone another component chopped (Av3Emulator's
+  reimplementation, MIT; not in the public docs).
 
 On a proxy-head rig (`head-proxy-rig` — humanoid Head mapped to an exempt proxy bone) this
 module is redundant but harmless: the whole humanoid-head subtree is already exempt, so the
@@ -36,8 +40,10 @@ toggle changes nothing.
 
 ## Interface
 
-- **Params:** `HeadChopMount/FirstPerson` (bool, in) — synced, **saved**, default on: a
-  preference ("show my own accessory"), not gimmick state, so it survives avatar load.
+- **Params:** `HeadChopMount/FirstPerson` (bool, in) — **unsynced**, saved, default on: a
+  preference ("show my own accessory") that survives avatar load — and head chop is
+  first-person-local, so remotes see no difference in either state and a synced bit would buy
+  nothing.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔
   `basis: mount-root`) merging `built/HeadChopMount_Fx.controller` + params;
   `HeadChopMount/FirstPerson` rides `globalParams`, a VRCFury `Toggle` (`useGlobalParam`,
