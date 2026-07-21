@@ -5,8 +5,9 @@ The low-contact-budget sibling of `contact-tracker`: **4 face-proximity box rece
 sender's x from the reading *difference* (sender radius cancels) and its radius from the *sum*; the
 single Y+/Z+ boxes are radius-compensated with that measurement. The reconstruction is linear in
 the four readings, so it lives in one non-normalized direct blend tree writing `Output`'s
-localPosition — exact in a single step, no convergence dynamics, no step-response envelope.
-`Container` is the consumer surface — constrain your payload to it and replace `Marker`.
+localPosition — exact in a single step, no convergence dynamics. `Container` is the consumer
+surface — constrain your payload to it and replace `Marker`; it follows `Output` on a damped
+chase (§Interface), so the one-frame exactness is `Output`'s, not the marker's.
 
 Same tag (`Hand`), same latch (`allowOthers` 1→0 shut at acquisition), same zero-position-sync
 model as `contact-tracker`: every client re-derives the cage locally, nothing late-syncs. **The
@@ -66,7 +67,7 @@ One prefab, one controller: `ContactTrackerBox.prefab`.
 | Constant | Value | Measured behavior |
 |---|---|---|
 | Acquisition cube | receiver GOs at localScale (0.5, 0.5, 1) while not tracking; TrackingPoints localScale 0.15 | all four slabs become one coincident 3×3×3 local = **0.45 m cube** (half-extent 0.225 + sender radius): identical latch sets, gizmo = zone. Shape fields are `[NotKeyable]` — host-GO scale is the only animatable knob (honored per-frame, per-axis, true-matrix under the 90° rotations) |
-| Latch-frame hold | cube held to t=1/60 in the latch clip | the latch samples on the cube's occupants; slabs expand one frame later (contact-tracker's coincident-frame idiom) |
+| Latch-frame hold | cube at t=0 in the latch clip (scale curves reach 1 at t=1/60) | the latch samples on the cube's occupants; slabs expand over the next frame (contact-tracker's coincident-frame idiom) |
 | Tracking scale | ×1 absolute (VRCScaleConstraint ScaleOffset, World.prefab source) | boxes 6×6×3 m, faces at ±1.5 m; working core \|x\|,\|y\|,\|z\| ≤ 1.5 m; all four read strictly >0 inside it |
 | Readout coefficients | 1.5 / 3 (readout_* clips) | derived from face position 1.5 m and depth 3 m — re-derive together if the box geometry changes. The readout is uniform-scale-invariant (readings are geometry ratios), so exactness holds even at acquisition scale; the constraint pins *range* |
 | Deploy/recall | FreezeToWorld animated on the Enable cycle; one source (DeployPoint, weight 1); RebakeOffsetsWhenUnfrozen 0 | a sourceless freeze never re-captures its pose (no knob refreshes it — native-side); with one source, every 0→1 edge re-freezes at the current pose |
@@ -92,11 +93,12 @@ collider). Constant, not jitter, so it reads as a small fixed tracking error rat
 - **Range is a hard box.** The volume freezes in world space when Enable turns on; a target (or
   wearer drift) beyond ±1.5 m of that point is loss, not degradation. There is no crawl — cycle
   Enable to re-deploy where you stand. If you need roaming range, use `contact-tracker`.
-- **Contact shape fields don't animate.** `size`/`radius`/`position`/`rotation` (and the filter
-  plumbing except `allowSelf`/`allowOthers`) are `[NotKeyable]` — the binder drops the curves
-  silently, and even script writes need `UpdateShape()`. Resize contacts by animating the host
-  GO's transform scale, nothing else. For self-use, retag to a single hand (`HandR`) — the
-  inflated slabs otherwise pick up both of the wearer's hands.
+- **Contact shape fields don't animate.** `size`/`radius`/`position`/`rotation` and most of the
+  plumbing are `[NotKeyable]` (`allowSelf`/`allowOthers`/`receiverType`/`minVelocity` do bind) —
+  the binder drops the curves silently, and even script writes to shape fields need
+  `UpdateShape()`. Resize contacts by animating the host GO's transform scale, nothing else.
+  For self-use, retag to a single hand (`HandR`) — the inflated slabs otherwise pick up both of
+  the wearer's hands.
 - **The readout coefficients and the box geometry are one unit.** The DBT clips encode face
   position/depth; scaling or resizing the tracking boxes without re-deriving `readout_*` silently
   skews the reconstruction. The acquisition cube scales (`0.5, 0.5, 1`) are the safe knob — the
@@ -105,6 +107,12 @@ collider). Constant, not jitter, so it reads as a small fixed tracking error rat
 - **Latch-frame transient.** Readings sampled in the 1–2 sim ticks around the deploy scale flip
   can momentarily mix scales; the Output settles within ~2 frames (60 Hz contact sim — settle by
   time, not frames, when scripting against it).
+- **Known intermittent: tracking-scale wedge.** Rarely (1 of 3 emulator sessions once; not
+  reproduced since), the tracking `VRCScaleConstraint` never inflates after a bake — GW animates
+  to 1 but lossyScale stays 0.15 for the whole session. Tracking stays exact (the readout is
+  scale-invariant) but range collapses to the acquisition cube. Signature: all four floats read
+  ≈ 0.678 at a center latch instead of ≈ 0.527. Suspected native bake-init race (possibly the
+  Container self-source cycle — unproven). Recovery untested; cycle Enable, else re-bake.
 - **Editing the rig:** VRC constraint `Sources` is a **struct** — `Sources.Add()` on a retrieved
   copy silently serializes nothing; assign through `SerializedObject` (`Sources.source0.*`,
   `Sources.totalLength`) and set `IsActive` explicitly.
