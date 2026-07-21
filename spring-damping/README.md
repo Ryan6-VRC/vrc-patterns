@@ -47,8 +47,13 @@ new tuning theory:
 - **Different strength per axis.** One constraint applies its source weights to *all* its enabled axes
   at once, so a per-axis strength split needs **one constraint per distinct value**: constraint A
   affecting only `X` (self `1` + `Target` `wX`), constraint B only `Y` (self `1` + `Target` `wY`), both
-  on `Container` sharing the one `Target`. Disjoint enabled axes compose cleanly — each writes only its
-  own components — at the cost of one extra constraint (and one depth) per distinct-value axis.
+  on `Container` sharing the one `Target`. **Stacking same-type constraints on one object is
+  supported** — VRC constraints are not `[DisallowMultipleComponent]`, and the SDK carries a dedicated
+  `ReRegisterSameObjectConstraint` path; measured in play mode, an X-only and a Y-only
+  `VRCPositionConstraint` on one `Container` each solve their own axis (Container reaches the target on
+  both, the un-affected axis untouched). Cost is one extra constraint (and one depth) per distinct-value
+  axis. Mixing types (a `VRCPositionConstraint` for some axes + a `VRCParentConstraint` for others) is
+  an equivalent alternative, sometimes tidier to animate.
 
 ## Interface
 
