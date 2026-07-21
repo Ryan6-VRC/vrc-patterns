@@ -1,0 +1,47 @@
+# headchop-mount — chop-exempt head mount with a first-person visibility toggle (Module tier).
+# The mount rides the humanoid head (VRCFury ArmatureLink) and carries a VRCHeadChop exempting
+# itself at scaleFactor 1, so its payload stays full-size in the wearer's first-person view.
+# The toggle animates the VRCHeadChop *holder* GO active — the component's activeInHierarchy
+# gate — flipping the payload between exempt (visible to yourself) and chopped with the head.
+# Mirrors and remote views are unaffected either way (the client applies head chop only to the
+# wearer's own first-person copy).
+#
+# Provenance: generalized from a private production avatar's head-chop architecture; the
+# self-exempting-proxy mechanism is the same one Modular Avatar's VisibleHeadAccessory uses.
+
+schema: 1
+controller: HeadChopMount_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # Preference, not gimmick state: saved so "show my own accessory" survives avatar load.
+  HeadChopMount/FirstPerson: { type: bool, default: true, vrc: { synced: true, saved: true } }
+
+layers:
+  - name: FirstPersonVisibility
+    states:
+      Exempt:                    # holder active -> VRCHeadChop live -> payload full-size in first person
+        motion: { clip: exempt_on }
+        transitions:
+          - { to: Chopped, when: [ HeadChopMount/FirstPerson is false ] }
+      Chopped:                   # holder inactive -> exemption gone -> payload shrinks with the head
+        motion: { clip: exempt_off }
+        transitions:
+          - { to: Exempt, when: [ HeadChopMount/FirstPerson is true ] }
+    default: Exempt
+    layout:
+      nodes: { Exempt: [30, 180], Chopped: [30, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+clips:
+  # The exemption toggle is the holder GO's active flag, not the payload renderer: the payload
+  # stays visible in mirrors and to remotes in both states.
+  exempt_on:  { set: { "Mount/ChopExempt/GameObject.m_IsActive": 1 } }
+  exempt_off: { set: { "Mount/ChopExempt/GameObject.m_IsActive": 0 } }

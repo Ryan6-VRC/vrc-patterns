@@ -1,0 +1,140 @@
+# head-proxy-rig — the proxy-head rig's FX: mirror detection, ventriloquism, and the manual
+# ("fake") head chop that mirror detection makes safe (study/reference, prefab-shipping).
+#
+# Three layers over the demo avatar whose humanoid Head is the chop-exempt Head_Proxy:
+#   MirrorDetection — the parameter-driver race distinguishing the real local avatar (-1) from
+#     the mirror clone (+1); remotes park at the 0 default. Zero synced bits.
+#   VoiceProjection — ventriloquism: swaps the Head_Proxy position-constraint source between the
+#     deform Head (home) and the VoiceTarget socket, moving the humanoid head (viewpoint anchor,
+#     voice origin) without moving the deforming head.
+#   FakeChop — animates the *deform* Head bone's scale to ~0 the way pre-VRCHeadChop avatars
+#     hid their heads. Gated IsLocal && IsMirror < 0: the mirror clone runs this same animator
+#     with IsLocal still true, so without the mirror gate the fake chop shrinks your head in
+#     every mirror and photo. Delete the IsMirror condition to demonstrate the failure.
+#     The deform Head is animatable here precisely because it is NOT a humanoid bone on this rig.
+#
+# Provenance: generalized from a private production avatar's head-chop architecture; mirror
+# detection is the standard parameter-driver race (VRLabs-lineage technique).
+
+schema: 1
+controller: HeadProxyRig_Fx
+basis: avatar-root         # the FullController sits on the avatar root itself
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  IsLocal: bool            # VRC builtin
+  HeadProxy/MoveHead: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  HeadProxy/FakeChop: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  # Mirror detection pair — never synced. DetectMirror is the race flag the local-only driver
+  # sets; a clone entering the machine with it already true routes to Mirror.
+  MirrorDetection/DetectMirror: bool
+  MirrorDetection/IsMirror: { type: float, aap: true }   # -1 real local, +1 mirror clone, 0 remote
+
+layers:
+  - name: MirrorDetection
+    states:
+      Init:
+        motion: { clip: buffer }
+        transitions:
+          - { to: Fork,   when: [ IsLocal is true ] }
+          - { to: Remote, when: [ IsLocal is false ] }
+      Fork:
+        motion: { clip: buffer }
+        transitions:
+          # The real local avatar evaluates first: DetectMirror still false -> NotMirror.
+          # The mirror clone enters later with the driver-set true value -> Mirror.
+          - { to: NotMirror, when: [ MirrorDetection/DetectMirror is false ] }
+          - { to: Mirror,    when: [ MirrorDetection/DetectMirror is true ] }
+      NotMirror:
+        motion: { clip: is_mirror_neg1 }
+        behaviours:
+          - driver: { localOnly: true, set: { MirrorDetection/DetectMirror: 1 } }
+      Mirror:
+        motion: { clip: is_mirror_pos1 }
+      Remote:
+        motion: { clip: buffer }
+    default: Init
+    layout:
+      nodes: { Init: [30, 180], Fork: [-60, 250], Remote: [150, 250], NotMirror: [-150, 320], Mirror: [30, 320] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  - name: VoiceProjection
+    states:
+      Anchored:                  # humanoid head rides the deform Head — normal
+        motion: { clip: voice_at_head }
+        transitions:
+          - { to: Projected, when: [ HeadProxy/MoveHead is true ] }
+      Projected:                 # humanoid head rides the VoiceTarget socket — ventriloquism
+        motion: { clip: voice_at_target }
+        transitions:
+          - { to: Anchored, when: [ HeadProxy/MoveHead is false ] }
+    default: Anchored
+    layout:
+      nodes: { Anchored: [30, 180], Projected: [30, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # The fake chop drives a VRCScaleConstraint's IsActive, never the bone's m_LocalScale
+  # directly. Deliberate, twice over: constraints apply after the animator, so nothing here
+  # races the client's own chop of the same bone; and keeping m_LocalScale out of every clip
+  # keeps it out of VRCFury's WD-normalization Defaults layer, which would otherwise write
+  # scale=1 to the bone every frame the fake chop is idle. (Direct scale animation measurably
+  # breaks the emulator's chop this way — the Defaults write lands after the chop pass.)
+  # Restoring pulses the constraint through its scale-1 source (>=0.25 s low-FPS sample
+  # insurance) so disengaging doesn't leave the bone stuck at ~0 for photos.
+  - name: FakeChop
+    states:
+      Idle:
+        motion: ~                # WD ON reverts IsActive/weights to their serialized rest (off, 1/0)
+        transitions:
+          - to: Chopping
+            when: [ HeadProxy/FakeChop is true, IsLocal is true, MirrorDetection/IsMirror less 0 ]
+      Chopping:
+        motion: { clip: chop_constraint_on }
+        transitions:
+          - { to: Restoring, when: [ HeadProxy/FakeChop is false ] }
+          - { to: Restoring, when: [ MirrorDetection/IsMirror greater -0.5 ] }
+      Restoring:
+        motion: { clip: chop_constraint_restore }
+        transitions:
+          - { to: Idle, when: [], exitTime: 1.0 }
+    default: Idle
+    layout:
+      nodes: { Idle: [30, 180], Chopping: [30, 250], Restoring: [150, 250] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+clips:
+  buffer: { seconds: 0.0167 }
+  is_mirror_neg1: { set: { MirrorDetection/IsMirror: -1 } }
+  is_mirror_pos1: { set: { MirrorDetection/IsMirror: 1 } }
+  # Constraint source-weight swap on the humanoid head's position constraint.
+  voice_at_head:
+    set:
+      "Armature/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Armature/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 0
+  voice_at_target:
+    set:
+      "Armature/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Armature/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 1
+  # Engage: constraint live on its 0.0001 source. Restore: swap to the scale-1 source for the
+  # pulse length, then Idle's WD revert deactivates the constraint with the bone back at 1.
+  chop_constraint_on:
+    set:
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.IsActive": 1
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.Sources.source0.Weight": 1
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.Sources.source1.Weight": 0
+  chop_constraint_restore:
+    seconds: 0.5
+    set:
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.IsActive": 1
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.Sources.source0.Weight": 0
+      "Armature/Hips/Spine/Chest/Neck/Head/VRCScaleConstraint.Sources.source1.Weight": 1

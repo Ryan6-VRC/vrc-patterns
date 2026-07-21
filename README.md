@@ -23,6 +23,8 @@ whole, not entry-by-entry.
 | Grab a prop, release-arbitrated to own head / another player's head / world (2 synced bits, usable by everyone) | Module | [`drop-on-player`](drop-on-player/) |
 | Stow/hand multi-anchor prop, physical gesture take/place + grip pose (1 synced int) | Module | [`held-prop`](held-prop/) |
 | N-zone touch reaction, debounced + arbitrated, sync-only-the-divergent-outcome (2 synced bits) | Module | [`zone-touch`](zone-touch/) |
+| Keep a head accessory full-size in your own first-person view, menu-toggleable (VRCHeadChop self-exemption) | Module | [`headchop-mount`](headchop-mount/) |
+| Proxy-head rig: chop inversion, ventriloquism (voice/viewpoint off the deform head), mirror-gated fake chop, driver-race mirror detection | Module (study) | [`head-proxy-rig`](head-proxy-rig/) |
 | — reference mold — | Module | [`_template/`](_template/) |
 
 The physbone prop Modules (`grab-prop`, `drop-on-player`) are **usable by every player in the
