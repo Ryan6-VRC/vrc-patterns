@@ -107,12 +107,6 @@ collider). Constant, not jitter, so it reads as a small fixed tracking error rat
 - **Latch-frame transient.** Readings sampled in the 1–2 sim ticks around the deploy scale flip
   can momentarily mix scales; the Output settles within ~2 frames (60 Hz contact sim — settle by
   time, not frames, when scripting against it).
-- **Known intermittent: tracking-scale wedge.** Rarely (1 of 3 emulator sessions once; not
-  reproduced since), the tracking `VRCScaleConstraint` never inflates after a bake — GW animates
-  to 1 but lossyScale stays 0.15 for the whole session. Tracking stays exact (the readout is
-  scale-invariant) but range collapses to the acquisition cube. Signature: all four floats read
-  ≈ 0.678 at a center latch instead of ≈ 0.527. Suspected native bake-init race (possibly the
-  Container self-source cycle — unproven). Recovery untested; cycle Enable, else re-bake.
 - **Editing the rig:** VRC constraint `Sources` is a **struct** — `Sources.Add()` on a retrieved
   copy silently serializes nothing; assign through `SerializedObject` (`Sources.source0.*`,
   `Sources.totalLength`) and set `IsActive` explicitly.
