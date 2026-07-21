@@ -33,8 +33,9 @@ shapes exist:
   meshes/materials. `built/` committed; the prefab references it by GUID.
 - **Structural Module** — a Module whose behaviour lives entirely in its prefab's components (a
   constraint rig, no animator): ships `<entry>.prefab` with **no `controller.yaml`** and no `built/`.
-  Nothing to compile, so the gate — which enumerates only folders containing `controller.yaml` —
-  never sees it; correctness rests on the README install check, not the gate.
+  The compile/round-trip pass skips it (nothing to compile), but the gate's prefab-integrity pass
+  (§The gate) still asserts its prefab imports with no missing scripts — script integrity only;
+  behavioural correctness rests on the README install check.
 
 ## The Interface stanza (fixed README slot)
 
@@ -73,9 +74,12 @@ contract a consumer lifting the YAML is entitled to, and how to re-measure it af
 
 ## The gate
 
-`tools/gate.ps1` is the admission bar — compile + round-trip + decompile-equality per entry. It does
-**not** check the `*_Parameters.asset` — regenerate `built/` as a unit (controller + params asset,
-over the committed `.meta`s so GUIDs hold) whenever the YAML changes.
+`tools/gate.ps1` is the admission bar — compile + round-trip + decompile-equality per entry, plus a
+prefab-integrity pass: it loads every entry's prefab(s) and fails any that import with a missing
+MonoBehaviour script (catching a dropped VRCFury/MA merge-component reference). That pass is script
+integrity only — it does not assert a rig behaves. The gate also does **not** check the
+`*_Parameters.asset` — regenerate `built/` as a unit (controller + params asset, over the committed
+`.meta`s so GUIDs hold) whenever the YAML changes.
 
 Study/reference entries name every non-leaf blend-tree node (`name:`) and name clips by the value they write.
 
