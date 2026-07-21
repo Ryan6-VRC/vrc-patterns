@@ -21,8 +21,9 @@ Interface slot, and the gate.
 ## Tier is derived, not assigned
 
 One axis changes an entry's shape: **does it ship a GUID-consumer** (a prefab/asset referencing
-`built/`)? Read it off which files exist — the gate keys off the same signal (any prefab/`assets`/`built`
-entry must ship a built controller per document). Two shapes exist:
+`built/`)? Read it off which files exist — the gate keys off the same signal (a `controller.yaml`
+entry that also ships a prefab/`assets`/`built` must ship its built controller per document). Three
+shapes exist:
 
 - **Pattern** — `controller.yaml`, plus `built/` for the study/reference form (which every current
   Pattern is): a DBT graph is legible only in the animator window, so `built/` is committed and held to
@@ -30,6 +31,10 @@ entry must ship a built controller per document). Two shapes exist:
   alone — none exist yet.
 - **Module** — adds `<entry>.prefab` (one or more variants), and `assets/` when it ships owned
   meshes/materials. `built/` committed; the prefab references it by GUID.
+- **Structural Module** — a Module whose behaviour lives entirely in its prefab's components (a
+  constraint rig, no animator): ships `<entry>.prefab` with **no `controller.yaml`** and no `built/`.
+  Nothing to compile, so the gate — which enumerates only folders containing `controller.yaml` —
+  never sees it; correctness rests on the README install check, not the gate.
 
 ## The Interface stanza (fixed README slot)
 
