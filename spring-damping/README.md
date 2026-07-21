@@ -30,6 +30,26 @@ source weight is what turns a low-pass into an oscillator — a cleanup pass tha
 positive number silently deletes the bounce. Raise `Spring Target` (1→2) for a stiffer spring; raise
 `Motion`'s self weight for slower acceleration.
 
+## Variations — parent constraint, per-axis
+
+The self + `Target` source pattern is the mechanism, not the component; three edits adapt it without
+new tuning theory:
+
+- **Combined position + rotation in one component.** Swap the constraint for a `VRCParentConstraint`
+  with the same self + `Target` sources: it damps position *and* rotation together off one shared
+  weight. One component instead of a `PositionDamping` + `RotationDamping` pair — the trade is that
+  position and rotation now share a single strength (one weight) instead of the `0.05` / `0.025` split
+  the two separate rigs carry.
+- **Damp only some axes.** Each constraint gates which axes it writes via `AffectsPosition{X,Y,Z}` /
+  `AffectsRotation{X,Y,Z}`. Clear a flag and that axis leaves the feedback loop — it rigid-follows the
+  parent, undamped. A charm that should bob vertically but not sway: keep `AffectsPositionY`, clear
+  `X`/`Z`.
+- **Different strength per axis.** One constraint applies its source weights to *all* its enabled axes
+  at once, so a per-axis strength split needs **one constraint per distinct value**: constraint A
+  affecting only `X` (self `1` + `Target` `wX`), constraint B only `Y` (self `1` + `Target` `wY`), both
+  on `Container` sharing the one `Target`. Disjoint enabled axes compose cleanly — each writes only its
+  own components — at the cost of one extra constraint (and one depth) per distinct-value axis.
+
 ## Interface
 
 - **Params:** none. No animator, nothing synced or saved — secondary motion is deterministic from
