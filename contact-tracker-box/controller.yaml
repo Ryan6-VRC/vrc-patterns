@@ -11,12 +11,27 @@
 # Provenance: contact-tracker (G5b) structure + the G5d box-contact probe (numbers in README).
 #
 # Empirical constants (runtime.md 90% rule — change only with an emulator test):
-#   acquisition scale 0.15 (prefab TrackingPoints localScale; boxes 6x6x3 => 0.9x0.9x0.45 m,
-#     core intersection ~0.45 m cube)
+#   acquisition cube: receiver GOs animated to localScale (0.5, 0.5, 1) while not tracking —
+#     every 6x6x3 slab becomes the same 3x3x3 cube, so all four receivers latch the identical
+#     sender set (receiver size controls how many senders latch at trigger; non-identical
+#     acquisition volumes can latch DIFFERENT senders per box and garbage the readout). At
+#     TrackingPoints scale 0.15 the cube is 0.45 m (half-extent 0.225) — and it IS the visible
+#     gizmo. Shape fields (size/radius) are [NotKeyable] — animator curves on them are silently
+#     dropped; host-GO scale is the only animatable knob, honored per-frame and per-axis.
 #   tracking scale x1 absolute (prefab VRCScaleConstraint ScaleOffset, World.prefab source;
-#     boxes 6x6x3 m, faces at +/-1.5 m, working core |x|,|y|,|z| <= 1.5 m)
+#     boxes 6x6x3 m, faces at +/-1.5 m, working core |x|,|y|,|z| <= 1.5 m); receiver GOs back
+#     at scale 1 one frame AFTER the latch samples (the coincident-first-frame idiom from
+#     contact-tracker's probe spread)
 #   readout coefficients 1.5 / 3 (readout_* clips) — derived from face position 1.5 and depth 3;
 #     change the box geometry and these must be re-derived together
+#   deploy/recall: the FreezeToWorld constraint (one source: HomeAnchor/DeployPoint, weight 1)
+#     is animated — Reset holds FreezeToWorld 0 (volume rides the wearer at the deploy point),
+#     Searching/Tracking hold 1 (frozen where the wearer stood at Enable). A sourceless freeze
+#     can NEVER re-capture its pose (native-side, no animatable knob refreshes it); with a
+#     source, every 0->1 edge re-captures — RebakeOffsetsWhenUnfrozen stays 0.
+#   marker damping 0.15 (latch clip, Container source0 weight vs self source2 weight 1) —
+#     the constraint normalizes, so the marker closes ~13% of the gap to Output per frame
+#     (feel-tunable 0.1-0.2; framerate-dependent by design, same trade as spring-damping)
 #   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
 #
 # Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —
@@ -48,6 +63,9 @@ layers:
   # receiver GO FREEZES its float at the last value, so Reset's entry driver zeroes the four
   # floats and Reset exits on Enable alone. Resume-in-place survives via Searching (filters
   # open, boxes at acquisition scale): a sender still inside the core relatches one frame later.
+  # Deploy/recall: Reset also unfreezes the volume (rides the wearer at DeployPoint); the
+  # Reset->Searching edge refreezes it in place — cycling Enable IS the recall gesture, the
+  # box-tracker analogue of contact-tracker's "cycle Enable to recall a stranded cage".
   - name: Control
     states:
       Reset:                      # Enable off — Output parked at origin, receivers off, boxes at acquisition scale
@@ -101,6 +119,7 @@ clips:
   # acquisition scale, Output at origin in both.
   reset:
     set:
+      FreezeToWorld/VRCParentConstraint.FreezeToWorld: 0     # unfrozen — volume rides the wearer at DeployPoint
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
       TrackingPoints/X+/GameObject.m_IsActive: 0             # receivers off — the entry driver
@@ -110,14 +129,28 @@ clips:
       TrackingPoints/Y+/GameObject.m_IsActive: 0
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/Z+/GameObject.m_IsActive: 0
+      TrackingPoints/X+/Transform.m_LocalScale.x: 0.5        # acquisition cube — all four slabs
+      TrackingPoints/X+/Transform.m_LocalScale.y: 0.5        #   collapse to one coincident 3x3x3
+      TrackingPoints/X+/Transform.m_LocalScale.z: 1          #   cube (identical latch sets)
+      TrackingPoints/X-/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/X-/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/X-/Transform.m_LocalScale.z: 1
+      TrackingPoints/Y+/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/Y+/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/Y+/Transform.m_LocalScale.z: 1
+      TrackingPoints/Z+/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/Z+/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/Z+/Transform.m_LocalScale.z: 1
       TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output collapsed to the rig center
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
       Container/VRCParentConstraint.Sources.source0.Weight: 0  # marker parks at HomeAnchor/Offset,
       Container/VRCParentConstraint.Sources.source1.Weight: 1  # riding the wearer
+      Container/VRCParentConstraint.Sources.source2.Weight: 0  # damping self-source off while parked
 
   searching:
     set:
+      FreezeToWorld/VRCParentConstraint.FreezeToWorld: 1     # 0->1 edge here re-captures: volume freezes where the wearer stood at Enable
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/X+/GameObject.m_IsActive: 1
@@ -127,17 +160,33 @@ clips:
       TrackingPoints/Y+/GameObject.m_IsActive: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/Z+/GameObject.m_IsActive: 1
+      TrackingPoints/X+/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/X+/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/X+/Transform.m_LocalScale.z: 1
+      TrackingPoints/X-/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/X-/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/X-/Transform.m_LocalScale.z: 1
+      TrackingPoints/Y+/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/Y+/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/Y+/Transform.m_LocalScale.z: 1
+      TrackingPoints/Z+/Transform.m_LocalScale.x: 0.5
+      TrackingPoints/Z+/Transform.m_LocalScale.y: 0.5
+      TrackingPoints/Z+/Transform.m_LocalScale.z: 1
       TrackingPoints/Output/Transform.m_LocalPosition.x: 0
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
       Container/VRCParentConstraint.Sources.source0.Weight: 0
       Container/VRCParentConstraint.Sources.source1.Weight: 1
+      Container/VRCParentConstraint.Sources.source2.Weight: 0
 
   # Latch: rides the readout tree at constant weight 1 (One). Non-normalized direct children sum
   # per binding over the clips that write it, so these values pass through unscaled while the
-  # readout_* clips below sum into Output's position.
+  # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
+  # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
+  # so the latched set is exactly the cube's occupants, then expand to the full slabs.
   latch:
     set:
+      FreezeToWorld/VRCParentConstraint.FreezeToWorld: 1     # stays frozen through Tracking
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # boxes inflate to absolute meters
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
       TrackingPoints/X+/GameObject.m_IsActive: 1
@@ -147,8 +196,24 @@ clips:
       TrackingPoints/Y+/GameObject.m_IsActive: 1
       TrackingPoints/Z+/VRCContactReceiver.allowOthers: 0
       TrackingPoints/Z+/GameObject.m_IsActive: 1
-      Container/VRCParentConstraint.Sources.source0.Weight: 1  # marker follows the live readout
+      TrackingPoints/X+/Transform.m_LocalScale.z: 1
+      TrackingPoints/X-/Transform.m_LocalScale.z: 1
+      TrackingPoints/Y+/Transform.m_LocalScale.z: 1
+      TrackingPoints/Z+/Transform.m_LocalScale.z: 1
+      Container/VRCParentConstraint.Sources.source0.Weight: 0.15  # damped chase: ~13%/frame toward Output
       Container/VRCParentConstraint.Sources.source1.Weight: 0
+      Container/VRCParentConstraint.Sources.source2.Weight: 1     # self — last frame's own position
+    curves:
+      # Cube for the latch frame, full slabs one frame later (WD would snap these to 1 at t=0
+      # if the clip didn't own them — the hold is the point).
+      TrackingPoints/X+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/X+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/X-/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/X-/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/Y+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/Y+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/Z+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
+      TrackingPoints/Z+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
