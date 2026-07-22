@@ -36,7 +36,7 @@ layers:
         transitions:
           - { to: Enabled, when: [ AntiCull/Enable is true ] }
     default: Enabled
-    # Hand arrangement (CONVENTIONS.md §Graph layout): lifecycle descends from the default state
+    # Hand arrangement (animator-schema.md §Arranging for legibility): lifecycle descends from the default state
     # below Entry; unused Any/Exit park stacked above Entry.
     layout:
       nodes: { Enabled: [30, 180], Disabled: [30, 250] }

@@ -1,0 +1,377 @@
+# anchor-prop — the anchor multiplexer at its useful minimum-complete form (gimmicks.md
+# §Constraint patterns "Anchor multiplexer"). One prop, one VRCParentConstraint over five anchor
+# classes — [StowOffset, HandROffset, HandLOffset, MouthOffset, WorldAnchor] — each demonstrating
+# a distinct mechanism:
+#   Stow    — a plain BoneProxy body anchor (Chest).
+#   HandR/L — BOTH hands, with hand-to-hand handoff as a worked arbitration problem: arm states
+#             remember which hand armed, disarm outranks commit, and the transfer commits on the
+#             RECEIVING hand's gesture release.
+#   Mouth   — the chop-exempt head anchor every serious multiplexer needs: the anchor GO carries
+#             its own VRCHeadChop @1, because a first-person-chopped parent collapses the anchor
+#             OFFSET toward the head pivot (parent scale multiplies child local position) and the
+#             full-size prop lands inside your head instead of at your lips.
+#   World   — a FreezeToWorld band: WorldAnchor tracks the dropping hand while unfrozen; the
+#             world clip freezes it in place. Per-client capture (each client freezes at its own
+#             view of the commit frame) — casual-prop divergence, stated in the README contract.
+# Take/place/handoff are PHYSICAL: prop-near-anchor + gesture arms, gesture RELEASE commits
+# (zero-timer anti-misfire). World-drop adds a dwell (hold the fist 0.5 s away from any anchor)
+# because a bare fist+release is an everyday idle gesture. Menu holds only the enable; every
+# outcome rides one synced banded mode int.
+#
+# Wire surface: AnchorProp/Mode (synced int, 8 bits — the Parameter Compressor reclaims the
+# width; this document stamps with Set only, so nothing blocks membership).
+#   0  Hidden   (off-is-reset; prop hidden, parked at stow)
+#   1  Stowed   2  HeldR   3  HeldL   4  Mouth   11  World   (banded: attach 1-9, world 11-19)
+# Remote routing is the entry-dispatch hub: each rest state exits on a foreign Mode, the entry
+# ladder is the priority encoder, and an invalid value parks in Guard (poses Stowed, no stamp)
+# until a valid Mode arrives — park over wrong-state, fail visible.
+#   [VERIFY: exit-transition crossfade — the 0.25 s glide must survive the Exit->Entry hop on
+#   remotes; if the emulator shows anchor snaps, move the duration to explicit remote edges.]
+#
+# Sensing (never synced): ONE VRCContactSender on the prop (private tag AnchorProp) and four
+# proximity receivers at the anchor points (allowSelf only — self-touch as authorization;
+# localOnly — remotes pose from Mode). Prop-near-anchor sensing, not hand-tag sensing, is what
+# makes per-hand discrimination possible at all — a Hand-tag receiver on the prop cannot tell
+# which hand arrived.
+#
+# Empirical constants (runtime.md 90% rule):
+#   anchor crossfade 0.25 s      [held-prop lineage: emulator sweep — glide reads clean]
+#   world-drop dwell 0.5 s       [EMPIRICAL: chosen against idle-fist misfire; feel-tunable]
+#   arm threshold greater 0, disarm less 0.00001   [contact-tracker lineage]
+
+schema: 1
+controller: AnchorProp_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # The synced outcome — written only by the wearer's localOnly drivers on rest-state entry.
+  AnchorProp/Mode:      { type: int, default: 0, vrc: { synced: true, saved: false } }
+  # Menu intent — unsynced; the Toggle drives it, the int carries the outcome.
+  AnchorProp/Enable:    { type: bool, default: false, vrc: { synced: false, saved: false } }
+  # Sensing — never synced, never menu-exposed; listed in the params asset for legibility.
+  AnchorProp/NearHandR: float    # prop sender near the right-hand receiver
+  AnchorProp/NearHandL: float
+  AnchorProp/NearMouth: float
+  AnchorProp/NearStow:  float
+  GestureRight: int              # VRC built-ins
+  GestureLeft:  int
+  IsLocal: bool
+
+layers:
+  - name: AnchorProp/Control
+    # Master gate: enable-off is the reset from anywhere local. canTransitionToSelf keeps it
+    # from re-firing inside Hidden.
+    any:
+      - { to: Hidden, when: [ IsLocal is true, AnchorProp/Enable is false ], canTransitionToSelf: false }
+    # The dispatch ladder — remotes re-enter here after every mode change; the final rung is the
+    # invalid-value park.
+    entry:
+      - { to: Hidden, when: [ AnchorProp/Mode equals 0 ] }
+      - { to: Stowed, when: [ AnchorProp/Mode equals 1 ] }
+      - { to: HeldR,  when: [ AnchorProp/Mode equals 2 ] }
+      - { to: HeldL,  when: [ AnchorProp/Mode equals 3 ] }
+      - { to: Mouth,  when: [ AnchorProp/Mode equals 4 ] }
+      - { to: World,  when: [ AnchorProp/Mode equals 11 ] }
+      - { to: Guard,  when: [] }
+    states:
+      Hidden:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 0 } }
+        motion: { clip: hidden }
+        transitions:
+          - { to: Stowed, when: [ IsLocal is true, AnchorProp/Enable is true ] }
+          - { to: Exit,   when: [ IsLocal is false, AnchorProp/Mode notEqual 0 ], duration: 0.25 }
+      Stowed:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 1 } }
+        motion: { clip: stowed }
+        transitions:
+          - { to: TakeR_Stow, when: [ IsLocal is true, AnchorProp/NearHandR greater 0, GestureRight equals 1 ] }
+          - { to: TakeL_Stow, when: [ IsLocal is true, AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
+          - { to: Exit,       when: [ IsLocal is false, AnchorProp/Mode notEqual 1 ], duration: 0.25 }
+      # Remote park for an invalid synced value: poses the safe visible default, stamps nothing,
+      # and leaves the moment a valid Mode arrives (the vendor sanitizer, park-flavored).
+      Guard:
+        motion: { clip: stowed }
+        transitions:
+          - { to: Exit, when: [ AnchorProp/Mode equals 0 ] }
+          - { to: Exit, when: [ AnchorProp/Mode equals 1 ] }
+          - { to: Exit, when: [ AnchorProp/Mode equals 2 ] }
+          - { to: Exit, when: [ AnchorProp/Mode equals 3 ] }
+          - { to: Exit, when: [ AnchorProp/Mode equals 4 ] }
+          - { to: Exit, when: [ AnchorProp/Mode equals 11 ] }
+
+      # ---- take arms (per origin x hand; motion holds the ORIGIN pose; remotes never enter).
+      # Disarm (prop leaves the hand zone) outranks commit; the commit edge is gesture release.
+      TakeR_Stow:
+        motion: { clip: stowed }
+        transitions:
+          - { to: Stowed, when: [ AnchorProp/NearHandR less 0.00001 ] }
+          - { to: HeldR,  when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      TakeL_Stow:
+        motion: { clip: stowed }
+        transitions:
+          - { to: Stowed, when: [ AnchorProp/NearHandL less 0.00001 ] }
+          - { to: HeldL,  when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+      TakeR_Mouth:
+        motion: { clip: mouth }
+        transitions:
+          - { to: Mouth, when: [ AnchorProp/NearHandR less 0.00001 ] }
+          - { to: HeldR, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      TakeL_Mouth:
+        motion: { clip: mouth }
+        transitions:
+          - { to: Mouth, when: [ AnchorProp/NearHandL less 0.00001 ] }
+          - { to: HeldL, when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+      TakeR_World:
+        motion: { clip: world }
+        transitions:
+          - { to: World, when: [ AnchorProp/NearHandR less 0.00001 ] }
+          - { to: HeldR, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      TakeL_World:
+        motion: { clip: world }
+        transitions:
+          - { to: World, when: [ AnchorProp/NearHandL less 0.00001 ] }
+          - { to: HeldL, when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+
+      # ---- held (right). Arm ladder order is the arbitration: mouth outranks stow outranks
+      # handoff; the bare-fist world arm sits last so any anchor proximity wins the frame.
+      HeldR:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 2 } }
+        motion: { clip: heldR }
+        transitions:
+          - { to: ToMouthR,  when: [ IsLocal is true, AnchorProp/NearMouth greater 0, GestureRight equals 1 ] }
+          - { to: ToStowR,   when: [ IsLocal is true, AnchorProp/NearStow greater 0, GestureRight equals 1 ] }
+          - { to: HandoffRL, when: [ IsLocal is true, AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
+          - { to: WorldArmR, when: [ IsLocal is true, GestureRight equals 1 ] }
+          - { to: Exit,      when: [ IsLocal is false, AnchorProp/Mode notEqual 2 ], duration: 0.25 }
+      ToMouthR:
+        motion: { clip: heldR }
+        transitions:
+          - { to: HeldR, when: [ AnchorProp/NearMouth less 0.00001 ] }
+          - { to: Mouth, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      ToStowR:
+        motion: { clip: heldR }
+        transitions:
+          - { to: HeldR,  when: [ AnchorProp/NearStow less 0.00001 ] }
+          - { to: Stowed, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      HandoffRL:
+        motion: { clip: heldR }
+        transitions:
+          - { to: HeldR, when: [ AnchorProp/NearHandL less 0.00001 ] }
+          - { to: HeldL, when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+      # World arm: the dwell IS the state length (timer clip holding the held pose); an early
+      # release aborts with no drop, and anchor proximity re-arbitrates out at any point.
+      WorldArmR:
+        motion: { clip: heldR_dwell }
+        transitions:
+          - { to: HeldR,       when: [ GestureRight notEqual 1 ] }
+          - { to: ToMouthR,    when: [ AnchorProp/NearMouth greater 0 ] }
+          - { to: ToStowR,     when: [ AnchorProp/NearStow greater 0 ] }
+          - { to: HandoffRL,   when: [ AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
+          - { to: WorldArmedR, when: [], exitTime: 1.0 }
+      WorldArmedR:
+        motion: { clip: heldR }
+        transitions:
+          - { to: ToMouthR, when: [ AnchorProp/NearMouth greater 0 ] }
+          - { to: ToStowR,  when: [ AnchorProp/NearStow greater 0 ] }
+          - { to: World,    when: [ GestureRight notEqual 1 ] }
+
+      # ---- held (left): the mirror.
+      HeldL:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 3 } }
+        motion: { clip: heldL }
+        transitions:
+          - { to: ToMouthL,  when: [ IsLocal is true, AnchorProp/NearMouth greater 0, GestureLeft equals 1 ] }
+          - { to: ToStowL,   when: [ IsLocal is true, AnchorProp/NearStow greater 0, GestureLeft equals 1 ] }
+          - { to: HandoffLR, when: [ IsLocal is true, AnchorProp/NearHandR greater 0, GestureRight equals 1 ] }
+          - { to: WorldArmL, when: [ IsLocal is true, GestureLeft equals 1 ] }
+          - { to: Exit,      when: [ IsLocal is false, AnchorProp/Mode notEqual 3 ], duration: 0.25 }
+      ToMouthL:
+        motion: { clip: heldL }
+        transitions:
+          - { to: HeldL, when: [ AnchorProp/NearMouth less 0.00001 ] }
+          - { to: Mouth, when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+      ToStowL:
+        motion: { clip: heldL }
+        transitions:
+          - { to: HeldL,  when: [ AnchorProp/NearStow less 0.00001 ] }
+          - { to: Stowed, when: [ GestureLeft notEqual 1 ], duration: 0.25 }
+      HandoffLR:
+        motion: { clip: heldL }
+        transitions:
+          - { to: HeldL, when: [ AnchorProp/NearHandR less 0.00001 ] }
+          - { to: HeldR, when: [ GestureRight notEqual 1 ], duration: 0.25 }
+      WorldArmL:
+        motion: { clip: heldL_dwell }
+        transitions:
+          - { to: HeldL,       when: [ GestureLeft notEqual 1 ] }
+          - { to: ToMouthL,    when: [ AnchorProp/NearMouth greater 0 ] }
+          - { to: ToStowL,     when: [ AnchorProp/NearStow greater 0 ] }
+          - { to: HandoffLR,   when: [ AnchorProp/NearHandR greater 0, GestureRight equals 1 ] }
+          - { to: WorldArmedL, when: [], exitTime: 1.0 }
+      WorldArmedL:
+        motion: { clip: heldL }
+        transitions:
+          - { to: ToMouthL, when: [ AnchorProp/NearMouth greater 0 ] }
+          - { to: ToStowL,  when: [ AnchorProp/NearStow greater 0 ] }
+          - { to: World,    when: [ GestureLeft notEqual 1 ] }
+
+      # ---- head and world rest states.
+      Mouth:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 4 } }
+        motion: { clip: mouth }
+        transitions:
+          - { to: TakeR_Mouth, when: [ IsLocal is true, AnchorProp/NearHandR greater 0, GestureRight equals 1 ] }
+          - { to: TakeL_Mouth, when: [ IsLocal is true, AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
+          - { to: Exit,        when: [ IsLocal is false, AnchorProp/Mode notEqual 4 ], duration: 0.25 }
+      World:
+        behaviours:
+          - driver: { localOnly: true, set: { AnchorProp/Mode: 11 } }
+        motion: { clip: world }
+        transitions:
+          - { to: TakeR_World, when: [ IsLocal is true, AnchorProp/NearHandR greater 0, GestureRight equals 1 ] }
+          - { to: TakeL_World, when: [ IsLocal is true, AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
+          - { to: Exit,        when: [ IsLocal is false, AnchorProp/Mode notEqual 11 ], duration: 0.25 }
+    default: Hidden
+    # Center column is the lifecycle (Hidden -> Stowed -> Mouth -> World); right lanes are the
+    # right hand's arm states, left lanes the left hand's, world lanes outboard. Guard parks
+    # beside Hidden in the remote-only lane. Exit sits below the content — every rest state
+    # dispatches through it (animator-schema.md §Arranging for legibility).
+    layout:
+      nodes:
+        Hidden:       [30, 180]
+        Guard:        [270, 180]
+        Stowed:       [30, 260]
+        TakeR_Stow:   [270, 260]
+        TakeL_Stow:   [-210, 260]
+        HeldR:        [270, 340]
+        HeldL:        [-210, 340]
+        WorldArmR:    [510, 340]
+        WorldArmL:    [-450, 340]
+        ToStowR:      [150, 420]
+        ToMouthR:     [390, 420]
+        HandoffRL:    [630, 420]
+        ToStowL:      [-90, 420]
+        ToMouthL:     [-330, 420]
+        HandoffLR:    [-570, 420]
+        Mouth:        [30, 500]
+        TakeR_Mouth:  [270, 500]
+        TakeL_Mouth:  [-210, 500]
+        WorldArmedR:  [510, 500]
+        WorldArmedL:  [-450, 500]
+        World:        [30, 580]
+        TakeR_World:  [270, 580]
+        TakeL_World:  [-210, 580]
+      entry: [50, 120]
+      any:   [50, 80]
+      exit:  [50, 660]
+
+# Constraint source map (VRCParentConstraint on Container):
+#   source0 StowOffset, source1 HandROffset, source2 HandLOffset, source3 MouthOffset,
+#   source4 WorldAnchor.
+# WorldAnchor's own VRCParentConstraint sources [HandROffset, HandLOffset] — the held clips keep
+# it tracking the HOLDING hand (so the freeze captures the dropping hand's pose, and the
+# Container<->WorldAnchor dependency never cycles); the world clip freezes it.
+# Every clip owns the full rig-property set explicitly (no reliance on WD revert; survives a
+# VRCFury WD-OFF conversion). Transition durations crossfade the weights — the prop glides.
+clips:
+  hidden:
+    set:
+      "Container/GameObject.m_IsActive": 0
+      "Container/VRCParentConstraint.Sources.source0.Weight": 1
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  stowed:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 1
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  heldR:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 1
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  heldL:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 1
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 1
+  mouth:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 1
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  world:
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 1
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  # Dwell carriers: the world-arm timer, holding the held pose for its length.
+  heldR_dwell:
+    seconds: 0.5
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 1
+      "Container/VRCParentConstraint.Sources.source2.Weight": 0
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 1
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 0
+  heldL_dwell:
+    seconds: 0.5
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "Container/VRCParentConstraint.Sources.source0.Weight": 0
+      "Container/VRCParentConstraint.Sources.source1.Weight": 0
+      "Container/VRCParentConstraint.Sources.source2.Weight": 1
+      "Container/VRCParentConstraint.Sources.source3.Weight": 0
+      "Container/VRCParentConstraint.Sources.source4.Weight": 0
+      "WorldAnchor/VRCParentConstraint.FreezeToWorld": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source0.Weight": 0
+      "WorldAnchor/VRCParentConstraint.Sources.source1.Weight": 1

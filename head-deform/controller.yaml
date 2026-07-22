@@ -1,0 +1,132 @@
+# head-deform — grab-your-face head distortion, mirror-correct (Module).
+#
+# One WD-ON Direct-tree layer over the module rig (Cheek_Root grab chain + ScaleConstraint node +
+# WideTransform scale source — see the README's Rig section):
+#   Mirror Gate    — 1D on MirrorDetection/IsMirror: the head-scale constraint is OFF only on the
+#     real local copy (@-1), where the client's chop owns the head and a scale write would fight
+#     the exemption arithmetic of anything docked under it. Mirror clone (+1, driven) and remotes
+#     (parked default, >= 0) both run it — neither has a first-person chop, so both must show the
+#     stretch. The default 1 on IsMirror is the variant switch: the proxy-rig variant omits the
+#     mirror-detect controller row entirely, parking every copy at 1 = always-on.
+#   Wide Scale     — 1D on the signed Smoothed value: squish pose @-1, rest @-0.25..0 (the flat
+#     segment is a deliberate deadband — squish engages only on a firm squeeze), stretch pose @1.
+#     Writes WideTransform's scale; the retargeted ScaleConstraint carries it onto the head bone.
+#   Smoothing      — the AAP exponential smoother (gimmicks.md): stretch minus squish, each input
+#     subtree weighted by HeadDeform/Active INSIDE the tree so disabling decays smoothly to rest
+#     instead of snapping.
+#
+# The consumer hook for sculpted deformation: add a fourth subtree — a 1D on HeadDeform/Smoothed
+# over your own blendshape clips (the production source carried exactly that; dropped here because
+# blendshape names are avatar-specific).
+#
+# Provenance: generalized from a private production avatar's face-stretch system (both variants
+# measured live); the smoother is the standard DBT exponential (vrc-patterns/smooth-frametime).
+
+schema: 1
+controller: HeadDeform_Fx
+basis: mount-root          # VRCFury FullController on the module root, rootBindingsApplyToAvatar: 0
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  One: { type: float, default: 1 }     # constant DBT weight — never driven
+  # Parked default 1 (not 0) is load-bearing: remotes and the omitted-mirror-detect variant both
+  # land >= 0 -> ScaleOn. Only the driven -1 (real local copy) selects ScaleOff, so any parked
+  # value behaves remote-correct and no VRCFury default-merge subtlety is depended on.
+  MirrorDetection/IsMirror: { type: float, default: 1 }
+  HeadDeform/CheekBone_Stretch: float  # physbone outputs (parameter HeadDeform/CheekBone) —
+  HeadDeform/CheekBone_Squish: float   #   never synced; the grab itself is natively synced
+  HeadDeform/Smoothed: { type: float, aap: true }
+  HeadDeform/SmoothAmount: { type: float, default: 0.9 }   # smoother lambda — feel-tunable default
+  # The enable. Sync/save ride the VRCFury Toggle on the prefab root (useGlobalParam), which also
+  # gates the Cheek_Root GO — this controller only reads it as the smoother's input gate.
+  HeadDeform/Active: float
+
+layers:
+  - name: HeadDeform
+    states:
+      Deform:
+        motion:
+          tree: direct
+          name: HeadDeform
+          normalized: false
+          children:
+            - tree: 1d
+              name: Mirror Gate
+              param: MirrorDetection/IsMirror
+              directWeight: One
+              children:
+                - { clip: scale_off, threshold: -1 }
+                - { clip: scale_on,  threshold: 0 }
+            - tree: 1d
+              name: Wide Scale
+              param: HeadDeform/Smoothed
+              directWeight: One
+              children:
+                - { clip: headscale_squish, threshold: -1 }
+                - { clip: headscale_rest,   threshold: -0.25 }
+                - { clip: headscale_rest,   threshold: 0 }
+                - { clip: headscale_stretch, threshold: 1 }
+            - tree: 1d
+              name: Smoothing
+              param: HeadDeform/SmoothAmount
+              directWeight: One
+              children:
+                - threshold: 0
+                  tree: direct
+                  name: Input Sum
+                  normalized: false
+                  children:
+                    - tree: 1d
+                      name: Stretch In
+                      param: HeadDeform/CheekBone_Stretch
+                      directWeight: HeadDeform/Active
+                      children:
+                        - { clip: smoothed_neg, threshold: -10 }
+                        - { clip: smoothed_pos, threshold: 10 }
+                    - tree: 1d
+                      name: Squish In (negated)
+                      param: HeadDeform/CheekBone_Squish
+                      directWeight: HeadDeform/Active
+                      children:
+                        - { clip: smoothed_pos, threshold: -10 }
+                        - { clip: smoothed_neg, threshold: 10 }
+                - threshold: 1
+                  tree: 1d
+                  name: Feedback
+                  param: HeadDeform/Smoothed
+                  children:
+                    - { clip: smoothed_neg, threshold: -10 }
+                    - { clip: smoothed_pos, threshold: 10 }
+    default: Deform
+    layout:
+      nodes: { Deform: [30, 180] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+clips:
+  scale_on:  { set: { "ScaleConstraint/VRCScaleConstraint.IsActive": 1 } }
+  scale_off: { set: { "ScaleConstraint/VRCScaleConstraint.IsActive": 0 } }
+  # Endpoint poses — feel constants, wear-tested on the production source. Vector rule: all three
+  # scale components written in every clip (animator-schema.md §clips).
+  headscale_rest:
+    set:
+      "WideTransform/Transform.m_LocalScale.x": 1
+      "WideTransform/Transform.m_LocalScale.y": 1
+      "WideTransform/Transform.m_LocalScale.z": 1
+  headscale_stretch:
+    set:
+      "WideTransform/Transform.m_LocalScale.x": 4.5
+      "WideTransform/Transform.m_LocalScale.y": 1.1
+      "WideTransform/Transform.m_LocalScale.z": 1.1
+  headscale_squish:
+    set:
+      "WideTransform/Transform.m_LocalScale.x": 0.3
+      "WideTransform/Transform.m_LocalScale.y": 1.4
+      "WideTransform/Transform.m_LocalScale.z": 1.2
+  smoothed_pos: { set: { HeadDeform/Smoothed: 10 } }
+  smoothed_neg: { set: { HeadDeform/Smoothed: -10 } }

@@ -69,7 +69,7 @@ layers:
           - to: Reset
             when: [ ContactTracker/Enable is false ]
     default: Reset
-    # Hand arrangement (CONVENTIONS.md §Graph layout): lifecycle descends from the default
+    # Hand arrangement (animator-schema.md §Arranging for legibility): lifecycle descends from the default
     # state under Entry; Tracking left, Searching right; unused Any/Exit parked top-left.
     layout:
       nodes: { Reset: [30, 180], Tracking: [-90, 250], Searching: [150, 250] }

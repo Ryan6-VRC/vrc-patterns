@@ -26,7 +26,7 @@ layers:
         transitions:
           - { to: Hidden, when: [ Template_Toggle is false ] }
     default: Hidden
-    # Hand arrangement (CONVENTIONS.md §Graph layout) — the mold ships one so every entry
+    # Hand arrangement (animator-schema.md §Arranging for legibility) — the mold ships one so every entry
     # copied from it starts arranged: lifecycle descends from the default state below Entry;
     # unused Any/Exit park stacked above Entry.
     layout:
