@@ -1,0 +1,115 @@
+# anchor-prop — Gesture-playable grip half. Humanoid muscle curves cannot live in FX (the FX
+# playable does not apply them — gimmicks.md §Playable choreography), so this controller mounts
+# the grips in the Gesture playable; the FullController row for it carries type Gesture. Two
+# layers, one per hand, each masked to its hand: only the HOLDING hand's fingers are seized
+# (Mode 2 = right, 3 = left) — the other hand, and both hands in Stowed/Mouth/World, stay with
+# the avatar's own gesture layers. During a hand-to-hand handoff the grips swap with the mode
+# stamp, 0.15 s blends overlapping.
+#
+# Cost to know: while HeldR/HeldL this seizes that hand's visible fingers; gesture params keep
+# firing untouched. The README names it.
+
+schema: 1
+controller: AnchorProp_Gesture
+basis: mount-root
+role: gesture
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # The FX document owns this param's sync declaration (its params asset is the one the prefab
+  # merges); scratch here so this doc emits no second, drift-prone declaration. Same name on
+  # both controllers under ONE FullController — the prefix rewrite keeps them aligned.
+  AnchorProp/Mode: { type: int, default: 0, scratch: true }
+
+layers:
+  - name: AnchorProp/GripR
+    mask: "Packages/com.vrchat.avatars/Samples/AV3 Demo Assets/Animation/Masks/vrc_Hand Right.mask"
+    states:
+      Open:
+        motion: ~
+        transitions:
+          - { to: Grip, when: [ AnchorProp/Mode equals 2 ], duration: 0.15 }
+      Grip:
+        motion: { clip: grip_r }
+        transitions:
+          - { to: Open, when: [ AnchorProp/Mode notEqual 2 ], duration: 0.15 }
+    default: Open
+    layout:
+      nodes:
+        Open: [30, 180]
+        Grip: [30, 300]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  - name: AnchorProp/GripL
+    mask: "Packages/com.vrchat.avatars/Samples/AV3 Demo Assets/Animation/Masks/vrc_Hand Left.mask"
+    states:
+      Open:
+        motion: ~
+        transitions:
+          - { to: Grip, when: [ AnchorProp/Mode equals 3 ], duration: 0.15 }
+      Grip:
+        motion: { clip: grip_l }
+        transitions:
+          - { to: Open, when: [ AnchorProp/Mode notEqual 3 ], duration: 0.15 }
+    default: Open
+    layout:
+      nodes:
+        Open: [30, 180]
+        Grip: [30, 300]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# A relaxed cylindrical grip per hand: fingers curled around a hand-sized prop, thumb wrapped
+# lighter. Stretched: +1 extended, -1 fully curled; Spread: fingers together at slight negative.
+# [EMPIRICAL: pose values eyeballed against a 5 cm prop on the emulator rig — feel-tunable]
+clips:
+  grip_r:
+    set:
+      "Animator.RightHand.Thumb.1 Stretched": -0.3
+      "Animator.RightHand.Thumb.2 Stretched": -0.4
+      "Animator.RightHand.Thumb.3 Stretched": -0.4
+      "Animator.RightHand.Thumb.Spread": 0.2
+      "Animator.RightHand.Index.1 Stretched": -0.55
+      "Animator.RightHand.Index.2 Stretched": -0.6
+      "Animator.RightHand.Index.3 Stretched": -0.5
+      "Animator.RightHand.Index.Spread": -0.1
+      "Animator.RightHand.Middle.1 Stretched": -0.6
+      "Animator.RightHand.Middle.2 Stretched": -0.65
+      "Animator.RightHand.Middle.3 Stretched": -0.5
+      "Animator.RightHand.Middle.Spread": -0.1
+      "Animator.RightHand.Ring.1 Stretched": -0.65
+      "Animator.RightHand.Ring.2 Stretched": -0.65
+      "Animator.RightHand.Ring.3 Stretched": -0.5
+      "Animator.RightHand.Ring.Spread": -0.1
+      "Animator.RightHand.Little.1 Stretched": -0.7
+      "Animator.RightHand.Little.2 Stretched": -0.65
+      "Animator.RightHand.Little.3 Stretched": -0.5
+      "Animator.RightHand.Little.Spread": -0.1
+  grip_l:
+    set:
+      "Animator.LeftHand.Thumb.1 Stretched": -0.3
+      "Animator.LeftHand.Thumb.2 Stretched": -0.4
+      "Animator.LeftHand.Thumb.3 Stretched": -0.4
+      "Animator.LeftHand.Thumb.Spread": 0.2
+      "Animator.LeftHand.Index.1 Stretched": -0.55
+      "Animator.LeftHand.Index.2 Stretched": -0.6
+      "Animator.LeftHand.Index.3 Stretched": -0.5
+      "Animator.LeftHand.Index.Spread": -0.1
+      "Animator.LeftHand.Middle.1 Stretched": -0.6
+      "Animator.LeftHand.Middle.2 Stretched": -0.65
+      "Animator.LeftHand.Middle.3 Stretched": -0.5
+      "Animator.LeftHand.Middle.Spread": -0.1
+      "Animator.LeftHand.Ring.1 Stretched": -0.65
+      "Animator.LeftHand.Ring.2 Stretched": -0.65
+      "Animator.LeftHand.Ring.3 Stretched": -0.5
+      "Animator.LeftHand.Ring.Spread": -0.1
+      "Animator.LeftHand.Little.1 Stretched": -0.7
+      "Animator.LeftHand.Little.2 Stretched": -0.65
+      "Animator.LeftHand.Little.3 Stretched": -0.5
+      "Animator.LeftHand.Little.Spread": -0.1

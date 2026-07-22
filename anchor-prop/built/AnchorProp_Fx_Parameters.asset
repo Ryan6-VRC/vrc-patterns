@@ -10,26 +10,36 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1506855854, guid: 67cc4cb7839cd3741b63733d5adf0442, type: 3}
-  m_Name: HeldProp_Fx_Parameters
+  m_Name: AnchorProp_Fx_Parameters
   m_EditorClassIdentifier: 
   isEmpty: 0
   parameters:
-  - name: HeldProp/Mode
+  - name: AnchorProp/Mode
     valueType: 0
     saved: 0
     defaultValue: 0
     networkSynced: 1
-  - name: HeldProp/Enable
+  - name: AnchorProp/Enable
     valueType: 2
     saved: 0
     defaultValue: 0
     networkSynced: 0
-  - name: HeldProp/NearProp
+  - name: AnchorProp/NearHandR
     valueType: 1
     saved: 0
     defaultValue: 0
     networkSynced: 0
-  - name: HeldProp/NearStow
+  - name: AnchorProp/NearHandL
+    valueType: 1
+    saved: 0
+    defaultValue: 0
+    networkSynced: 0
+  - name: AnchorProp/NearMouth
+    valueType: 1
+    saved: 0
+    defaultValue: 0
+    networkSynced: 0
+  - name: AnchorProp/NearStow
     valueType: 1
     saved: 0
     defaultValue: 0
