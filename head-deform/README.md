@@ -74,11 +74,14 @@ Play mode with Av3Emulator, avatar at the world origin, `EnableHeadScaling` flip
 after the runtimes have run a few frames (the exempt-bone baseline cache trap — see
 `head-proxy`). Then:
 
-- Drive `HeadDeform/CheekBone_Stretch` → `WideTransform.localScale` chases it through
-  `Smoothed`; the **local** copy's `ScaleConstraint.IsActive` reads **0** — that zero is the
+- Pull the chain with a real grab (the physbone re-asserts `CheekBone_Stretch` every frame, so a
+  param write silently reverts; a scripted `AttemptGrab` must target a mid-chain bone — grabbing
+  the leaf end bone moves nothing, measured) → `WideTransform.localScale` chases the stretch
+  through `Smoothed`; the **local** copy's `ScaleConstraint.IsActive` reads **0** — that zero is the
   mirror race proving `IsMirror = −1`, the same observable `mirror-detect` names.
-- The emulator's **non-local clone** is the remote leg: its `IsMirror` parks at 1, its scale
-  constraint is active, and its humanoid head visibly scales with the pull.
+- The emulator's **non-local clone** is the remote leg: its `IsMirror` parks at 1 and its scale
+  constraint is active. The pull itself does not transport (the emulator networks no grabs) —
+  grab the *clone's* chain to see its humanoid head visibly scale.
 - In first person the cheek chain holds its authored scale while the head reads ~0.0001 — the
   self-exemption landed. A chain that collapses with the head means the exemption didn't apply
   (chop component budget exceeded, or the consumer rig's head never chops).
