@@ -109,7 +109,7 @@ layers:
           - to: Reset
             when: [ ContactTrackerBox/Enable is false ]
     default: Reset
-    # Hand arrangement (CONVENTIONS.md §Graph layout), mirroring contact-tracker: lifecycle
+    # Hand arrangement (animator-schema.md §Arranging for legibility), mirroring contact-tracker: lifecycle
     # descends from Reset under Entry; Tracking left, Searching right; unused Any/Exit parked.
     layout:
       nodes: { Reset: [30, 180], Tracking: [-90, 250], Searching: [150, 250] }

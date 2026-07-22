@@ -81,7 +81,7 @@ layers:
           - { to: Idle, when: [], exitTime: 1.0 }
     default: Idle
     layout:
-      nodes: { Idle: [30, 180], Chopping: [30, 250], Restoring: [150, 250] }
+      nodes: { Idle: [30, 180], Chopping: [30, 250], Restoring: [270, 250] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]

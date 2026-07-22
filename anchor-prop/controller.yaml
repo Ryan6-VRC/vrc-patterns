@@ -242,37 +242,38 @@ layers:
           - { to: TakeL_World, when: [ IsLocal is true, AnchorProp/NearHandL greater 0, GestureLeft equals 1 ] }
           - { to: Exit,        when: [ IsLocal is false, AnchorProp/Mode notEqual 11 ], duration: 0.25 }
     default: Hidden
-    # Center column is the lifecycle (Hidden -> Stowed -> Mouth -> World); the right lane is the
-    # right hand's arm states, the left lane the left hand's, world lanes outboard. Guard parks
-    # beside Hidden in the remote-only lane.
+    # Center column is the lifecycle (Hidden -> Stowed -> Mouth -> World); right lanes are the
+    # right hand's arm states, left lanes the left hand's, world lanes outboard. Guard parks
+    # beside Hidden in the remote-only lane. Exit sits below the content — every rest state
+    # dispatches through it (animator-schema.md §Arranging for legibility).
     layout:
       nodes:
         Hidden:       [30, 180]
         Guard:        [270, 180]
-        Stowed:       [30, 300]
-        TakeR_Stow:   [330, 300]
-        TakeL_Stow:   [-270, 300]
-        HeldR:        [330, 420]
-        HeldL:        [-270, 420]
-        ToMouthR:     [330, 540]
-        ToStowR:      [180, 540]
-        HandoffRL:    [480, 540]
-        WorldArmR:    [630, 420]
-        WorldArmedR:  [630, 540]
-        ToMouthL:     [-270, 540]
-        ToStowL:      [-120, 540]
-        HandoffLR:    [-420, 540]
-        WorldArmL:    [-570, 420]
-        WorldArmedL:  [-570, 540]
-        Mouth:        [30, 660]
-        TakeR_Mouth:  [330, 660]
-        TakeL_Mouth:  [-270, 660]
-        World:        [30, 780]
-        TakeR_World:  [330, 780]
-        TakeL_World:  [-270, 780]
+        Stowed:       [30, 260]
+        TakeR_Stow:   [270, 260]
+        TakeL_Stow:   [-210, 260]
+        HeldR:        [270, 340]
+        HeldL:        [-210, 340]
+        WorldArmR:    [510, 340]
+        WorldArmL:    [-450, 340]
+        ToStowR:      [150, 420]
+        ToMouthR:     [390, 420]
+        HandoffRL:    [630, 420]
+        ToStowL:      [-90, 420]
+        ToMouthL:     [-330, 420]
+        HandoffLR:    [-570, 420]
+        Mouth:        [30, 500]
+        TakeR_Mouth:  [270, 500]
+        TakeL_Mouth:  [-210, 500]
+        WorldArmedR:  [510, 500]
+        WorldArmedL:  [-450, 500]
+        World:        [30, 580]
+        TakeR_World:  [270, 580]
+        TakeL_World:  [-210, 580]
       entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      any:   [50, 80]
+      exit:  [50, 660]
 
 # Constraint source map (VRCParentConstraint on Container):
 #   source0 StowOffset, source1 HandROffset, source2 HandLOffset, source3 MouthOffset,

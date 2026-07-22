@@ -83,7 +83,7 @@ layers:
         transitions:
           - { to: Baseline, when: [ ShowBroken is false ] }
     default: Baseline
-    # Hand arrangement (CONVENTIONS.md §Graph layout): default below Entry, toggle target under it.
+    # Hand arrangement (animator-schema.md §Arranging for legibility): default below Entry, toggle target under it.
     layout:
       nodes: { Baseline: [30, 180], Broken: [30, 250] }
       entry: [50, 120]

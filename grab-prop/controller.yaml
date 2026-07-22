@@ -80,7 +80,7 @@ layers:
           - { to: Disabled,     when: [ GrabProp/Enable is false ] }
           - { to: Grabbed, when: [ GrabBone_IsGrabbed is true ] }
     default: Timer
-    # Hand arrangement (CONVENTIONS.md §Graph layout): boot spine descends Timer -> Disabled;
+    # Hand arrangement (animator-schema.md §Arranging for legibility): boot spine descends Timer -> Disabled;
     # remote park (Waiting) in the left lane; the carry band Anchored | Grabbed | Released reads
     # left-to-right with the world-drop outcome (Dropped) above Released; Any/Exit parked top-left.
     layout:
