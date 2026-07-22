@@ -9,8 +9,10 @@ writing `Output`'s localPosition. Range is **unlimited**: while tracking, a posi
 `TrackingPoints` sources `Output` — its own child, the documented-legal feedback loop
 (`runtime.md` §Constraints) — against a self-source brake, so the cage crawls onto the measured
 sender (~13 %/frame) and the ±1.5 m working core travels with the target indefinitely. `Container`
-is the consumer surface — constrain your payload to it and replace `Marker`; it follows `Output` on
-a damped chase (§Interface).
+is the consumer surface — constrain your payload to it and replace `Marker`. It is a single rigid
+source on the cage (`TrackingPoints`), weight 1, so the marker inherits home/freeze/track from the
+cage's own constraints exactly as `contact-tracker` does — there is no separate Container-side
+smoothing (§Parity contract).
 
 Same latch (`allowOthers` 1→0 shut at acquisition), same zero-position-sync model as
 `contact-tracker`: every client re-derives the cage locally, nothing late-syncs. The trade against
@@ -34,10 +36,29 @@ unlerps linearly across the box depth — axis-separable by construction, radius
 
 One prefab, one controller: `ContactTrackerBox.prefab`.
 
+## Parity contract
+
+Locked — do not reopen; every prior attempt regressed by reopening it. This module **is**
+`contact-tracker` with **one** deliberate change and no others: the servo target is derived from an
+exact 4-box readout written to `Output`, where the sphere derives it from a 6-probe proximity
+centroid. Everything else is identical.
+
+- `Container` is a single rigid source = the cage (`TrackingPoints`), weight 1, `VRCParentConstraint`
+  (position+rotation, scale-isolated). Copy it from the ground truth: `contact-tracker`'s `Container`
+  in `ContactTracker.prefab`.
+- No clip touches `Container` — strip it from reset/searching/latch. Home-on-reset, freeze-on-loss,
+  and track-in-tracking are then inherited from the cage's own constraints, exactly as in the sphere.
+- `Output` stays as the cage servo's target transform (it stands in for the sphere's six probe
+  sources). `Container` must not reference `Output`.
+- All smoothing lives in one servo constant: the cage position-constraint's `Output`-source weight vs
+  its self-brake weight (`g = w/(w+b)`). There is no second smoothing stage. **Adding a
+  `Container`-side damping or chase constraint is the exact regression this contract forbids.**
+
 ## Interface
 
 - **Params:** `ContactTrackerBox/Enable` (bool, in) — synced, unsaved; off is the reset **and the
-  recall**: Reset parks the cage and `Container` at `HomeAnchor/Offset` and rides the wearer.
+  recall**: Reset parks the cage at `HomeAnchor/Offset` and rides the wearer; `Container` rigidly
+  copies the cage, so the marker parks home with it.
   `HomeAnchor` is an MA BoneProxy (Hips, AsChildAtRoot); retarget the proxy or drag `Offset`
   (0.1 up / 0.35 forward) to move home. On latch the cage crawls freely — cycling Enable recalls a
   stranded cage home, same gesture as `contact-tracker`. The four `ContactTrackerBox/{X+,X-,Y+,Z+}`
@@ -73,7 +94,6 @@ One prefab, one controller: `ContactTrackerBox.prefab`.
 | Tracking scale | ×1 absolute (VRCScaleConstraint ScaleOffset, World.prefab source) | boxes 6×6×3 m, faces ±1.5 m; working core \|x\|,\|y\|,\|z\| ≤ 1.5 m **around the cage**; all four read strictly >0 inside it (center latch reads 0.5 + r/3 per box — 0.5100 at r=0.03, exact) |
 | Readout coefficients | 1.5 / 3 (readout_* clips) | derived from face position 1.5 m and depth 3 m — re-derive together if the box geometry changes. Scale-invariant (readings are geometry ratios) |
 | Crawl gain | 0.15 (latch clip, position-constraint Output source vs self 1.0) | normalized → ~13 % of the cage→sender gap closed per frame; the constant self-weight is the brake (no dwell — the readout has no acquisition transient). Walk-along 10 m @1.5 m/s: steady cage lag 0.25–0.39 m, latch held throughout. Feel band 0.1–0.2, framerate-dependent by design |
-| Marker damping | 0.15 (latch clip, Container Output source vs self 1.0) | ~13 %/frame chase of Output; feel band 0.1–0.2 |
 | Loss / acquire thresholds | any <0.00001 / all four >0 | ANY-loss (vs contact-tracker's ALL): one dead box breaks the reconstruction, so partial reads never hold Tracking |
 
 ## Verifying the install
@@ -94,8 +114,8 @@ the near surface (a few cm; constant, not jitter).
   Output from readings sampled against the pre-crawl cage, then the constraint moves the cage the
   same frame. At latch (gap ≤ half-zone + radius) that is ≲2 cm decaying; during a steady walk it
   is ≈ one frame of sender travel (emulator-measured max 8 cm at ~15 fps editor; scales down with
-  fps). Payloads read `Container` (damped) and never see it; scripting against `Output` should
-  settle by time, not frames.
+  fps). Payloads read `Container` — which rigidly copies the cage (the crawl-smoothed position),
+  not `Output` — and never see it; scripting against `Output` should settle by time, not frames.
 - **Loss while crawling is a freeze, not a recall.** ANY-loss drops to Searching: cage self-holds
   where it stands (fail-visible), filters reopen, cube recollapses at the stranded spot — a sender
   re-entering that cube relatches in place. Cycle Enable to recall. A teleporting target produces
