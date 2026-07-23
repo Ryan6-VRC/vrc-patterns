@@ -1,4 +1,4 @@
-# grab-prop — sample-and-hold world-drop (Module tier)
+# grab-prop — sample-and-hold world-drop (Module)
 
 Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-grab it in place. The drop costs **zero synced params**: every client replays the same release choreography off the natively-synced physbone grab, freezing the prop where it was dropped (`gimmicks.md` §Constraint patterns "Sample-and-hold drop"). Module total: **1 synced bit** (`GrabProp/Enable`).
 
@@ -15,7 +15,7 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 - **Dependencies:** none beyond the VRC SDK + VRCFury to build; **compose `anti-cull` alongside** (its README §When a module needs this) — a dropped prop holds state through replayed choreography while the wearer may be off-screen, and a remote client that view-culls the wearer stops replaying it. Drop the prefab anywhere under the avatar.
 - **Required assets:** none — `Payload` is a placeholder sphere on Unity's built-in default material; swap it for your prop mesh, keep it under `Container`.
 
-## The one thing to know before using it
+## Before you compose it
 
 **`HomeAnchor` rides the wearer.** It is an MA BoneProxy (Hips, AsChildAtRoot) with the recall target as its `Offset` child (0.1 up / 0.35 forward — drag it in edit mode): the prop rests on, and recalls to, the avatar, while the module root stays world-frozen (`FreezeToWorld`, enabled during upload) so drops hold their world spot. For a fixed world-spot home instead (recall to your spawn point), delete the BoneProxy. The anchor is referenced only as a constraint source (an object reference — path-immune), which is what makes proxying it safe; keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes at build (`nondestructive.md` has the measured build order).
 

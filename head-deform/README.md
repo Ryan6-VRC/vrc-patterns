@@ -1,4 +1,4 @@
-# head-deform — grab-your-face head distortion, mirror-correct (Module tier)
+# head-deform — grab-your-face head distortion, mirror-correct (Module)
 
 Grab your own cheek in first person and pull — the head stretches wide; squeeze and it squishes. Anyone else can grab it too. A drop-in for **any stock avatar**: the deformation is head-bone *scale* (no mesh, no blendshapes shipped), carried by a `VRCScaleConstraint` that VRCFury retargets onto the humanoid Head at build. The interesting problems it packages are chop problems, not skinning problems:
 
@@ -26,7 +26,7 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 - **Dependencies:** VRCFury. Conventional prefab: a rig whose humanoid head actually chops. Proxy prefab: a `head-proxy`-class rig, plus one consumer wiring step — point the `ScaleConstraint`'s `TargetTransform` at the **deforming** head bone (a cross-prefab object reference is structurally a scene-level assignment; `head-proxy` §Reaching out of the prefab owns the mechanism and the silent-null trap).
 - **Required assets:** none. Sculpted deformation (cheek bulge blendshapes, etc.) is the documented consumer extension: a fourth 1D subtree on `HeadDeform/Smoothed` over your own blendshape clips — the hook is annotated in `controller.yaml`.
 
-## The things to know before wearing it
+## Before you compose it
 
 - **Strangers can stretch your face.** The grab filter ships `allowSelf` + `allowOthers` — being poked is the point, but flip `allowOthers` off on the physbone for a self-only face.
 - **The stretch endpoints are feel constants** (wide 4.5/1.1/1.1, squish 0.3/1.4/1.2, squish deadband to −0.25, λ 0.9) — wear-tested on the production source; retune in `controller.yaml`, not in the built assets.

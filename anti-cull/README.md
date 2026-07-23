@@ -1,4 +1,4 @@
-# anti-cull — bounds-inflation view-cull defeat (Module tier)
+# anti-cull — bounds-inflation view-cull defeat (Module)
 
 Keeps the avatar rendered on every remote client by inflating its renderer bounds: a hidden 10 000-unit cube makes the avatar's combined bounds intersect every camera frustum, so **view (frustum) culling never skips it**. It defeats view culling *only* — distance culling ("Hide Avatars Beyond" / closest-N) is a client-side unload nothing can defeat. Module total: **1 synced bit** (`AntiCull/Enable`).
 

@@ -1,4 +1,4 @@
-# drag-bone — rotation from position history (Module tier)
+# drag-bone — rotation from position history (Structural Module)
 
 Gives heading to a prop that is positioned but never rotated — a dropped grab-prop, a contact-tracker cage. A force-free physbone tip trails the moving rig like a pull-cord; an aim constraint faces away from it, which is the direction of travel. Rotation synthesized purely from position history: **zero synced params, no controller, no menu** — every client re-derives it.
 
@@ -16,7 +16,7 @@ Two prefabs, one mechanism:
 - **Dependencies:** VRCFury (the `FreezeToWorld` ApplyDuringUpload).
 - **Required assets:** none.
 
-## The one thing to know before using it
+## Before you compose it
 
 **The rig solves in a world-stable frame, and must stay in one.** The shipped root is world-frozen at load-in (`FreezeToWorld` parent constraint, enabled by ApplyDuringUpload — the grab-prop idiom), so the tip trails only when the *followed container* moves. Re-parent the rig under a bone, or defeat the freeze, and avatar locomotion drags the tip directly — the prop yaws to face the walk direction even while parked. Measured with the freeze intact: 1.5 m of avatar travel moved the module root 3 mm and left yaw tracking the container exactly.
 
@@ -30,7 +30,7 @@ Degenerate cases, and what fences each:
 - **Trail goes vertical** (yaw undefined): fenced structurally by the yaw variant's planar follower — the bone root never moves vertically and nothing else (gravity 0, collision off) can move the tip. Physbone angle limits cannot replace this: a hinge (`limitRotation` zero) confines swing to the bone-local X axis, the one tested reorientation (0,0,90) tracked one heading then froze at its limit mid-turn while still allowing a vertical trail, and cone/polar limits are rest-axis-centered so they cannot exclude the poles — a 91° cone tested alongside the sandwich below clamped legitimate rear headings mid-turn. Keep `limitType None`. A **two-plane collider sandwich** *can* replace it where a planar follower won't fit (a rig that must ride a vertically-moving parent): two Plane `VRCPhysBoneCollider`s riding the bone root, facing each other at ±(radius + slack) around root height, with a nonzero bone radius. Measured (r 0.02, slack 0.005): tip vertical deviation ≤9 mm and zero yaw disturbance under 1 m of vertical root drive, horizontal tracking unchanged. Two colliders is the collider-fence **minimum**: a plane is one-sided, and nothing can press the tip onto a single pane from the far side — physbone gravity expresses only through `pull` (measured inert at pull 0), and nonzero pull + gravity collapses the trail's horizontal component against the pane exactly when the prop rests, undefining yaw. The shipped prefab keeps the follower — same fence, **zero colliders** (colliders cost avatar performance rank) — and never mount the rig on the rotating prop itself: its aim output rotating its own solve frame is a feedback loop.
 - **Pure 180° reversal:** an exactly-collinear reversal *pushes through* the tip instead of swinging it — heading reads backwards until any lateral motion breaks the symmetry, then recovers in a fast smooth swing (~3°/frame max, no snap). Real hand and locomotion paths always carry lateral motion; scripted perfectly-straight reversals are the only place this shows.
 
-## Empirical constants (90% rule — test before changing)
+Empirical constants (90% rule — test before changing):
 
 | Constant | Value | Measured behavior |
 |---|---|---|

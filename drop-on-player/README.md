@@ -1,4 +1,4 @@
-# drop-on-player — release-arbitrated prop: own head / another player / world (Module tier)
+# drop-on-player — release-arbitrated prop: own head / another player / world (Module)
 
 Grab the prop and release it: on your own head it anchors (a bone constraint — precise, and it **late-syncs**); on another player's head it latches and follows them (a proximity cage — per-client re-derivation, **no late-sync**); anywhere else it freezes in place (sample-and-hold — no late-sync). The three rest mechanisms are structurally different because you *cannot constrain to another avatar's transform* (`gimmicks.md` §Constraint patterns "Attaching a prop to a body point") — the release-time **arbitration** between them, and the 2-bool mode sync that lets every client re-derive the outcome, are what this entry ships. Module total: **2 synced bits** (`DropOnPlayer/Out`, `DropOnPlayer/Worn`).
 
@@ -23,7 +23,17 @@ Grab the prop and release it: on your own head it anchors (a bone constraint —
 - **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull` alongside** (its README §When a module needs this) — the tracked and dropped modes replay choreography while the payload is away from the wearer, and a remote client that view-culls the wearer stops replaying it.
 - **Required assets:** `assets/World.prefab` — never-instantiated scale reference for the tracking cage (absolute meters). Do not instantiate or delete it. `Payload` is a placeholder sphere on Unity's built-in default material — swap it, keep it under `Container`.
 
-## Empirical constants (90% rule — test before changing)
+## How it works
+
+The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage, plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at head-contact level while the prop sits at hat level: the same six receivers that will track the target are the "is another player's head here" sensor, centered where a head actually is.
+
+**Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers` shut and the crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
+
+**Remotes** run the same graph gated on the pair instead of sensors: every release routes through `Released` (visually a freeze-in-place), then to the pair's state; a stale pair self-corrects via each mode state's remote edges. **Tracking loss** is per-client: the wearer's loss stamps `Dropped` (freeze — never snap-home, observers unload the target at different times); a remote's own loss falls to `Lost` (same freeze) *without* touching the pair, recovering on the next witnessed grab or pair change. **Late joiners** dwell 1 s then: `01` → hat on your head (the pair late-syncs), `00` → hidden, `1x` → `Waiting` hidden until a witnessed grab (fail-visible — the tracked/dropped position never crossed the wire).
+
+**Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the hat off your head and put it on theirs — the wearer's client arbitrates from wherever the prop is, and their head is "another player's head". `allowPosing` off — persistence is always a constraint hold.
+
+Empirical constants (90% rule — test before changing):
 
 | Constant | Value | Locked by |
 |---|---|---|
@@ -35,16 +45,6 @@ Grab the prop and release it: on your own head it anchors (a bone constraint —
 | Arbitration zone | the cage's own acquisition radius (0.15 m) | **named open test** — no 7th receiver (the source had one); revisit if too tight for a comfortable drop |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
 | Anchor offsets | +0.25 above the head bone (anchored) / +0.15 above the cage centroid (tracked) | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
-
-## How it works
-
-The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage, plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at head-contact level while the prop sits at hat level: the same six receivers that will track the target are the "is another player's head here" sensor, centered where a head actually is.
-
-**Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers` shut and the crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
-
-**Remotes** run the same graph gated on the pair instead of sensors: every release routes through `Released` (visually a freeze-in-place), then to the pair's state; a stale pair self-corrects via each mode state's remote edges. **Tracking loss** is per-client: the wearer's loss stamps `Dropped` (freeze — never snap-home, observers unload the target at different times); a remote's own loss falls to `Lost` (same freeze) *without* touching the pair, recovering on the next witnessed grab or pair change. **Late joiners** dwell 1 s then: `01` → hat on your head (the pair late-syncs), `00` → hidden, `1x` → `Waiting` hidden until a witnessed grab (fail-visible — the tracked/dropped position never crossed the wire).
-
-**Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the hat off your head and put it on theirs — the wearer's client arbitrates from wherever the prop is, and their head is "another player's head". `allowPosing` off — persistence is always a constraint hold.
 
 ## Verifying the install
 

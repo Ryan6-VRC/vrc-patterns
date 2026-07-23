@@ -1,6 +1,6 @@
-# contact-tracker — latching proximity tracker (Module tier)
+# contact-tracker — latching proximity tracker (Module)
 
-Tracks one point on another player with zero synced position: 6 coincident Proximity receivers acquire, an animated `allowOthers` shut latches, and a crawler-servo position constraint chases the latched sender. Every client re-derives the cage locally, so the tracked position never crosses the wire — and therefore **never late-syncs**: a late joiner sees the cage at home until it re-acquires. `Container` is the consumer surface — constrain your payload to it and replace `Marker`.
+Make a payload — a marker, a companion, a UI element — follow one point on another player: their hand, or (the head variant) their head. It tracks with **zero synced position**: 6 coincident Proximity receivers acquire the target, an animated `allowOthers`-shut latches onto it, and a crawler-servo position constraint chases the latched sender. Every client re-derives the cage locally, so the tracked position never crosses the wire — and therefore **never late-syncs**: a late joiner sees the cage at home until it re-acquires. `Container` is the consumer surface — constrain your payload to it and replace `Marker`.
 
 **Provenance:** generalized from a private production avatar's contact tracker (itself a VRCFury conversion of VRLabs Contact-Tracker, MIT). Vestigial Size motion-time bindings and orphaned transitions not ported.
 

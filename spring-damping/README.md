@@ -1,4 +1,4 @@
-# spring-damping — secondary motion (bounce / lag) from self-referencing constraints (Module)
+# spring-damping — secondary motion (bounce / lag) from self-referencing constraints (Structural Module)
 
 Three drop-in rigs that give an object physics-like secondary motion — spring bounce, positional lag, rotational lag — **without a PhysBone**, using only VRChat constraints. Each is a `Container` whose constraint lists **its own transform** as a source alongside a `Target`: solving in world space, the constraint reads last frame's own position and blends a fraction toward the target every frame. That self-reference is the whole trick — a per-frame feedback loop that low-passes the target's motion (damping) or, with a second stage and a negative weight, rings around it (spring). Depth 1 (damping) / 2 (spring), Quest-safe, one component per constrained object.
 

@@ -1,4 +1,4 @@
-# _template — reference mold (Module tier)
+# _template — reference mold (Module)
 
 A minimal one-param toggle. Copy this folder to start a new entry; it demonstrates every part of the skeleton, including the standard Module packaging. Not a shipping gimmick — a proof and a mold.
 
