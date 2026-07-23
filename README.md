@@ -2,14 +2,11 @@
 
 > Part of the [Atelier](https://github.com/Ryan6-VRC/atelier) workspace — a code reference, not a standalone product. The docs that govern this code live in the meta-repo.
 
-Reusable, verified VRChat avatar patterns, controllers, and drop-in gimmick modules — YAML-sourced
-(`CompileController`), shaped as a VPM package. Read `CONVENTIONS.md` first; author against `_template/`.
+Reusable, verified VRChat avatar patterns, controllers, and drop-in gimmick modules — YAML-sourced (`CompileController`), shaped as a VPM package. Read `CONVENTIONS.md` first; author against `_template/`.
 
 ## Find by what you want to build
 
-Each row leads with the thing a wearer actually gets; the second column is the mechanism and its
-sync cost. `docs/gimmicks.md` is the durable techniques doc and routes here as a whole, not
-entry-by-entry.
+Each row leads with the thing a wearer actually gets; the second column is the mechanism and its sync cost. `docs/gimmicks.md` is the durable techniques doc and routes here as a whole, not entry-by-entry.
 
 | Build this | Mechanism / cost | Tier | Entry |
 |---|---|---|---|
@@ -31,20 +28,13 @@ entry-by-entry.
 | Framerate-independent easing for jittery inputs (OSC hardware, remote grabs) | frametime-aware AAP exponential smoother | Pattern (study) | [`smooth-frametime`](smooth-frametime/) |
 | — reference mold — | | Module | [`_template/`](_template/) |
 
-The physbone prop Modules (`grab-prop`, `drop-on-player`) are **usable by every player in the
-instance**, not just the wearer: the grab physbone is open to everyone (`allowGrabbing: True`)
-and natively synced, so anyone can take, carry, and place the prop — the wearer's client
-arbitrates and syncs the outcome. That is the novelty those entries package. `anchor-prop` is the
-deliberate opposite pole: **wearer-only by authorization** (`allowSelf`-only sensing — no
-stranger can take your prop), anchored by constraint rather than carried by physbone.
+The physbone prop Modules (`grab-prop`, `drop-on-player`) are **usable by every player in the instance**, not just the wearer: the grab physbone is open to everyone (`allowGrabbing: True`) and natively synced, so anyone can take, carry, and place the prop — the wearer's client arbitrates and syncs the outcome. That is the novelty those entries package. `anchor-prop` is the deliberate opposite pole: **wearer-only by authorization** (`allowSelf`-only sensing — no stranger can take your prop), anchored by constraint rather than carried by physbone.
 
 ## Using an entry
 
 - **Agent, in-workspace:** read the entry's `controller.yaml` + README Interface stanza; lift/adapt.
-- **Unity:** a project takes it as a package dependency (AvatarProject uses a `file:` ref in
-  `Packages/manifest.json`); entries import at `Packages/com.ryan6vrc.patterns/<entry>/`.
+- **Unity:** a project takes it as a package dependency (AvatarProject uses a `file:` ref in `Packages/manifest.json`); entries import at `Packages/com.ryan6vrc.patterns/<entry>/`.
 
 ## Gate
 
-`tools/gate.ps1` compiles + validates every entry and checks controller decompile-equality for entries
-with `built/`. Run it before merging.
+`tools/gate.ps1` compiles + validates every entry and checks controller decompile-equality for entries with `built/`. Run it before merging.
