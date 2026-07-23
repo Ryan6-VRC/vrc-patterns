@@ -24,7 +24,7 @@
 #   cage acquisition/tracking scales, probe spread, park-brake ramp 1.0 s  [EMPIRICAL: contact-tracker sweep]
 #   loss threshold 0.00001, acquisition threshold >0 (transitions)
 #
-# Deliberate deltas from the source ancestor (survey §6): no banded mode int (2 direct bools —
+# Deliberate deltas from the source ancestor: no banded mode int (2 direct bools —
 # few exclusive states, gimmicks.md §Packaging); no 6 s world-band dwell (it existed for
 # Custom-Object-Sync repair — no COS here; the non-derivable bands park in Waiting instead); no
 # 7th arbitration receiver (the 6 cage receivers, parked ON the prop with filters open, are the

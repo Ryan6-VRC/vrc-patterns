@@ -1,43 +1,18 @@
 # anchor-prop — the anchor multiplexer at its useful minimum-complete form (gimmicks.md
 # §Constraint patterns "Anchor multiplexer"). One prop, one VRCParentConstraint over five anchor
-# classes — [StowOffset, HandROffset, HandLOffset, MouthOffset, WorldAnchor] — each demonstrating
-# a distinct mechanism:
-#   Stow    — a plain BoneProxy body anchor (Chest).
-#   HandR/L — BOTH hands, with hand-to-hand handoff as a worked arbitration problem: arm states
-#             remember which hand armed, disarm outranks commit, and the transfer commits on the
-#             RECEIVING hand's gesture release.
-#   Mouth   — the chop-exempt head anchor every serious multiplexer needs: the anchor GO carries
-#             its own VRCHeadChop @1, because a first-person-chopped parent collapses the anchor
-#             OFFSET toward the head pivot (parent scale multiplies child local position) and the
-#             full-size prop lands inside your head instead of at your lips.
-#   World   — a FreezeToWorld band: WorldAnchor tracks the dropping hand while unfrozen; the
-#             world clip freezes it in place. Per-client capture (each client freezes at its own
-#             view of the commit frame) — casual-prop divergence, stated in the README contract.
-# Take/place/handoff are PHYSICAL: prop-near-anchor + gesture arms, gesture RELEASE commits
-# (zero-timer anti-misfire). World-drop adds a dwell (hold the fist 0.5 s away from any anchor)
-# because a bare fist+release is an everyday idle gesture. Menu holds only the enable; every
-# outcome rides one synced banded mode int.
-#
-# Wire surface: AnchorProp/Mode (synced int, 8 bits — the Parameter Compressor reclaims the
-# width; this document stamps with Set only, so nothing blocks membership).
-#   0  Hidden   (off-is-reset; prop hidden, parked at stow)
-#   1  Stowed   2  HeldR   3  HeldL   4  Mouth   11  World   (banded: attach 1-9, world 11-19)
-# Remote routing is the entry-dispatch hub: each rest state exits on a foreign Mode, the entry
-# ladder is the priority encoder, and an invalid value parks in Guard (poses Stowed, no stamp)
-# until a valid Mode arrives — park over wrong-state, fail visible.
+# classes [StowOffset, HandROffset, HandLOffset, MouthOffset, WorldAnchor]. The README owns the
+# consumer contract, the per-anchor mechanisms, and the wire surface; this header + the inline
+# comments own the graph. Sensor -> synced mode -> actuator: local edges arbitrate off live
+# proximity + gesture and stamp AnchorProp/Mode on rest-state entry; remotes re-derive every pose
+# from Mode alone through the entry-dispatch hub — each rest state exits on a foreign Mode, the
+# entry ladder is the priority encoder, an invalid value parks in Guard (poses Stowed, no stamp).
 #   [VERIFY: exit-transition crossfade — the 0.25 s glide must survive the Exit->Entry hop on
 #   remotes; if the emulator shows anchor snaps, move the duration to explicit remote edges.]
 #
-# Sensing (never synced): ONE VRCContactSender on the prop (private tag AnchorProp) and four
-# proximity receivers at the anchor points (allowSelf only — self-touch as authorization;
-# localOnly — remotes pose from Mode). Prop-near-anchor sensing, not hand-tag sensing, is what
-# makes per-hand discrimination possible at all — a Hand-tag receiver on the prop cannot tell
-# which hand arrived.
-#
-# Empirical constants (runtime.md 90% rule):
-#   anchor crossfade 0.25 s      [held-prop lineage: emulator sweep — glide reads clean]
-#   world-drop dwell 0.5 s       [EMPIRICAL: chosen against idle-fist misfire; feel-tunable]
-#   arm threshold greater 0, disarm less 0.00001   [contact-tracker lineage]
+# Empirical constants (runtime.md 90% rule; feel-tunables labeled inline):
+#   anchor crossfade 0.25 s      held-prop lineage (emulator sweep)
+#   world-drop dwell 0.5 s       chosen against idle-fist misfire; feel-tunable
+#   arm >0 / disarm <0.00001     contact-tracker lineage
 
 schema: 1
 controller: AnchorProp_Fx
