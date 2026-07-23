@@ -1,6 +1,6 @@
 # anti-cull — bounds-inflation view-cull defeat (Module)
 
-Keeps the avatar rendered on every remote client by inflating its renderer bounds: a hidden 10 000-unit cube makes the avatar's combined bounds intersect every camera frustum, so **view (frustum) culling never skips it**. It defeats view culling *only* — distance culling ("Hide Avatars Beyond" / closest-N) is a client-side unload nothing can defeat. Module total: **1 synced bit** (`AntiCull/Enable`).
+Keeps the avatar's **animator evaluating** on every remote client. The mesh rendering is not the point — a view-culled avatar has its animator *suspended*, which freezes any gimmick that holds state through continuously replayed choreography (a dropped prop, a contact tracker). Inflating the renderer bounds with a hidden 10 000-unit cube makes the combined bounds intersect every camera frustum, so **view (frustum) culling never skips the avatar** and its animator keeps running. Defeats view culling *only* — distance culling ("Hide Avatars Beyond" / closest-N) is a client-side unload nothing can defeat. Module total: **1 synced bit** (`AntiCull/Enable`).
 
 **The cost is the mechanism, not a side effect.** Anti-cull works by making the avatar expensive for other people's clients: every remote client skins and draws it at all times, overriding the view-culling protection those clients would otherwise apply. Compose it deliberately, and only once per avatar.
 
