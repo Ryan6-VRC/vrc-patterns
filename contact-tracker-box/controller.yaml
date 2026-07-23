@@ -28,10 +28,13 @@
 #     idiom from contact-tracker's probe spread)
 #   readout coefficients 1.5 / 3 (readout_* clips) — derived from face position 1.5 and depth 3;
 #     change the box geometry and these must be re-derived together
-#   crawl gain 0.15 (latch clip, position-constraint Output source0 weight vs self source1
-#     weight 1) — normalized, so the cage closes ~13% of the gap to the measured sender per
-#     frame; the constant self-weight IS the brake (no dwell needed — the readout has no
-#     acquisition transient). Feel-tunable 0.1-0.2, framerate-dependent by design.
+#   crawl gain g = 0.5 (STATIC prefab value on VRCPositionConstraint: g = source0/(source0+source1)
+#     = Output-weight/(Output-weight + self-weight) = 1/(1+1)). NOT animated — no clip touches these
+#     weights, so WD-on holds the prefab value in every state; scrub source0 live in the inspector to
+#     retune. The cage closes ~50% of the cage->sender gap per frame; the self-weight IS the brake
+#     (no dwell — the exact readout has no acquisition transient). First-order stable for g<1; ship
+#     tight (box is meant tighter than the sphere). Searching self-holds because its clip pins Output
+#     to the cage center, so chasing Output at any g is a no-op there.
 #   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
 #
 # Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —
@@ -123,8 +126,6 @@ clips:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 1        # parked at HomeAnchor/Offset
       TrackingPoints/VRCPositionConstraint.m_Enabled: 0      # crawler off
-      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: 0
-      TrackingPoints/VRCPositionConstraint.Sources.source1.Weight: 0
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0      # acquisition scale (rest = the zone knob)
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1    # filters open
       TrackingPoints/X+/GameObject.m_IsActive: 0             # receivers off — the entry driver
@@ -153,9 +154,7 @@ clips:
   searching:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
-      TrackingPoints/VRCPositionConstraint.m_Enabled: 1      # self-hold: freeze where it stands
-      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: 0
-      TrackingPoints/VRCPositionConstraint.Sources.source1.Weight: 1   # brake full, crawl off
+      TrackingPoints/VRCPositionConstraint.m_Enabled: 1      # self-hold: freeze where it stands (crawl gain is static in the prefab; Output pinned to center below = no chase)
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/X+/GameObject.m_IsActive: 1
@@ -192,8 +191,6 @@ clips:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
       TrackingPoints/VRCPositionConstraint.m_Enabled: 1
-      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: 0.15  # crawl gain (~13%/frame)
-      TrackingPoints/VRCPositionConstraint.Sources.source1.Weight: 1     # self-brake
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 1      # boxes inflate to absolute meters
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 0    # LATCH — filters shut on current senders
       TrackingPoints/X+/GameObject.m_IsActive: 1
