@@ -1,11 +1,11 @@
 # drop-on-player — grab a prop and route its release to {own head / another player's head / world}
 # (gimmicks.md §Constraint patterns "Attaching a prop to a body point"). A grab-prop whose release
-# ARBITRATES between three rest modes instead of always dropping: release while the private-tag
+# ARBITRATES between three rest modes instead of always dropping: release while the standard-tag
 # self receiver fires => Anchored (own-head constraint, late-syncs); release while the cage
-# receivers fire on another player's head => Tracked (crawler cage, per-client re-derivation, no
+# receivers fire on another player's head => Tracked (box-tracker cage, per-client re-derivation, no
 # late-sync); neither => Dropped (sample-and-hold world freeze, no late-sync). Standalone
-# compressed controller, not a compose of grab-prop + contact-tracker (their COS-free idioms are
-# reused inline; the arbitration/mode-fusion layer is what this entry ships).
+# compressed controller, not a compose of grab-prop + box-tracker (their idioms are reused inline;
+# the arbitration/mode-fusion layer is what this entry ships).
 #
 # Wire surface: 2 synced bools read directly by the state machine — the pair IS the rest mode:
 #   Out=0 Worn=0  Disabled (hidden; off-is-reset)
@@ -16,20 +16,38 @@
 # the rig from the pair + natively-synced GrabBone_IsGrabbed. Menu intents (Enable, ToHead) are
 # UNSYNCED local params — the synced pair carries the outcome, so menu costs 0 extra bits.
 #
+# TRACKING = box-tracker's 4-box exact readout (P3 — lifted from that entry's controller; see its
+# README for the reconstruction math). The head-catcher's cage is 4 face-proximity BOX receivers
+# (X+ X- Y+ Z+), an exact linear readout writing Output.localPosition inside the Tracked state's
+# direct tree, and a STATIC-gain feedback constraint (source0 Output : source1 self, g = 0.5) that
+# crawls the cage onto the reading — no settle dwell, the exactness makes a constant gain enough.
+# The old 6-sphere crawler-servo (a separate always-on layer, raw proximity => source weights, ALL-
+# loss, a 1.0 s park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
+# converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
+#
+# Head-catch zone (P3): the acquisition cube is stretched to a VERTICAL COLUMN — 0.2 m wide/deep,
+# 0.4 m tall — so lowering a prop onto a head reliably catches (and it widens the release-
+# arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints
+# rest localScale + VRCScaleConstraint ScaleAtRest (0.0667, 0.1333, 0.0667) — zone side = 3 × scale
+# per axis. The receiver box is a 1.5³ cube in local space, so the 90° rotations are shape-
+# invariant and a non-uniform parent scale gives a clean axis-aligned box; tracking geometry is
+# constraint-pinned absolute (World.prefab, uniform) so the readout stays EXACT. Cost: one latch
+# frame of ~r·(s_y/s_x − 1) ≈ 3 cm radius-compensation skew on Y/Z, which decays via the crawl
+# (box-tracker's documented non-uniform trap — benign for a prop).
+#
 # Empirical constants (runtime.md 90% rule) — every one labeled:
 #   released pulse: freeze t=0, re-sample window [0.25, 0.50) s   [EMPIRICAL: grab-prop emulator sweep]
 #   remote release-settle: 0.5 s (= pulse length; remotes route by pair at pulse end, covering
 #     the sync tick so a world-drop doesn't flash through a stale mode)  [EMPIRICAL: source-avatar attach dwell]
 #   remote boot dwell: 1.0 s (timer clip)                          [EMPIRICAL: grab-prop in-game candidate]
-#   cage acquisition/tracking scales, probe spread, park-brake ramp 1.0 s  [EMPIRICAL: contact-tracker sweep]
-#   loss threshold 0.00001, acquisition threshold >0 (transitions)
+#   crawl gain g = 0.5 (STATIC prefab constraint weights, no clip animates them)  [box-tracker]
+#   acquisition zone 0.2 × 0.2 × 0.4 m (TrackingPoints ScaleAtRest); loss <0.00001, acquire >0
 #
 # Deliberate deltas from the source ancestor: no banded mode int (2 direct bools —
 # few exclusive states, gimmicks.md §Packaging); no 6 s world-band dwell (it existed for
 # Custom-Object-Sync repair — no COS here; the non-derivable bands park in Waiting instead); no
-# 7th arbitration receiver (the 6 cage receivers, parked ON the prop with filters open, are the
-# "near another head" sensor — minimal by test; revisit if the emulator shows the acquisition
-# radius is too tight an arbitration zone); no gesture grammar / multi-anchor (out of scope).
+# 7th arbitration receiver (the 4 cage receivers, parked ON the prop with filters open, are the
+# "near another head" sensor); no gesture grammar / multi-anchor (out of scope).
 
 schema: 1
 controller: DropOnPlayer_Fx
@@ -48,13 +66,13 @@ parameters:
   DropOnPlayer/Enable: { type: bool, default: false, vrc: { synced: false, saved: false } }
   DropOnPlayer/ToHead: { type: bool, default: false, vrc: { synced: false, saved: false } }
   # Sensing — never synced, never menu-exposed; listed in the params asset for legibility.
-  DropOnPlayer/SelfDetect: float   # private-tag proximity (own head sender -> prop receiver; allowSelf, localOnly)
-  DropOnPlayer/X+: float           # cage proximity (Head tag, allowOthers, localOnly:0 — remotes re-derive)
+  DropOnPlayer/SelfDetect: float   # standard-Head proximity (own head sender -> prop receiver; allowSelf, localOnly)
+  DropOnPlayer/X+: float           # cage face-proximity (Head tag, allowOthers, localOnly:0 — remotes re-derive)
   DropOnPlayer/X-: float
   DropOnPlayer/Y+: float
-  DropOnPlayer/Y-: float
   DropOnPlayer/Z+: float
-  DropOnPlayer/Z-: float
+  # Constant-1 direct weight carrying the latch clip inside the readout tree; never driven.
+  DropOnPlayer/One: { type: float, default: 1, scratch: true }
   GrabBone_IsGrabbed: bool         # minted by the grab physbone (parameter: GrabBone); native grab sync
   IsLocal: bool                    # VRC built-in
 
@@ -102,7 +120,7 @@ layers:
           - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
           - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
           - { to: Anchored, when: [ IsLocal is true, GrabBone_IsGrabbed is false, DropOnPlayer/SelfDetect greater 0 ] }
-          - { to: Tracked,  when: [ IsLocal is true, GrabBone_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Y- greater 0, DropOnPlayer/Z+ greater 0, DropOnPlayer/Z- greater 0 ] }
+          - { to: Tracked,  when: [ IsLocal is true, GrabBone_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
       # Release choreography (world-drop + remote settle window): t=0 the Container constraint
       # disables (the freeze) and the bone chain re-anchors onto the frozen prop; t=0.25
@@ -134,22 +152,40 @@ layers:
           - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/ToHead is true ] }
           - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
           - { to: Tracked,  when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is true ] }
-      # Tracked — the cage latches (allowOthers shut) and the crawler chases; every client runs
-      # this on its own sensors. Loss: LOCAL stamps Dropped (freeze, never snap-home — observers
-      # unload the target at different times); REMOTE falls to Lost without writing the pair.
+      # Tracked — the box cage latches (allowOthers shut), the readout writes Output.localPosition
+      # inside this state's direct tree, and the static-gain feedback constraint crawls the cage
+      # onto it; every client runs this on its own sensors. ANY-loss (box-tracker): one dead box
+      # breaks the reconstruction, so the loss edges fire on the FIRST box to drop, not the last.
+      # LOCAL loss stamps Dropped (freeze, never snap-home — observers unload the target at
+      # different times); REMOTE loss falls to Lost without writing the pair.
       Tracked:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 1 } }
-        motion: { clip: tracked }
+        motion:
+          tree: direct
+          name: BoxReadout
+          normalized: false
+          children:
+            - { clip: tracked, directWeight: DropOnPlayer/One }   # latch geometry + tracked-mode rig config
+            - { clip: readout_xp, directWeight: DropOnPlayer/X+ }
+            - { clip: readout_xn, directWeight: DropOnPlayer/X- }
+            - { clip: readout_yp, directWeight: DropOnPlayer/Y+ }
+            - { clip: readout_zp, directWeight: DropOnPlayer/Z+ }
         transitions:
           - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
           - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
           - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
           - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/ToHead is true ] }
-          - to: Dropped
-            when: [ IsLocal is true, DropOnPlayer/X+ less 0.00001, DropOnPlayer/X- less 0.00001, DropOnPlayer/Y+ less 0.00001, DropOnPlayer/Y- less 0.00001, DropOnPlayer/Z+ less 0.00001, DropOnPlayer/Z- less 0.00001 ]
-          - to: Lost
-            when: [ IsLocal is false, DropOnPlayer/X+ less 0.00001, DropOnPlayer/X- less 0.00001, DropOnPlayer/Y+ less 0.00001, DropOnPlayer/Y- less 0.00001, DropOnPlayer/Z+ less 0.00001, DropOnPlayer/Z- less 0.00001 ]
+          # ANY-loss, local -> Dropped (freeze). One transition per box (a layer takes one edge/frame; whichever box dies first wins).
+          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/X- less 0.00001 ] }
+          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/Z+ less 0.00001 ] }
+          # ANY-loss, remote -> Lost (freeze, pair untouched).
+          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/X- less 0.00001 ] }
+          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/Z+ less 0.00001 ] }
           - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
           - { to: Dropped,  when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is true ] }
       # Lost — remote-only freeze while the pair still reads Tracked (this client's cage lost the
@@ -192,29 +228,15 @@ layers:
       any:   [50, 40]
       exit:  [50, 80]
 
-  # Crawler servo (contact-tracker idiom): raw proximity => constraint source weight, always on
-  # (WD ON), raw additive weights (constraint normalizes by sum). Park brake (source6) is owned
-  # by the Control layer's clips.
-  - name: DropOnPlayer/CrawlerServo
-    states:
-      Crawl:
-        motion:
-          tree: direct
-          name: CrawlerServo
-          normalized: false
-          children:
-            - { clip: crawl_xp, directWeight: DropOnPlayer/X+ }
-            - { clip: crawl_xn, directWeight: DropOnPlayer/X- }
-            - { clip: crawl_yp, directWeight: DropOnPlayer/Y+ }
-            - { clip: crawl_yn, directWeight: DropOnPlayer/Y- }
-            - { clip: crawl_zp, directWeight: DropOnPlayer/Z+ }
-            - { clip: crawl_zn, directWeight: DropOnPlayer/Z- }
-    default: Crawl
-
 # Every Control clip owns the full rig-property set explicitly (no reliance on WD revert; the
-# semantics survive a VRCFury WD-OFF conversion).
+# semantics survive a VRCFury WD-OFF conversion). The cage is box-tracker's: 4 BOX receivers
+# (X+ X- Y+ Z+) coincident at the cage center, resized only by host-GO localScale — (0.5,0.5,1)
+# collapses them to one acquisition column, (1,1,1) is the absolute tracking geometry. No clip
+# moves a receiver's localPosition (the readout is the DBT, not a position spread) and no clip
+# animates the crawl constraint's source weights (the g=0.5 gain is static in the prefab). Output
+# is pinned to the cage center everywhere but Tracked, where the readout tree writes it.
 # Off-state hygiene: Disabled kills the grab physbone's GO (an "off" module must not stay
-# grabbable; resetWhenDisabled 0 preserves pose) and the six cage-receiver GOs (no sensing while
+# grabbable; resetWhenDisabled 0 preserves pose) and the four cage-receiver GOs (no sensing while
 # off). A disabled receiver GO FREEZES its float at the last value — safe here because the floats
 # are only read from Grabbed's release ladder and Tracked's loss edges, states whose receivers
 # have been live for many frames by the time those edges evaluate. SelfDetect rides TrackingOffset
@@ -227,12 +249,12 @@ layers:
 # re-enabled bone republishes. Accepted: this is a library sample, not a module whose off must
 # interrupt an action. A consumer that needs a clean force-release adds a driver clearing the param
 # to Disabled — the write sticks precisely because the bone GO is inactive (`verify.md`).
-# Constraint source maps:
+# Constraint source maps (box-tracker cage):
 #   Container/VRCPositionConstraint:      source0 HeadMount/AnchorOffset, source1 SourcePosition,
 #                                         source2 TrackedPoint/RideOffset
 #   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
 #   GrabPosition/VRCPositionConstraint:   source0 HeadMount/AnchorOffset, source1 Container
-#   TrackingPoints/VRCPositionConstraint: source0..5 the probes, source6 self (park brake)
+#   TrackingPoints/VRCPositionConstraint: source0 Output (own child), source1 self — g=0.5 crawl feedback
 #   TrackingPoints/VRCParentConstraint:   source0 Container/TrackingOffset (the cage rides the sensed
 #                                         point below the prop when not tracking — at release the cage
 #                                         sits at head-contact level under the prop: the arbitration geometry)
@@ -254,37 +276,29 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 0
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 0
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 0
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 0
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 0
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   timer:        # disabled pose held for the remote boot dwell  [EMPIRICAL: 1.0 s]
     seconds: 1.0
@@ -304,37 +318,29 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   anchored:
     set:
@@ -353,37 +359,29 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   grabbed:
     set:
@@ -402,37 +400,29 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   released:     # the pulse  [EMPIRICAL: sample window [0.25, 0.50) s — grab-prop sweep]
     length: 0.5
@@ -451,37 +441,29 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
     curves:
       "SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
 
@@ -502,41 +484,32 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
-  tracked:      # latch + spread + brake ramp  [EMPIRICAL: contact-tracker constants]
-    seconds: 1.0
-    set:
+  tracked:      # latch geometry + tracked-mode rig config; rides the readout tree at weight One.
+    set:        # crawl gain is STATIC in the prefab (no source-weight curves — box-tracker).
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
@@ -558,22 +531,24 @@ clips:
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 0
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 0
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 0
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 0
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
     curves:
-      # Park brake: hold 1 for the settle dwell, then release  [EMPIRICAL: 1.0 s, wear-test-owned]
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": [ [0, 1], [0.9833333, 1], [1, 0] ]
-      # Probe spread: coincident for one frame (the latch samples first), then the +/-0.5 cage.
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": [ [0, 0], [0.016666668, 0.5] ]
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": [ [0, 0], [0.016666668, -0.5] ]
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": [ [0, 0], [0.016666668, 0.5] ]
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": [ [0, 0], [0.016666668, -0.5] ]
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": [ [0, 0], [0.016666668, 0.5] ]
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": [ [0, 0], [0.016666668, -0.5] ]
+      # Acquisition column for the latch frame (0.5), full tracking slabs one frame later (1) — the
+      # latch samples the coincident column first (box-tracker's coincident-frame idiom). WD would
+      # snap these to 1 at t=0 if the clip didn't own the hold.
+      "TrackingPoints/X+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/X+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/X-/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/X-/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
 
   waiting:      # late-join park: hidden, everything home; the grab physbone stays live outside
     set:
@@ -592,43 +567,48 @@ clips:
       "TrackingPoints/VRCParentConstraint.m_Enabled": 1
       "TrackingPoints/VRCPositionConstraint.m_Enabled": 0
       "TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
-      "TrackingPoints/VRCPositionConstraint.Sources.source6.Weight": 0
       "TrackingPoints/X+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X+/GameObject.m_IsActive": 1
       "TrackingPoints/X-/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/X-/GameObject.m_IsActive": 1
       "TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "TrackingPoints/Y-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Y-/GameObject.m_IsActive": 1
       "TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
       "TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "TrackingPoints/Z-/VRCContactReceiver.allowOthers": 1
-      "TrackingPoints/Z-/GameObject.m_IsActive": 1
-      "TrackingPoints/X+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/X-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Y-/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z+/Transform.m_LocalPosition.z": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.x": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.y": 0
-      "TrackingPoints/Z-/Transform.m_LocalPosition.z": 0
+      "TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
-  # Crawler DBT leaves: each writes exactly its probe's source weight; the direct-tree weight
-  # (raw proximity) scales it, and the constraint normalizes by the weight sum.
-  crawl_xp: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": 1 } }
-  crawl_xn: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source1.Weight": 1 } }
-  crawl_yp: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source2.Weight": 1 } }
-  crawl_yn: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source3.Weight": 1 } }
-  crawl_zp: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source4.Weight": 1 } }
-  crawl_zn: { set: { "TrackingPoints/VRCPositionConstraint.Sources.source5.Weight": 1 } }
+  # Readout leaves (box-tracker, verbatim): Output.localPosition = sum of (reading × coefficients).
+  # With face position f = 1.5 and depth D = 3: x = 1.5(X+ − X-); r = 1.5(X+ + X- − 1);
+  # y = 3·Y+ − 1.5 − r and z = 3·Z+ − 1.5 − r, whose constants cancel into pure per-reading
+  # coefficients. The box geometry (World.prefab absolute, size 6×6×3) and these coefficients are
+  # ONE unit — re-derive together if the tracking boxes change.
+  readout_xp:
+    set:
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": 1.5
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": -1.5
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": -1.5
+  readout_xn:
+    set:
+      "TrackingPoints/Output/Transform.m_LocalPosition.x": -1.5
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": -1.5
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": -1.5
+  readout_yp:
+    set:
+      "TrackingPoints/Output/Transform.m_LocalPosition.y": 3
+  readout_zp:
+    set:
+      "TrackingPoints/Output/Transform.m_LocalPosition.z": 3

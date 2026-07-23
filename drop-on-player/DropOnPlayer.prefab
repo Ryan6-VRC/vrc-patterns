@@ -88,9 +88,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2303924073132939485}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: 0, y: -0.7071068, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5303917861157396257}
@@ -108,10 +108,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
+  shapeType: 2
+  radius: 0.5
   height: 2
-  size: {x: 1, y: 1, z: 1}
+  size: {x: 6, y: 6, z: 3}
   position: {x: 0, y: 0, z: 0}
   rotation: {x: 0, y: 0, z: 0, w: 1}
   localOnly: 0
@@ -120,7 +120,7 @@ MonoBehaviour:
   - Head
   allowSelf: 0
   allowOthers: 1
-  useFaceProximity: 0
+  useFaceProximity: 1
   receiverType: 2
   parameter: DropOnPlayer/X-
   minVelocity: 0.05
@@ -218,7 +218,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5303917861157396257}
@@ -236,10 +236,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
+  shapeType: 2
+  radius: 0.5
   height: 2
-  size: {x: 1, y: 1, z: 1}
+  size: {x: 6, y: 6, z: 3}
   position: {x: 0, y: 0, z: 0}
   rotation: {x: 0, y: 0, z: 0, w: 1}
   localOnly: 0
@@ -248,7 +248,7 @@ MonoBehaviour:
   - Head
   allowSelf: 0
   allowOthers: 1
-  useFaceProximity: 0
+  useFaceProximity: 1
   receiverType: 2
   parameter: DropOnPlayer/Z+
   minVelocity: 0.05
@@ -277,9 +277,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3109955716691882677}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5303917861157396257}
@@ -297,10 +297,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
+  shapeType: 2
+  radius: 0.5
   height: 2
-  size: {x: 1, y: 1, z: 1}
+  size: {x: 6, y: 6, z: 3}
   position: {x: 0, y: 0, z: 0}
   rotation: {x: 0, y: 0, z: 0, w: 1}
   localOnly: 0
@@ -309,7 +309,7 @@ MonoBehaviour:
   - Head
   allowSelf: 0
   allowOthers: 1
-  useFaceProximity: 0
+  useFaceProximity: 1
   receiverType: 2
   parameter: DropOnPlayer/Y+
   minVelocity: 0.05
@@ -741,46 +741,6 @@ MonoBehaviour:
   AffectsPositionX: 1
   AffectsPositionY: 1
   AffectsPositionZ: 1
---- !u!114 &5045791875473783640
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3797259244867856649}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  version: 3
-  unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1350.0
-  somethingIsBroken: 0
-  config:
-    features: []
-  content:
-    rid: 1848182652504113156
-  references:
-    version: 2
-    RefIds:
-    - rid: 1848182652504113156
-      type: {class: ApplyDuringUpload, ns: VF.Model.Feature, asm: VRCFury}
-      data:
-        version: 0
-        action:
-          actions:
-          - rid: 1848182652504113157
-    - rid: 1848182652504113157
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 3797259244867856649}
-        mode: 1
 --- !u!114 &832505627155702832
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -890,6 +850,46 @@ MonoBehaviour:
   AffectsPositionX: 1
   AffectsPositionY: 1
   AffectsPositionZ: 1
+--- !u!114 &5045791875473783640
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3797259244867856649}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 3
+  unityVersion: 2022.3.22f1
+  vrcfuryVersion: 1.1371.0
+  somethingIsBroken: 0
+  config:
+    features: []
+  content:
+    rid: 1848182652504113156
+  references:
+    version: 2
+    RefIds:
+    - rid: 1848182652504113156
+      type: {class: ApplyDuringUpload, ns: VF.Model.Feature, asm: VRCFury}
+      data:
+        version: 0
+        action:
+          actions:
+          - rid: 1848182652504113157
+    - rid: 1848182652504113157
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 3797259244867856649}
+        mode: 1
 --- !u!1 &3797510562260182084
 GameObject:
   m_ObjectHideFlags: 0
@@ -1049,7 +1049,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1350.0
+  vrcfuryVersion: 1.1371.0
   somethingIsBroken: 0
   config:
     features: []
@@ -1104,15 +1104,14 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.8, z: 0.25}
-  m_LocalScale: {x: 0.15, y: 0.15, z: 0.15}
+  m_LocalScale: {x: 0.0666667, y: 0.1333333, z: 0.0666667}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8710910755587685618}
   - {fileID: 3351339132647768350}
   - {fileID: 3404385796613829253}
-  - {fileID: 1584439339534895497}
   - {fileID: 8573984589222605055}
-  - {fileID: 243465517162049003}
+  - {fileID: 2445350085863145200}
   m_Father: {fileID: 3874075044029562060}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2989826620158058698
@@ -1248,37 +1247,37 @@ MonoBehaviour:
   Locked: 1
   Sources:
     source0:
-      SourceTransform: {fileID: 8710910755587685618}
-      Weight: 0
+      SourceTransform: {fileID: 2445350085863145200}
+      Weight: 1
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source1:
-      SourceTransform: {fileID: 3351339132647768350}
-      Weight: 0
+      SourceTransform: {fileID: 5303917861157396257}
+      Weight: 1
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source2:
-      SourceTransform: {fileID: 3404385796613829253}
+      SourceTransform: {fileID: 0}
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source3:
-      SourceTransform: {fileID: 1584439339534895497}
+      SourceTransform: {fileID: 0}
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source4:
-      SourceTransform: {fileID: 8573984589222605055}
+      SourceTransform: {fileID: 0}
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source5:
-      SourceTransform: {fileID: 243465517162049003}
+      SourceTransform: {fileID: 0}
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source6:
-      SourceTransform: {fileID: 5303917861157396257}
+      SourceTransform: {fileID: 0}
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
@@ -1327,7 +1326,7 @@ MonoBehaviour:
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
-    totalLength: 7
+    totalLength: 2
     overflowList: []
   cachedExecutionGroupIndex: -1
   latestValidExecutionGroupIndex: -1
@@ -1440,8 +1439,8 @@ MonoBehaviour:
     overflowList: []
   cachedExecutionGroupIndex: -1
   latestValidExecutionGroupIndex: -1
-  ScaleAtRest: {x: 0.15, y: 0.15, z: 0.15}
-  ScaleOffset: {x: 3, y: 3, z: 3}
+  ScaleAtRest: {x: 0.0666667, y: 0.1333333, z: 0.0666667}
+  ScaleOffset: {x: 1, y: 1, z: 1}
   AffectsScaleX: 1
   AffectsScaleY: 1
   AffectsScaleZ: 1
@@ -1470,9 +1469,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4273230855277955254}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.5, y: 0.5, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5303917861157396257}
@@ -1490,10 +1489,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
+  shapeType: 2
+  radius: 0.5
   height: 2
-  size: {x: 1, y: 1, z: 1}
+  size: {x: 6, y: 6, z: 3}
   position: {x: 0, y: 0, z: 0}
   rotation: {x: 0, y: 0, z: 0, w: 1}
   localOnly: 0
@@ -1502,7 +1501,7 @@ MonoBehaviour:
   - Head
   allowSelf: 0
   allowOthers: 1
-  useFaceProximity: 0
+  useFaceProximity: 1
   receiverType: 2
   parameter: DropOnPlayer/X+
   minVelocity: 0.05
@@ -1981,67 +1980,6 @@ MonoBehaviour:
   showGizmos: 1
   boneOpacity: 0.5
   limitOpacity: 0.5
---- !u!1 &6501969668579588718
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1584439339534895497}
-  - component: {fileID: 5047127024997933676}
-  m_Layer: 0
-  m_Name: Y-
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1584439339534895497
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6501969668579588718}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 5303917861157396257}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &5047127024997933676
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6501969668579588718}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: -1450912254, guid: 80f1b8067b0760e4bb45023bc2e9de66, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
-  height: 2
-  size: {x: 1, y: 1, z: 1}
-  position: {x: 0, y: 0, z: 0}
-  rotation: {x: 0, y: 0, z: 0, w: 1}
-  localOnly: 0
-  contentTypes: -1
-  collisionTags:
-  - Head
-  allowSelf: 0
-  allowOthers: 1
-  useFaceProximity: 0
-  receiverType: 2
-  parameter: DropOnPlayer/Y-
-  minVelocity: 0.05
 --- !u!1 &6782903145051380734
 GameObject:
   m_ObjectHideFlags: 0
@@ -2073,7 +2011,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7421380748870163297}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &6870982231562251379
+--- !u!1 &6987028827575194033
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -2081,22 +2019,21 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 243465517162049003}
-  - component: {fileID: 1972475401569103489}
+  - component: {fileID: 2445350085863145200}
   m_Layer: 0
-  m_Name: Z-
+  m_Name: Output
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &243465517162049003
+--- !u!4 &2445350085863145200
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6870982231562251379}
+  m_GameObject: {fileID: 6987028827575194033}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -2105,35 +2042,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 5303917861157396257}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1972475401569103489
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6870982231562251379}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: -1450912254, guid: 80f1b8067b0760e4bb45023bc2e9de66, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  rootTransform: {fileID: 0}
-  shapeType: 0
-  radius: 1
-  height: 2
-  size: {x: 1, y: 1, z: 1}
-  position: {x: 0, y: 0, z: 0}
-  rotation: {x: 0, y: 0, z: 0, w: 1}
-  localOnly: 0
-  contentTypes: -1
-  collisionTags:
-  - Head
-  allowSelf: 0
-  allowOthers: 1
-  useFaceProximity: 0
-  receiverType: 2
-  parameter: DropOnPlayer/Z-
-  minVelocity: 0.05
 --- !u!1 &7739993993811026437
 GameObject:
   m_ObjectHideFlags: 0
@@ -2190,7 +2098,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1350.0
+  vrcfuryVersion: 1.1371.0
   somethingIsBroken: 0
   config:
     features: []
@@ -2230,6 +2138,7 @@ MonoBehaviour:
         rootBindingsApplyToAvatar: 0
         rewriteBindings: []
         allowMissingAssets: 0
+        injectParams: []
         injectSpsDepthParam: 
         injectSpsVelocityParam: 
         controller:
@@ -2268,7 +2177,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1350.0
+  vrcfuryVersion: 1.1371.0
   somethingIsBroken: 0
   config:
     features: []
@@ -2341,7 +2250,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1350.0
+  vrcfuryVersion: 1.1371.0
   somethingIsBroken: 0
   config:
     features: []

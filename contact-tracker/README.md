@@ -1,13 +1,10 @@
 # contact-tracker — latching proximity tracker (Module)
 
-The building block for anything that interacts with **another player's body**. VRChat won't let you constrain to another avatar's transform, so a contact receiver is the only channel to a point on someone else — and this turns that channel into a usable tracked position. Aim it at any contact tag (the shipped prefabs track a hand and a head); latch a prop, a follower, or a marker to it. It tracks with **zero synced position**: 6 coincident Proximity receivers acquire the target, an animated `allowOthers`-shut latches onto it, and a crawler-servo position constraint chases the latched sender. Every client re-derives the cage locally, so the tracked position never crosses the wire — and therefore **never late-syncs**: a late joiner sees the cage at home until it re-acquires. `Container` is the consumer surface — constrain your payload to it and replace `Marker`.
+The building block for anything that interacts with **another player's body**. VRChat won't let you constrain to another avatar's transform, so a contact receiver is the only channel to a point on someone else — and this turns that channel into a usable tracked position. Aim it at any contact tag (the shipped prefab tracks a hand); latch a prop, a follower, or a marker to it. It tracks with **zero synced position**: 6 coincident Proximity receivers acquire the target, an animated `allowOthers`-shut latches onto it, and a crawler-servo position constraint chases the latched sender. Every client re-derives the cage locally, so the tracked position never crosses the wire — and therefore **never late-syncs**: a late joiner sees the cage at home until it re-acquires. `Container` is the consumer surface — constrain your payload to it and replace `Marker`.
 
 **Provenance:** generalized from a private production avatar's contact tracker (itself a VRCFury conversion of VRLabs Contact-Tracker, MIT). Vestigial Size motion-time bindings and orphaned transitions not ported.
 
-Two prefabs, one controller:
-
-- `ContactTracker.prefab` — sphere probes, tag `Hand` (the generic point tracker).
-- `ContactTracker_Head.prefab` — variant: capsule probes (`height 8` → 1.2 m tall at acquisition scale), tag `Head`. Generous height absorbs per-avatar auto head-contact placement variance.
+One prefab, one controller: `ContactTracker.prefab` — sphere probes, tag `Hand` (the generic point tracker). To catch a prop on another player's **head**, use `drop-on-player` — its box-tracker cage carries a tall head-catch zone and a payload. The standalone `ContactTracker_Head` head-latcher was removed: a head-catcher with no prop is a demo without a use.
 
 ## Interface
 
@@ -20,8 +17,8 @@ Two prefabs, one controller:
 
 | Constant | Value | Measured behavior |
 |---|---|---|
-| Acquisition scale | 0.15 (TrackingPoints localScale) | sphere: latch ≤0.12 m radial, miss ≥0.30. capsule: latch ≤0.55 axial / ≤0.12 radial, miss ≥0.75 / ≥0.30 |
-| Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m for both shapes (radius alone sets the falloff length — height just extends the capsule axis, not the falloff; see `runtime.md` §Contacts); steady-state probe reading ≈ 0.517 |
+| Acquisition scale | 0.15 (TrackingPoints localScale) | latch ≤0.12 m radial, miss ≥0.30 |
+| Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m (radius alone sets the falloff length; see `runtime.md` §Contacts); steady-state probe reading ≈ 0.517 |
 | Probe spread | ±0.5 local (tracking clip) | ±1.5 m world in tracking; sets the step-response limit below |
 | Settle dwell | 1.0 s park-brake hold (tracking clip) | brake=1 damps the acquisition transient (smooth traverse, no leapfrog); releases as a snap at 1.0 s. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
 | Loss / acquire thresholds | all six <0.00001 / >0 | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
