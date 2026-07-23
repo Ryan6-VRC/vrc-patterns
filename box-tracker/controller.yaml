@@ -1,49 +1,22 @@
-# contact-tracker-box — 4-box face-proximity latching crawler (Module tier).
-# The low-contact-budget sibling of contact-tracker: 4 face-proximity box receivers replace the
-# 6-sphere cage, and an exact absolute readout replaces the crawler servo's convergence dynamics.
-# The +/-X box pair yields the sender's x from the reading difference (sender radius cancels) and
-# its radius from the sum; the single Y+/Z+ boxes are radius-compensated. The reconstruction is
-# linear in the four readings, so it compiles to one non-normalized direct blend tree writing
-# Output's localPosition. Range is unlimited: while tracking, a position constraint on
-# TrackingPoints sources Output — its own child, the documented-legal feedback loop
-# (runtime.md §Constraints) — against a self-source brake, so the cage crawls onto the measured
-# sender each frame and the +/-1.5 m working core travels with the target. The crawl only
-# re-centers the volume; Output's world position stays the cage-plus-measured-offset readout
-# (one-frame caveat in the README). Latch is inherited from contact-tracker: allowOthers
-# animated 1->0 at acquisition (filters check only at acquisition, runtime.md).
+# box-tracker — 4-box face-proximity latching crawler. Low-contact-budget sibling of
+# contact-tracker: 4 box receivers + an exact linear readout replace the 6-sphere cage + servo.
+# The README owns the consumer contract and the reconstruction math; this header + the inline
+# comments below own the graph. Mode machine Reset / Searching / Tracking, mirroring
+# contact-tracker's three-state rig — deterministic resume, every state re-derives from Enable +
+# live proximity. Tracking is a non-normalized direct readout tree summing per-reading coefficients
+# into Output.localPosition; a static prefab constraint gain crawls the cage onto the reading.
+# Latch = allowOthers 1->0 at acquisition (filters check only then, runtime.md §Contacts).
 #
-# Provenance: contact-tracker (G5b) structure + the G5d box-contact probe (numbers in README).
-#
-# Empirical constants (runtime.md 90% rule — change only with an emulator test):
-#   acquisition cube 0.15 m per side (default): receiver GOs at localScale (0.5, 0.5, 1) —
-#     every 6x6x3 slab becomes the same 3x3x3 cube in TrackingPoints space, so all four
-#     receivers latch the identical sender set (non-identical acquisition volumes can latch
-#     DIFFERENT senders per box and garbage the readout) — and it IS the visible gizmo. Zone
-#     size/shape knob: TrackingPoints rest localScale + ScaleAtRest together (default 0.05,
-#     per-axis legal); the (0.5, 0.5, 1) collapse is an invariant these clips own, not a knob.
-#     Shape fields (size/radius) are [NotKeyable] — host-GO scale is the only animatable knob.
-#   tracking scale x1 absolute (prefab VRCScaleConstraint ScaleOffset, World.prefab source;
-#     boxes 6x6x3 m, faces at +/-1.5 m, working core |x|,|y|,|z| <= 1.5 m around the cage);
-#     receiver GOs back at scale 1 one frame AFTER the latch samples (the coincident-first-frame
-#     idiom from contact-tracker's probe spread)
-#   readout coefficients 1.5 / 3 (readout_* clips) — derived from face position 1.5 and depth 3;
-#     change the box geometry and these must be re-derived together
-#   crawl gain g = 0.5 (STATIC prefab value on VRCPositionConstraint: g = source0/(source0+source1)
-#     = Output-weight/(Output-weight + self-weight) = 1/(1+1)). NOT animated — no clip touches these
-#     weights, so WD-on holds the prefab value in every state; scrub source0 live in the inspector to
-#     retune. The cage closes ~50% of the cage->sender gap per frame; the self-weight IS the brake
-#     (no dwell — the exact readout has no acquisition transient). First-order stable for g<1; ship
-#     tight (box is meant tighter than the sphere). Searching self-holds because its clip pins Output
-#     to the cage center, so chasing Output at any g is a no-op there.
-#   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
-#
-# Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —
-# one dead receiver breaks the reconstruction, where a dead sphere probe only degrades the servo.
-# Inside the working core all four read strictly >0, so ANY-loss fires only when the sender
-# outruns the crawl to the core boundary (or teleports).
+# Empirical constants (runtime.md 90% rule — change only with an emulator test; rationale inline):
+#   acquisition cube 0.15 m/side   receiver GOs at localScale (0.5,0.5,1) — the four slabs collapse
+#                                  to one coincident cube; an invariant these clips own, not a knob
+#   tracking scale x1 absolute     prefab VRCScaleConstraint ScaleOffset, World.prefab source
+#   readout coefficients 1.5 / 3   face position 1.5, depth 3 — re-derive together if box geometry moves
+#   crawl gain g = 0.5             STATIC prefab VRCPositionConstraint weights (1:1); retune per README
+#   loss <0.00001, acquire >0      ANY receiver lost breaks the readout (contact-tracker loses on ALL)
 
 schema: 1
-controller: ContactTrackerBox_Fx
+controller: BoxTracker_Fx
 basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
 role: fx
 
@@ -52,14 +25,14 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
-  ContactTrackerBox/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }  # off is the reset
+  BoxTracker/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }  # off is the reset
   # Sensing (face proximity) — never synced, never menu-exposed; listed in the params asset for legibility.
-  ContactTrackerBox/X+: float
-  ContactTrackerBox/X-: float
-  ContactTrackerBox/Y+: float
-  ContactTrackerBox/Z+: float
+  BoxTracker/X+: float
+  BoxTracker/X-: float
+  BoxTracker/Y+: float
+  BoxTracker/Z+: float
   # Constant-1 direct weight carrying the latch clip inside the readout tree; never driven.
-  ContactTrackerBox/One: { type: float, default: 1, scratch: true }
+  BoxTracker/One: { type: float, default: 1, scratch: true }
 
 layers:
   # Mode machine, mirroring contact-tracker's three-state rig. Deterministic resume: every state
@@ -75,40 +48,40 @@ layers:
       Reset:                      # Enable off — cage parked at HomeAnchor/Offset, receivers off
         behaviours:
           # localOnly false: the floats are unsynced sensing — every client zeroes its own copy.
-          - driver: { set: { ContactTrackerBox/X+: 0, ContactTrackerBox/X-: 0, ContactTrackerBox/Y+: 0, ContactTrackerBox/Z+: 0 } }
+          - driver: { set: { BoxTracker/X+: 0, BoxTracker/X-: 0, BoxTracker/Y+: 0, BoxTracker/Z+: 0 } }
         motion: { clip: reset }
         transitions:
           - to: Searching
-            when: [ ContactTrackerBox/Enable is true ]
+            when: [ BoxTracker/Enable is true ]
       Searching:                  # filters open, cage self-held, waiting for a sender inside the cube
         motion: { clip: searching }
         transitions:
           - to: Reset
-            when: [ ContactTrackerBox/Enable is false ]
+            when: [ BoxTracker/Enable is false ]
           - to: Tracking
-            when: [ ContactTrackerBox/X+ greater 0, ContactTrackerBox/X- greater 0, ContactTrackerBox/Y+ greater 0, ContactTrackerBox/Z+ greater 0 ]
+            when: [ BoxTracker/X+ greater 0, BoxTracker/X- greater 0, BoxTracker/Y+ greater 0, BoxTracker/Z+ greater 0 ]
       Tracking:                   # filters shut (latched), boxes absolute, Output = live reconstruction, cage crawls onto it
         motion:
           tree: direct
           name: BoxReadout
           normalized: false
           children:
-            - { clip: latch,      directWeight: ContactTrackerBox/One }
-            - { clip: readout_xp, directWeight: ContactTrackerBox/X+ }
-            - { clip: readout_xn, directWeight: ContactTrackerBox/X- }
-            - { clip: readout_yp, directWeight: ContactTrackerBox/Y+ }
-            - { clip: readout_zp, directWeight: ContactTrackerBox/Z+ }
+            - { clip: latch,      directWeight: BoxTracker/One }
+            - { clip: readout_xp, directWeight: BoxTracker/X+ }
+            - { clip: readout_xn, directWeight: BoxTracker/X- }
+            - { clip: readout_yp, directWeight: BoxTracker/Y+ }
+            - { clip: readout_zp, directWeight: BoxTracker/Z+ }
         transitions:
           - to: Searching         # ANY-loss — the readout is broken the moment one box goes dark
-            when: [ ContactTrackerBox/X+ less 0.00001 ]
+            when: [ BoxTracker/X+ less 0.00001 ]
           - to: Searching
-            when: [ ContactTrackerBox/X- less 0.00001 ]
+            when: [ BoxTracker/X- less 0.00001 ]
           - to: Searching
-            when: [ ContactTrackerBox/Y+ less 0.00001 ]
+            when: [ BoxTracker/Y+ less 0.00001 ]
           - to: Searching
-            when: [ ContactTrackerBox/Z+ less 0.00001 ]
+            when: [ BoxTracker/Z+ less 0.00001 ]
           - to: Reset
-            when: [ ContactTrackerBox/Enable is false ]
+            when: [ BoxTracker/Enable is false ]
     default: Reset
     # Hand arrangement (animator-schema.md §Arranging for legibility), mirroring contact-tracker: lifecycle
     # descends from Reset under Entry; Tracking left, Searching right; unused Any/Exit parked.
