@@ -8,9 +8,9 @@ reconstruction is linear in the four readings, so it lives in one non-normalized
 writing `Output`'s localPosition. Range is **unlimited**: while tracking, a position constraint on
 `TrackingPoints` sources `Output` — its own child, the documented-legal feedback loop
 (`runtime.md` §Constraints) — against a self-source brake, so the cage crawls onto the measured
-sender (~13 %/frame) and the ±1.5 m working core travels with the target indefinitely. `Container`
-is the consumer surface — constrain your payload to it and replace `Marker`; it rigidly follows the
-cage.
+sender (~50 %/frame at the default gain `g = 0.5`) and the ±1.5 m working core travels with the
+target indefinitely. `Container` is the consumer surface — constrain your payload to it and replace
+`Marker`; it rigidly follows the cage.
 
 Same latch (`allowOthers` 1→0 shut at acquisition), same zero-position-sync model as
 `contact-tracker`: every client re-derives the cage locally, nothing late-syncs. The trade against
@@ -72,7 +72,7 @@ One prefab, one controller: `ContactTrackerBox.prefab`.
 | Latch-frame hold | cube at t=0 in the latch clip (scale curves reach 1 at t=1/60) | the latch samples the cube's occupants; slabs expand over the next frame |
 | Tracking scale | ×1 absolute (VRCScaleConstraint ScaleOffset, World.prefab source) | boxes 6×6×3 m, faces ±1.5 m; working core \|x\|,\|y\|,\|z\| ≤ 1.5 m **around the cage**; all four read strictly >0 inside it (center latch reads 0.5 + r/3 per box — 0.5100 at r=0.03, exact) |
 | Readout coefficients | 1.5 / 3 (readout_* clips) | derived from face position 1.5 m and depth 3 m — re-derive together if the box geometry changes. Scale-invariant (readings are geometry ratios) |
-| Crawl gain | 0.15 (latch clip, position-constraint Output source vs self 1.0) | normalized → ~13 % of the cage→sender gap closed per frame; the constant self-weight is the brake (no dwell — the readout has no acquisition transient). Walk-along 10 m @1.5 m/s: steady cage lag 0.25–0.39 m, latch held throughout. Feel band 0.1–0.2, framerate-dependent by design |
+| Crawl gain | **static**, default **g = 0.5** (`VRCPositionConstraint` source0=Output=1 : source1=self=1; g = w₀/(w₀+w₁)) | closes ~50 %/frame — tracks more closely than the 6-contact `contact-tracker` and has no ~1 s acquisition settle-dwell. **Tunable, both ways and live:** no clip animates the weights (WD-on holds the prefab value), so scrub source0 in the inspector during play — lower for a softer, floatier follow, higher (→ g=1) for a locked-on snap. Self-weight is the brake; first-order stable for g<1, framerate-dependent by design |
 | Loss / acquire thresholds | any <0.00001 / all four >0 | ANY-loss (vs contact-tracker's ALL): one dead box breaks the reconstruction, so partial reads never hold Tracking |
 
 ## Verifying the install
