@@ -17,7 +17,7 @@ One prefab, one controller: `ContactTracker.prefab` — sphere probes, tag `Hand
 
 | Constant | Value | Measured behavior |
 |---|---|---|
-| Acquisition scale | 0.15 (TrackingPoints localScale) | latch ≤0.12 m radial, miss ≥0.30 |
+| Acquisition scale | 0.1 (TrackingPoints localScale) | latch ≤0.08 m radial, miss ≥0.20 (∝ acquisition scale) |
 | Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m (radius alone sets the falloff length; see `runtime.md` §Contacts); steady-state probe reading ≈ 0.517 |
 | Probe spread | ±0.5 local (tracking clip) | ±1.5 m world in tracking; sets the step-response limit below |
 | Settle dwell | 1.0 s park-brake hold (tracking clip) | brake=1 damps the acquisition transient (smooth traverse, no leapfrog); releases as a snap at 1.0 s. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |

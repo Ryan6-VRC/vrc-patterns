@@ -25,10 +25,10 @@
 # loss, a 1.0 s park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
 # converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
 #
-# Head-catch zone (P3): the acquisition cube is stretched to a VERTICAL COLUMN — 0.2 m wide/deep,
-# 0.4 m tall — so lowering a prop onto a head reliably catches (and it widens the release-
+# Head-catch zone (P3): the acquisition cube is stretched to a VERTICAL COLUMN — 0.15 m wide/deep,
+# 0.3 m tall — so lowering a prop onto a head reliably catches (and it widens the release-
 # arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints
-# rest localScale + VRCScaleConstraint ScaleAtRest (0.0667, 0.1333, 0.0667) — zone side = 3 × scale
+# rest localScale + VRCScaleConstraint ScaleAtRest (0.05, 0.1, 0.05) — zone side = 3 × scale
 # per axis. The receiver box is a 1.5³ cube in local space, so the 90° rotations are shape-
 # invariant and a non-uniform parent scale gives a clean axis-aligned box; tracking geometry is
 # constraint-pinned absolute (World.prefab, uniform) so the readout stays EXACT. Cost: one latch
@@ -41,7 +41,7 @@
 #     the sync tick so a world-drop doesn't flash through a stale mode)  [EMPIRICAL: source-avatar attach dwell]
 #   remote boot dwell: 1.0 s (timer clip)                          [EMPIRICAL: grab-prop in-game candidate]
 #   crawl gain g = 0.5 (STATIC prefab constraint weights, no clip animates them)  [box-tracker]
-#   acquisition zone 0.2 × 0.2 × 0.4 m (TrackingPoints ScaleAtRest); loss <0.00001, acquire >0
+#   acquisition zone 0.15 × 0.15 × 0.3 m (TrackingPoints ScaleAtRest); loss <0.00001, acquire >0
 #
 # Deliberate deltas from the source ancestor: no banded mode int (2 direct bools —
 # few exclusive states, gimmicks.md §Packaging); no 6 s world-band dwell (it existed for

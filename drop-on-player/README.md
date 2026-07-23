@@ -26,7 +26,7 @@ Grab the prop and release it: on your own head it anchors (a bone constraint —
 
 ## How it works
 
-The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage, plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at head-contact level while the prop sits at hat level: the same four box receivers that will track the target are the "is another player's head here" sensor, centered where a head actually is. That sensor is a **vertical catch column** — 0.2 m wide/deep, **0.4 m tall** — so lowering the prop onto a head catches reliably down the whole column (and it is a roomier arbitration zone than the old 0.15 m cube). While tracking, the four boxes reconstruct the target's exact position (`box-tracker`) and the cage crawls onto it at a static gain; the prop rides the cage (`TrackedPoint`), never the raw readout, so it never sees the readout's lead.
+The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage, plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't tracking — the sensed point 0.2 *below* the prop — so at the release instant the cage sits at head-contact level while the prop sits at hat level: the same four box receivers that will track the target are the "is another player's head here" sensor, centered where a head actually is. That sensor is a **vertical catch column** — 0.15 m wide/deep, **0.3 m tall** — so lowering the prop onto a head catches reliably down the whole column (a taller arbitration zone than the old flat 0.15 m cube). While tracking, the four boxes reconstruct the target's exact position (`box-tracker`) and the cage crawls onto it at a static gain; the prop rides the cage (`TrackedPoint`), never the raw readout, so it never sees the readout's lead.
 
 **Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all four boxes fire → `Tracked` (the cage latches `allowOthers` shut and the readout crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
 
@@ -41,17 +41,17 @@ Empirical constants (90% rule — test before changing):
 | Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | grab-prop emulator sweep |
 | Remote release-settle | 0.5 s (= pulse length; remotes route by pair at pulse end) | measured on the source avatar; in-game batch owns it |
 | Remote boot dwell | 1.0 s (`timer` clip) | grab-prop in-game candidate |
-| Head-catch column | 0.2 × 0.2 × **0.4 m** (`TrackingPoints` ScaleAtRest 0.0667/0.1333/0.0667; side = 3 × scale) | P3 — tall so lowering onto a head reliably catches. Doubles as the arbitration zone |
+| Head-catch column | 0.15 × 0.15 × **0.3 m** (`TrackingPoints` ScaleAtRest 0.05/0.1/0.05; side = 3 × scale) | P3 — tall so lowering onto a head reliably catches. Doubles as the arbitration zone; Chocolat wear-tune |
 | Tracking geometry / crawl gain | ×1 absolute 6×6×3 m boxes (World.prefab, faces ±1.5 m) · g = 0.5 **static** | `box-tracker` — exactness makes a constant gain enough; **no settle-dwell brake** |
 | Loss / acquire thresholds | **ANY** of four <0.00001 / all four >0 | `box-tracker` — one dead box breaks the exact reconstruction (vs the old ALL-six) |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
-| Anchor offsets | +0.25 above the head bone (anchored) / +0.15 above the cage centroid (tracked) | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
+| Anchor offsets | +0.25 above the head bone (anchored) / +0.2 above the cage centroid (tracked); self-detect receiver radius 0.1 | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
 
 ## Verifying the install
 
-At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender. **Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage 0.15 below it at head-contact level; both offsets are per-avatar head-size constants, so re-check them on a new base rather than trusting the shipped values.
+At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender. **Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage 0.2 below it at head-contact level; both offsets are per-avatar head-size constants, so re-check them on a new base rather than trusting the shipped values.
 
-For the tracker: with the prop grabbed, put a scripted `Head` sender (`docs/verify.md`) into the 0.4 m catch column and release — the four `X+/X-/Y+/Z+` floats leave zero together, filters shut, and `Output` lands on the sender (the cage then crawls `TrackedPoint` onto it). A partial box set that never all-fire means the column no longer suits this avatar's head placement. Because loss is **ANY-box** (`box-tracker`), a target leaving even one box's ±1.5 m core drops the prop — a smaller effective range than the old ALL-six, by design.
+For the tracker: with the prop grabbed, put a scripted `Head` sender (`docs/verify.md`) into the 0.3 m catch column and release — the four `X+/X-/Y+/Z+` floats leave zero together, filters shut, and `Output` lands on the sender (the cage then crawls `TrackedPoint` onto it). A partial box set that never all-fire means the column no longer suits this avatar's head placement. Because loss is **ANY-box** (`box-tracker`), a target leaving even one box's ±1.5 m core drops the prop — a smaller effective range than the old ALL-six, by design.
 
 Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed` does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and culling against a genuinely distant or occluded player.
 
@@ -63,8 +63,8 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
     ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/AnchorOffset,
     │  │                              source1 SourcePosition, source2 TrackedPoint/RideOffset]
     │  ├─ Payload                     placeholder sphere — swap for your prop, keep under Container
-    │  └─ TrackingOffset (0,-0.15,0)  the sensed point below the prop — VRCContactReceiver: tag Head,
-    │                                 Constant, allowSelf ON allowOthers OFF localOnly ON →
+    │  └─ TrackingOffset (0,-0.2,0)   the sensed point below the prop — VRCContactReceiver: tag Head,
+    │                                 Constant radius 0.1, allowSelf ON allowOthers OFF localOnly ON →
     │                                 DropOnPlayer/SelfDetect (the wearer's own standard Head sender);
     │                                 also the cage's park source, so at release the cage sits at
     │                                 head-contact level while the prop sits at hat level
@@ -79,11 +79,11 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
     │                                 sits at the neck, so this lift is necessarily larger than
     │                                 TrackingOffset (which measures from the head-contact center)
     ├─ TrackedPoint   (0, 0.8, 0.25)  VRCPositionConstraint [source0 TrackingPoints] — rides the cage
-    │  └─ RideOffset  (0, 0.15, 0)    tracked-mode rest point, above the cage (which converges on the
+    │  └─ RideOffset  (0, 0.2, 0)     tracked-mode rest point, above the cage (which converges on the
     │                                 target's head-contact center, inside the skull) — the prop rides
     │                                 like a hat. Mirrors TrackingOffset; the EditorOnly rig keeps the
     │                                 two aligned in edit mode (drag TrackingOffset, this follows)
-    ├─ TrackingPoints (0, 0.8, 0.25)  localScale (0.0667, 0.1333, 0.0667) = the 0.2×0.2×0.4 m catch column
+    ├─ TrackingPoints (0, 0.8, 0.25)  localScale (0.05, 0.1, 0.05) = the 0.15×0.15×0.3 m catch column
     │  │                              (side = 3 × scale); VRCParentConstraint [TrackingOffset] (park — rides
     │  │                              the prop); VRCPositionConstraint [source0 Output, source1 self] — the
     │  │                              g=0.5 crawl feedback, weights STATIC (no clip animates them);
