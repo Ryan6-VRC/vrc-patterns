@@ -32,8 +32,6 @@
 #     weight 1) — normalized, so the cage closes ~13% of the gap to the measured sender per
 #     frame; the constant self-weight IS the brake (no dwell needed — the readout has no
 #     acquisition transient). Feel-tunable 0.1-0.2, framerate-dependent by design.
-#   marker damping 0.15 (latch clip, Container source0 weight vs self source2 weight 1) —
-#     same normalization, ~13%/frame chase of Output (feel band 0.1-0.2)
 #   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
 #
 # Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —
@@ -151,9 +149,6 @@ clips:
       TrackingPoints/Output/Transform.m_LocalPosition.x: 0   # Output collapsed to the cage center
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
-      Container/VRCParentConstraint.Sources.source0.Weight: 0  # marker parks at HomeAnchor/Offset,
-      Container/VRCParentConstraint.Sources.source1.Weight: 1  #   riding the wearer
-      Container/VRCParentConstraint.Sources.source2.Weight: 0  # damping self-source off while parked
 
   searching:
     set:
@@ -185,9 +180,6 @@ clips:
       TrackingPoints/Output/Transform.m_LocalPosition.x: 0
       TrackingPoints/Output/Transform.m_LocalPosition.y: 0
       TrackingPoints/Output/Transform.m_LocalPosition.z: 0
-      Container/VRCParentConstraint.Sources.source0.Weight: 0
-      Container/VRCParentConstraint.Sources.source1.Weight: 1
-      Container/VRCParentConstraint.Sources.source2.Weight: 0
 
   # Latch: rides the readout tree at constant weight 1 (One). Non-normalized direct children sum
   # per binding over the clips that write it, so these values pass through unscaled while the
@@ -215,9 +207,6 @@ clips:
       TrackingPoints/X-/Transform.m_LocalScale.z: 1
       TrackingPoints/Y+/Transform.m_LocalScale.z: 1
       TrackingPoints/Z+/Transform.m_LocalScale.z: 1
-      Container/VRCParentConstraint.Sources.source0.Weight: 0.15  # damped chase: ~13%/frame toward Output
-      Container/VRCParentConstraint.Sources.source1.Weight: 0
-      Container/VRCParentConstraint.Sources.source2.Weight: 1     # self — last frame's own position
     curves:
       # Cube for the latch frame, full slabs one frame later (WD would snap these to 1 at t=0
       # if the clip didn't own them — the hold is the point).
