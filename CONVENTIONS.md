@@ -2,7 +2,7 @@
 
 Reusable avatar building blocks. Primary reader: an agent with the full Atelier workspace. YAML is the source of truth; built Unity assets are regenerable.
 
-The general avatar-tooling doctrine an entry *embodies* — module seams and the build-order that constrains them, gimmick packaging, graph-layout legibility, the binding schema — lives in the workspace docs (`nondestructive.md`, `gimmicks.md`, `animator-schema.md`). This file is only the mechanics a contributor **to vrc-patterns itself** needs: the entry's shape on disk, the README Interface slot, and the gate.
+The general avatar-tooling doctrine an entry *embodies* — module seams and the build-order that constrains them, gimmick packaging, graph-layout legibility, the binding schema — lives in the workspace docs (`nondestructive.md`, `gimmicks.md`, `animator-schema.md`). This file is only the mechanics a contributor **to vrc-patterns itself** needs: the entry's shape on disk, the README's shape and Interface slot, and the gate.
 
 ## An entry is a folder
 
@@ -20,6 +20,22 @@ One axis changes an entry's shape: **does it ship a GUID-consumer** (a prefab/as
 - **Pattern** — `controller.yaml`, plus `built/` for the study/reference form (which every current Pattern is): a DBT graph is legible only in the animator window, so `built/` is committed and held to decompile-equality like any `built/`. A pure lift-and-recompile Pattern would ship `controller.yaml` alone — none exist yet.
 - **Module** — adds `<entry>.prefab` (one or more variants), and `assets/` when it ships owned meshes/materials. `built/` committed; the prefab references it by GUID.
 - **Structural Module** — a Module whose behaviour lives entirely in its prefab's components (a constraint rig, no animator): ships `<entry>.prefab` with **no `controller.yaml`** and no `built/`. The compile/round-trip pass skips it (nothing to compile), but the gate's prefab-integrity pass (§The gate) still asserts its prefab imports with no missing scripts — script integrity only; behavioural correctness rests on the README install check.
+
+## The README's two readers
+
+A README serves both a wide-skill-range human and an agent lifting the entry, in one document ordered by depth — not split into parallel human/agent halves (a split duplicates facts and rots). The **lead** is where a human stops; the **Interface stanza and body** are where the agent reads on. Each fact lives once and the reading order is the audience gradient: never restate the lead's "what" in agent terms below, and never pull mechanism up into the lead.
+
+**The lead** (1–3 sentences under the title, before Provenance) says what a consumer *gets*, names the mechanism without explaining it, and ends on the packaged novelty — the one thing this entry exists to give — with its synced-bit cost. Describe the artifact ("a prop anyone in the instance can carry and set down"); do not perform a sales tour ("grab it off your body and pass it to a friend"). One concrete example orients in one clause ("swap the payload for your prop — a pipe, a mic"), never a costume parade ("a kiseru, a mic, a fan, a lollipop"). A Pattern with no wearer addresses the author lifting it, same register: say plainly what it computes and costs. When an entry has structural shape a lead can't carry (a variant family, N anchor classes), a short list may follow — still what-it-*is*, the how deferred to **How it works**.
+
+The register is the anti-cringe pin, load-bearing because the pull is toward a marketplace listing: describe don't sell, one example not an inventory, name the mechanism don't gloss it, no cutesy enumerations ("headpats, cheek pokes, tail tugs" → "touch zones that react to a toucher").
+
+**Tier label** in the title is the bare tier in parens — `(Module)`, `(Module, study)`, `(Pattern, study)`, `(Structural Module)` — and the catalog's Tier column uses the same word.
+
+**Consumer-gotcha slot** (optional, Module tier), when a correct install still hits compose-time traps: one section, **Before you compose it**, after the Interface stanza.
+
+**Empirical-constants table** attaches to the mechanism prose — inside **How it works** where the entry has one — never floating as an H2 between the lead and the Interface contract. An entry with no How-it-works (its mechanism carried by the lead + a Traps section) may keep a labelled constants block after the Interface stanza.
+
+**Catalog invariant:** each `README.md` catalog row's "Build this" cell is the one-line compression of that entry's lead. They are authored together, and drift between them is the review check that holds register consistent across entries.
 
 ## The Interface stanza (fixed README slot)
 

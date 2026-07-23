@@ -1,9 +1,8 @@
-# zone-touch — N-zone touch reaction, sync-only-the-divergent-outcome (Module tier)
+# zone-touch — N-zone touch reaction, sync-only-the-divergent-outcome (Module)
 
-Three touch zones, one reaction machine, **2 synced bits**. Every client's copy of the avatar senses the toucher with its own receivers (`localOnly: 0`, `allowSelf`+`allowOthers`), so the common-case reaction reproduces on all clients at zero synced bits and zero latency; the two bits are spent on what remotes genuinely cannot re-derive — the enable (off must silence *remote* sensing too) and the outcome of a local random roll selecting the rare special reaction. Remotes re-arm on the special bool's **falling edge**: the wearer's dwell is the single clock, no remote timers to skew, late-join-safe because both bits are unsaved default-0.
+Touch zones on the avatar that react when someone touches them — a headpat, a poke — with the reaction showing on every client. Point three receivers at the parts you want touch-reactive; the machine debounces, arbitrates coincident touches, and plays the reaction. The packaged novelty is spending almost no sync on it: each client senses the toucher locally, so the common reaction reproduces everywhere at zero synced bits and zero latency, and the only things synced are what a remote cannot re-derive — the enable and a rare random-special outcome, **2 bits total**.
 
-**Provenance:** a private production avatar's headpat mechanism, generalized (sync-only-the-divergent-outcome
-+ level-handshake rearm, `gimmicks.md` §Contacts). The vendor baseline it corrects is the commercial touch-spots class, whose five shipped defects this entry inverts: synced+saved sensing, no debounce, no arbitration, AnyState self-retrigger, default-on kill switch. Audio variant selection (parameter-indexed `VRCAnimatorPlayAudio`) is deliberately not shipped — asset closure; the headpat is the worked example to copy when you add sound.
+**Provenance:** a private production avatar's headpat mechanism, generalized (sync-only-the-divergent-outcome + level-handshake rearm, `gimmicks.md` §Contacts). The vendor baseline it corrects is the commercial touch-spots class, whose five shipped defects this entry inverts: synced+saved sensing, no debounce, no arbitration, AnyState self-retrigger, default-on kill switch. Audio variant selection (parameter-indexed `VRCAnimatorPlayAudio`) is deliberately not shipped — asset closure; the headpat is the worked example to copy when you add sound.
 
 ## Interface
 
@@ -20,7 +19,7 @@ Three touch zones, one reaction machine, **2 synced bits**. Every client's copy 
 - **Dependencies:** VRC SDK + VRCFury.
 - **Required assets:** none — `ReactProxy` is a unit-scale wrapper the reaction clips animate (clip scale values read as multipliers of rest); the placeholder sphere is its child. Replace the child (keep it under the wrapper) or the `zt_react`/`zt_special` clip content with your real reaction.
 
-## The things to know before wearing it
+## Before you compose it
 
 - **Zones are yours to place — by constraint, never by reparent.** `Zones/Zone1..3` ship as unanchored children of the module root; anchor each to the body part it should sense with a VRCParentConstraint. The zone GOs are path-animated (the enable clips drive their `m_IsActive`), so anything that moves them out of the module subtree — reparenting under a bone, MA BoneProxy, VRCFury ArmatureLink — silently kills the enable clips (MA moves objects before VRCFury resolves FullController paths). Receiver tags are `Hand`/`Finger` (community-standard toucher tags).
 - **Arbitration is the transition ladder.** Coincident touches resolve Zone1 > Zone2 > Zone3 by list order — one machine, one writer, so there is no last-write-wins on the reaction rig (the vendor failure). Re-order the ladder to re-prioritize.

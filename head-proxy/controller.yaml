@@ -3,8 +3,8 @@
 #
 # Two layers over a rig whose humanoid Head is the non-deforming, chop-exempt Head_Proxy:
 #   VoiceProjection — ventriloquism: swaps the Head_Proxy position-constraint source between the
-#     deform Head (home) and the VoiceTarget socket, moving the humanoid head (viewpoint anchor,
-#     voice origin, IK target) without moving the deforming head's visible geometry.
+#     deform Head (home) and the VoiceTarget socket, moving the humanoid head (voice origin, IK
+#     target — NOT the viewpoint, which is headset-locked) without moving the deform head's geometry.
 #   FakeChop — the vision fix, AUTO-ENGAGED with MoveHead: relocating the humanoid head moves the
 #     whole chop-listed bone set away from the avatar root, and past the client's ~0.5-1 m
 #     release gate the real chop lets go — your own deform head reappears at full scale exactly

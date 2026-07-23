@@ -142,7 +142,7 @@ MonoBehaviour:
   allowOthers: 1
   useFaceProximity: 1
   receiverType: 2
-  parameter: ContactTrackerBox/X+
+  parameter: BoxTracker/X+
   minVelocity: 0.05
 --- !u!1 &1394216362763703548
 GameObject:
@@ -203,7 +203,7 @@ MonoBehaviour:
   allowOthers: 1
   useFaceProximity: 1
   receiverType: 2
-  parameter: ContactTrackerBox/X-
+  parameter: BoxTracker/X-
   minVelocity: 0.05
 --- !u!1 &1584662565542796278
 GameObject:
@@ -264,7 +264,7 @@ MonoBehaviour:
   allowOthers: 1
   useFaceProximity: 1
   receiverType: 2
-  parameter: ContactTrackerBox/Y+
+  parameter: BoxTracker/Y+
   minVelocity: 0.05
 --- !u!1 &5230958922020167185
 GameObject:
@@ -1135,7 +1135,7 @@ MonoBehaviour:
   allowOthers: 1
   useFaceProximity: 1
   receiverType: 2
-  parameter: ContactTrackerBox/Z+
+  parameter: BoxTracker/Z+
   minVelocity: 0.05
 --- !u!1 &8008241726861732105
 GameObject:
@@ -1149,7 +1149,7 @@ GameObject:
   - component: {fileID: 6203569139929035824}
   - component: {fileID: 6202057305128830699}
   m_Layer: 0
-  m_Name: ContactTrackerBox
+  m_Name: BoxTracker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1206,7 +1206,7 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: 5904009dca4b84149a2a31313b8af29c|Packages/com.ryan6vrc.patterns/contact-tracker-box/built/ContactTrackerBox_Fx.controller
+            id: 5904009dca4b84149a2a31313b8af29c|Packages/com.ryan6vrc.patterns/box-tracker/built/BoxTracker_Fx.controller
             objRef: {fileID: 9100000, guid: 5904009dca4b84149a2a31313b8af29c, type: 2}
           type: 5
         menus: []
@@ -1215,11 +1215,11 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: bd023668dab84194992f91149421c915|Packages/com.ryan6vrc.patterns/contact-tracker-box/built/ContactTrackerBox_Fx_Parameters.asset
+            id: bd023668dab84194992f91149421c915|Packages/com.ryan6vrc.patterns/box-tracker/built/BoxTracker_Fx_Parameters.asset
             objRef: {fileID: 11400000, guid: bd023668dab84194992f91149421c915, type: 2}
         smoothedPrms: []
         globalParams:
-        - ContactTrackerBox/Enable
+        - BoxTracker/Enable
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -1320,7 +1320,7 @@ MonoBehaviour:
         simpleOutTransition: 1
         defaultSliderValue: 0
         useGlobalParam: 1
-        globalParam: ContactTrackerBox/Enable
+        globalParam: BoxTracker/Enable
         holdButton: 0
         invertRestLogic: 0
         expandIntoTransition: 1
