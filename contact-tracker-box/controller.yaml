@@ -12,21 +12,6 @@
 # (one-frame caveat in the README). Latch is inherited from contact-tracker: allowOthers
 # animated 1->0 at acquisition (filters check only at acquisition, runtime.md).
 #
-# PARITY CONTRACT with contact-tracker (locked — do not reopen; every prior attempt regressed by
-# reopening it). This module IS contact-tracker with ONE deliberate change and no others: the servo
-# target is derived from an exact 4-box readout written to Output, where the sphere derives it from a
-# 6-probe proximity centroid. Everything else is identical.
-#   - `Container` is a single rigid source = the cage (`TrackingPoints`), weight 1, `VRCParentConstraint`
-#     (position+rotation, scale-isolated). Copy it from the ground truth: `contact-tracker`'s `Container`
-#     in `ContactTracker.prefab`.
-#   - No clip touches `Container` — strip it from reset/searching/latch. Home-on-reset, freeze-on-loss,
-#     and track-in-tracking are then inherited from the cage's own constraints, exactly as in the sphere.
-#   - `Output` stays as the cage servo's target transform (it stands in for the sphere's six probe
-#     sources). `Container` must not reference `Output`.
-#   - All smoothing lives in one servo constant: the cage position-constraint's `Output`-source weight vs
-#     its self-brake weight (`g = w/(w+b)`). There is no second smoothing stage. **Adding a
-#     `Container`-side damping or chase constraint is the exact regression this contract forbids.**
-#
 # Provenance: contact-tracker (G5b) structure + the G5d box-contact probe (numbers in README).
 #
 # Empirical constants (runtime.md 90% rule — change only with an emulator test):
@@ -46,9 +31,7 @@
 #   crawl gain 0.15 (latch clip, position-constraint Output source0 weight vs self source1
 #     weight 1) — normalized, so the cage closes ~13% of the gap to the measured sender per
 #     frame; the constant self-weight IS the brake (no dwell needed — the readout has no
-#     acquisition transient). Feel-tunable 0.1-0.2, framerate-dependent by design. This is the
-#     ONLY smoothing stage (parity contract) — the marker rides Container, which rigidly copies the
-#     cage; there is no separate Container-side damping.
+#     acquisition transient). Feel-tunable 0.1-0.2, framerate-dependent by design.
 #   loss threshold 0.00001 per receiver, acquisition threshold >0 on all four (transitions)
 #
 # Loss is ANY receiver < threshold (contact-tracker uses ALL): the readout needs all four boxes —

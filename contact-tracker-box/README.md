@@ -9,10 +9,8 @@ writing `Output`'s localPosition. Range is **unlimited**: while tracking, a posi
 `TrackingPoints` sources `Output` — its own child, the documented-legal feedback loop
 (`runtime.md` §Constraints) — against a self-source brake, so the cage crawls onto the measured
 sender (~13 %/frame) and the ±1.5 m working core travels with the target indefinitely. `Container`
-is the consumer surface — constrain your payload to it and replace `Marker`. It is a single rigid
-source on the cage (`TrackingPoints`), weight 1, so the marker inherits home/freeze/track from the
-cage's own constraints exactly as `contact-tracker` does — there is no separate Container-side
-smoothing (§Parity contract).
+is the consumer surface — constrain your payload to it and replace `Marker`; it rigidly follows the
+cage.
 
 Same latch (`allowOthers` 1→0 shut at acquisition), same zero-position-sync model as
 `contact-tracker`: every client re-derives the cage locally, nothing late-syncs. The trade against
@@ -36,29 +34,10 @@ unlerps linearly across the box depth — axis-separable by construction, radius
 
 One prefab, one controller: `ContactTrackerBox.prefab`.
 
-## Parity contract
-
-Locked — do not reopen; every prior attempt regressed by reopening it. This module **is**
-`contact-tracker` with **one** deliberate change and no others: the servo target is derived from an
-exact 4-box readout written to `Output`, where the sphere derives it from a 6-probe proximity
-centroid. Everything else is identical.
-
-- `Container` is a single rigid source = the cage (`TrackingPoints`), weight 1, `VRCParentConstraint`
-  (position+rotation, scale-isolated). Copy it from the ground truth: `contact-tracker`'s `Container`
-  in `ContactTracker.prefab`.
-- No clip touches `Container` — strip it from reset/searching/latch. Home-on-reset, freeze-on-loss,
-  and track-in-tracking are then inherited from the cage's own constraints, exactly as in the sphere.
-- `Output` stays as the cage servo's target transform (it stands in for the sphere's six probe
-  sources). `Container` must not reference `Output`.
-- All smoothing lives in one servo constant: the cage position-constraint's `Output`-source weight vs
-  its self-brake weight (`g = w/(w+b)`). There is no second smoothing stage. **Adding a
-  `Container`-side damping or chase constraint is the exact regression this contract forbids.**
-
 ## Interface
 
 - **Params:** `ContactTrackerBox/Enable` (bool, in) — synced, unsaved; off is the reset **and the
-  recall**: Reset parks the cage at `HomeAnchor/Offset` and rides the wearer; `Container` rigidly
-  copies the cage, so the marker parks home with it.
+  recall**: Reset parks the cage at `HomeAnchor/Offset` and rides the wearer.
   `HomeAnchor` is an MA BoneProxy (Hips, AsChildAtRoot); retarget the proxy or drag `Offset`
   (0.1 up / 0.35 forward) to move home. On latch the cage crawls freely — cycling Enable recalls a
   stranded cage home, same gesture as `contact-tracker`. The four `ContactTrackerBox/{X+,X-,Y+,Z+}`
@@ -114,8 +93,8 @@ the near surface (a few cm; constant, not jitter).
   Output from readings sampled against the pre-crawl cage, then the constraint moves the cage the
   same frame. At latch (gap ≤ half-zone + radius) that is ≲2 cm decaying; during a steady walk it
   is ≈ one frame of sender travel (emulator-measured max 8 cm at ~15 fps editor; scales down with
-  fps). Payloads read `Container` — which rigidly copies the cage (the crawl-smoothed position),
-  not `Output` — and never see it; scripting against `Output` should settle by time, not frames.
+  fps). Payloads read `Container` (the crawl-smoothed cage position) and never see it; scripting
+  against `Output` should settle by time, not frames.
 - **Loss while crawling is a freeze, not a recall.** ANY-loss drops to Searching: cage self-holds
   where it stands (fail-visible), filters reopen, cube recollapses at the stranded spot — a sender
   re-entering that cube relatches in place. Cycle Enable to recall. A teleporting target produces
