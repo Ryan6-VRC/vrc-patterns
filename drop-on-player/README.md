@@ -1,20 +1,8 @@
 # drop-on-player — release-arbitrated prop: own head / another player / world (Module tier)
 
-Grab the prop and release it: on your own head it anchors (a bone constraint — precise, and it
-**late-syncs**); on another player's head it latches and follows them (a proximity cage — per-client
-re-derivation, **no late-sync**); anywhere else it freezes in place (sample-and-hold — no late-sync).
-The three rest mechanisms are structurally different because you *cannot constrain to another
-avatar's transform* (`gimmicks.md` §Constraint patterns "Attaching a prop to a body point") — the
-release-time **arbitration** between them, and the 2-bool mode sync that lets every client re-derive
-the outcome, are what this entry ships. Module total: **2 synced bits** (`DropOnPlayer/Out`,
-`DropOnPlayer/Worn`).
+Grab the prop and release it: on your own head it anchors (a bone constraint — precise, and it **late-syncs**); on another player's head it latches and follows them (a proximity cage — per-client re-derivation, **no late-sync**); anywhere else it freezes in place (sample-and-hold — no late-sync). The three rest mechanisms are structurally different because you *cannot constrain to another avatar's transform* (`gimmicks.md` §Constraint patterns "Attaching a prop to a body point") — the release-time **arbitration** between them, and the 2-bool mode sync that lets every client re-derive the outcome, are what this entry ships. Module total: **2 synced bits** (`DropOnPlayer/Out`, `DropOnPlayer/Worn`).
 
-**Provenance:** generalized from a private production avatar's carried-doll system (grab-prop + contact-tracker composed).
-Kept: release-routing arbitration, mode fusion with off-is-reset, the remote release-settle dwell,
-freeze-on-loss. Abstracted away: the Custom-Object-Sync half (late-join-exact world drops — its 6 s
-world-band dwell and ~¼ of the ancestor's FSM exist only for that), the 5-way self-body anchor
-multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of this library's
-`grab-prop` + `contact-tracker` — one compressed controller reusing their measured idioms.
+**Provenance:** generalized from a private production avatar's carried-doll system (grab-prop + contact-tracker composed). Kept: release-routing arbitration, mode fusion with off-is-reset, the remote release-settle dwell, freeze-on-loss. Abstracted away: the Custom-Object-Sync half (late-join-exact world drops — its 6 s world-band dwell and ~¼ of the ancestor's FSM exist only for that), the 5-way self-body anchor multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of this library's `grab-prop` + `contact-tracker` — one compressed controller reusing their measured idioms.
 
 ## Interface
 
@@ -31,19 +19,9 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
     necessity** (remotes re-derive the chase); `SelfDetect` is `localOnly: 1` (routing input only —
     its outcome syncs as the pair) and reads the wearer's own **standard Head sender** (allowSelf
     + tag `Head`, Constant) — no custom sender to place or tune.
-- **Seam:** VRCFury `FullController` on the prefab root (FX, `basis: mount-root`) merging
-  `built/DropOnPlayer_Fx_Parameters.asset`; `DropOnPlayer/Enable` + `DropOnPlayer/ToHead` ride
-  `globalParams` with a VRCFury `Toggle` each as the menu front (ToHead as momentary/hold). **Plus
-  one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone (the mixed seam: the anchor's
-  placement must be visible while authoring). `HeadMount` is referenced only as a constraint source
-  — no VRCF clip binding paths through it.
-- **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull`
-  alongside** (its README §When a module needs this) — the tracked and dropped modes replay
-  choreography while the payload is away from the wearer, and a remote client that view-culls the
-  wearer stops replaying it.
-- **Required assets:** `assets/World.prefab` — never-instantiated scale reference for the tracking
-  cage (absolute meters). Do not instantiate or delete it. `Payload` is a placeholder sphere on
-  Unity's built-in default material — swap it, keep it under `Container`.
+- **Seam:** VRCFury `FullController` on the prefab root (FX, `basis: mount-root`) merging `built/DropOnPlayer_Fx_Parameters.asset`; `DropOnPlayer/Enable` + `DropOnPlayer/ToHead` ride `globalParams` with a VRCFury `Toggle` each as the menu front (ToHead as momentary/hold). **Plus one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone (the mixed seam: the anchor's placement must be visible while authoring). `HeadMount` is referenced only as a constraint source — no VRCF clip binding paths through it.
+- **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull` alongside** (its README §When a module needs this) — the tracked and dropped modes replay choreography while the payload is away from the wearer, and a remote client that view-culls the wearer stops replaying it.
+- **Required assets:** `assets/World.prefab` — never-instantiated scale reference for the tracking cage (absolute meters). Do not instantiate or delete it. `Payload` is a placeholder sphere on Unity's built-in default material — swap it, keep it under `Container`.
 
 ## Empirical constants (90% rule — test before changing)
 
@@ -60,50 +38,23 @@ multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Not a compose of 
 
 ## How it works
 
-The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored),
-`SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage,
-plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't
-tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at
-head-contact level while the prop sits at hat level: the same six receivers that will track the
-target are the "is another player's head here" sensor, centered where a head actually is.
+The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (the sample-and-hold cell — grabbed/dropped), `TrackedPoint/RideOffset` (the cage, plus the hat lift). The cage **rides `TrackingOffset`** (parent constraint) whenever it isn't tracking — the sensed point 0.15 *below* the prop — so at the release instant the cage sits at head-contact level while the prop sits at hat level: the same six receivers that will track the target are the "is another player's head here" sensor, centered where a head actually is.
 
-**Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver
-fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers`
-shut and the crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the
-settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world
-drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
+**Release arbitration** (the wearer's transition ladder, priority top-down): the self receiver fires (own standard Head sender at `TrackingOffset`) → `Anchored`; all six cage floats fire → `Tracked` (the cage latches `allowOthers` shut and the crawler takes over); neither → `Released` (the grab-prop pulse: freeze, re-sample the settled tip, hold) → `Dropped`. The winning state's localOnly driver stamps the pair — for a world drop **at release**, so the pair usually beats the remotes' 0.5 s settle window.
 
-**Remotes** run the same graph gated on the pair instead of sensors: every release routes through
-`Released` (visually a freeze-in-place), then to the pair's state; a stale pair self-corrects via
-each mode state's remote edges. **Tracking loss** is per-client: the wearer's loss stamps `Dropped`
-(freeze — never snap-home, observers unload the target at different times); a remote's own loss
-falls to `Lost` (same freeze) *without* touching the pair, recovering on the next witnessed grab or
-pair change. **Late joiners** dwell 1 s then: `01` → hat on your head (the pair late-syncs), `00` →
-hidden, `1x` → `Waiting` hidden until a witnessed grab (fail-visible — the tracked/dropped position
-never crossed the wire).
+**Remotes** run the same graph gated on the pair instead of sensors: every release routes through `Released` (visually a freeze-in-place), then to the pair's state; a stale pair self-corrects via each mode state's remote edges. **Tracking loss** is per-client: the wearer's loss stamps `Dropped` (freeze — never snap-home, observers unload the target at different times); a remote's own loss falls to `Lost` (same freeze) *without* touching the pair, recovering on the next witnessed grab or pair change. **Late joiners** dwell 1 s then: `01` → hat on your head (the pair late-syncs), `00` → hidden, `1x` → `Waiting` hidden until a witnessed grab (fail-visible — the tracked/dropped position never crossed the wire).
 
-**Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the hat off your head
-and put it on theirs — the wearer's client arbitrates from wherever the prop is, and their head is
-"another player's head". `allowPosing` off — persistence is always a constraint hold.
+**Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the hat off your head and put it on theirs — the wearer's client arbitrates from wherever the prop is, and their head is "another player's head". `allowPosing` off — persistence is always a constraint hold.
 
 ## Verifying the install
 
-At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender.
-**Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads
-zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the
-anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage 0.15 below it at
-head-contact level; both offsets are per-avatar head-size constants, so re-check them on a new base
-rather than trusting the shipped values.
+At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender. **Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage 0.15 below it at head-contact level; both offsets are per-avatar head-size constants, so re-check them on a new base rather than trusting the shipped values.
 
-Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold
-spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed`
-does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and
-culling against a genuinely distant or occluded player.
+Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed` does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and culling against a genuinely distant or occluded player.
 
 ## Rig
 
-The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` on,
-source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
+The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` on, source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
 
     DropOnPlayer                      root — VRCFury FullController + 2 Toggles
     ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/AnchorOffset,
@@ -149,12 +100,8 @@ source weights swapped by the clips; positions below are edit-time rest (0, 0.8,
                                       a second pins RideOffset to Container (parked pose ⇒ RideOffset
                                       auto-mirrors TrackingOffset, any drag direction)
 
-**Self-detection correctness:** the receiver is allowSelf-only on the standard `Head` tag, so a friend
-wearing the same module (or any other player's head) can't trip your self-anchor — their senders are
-"other". The old private sender/receiver tag pair is gone; the standard sender needs no placement.
+**Self-detection correctness:** the receiver is allowSelf-only on the standard `Head` tag, so a friend wearing the same module (or any other player's head) can't trip your self-anchor — their senders are "other". The old private sender/receiver tag pair is gone; the standard sender needs no placement.
 
 ## Rebuilding
 
-`controller.yaml` → `CompileController` → `built/` (committed; the prefab references it by GUID —
-recompile is GUID-stable, regenerate controller + params asset as a unit). The prefab is
-hand-maintained against the Rig section above.
+`controller.yaml` → `CompileController` → `built/` (committed; the prefab references it by GUID — recompile is GUID-stable, regenerate controller + params asset as a unit). The prefab is hand-maintained against the Rig section above.
