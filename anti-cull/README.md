@@ -45,7 +45,7 @@ The prefab is the shipped artifact and ships no builder — edit it in place.
 
 Layer 12 is inherited from the source verbatim and unverified as load-bearing — kept because the source's production history covers this exact configuration, not a normalized one.
 
-Editing-the-rig trap: a freshly script-added VRC constraint starts with `IsActive` **false** (measured: the animator drives `GlobalWeight` to 1 and the scale still reads rest, no error), so a rebuild that skips the field silently never solves. Serialized `IsActive: 1` is load-bearing.
+Editing-the-rig trap: a freshly script-added VRC constraint starts with `IsActive` **false** (`runtime.md` §Constraints), so a rebuild that skips the field silently never solves — the serialized `IsActive: 1` is load-bearing.
 
 ## Verifying the install
 

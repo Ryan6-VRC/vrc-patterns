@@ -2,7 +2,7 @@
 
 Grab the prop and release it: on your own head it anchors (a bone constraint — precise, and it **late-syncs**); on another player's head it catches and follows them (a `box-tracker` 4-box cage with a tall head-catch zone — per-client re-derivation, **no late-sync**); anywhere else it freezes in place (sample-and-hold — no late-sync). The three rest mechanisms are structurally different because you *cannot constrain to another avatar's transform* (`gimmicks.md` §Constraint patterns "Attaching a prop to a body point") — the release-time **arbitration** between them, and the 2-bool mode sync that lets every client re-derive the outcome, are what this entry ships. Module total: **2 synced bits** (`DropOnPlayer/Out`, `DropOnPlayer/Worn`).
 
-**Provenance:** generalized from a private production avatar's carried-doll system (grab-prop + a proximity tracker composed). Kept: release-routing arbitration, mode fusion with off-is-reset, the remote release-settle dwell, freeze-on-loss. Abstracted away: the Custom-Object-Sync half (late-join-exact world drops — its 6 s world-band dwell and ~¼ of the ancestor's FSM exist only for that), the 5-way self-body anchor multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Its tracker is **`box-tracker`'s** — the 4-box exact readout, lifted whole (P3), replacing the ancestor's 6-sphere crawler-servo; see that entry's README for the reconstruction math. Not a compose of `grab-prop` + `box-tracker` — one compressed controller reusing their measured idioms.
+**Provenance:** generalized from a private production avatar's carried-doll system (grab-prop + a proximity tracker composed). Kept: release-routing arbitration, mode fusion with off-is-reset, the remote release-settle dwell, freeze-on-loss. Abstracted away: the Custom-Object-Sync half (late-join-exact world drops — its 6 s world-band dwell and ~¼ of the ancestor's FSM exist only for that), the 5-way self-body anchor multiplexer, the Fist/HandOpen gesture grammar, the doll mesh. Its tracker is **`box-tracker`'s** — the 4-box exact readout, lifted whole and wear-tested in-game, replacing the ancestor's 6-sphere crawler-servo; see that entry's README for the reconstruction math. Not a compose of `grab-prop` + `box-tracker` — one compressed controller reusing their measured idioms.
 
 ## Interface
 
@@ -41,11 +41,11 @@ Empirical constants (90% rule — test before changing):
 | Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | grab-prop emulator sweep |
 | Remote release-settle | 0.5 s (= pulse length; remotes route by pair at pulse end) | measured on the source avatar; in-game batch owns it |
 | Remote boot dwell | 1.0 s (`timer` clip) | grab-prop in-game candidate |
-| Head-catch column | 0.15 × 0.15 × **0.3 m** (`TrackingPoints` ScaleAtRest 0.05/0.1/0.05; side = 3 × scale) | P3 — tall so lowering onto a head reliably catches. Doubles as the arbitration zone; Chocolat wear-tune |
+| Head-catch column | 0.15 × 0.15 × **0.3 m** (`TrackingPoints` ScaleAtRest 0.05/0.1/0.05; side = 3 × scale) | in-game wear-test — tall so lowering onto a head reliably catches. Doubles as the arbitration zone |
 | Tracking geometry / crawl gain | ×1 absolute 6×6×3 m boxes (World.prefab, faces ±1.5 m) · steady g ≈ 0.39 (source0 0.65 : self 1); Tracked clip eases source0 0 → 0.65 over 0.5 s | `box-tracker` — exact readout, no convergence dwell; a 0.5 s acquisition ease-in (g from 0 = a clean freeze) damps the first-frame gap. Retune the clip end key + prefab source0 together; clip-owned, not live-scrubbable |
 | Loss / acquire thresholds | **ANY** of four <0.00001 / all four >0 | `box-tracker` — one dead box breaks the exact reconstruction (vs the old ALL-six) |
 | Physbone constants | cloned from grab-prop's rig | grab-prop sweeps |
-| Anchor offsets | +0.25 above the head bone (anchored) / +0.2 above the cage centroid (tracked); self-detect receiver radius 0.1 | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested on Chocolat; per-avatar head size, wear-test owns them |
+| Anchor offsets | +0.25 above the head bone (anchored) / +0.2 above the cage centroid (tracked); self-detect receiver radius 0.1 | anchored must exceed tracked: the head bone sits at the neck while the cage converges on the head-contact center — wear-tested in-game; per-avatar head size, wear-test owns them |
 
 ## Verifying the install
 
