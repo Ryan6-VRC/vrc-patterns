@@ -12,7 +12,8 @@
 #                                  to one coincident cube; an invariant these clips own, not a knob
 #   tracking scale x1 absolute     prefab VRCScaleConstraint ScaleOffset, World.prefab source
 #   readout coefficients 1.5 / 3   face position 1.5, depth 3 — re-derive together if box geometry moves
-#   crawl gain g = 0.5             STATIC prefab VRCPositionConstraint weights (1:1); retune per README
+#   crawl gain             source0 (Output) 0.65 : source1 (self) 1 -> steady g ~= 0.39; the latch
+#                          clip eases source0 0 -> 0.65 over 0.5 s at acquisition (overshoot damp). Retune per README
 #   loss <0.00001, acquire >0      ANY receiver lost breaks the readout (contact-tracker loses on ALL)
 
 schema: 1
@@ -127,7 +128,7 @@ clips:
   searching:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
-      TrackingPoints/VRCPositionConstraint.m_Enabled: 1      # self-hold: freeze where it stands (crawl gain is static in the prefab; Output pinned to center below = no chase)
+      TrackingPoints/VRCPositionConstraint.m_Enabled: 1      # self-hold: freeze where it stands (Output pinned to center below = no chase, regardless of gain)
       TrackingPoints/VRCScaleConstraint.GlobalWeight: 0
       TrackingPoints/X+/VRCContactReceiver.allowOthers: 1
       TrackingPoints/X+/GameObject.m_IsActive: 1
@@ -157,9 +158,13 @@ clips:
   # per binding over the clips that write it, so these values pass through unscaled while the
   # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
   # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
-  # so the latched set is exactly the cube's occupants, then expand to the full slabs. The crawl
-  # engages immediately: Output source at gain 0.15 vs self-brake 1 — the cage glides onto the
-  # sender and keeps station under it as it travels.
+  # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl
+  # ease-in (acquisition damp): source0 (Output) ramps 0 -> 0.65 over 0.5 s against the self-brake
+  # (source1=1). At latch g=0, so the self-source holds the cage exactly in place (a clean freeze,
+  # no rest-pose snap) and the first-frame acquisition gap is not slammed at full gain; authority
+  # rises to the steady g and the cage glides onto the sender. The end value IS the prefab static
+  # source0 (the value used outside Tracking) — one knob in two homes, retune together; clip-owned
+  # here, so the gain is no longer live-scrubbable in play.
   latch:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
@@ -188,6 +193,8 @@ clips:
       TrackingPoints/Y+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
+      # Crawl ease-in: gain rises 0 -> 0.65 over 0.5 s (flat tangents = smooth onset); see header.
+      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: [ [0, 0], [0.5, 0.65] ]
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
