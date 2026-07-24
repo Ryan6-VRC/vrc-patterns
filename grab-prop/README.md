@@ -33,6 +33,8 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 | Remote settle dwell | the `timer` clip's length | in-game batch (network timing) |
 | Physbone constants | see Rig | emulator sweep (stiffness) |
 
+**Copy site — `drop-on-player`** clones this grab/release rig and carries its own copy of these rows and the `Rig` section, so a retune here lands half the homes. That entry's constants table marks which rows it takes from here.
+
 **Late join:** a dropped prop carries no synced position, so a late joiner parks in `Waiting` with the prop hidden (fail-visible — never shown at a wrong spot) until it witnesses a grab. The grab physbone lives outside the hidden branch, so a grab always re-establishes it. The wearer's own view never hides (IsLocal skips the park).
 
 **Cross-client fidelity:** the world-frozen frame is per-client (locked at load-in, `runtime.md` §Constraints) — clients agree on the drop point because they replay the same clips off the synced grab, not because the frame is shared. Expect per-client drift on the order of the IK-delayed hand; exact placement needs a real position sync on top (out of scope — Custom-Object-Sync territory).
