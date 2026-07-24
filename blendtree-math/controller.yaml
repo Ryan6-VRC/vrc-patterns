@@ -38,7 +38,7 @@
 # precision, positive-only — A/B are raw directWeights); `Add (1D child)` writes Sum1D (each input identity-
 # mapped through its own 1D tree; lower precision — its [0,1] thresholds clamp a negative input to 0, so a
 # signed input would need signed thresholds like Negate/Remap's). They write DISTINCT AAPs, so both run
-# live and are directly comparable in one graph — there is no longer any "don't wire both" caveat.
+# live and are directly comparable in one graph.
 #
 # LINEAR SMOOTHING LIMIT-CYCLES (known, inherent — see README): its step needs a computed delta
 # (LinTarget - SmoothedLin) that can't be same-frame as the step consuming it, so a 1-frame feedback delay
