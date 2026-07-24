@@ -24,18 +24,18 @@ Touch zones on the avatar that react when someone touches them — a headpat, a 
 - **Zones are yours to place — by constraint, never by reparent.** `Zones/Zone1..3` ship as unanchored children of the module root; anchor each to the body part it should sense with a VRCParentConstraint. The zone GOs are path-animated (the enable clips drive their `m_IsActive`), so anything that moves them out of the module subtree — reparenting under a bone, MA BoneProxy, VRCFury ArmatureLink — silently kills the enable clips (MA moves objects before VRCFury resolves FullController paths). Receiver tags are `Hand`/`Finger` (community-standard toucher tags).
 - **Arbitration is the transition ladder.** Coincident touches resolve Zone1 > Zone2 > Zone3 by list order — one machine, one writer, so there is no last-write-wins on the reaction rig (the vendor failure). Re-order the ladder to re-prioritize.
 - **Per-zone reactions are a clip swap.** `React1..3` all play `zt_react`; point a zone's state at its own clip for distinct reactions. Keep one machine — do not fork per-zone layers.
-- **The special odds live in one driver field** (`chance: 0.02` on each React entry — the consumer-tunable knob; keep the three in agreement).
+- **The special odds live in one driver field** (`chance:` on each React entry — the consumer-tunable knob; keep the three in agreement).
 
 ## How it works
 
-`Disabled` (default — the failsafe polarity the vendor inverted) disables every zone receiver GO, so the synced enable gates sensing on every client. `Idle` waits on the arbitration ladder; a touch enters that zone's `React`, which rolls the special odds once on entry (`localOnly` Random driver — remotes' RollHit stays 0), plays the reaction once, and **holds while the touch persists** (no AnyState, no self edge — the machine, not the clip, decides when a new episode starts). Release enters `Cooldown` (0.5 s debounce — no zone edge leaves it, so a re-touch inside the window is ignored), which also drops `Special` — the falling edge. A local roll hit routes to `Special` (stamps the bool); remotes reach `Special` from Idle or React the moment the bool arrives, and leave it only on the falling edge (or enable-off). A late joiner mid-special lands in Idle and follows the bool in — nothing to save.
+`Disabled` (default — the failsafe polarity the vendor inverted) disables every zone receiver GO, so the synced enable gates sensing on every client. `Idle` waits on the arbitration ladder; a touch enters that zone's `React`, which rolls the special odds once on entry (`localOnly` Random driver — remotes' RollHit stays 0), plays the reaction once, and **holds while the touch persists** (no AnyState, no self edge — the machine, not the clip, decides when a new episode starts). Release enters `Cooldown` (the debounce dwell — no zone edge leaves it, so a re-touch inside the window is ignored), which also drops `Special` — the falling edge. A local roll hit routes to `Special` (stamps the bool); remotes reach `Special` from Idle or React the moment the bool arrives, and leave it only on the falling edge (or enable-off). A late joiner mid-special lands in Idle and follows the bool in — nothing to save.
 
 Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Locked by |
 |---|---|---|
-| Debounce dwell | 0.5 s | emulator sweep; feel-tunable |
-| Special chance | 0.02 | consumer preference, not physics |
+| Debounce dwell | the `zt_cooldown` clip's length — the dwell *is* the `Cooldown` state length | emulator sweep; feel-tunable. Long enough that a re-touch inside the window reads as the same episode |
+| Special chance | the `chance` field on each `React` entry's Random driver — **all three must agree** | consumer preference, not physics |
 | Touch / release thresholds | >0 / <0.00001 | contact-tracker lineage |
 
 ## Verifying the install

@@ -4,7 +4,7 @@
 # layers, one per hand, each masked to its hand: only the HOLDING hand's fingers are seized
 # (Mode 2 = right, 3 = left) — the other hand, and both hands in Stowed/Mouth/World, stay with
 # the avatar's own gesture layers. During a hand-to-hand handoff the grips swap with the mode
-# stamp, 0.15 s blends overlapping.
+# stamp, the two grip blends below overlapping.
 #
 # Cost to know: while HeldR/HeldL this seizes that hand's visible fingers; gesture params keep
 # firing untouched. The README names it.

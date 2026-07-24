@@ -34,7 +34,7 @@ Empirical constants (90% rule — test before changing):
 
 | Constant | Value | Measured behavior |
 |---|---|---|
-| Trail length | 0.1 m (`DragBone_End` local −Z) | response distance: heading settles after ~one trail length of travel; curvature lag ≈ trail/turn-radius radians (13° on a 0.5 m-radius circle). Lengthen for calmer, laggier heading |
+| Trail length | `DragBone_End`'s local −Z offset (see **Rig**) — drag it to retune | response distance: heading settles after ~one trail length of travel; curvature lag ≈ trail/turn-radius radians (at the shipped length, 13° on a 0.5 m-radius circle). Lengthen for calmer, laggier heading |
 | `maxSquish` | 0 | the length invariant above — the one setting that reintroduces the zero-length degeneracy |
 | Straight-line tracking | ≤3° error | steady-state, both variants |
 | Stationary hold | exact | zero yaw drift/jump over multi-second holds |

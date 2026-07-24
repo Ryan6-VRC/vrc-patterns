@@ -19,10 +19,9 @@
 #   4 AnyState self-retrigger          -> no AnyState; React holds while touched, plays once
 #   5 default-on kill switch           -> Enable default-false, Disabled is the default state
 #
-# Empirical constants (runtime.md 90% rule):
-#   debounce dwell 0.5 s        [EMPIRICAL: emulator — re-fire window; feel-tunable]
-#   special chance 0.02         [driver Random; consumer-tunable odds]
-#   release threshold less 0.00001, touch greater 0   [contact-tracker lineage]
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these clips or drivers authors it. Values live at those sites only; the inline comments below carry
+# each one's rationale. runtime.md's 90% rule governs changing any of them.
 
 schema: 1
 controller: ZoneTouch_Fx
@@ -181,7 +180,7 @@ clips:
       "ReactProxy/Transform.m_LocalScale.x": 2
       "ReactProxy/Transform.m_LocalScale.y": 2
       "ReactProxy/Transform.m_LocalScale.z": 2
-  # Debounce dwell  [EMPIRICAL: 0.5 s]
+  # Debounce dwell = this clip's length; no zone edge leaves Cooldown  [EMPIRICAL: emulator sweep]
   zt_cooldown:
     seconds: 0.5
     set:

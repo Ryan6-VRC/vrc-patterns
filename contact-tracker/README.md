@@ -8,7 +8,7 @@ One prefab, one controller: `ContactTracker.prefab` — sphere probes, tag `Hand
 
 ## Interface
 
-- **Params:** `ContactTracker/Enable` (bool, in) — synced, unsaved; off is the reset (recalls the cage to `HomeAnchor/Offset`). `HomeAnchor` is an MA BoneProxy (Hips, AsChildAtRoot) so home follows the wearer instead of loading at the avatar-root origin — the floor; retarget the proxy or adjust `Offset` (ships 0.1 up, 0.35 forward of the hips) to move home. Anchoring by BoneProxy is safe here **only because** no clip path runs through `HomeAnchor` — it is referenced purely as a constraint source, which survives the build-time reparent. The six `ContactTracker/{X,Y,Z}±` floats are sensing — never synced, never menu-exposed.
+- **Params:** `ContactTracker/Enable` (bool, in) — synced, unsaved; off is the reset (recalls the cage to `HomeAnchor/Offset`). `HomeAnchor` is an MA BoneProxy (Hips, AsChildAtRoot) so home follows the wearer instead of loading at the avatar-root origin — the floor; retarget the proxy or adjust its `Offset` child (up and forward of the hips as shipped) to move home. Anchoring by BoneProxy is safe here **only because** no clip path runs through `HomeAnchor` — it is referenced purely as a constraint source, which survives the build-time reparent. The six `ContactTracker/{X,Y,Z}±` floats are sensing — never synced, never menu-exposed.
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root` — clip paths bind relative to the prefab root, so the internal hierarchy names are load-bearing. The FullController merges `built/ContactTracker_Fx_Parameters.asset` (`prms`); `ContactTracker/Enable` rides `globalParams`, and a VRCFury `Toggle` (`useGlobalParam`) is the menu front inside the module.
 - **Dependencies:** Modular Avatar (the `HomeAnchor` proxy); **compose `anti-cull` alongside** (its README §When a module needs this) — the re-derivation below runs only while a remote client evaluates the wearer's animator, which is why VRLabs ships the same mechanism inside its tracker prefabs. Receivers are `localOnly: 0` **by necessity** — remote clients run the tracker to re-derive the cage; flipping them local-only breaks remote copies silently.
 - **Required assets:** `assets/World.prefab` — never-instantiated scale reference; sourcing it in the scale constraint makes the tracking cage absolute-meters (avatar-scale-immune). Do not instantiate or delete it.
@@ -17,10 +17,10 @@ One prefab, one controller: `ContactTracker.prefab` — sphere probes, tag `Hand
 
 | Constant | Value | Measured behavior |
 |---|---|---|
-| Acquisition scale | 0.1 (TrackingPoints localScale) | latch ≤0.08 m radial, miss ≥0.20 (∝ acquisition scale) |
+| Acquisition scale | `TrackingPoints` rest `localScale` + the scale constraint's `ScaleAtRest`, both (GlobalWeight 0 drives to `ScaleAtRest`) | radial latch distance ∝ the scale: at the shipped value, latch ≤0.08 m, miss ≥0.20 |
 | Tracking scale | ×3 absolute (VRCScaleConstraint ScaleOffset) | proximity falloff = receiver radius × 3 = 3 m (radius alone sets the falloff length; see `runtime.md` §Contacts); steady-state probe reading ≈ 0.517 |
 | Probe spread | ±0.5 local (tracking clip) | ±1.5 m world in tracking; sets the step-response limit below |
-| Settle dwell | 1.0 s park-brake hold (tracking clip) | brake=1 damps the acquisition transient (smooth traverse, no leapfrog); releases as a snap at 1.0 s. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
+| Settle dwell | the `tracking` clip's `source6` (park-brake) hold-then-drop curve — its hold length | brake=1 damps the acquisition transient (smooth traverse, no leapfrog), then releases as a snap. Length is network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
 | Loss / acquire thresholds | all six <0.00001 / >0 | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
 
 ## Verifying the install

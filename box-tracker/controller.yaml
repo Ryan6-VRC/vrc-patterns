@@ -4,17 +4,12 @@
 # comments below own the graph. Mode machine Reset / Searching / Tracking, mirroring
 # contact-tracker's three-state rig — deterministic resume, every state re-derives from Enable +
 # live proximity. Tracking is a non-normalized direct readout tree summing per-reading coefficients
-# into Output.localPosition; a static prefab constraint gain crawls the cage onto the reading.
+# into Output.localPosition, against a feedback position constraint that crawls the cage onto it.
 # Latch = allowOthers 1->0 at acquisition (filters check only then, runtime.md §Contacts).
 #
-# Empirical constants (runtime.md 90% rule — change only with an emulator test; rationale inline):
-#   acquisition cube 0.15 m/side   receiver GOs at localScale (0.5,0.5,1) — the four slabs collapse
-#                                  to one coincident cube; an invariant these clips own, not a knob
-#   tracking scale x1 absolute     prefab VRCScaleConstraint ScaleOffset, World.prefab source
-#   readout coefficients 1.5 / 3   face position 1.5, depth 3 — re-derive together if box geometry moves
-#   crawl gain             source0 (Output) 0.65 : source1 (self) 1 -> steady g ~= 0.39; the latch
-#                          clip eases source0 0 -> 0.65 over 0.5 s at acquisition (overshoot damp). Retune per README
-#   loss <0.00001, acquire >0      ANY receiver lost breaks the readout (contact-tracker loses on ALL)
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these clips or which prefab field authors it. Values live at those sites only; the inline comments
+# below carry each one's rationale. runtime.md's 90% rule governs changing any of them.
 
 schema: 1
 controller: BoxTracker_Fx
@@ -159,12 +154,12 @@ clips:
   # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
   # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
   # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl
-  # ease-in (acquisition damp): source0 (Output) ramps 0 -> 0.65 over 0.5 s against the self-brake
-  # (source1=1). At latch g=0, so the self-source holds the cage exactly in place (a clean freeze,
-  # no rest-pose snap) and the first-frame acquisition gap is not slammed at full gain; authority
-  # rises to the steady g and the cage glides onto the sender. The end value IS the prefab static
-  # source0 (the value used outside Tracking) — one knob in two homes, retune together; clip-owned
-  # here, so the gain is no longer live-scrubbable in play.
+  # ease-in (acquisition damp): the source0 curve below ramps the Output source in against the
+  # self-brake (source1). At g=0 the self-source holds the cage exactly in place — a clean freeze,
+  # no rest-pose snap — so the first-frame cage-gap is not slammed at full gain; authority then
+  # rises and the cage glides onto the sender. The curve's end key and the prefab's static source0
+  # (what holds outside Tracking) are one knob in two homes — retune together. Clip-owned here, so
+  # the gain is not live-scrubbable in play.
   latch:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
@@ -193,7 +188,7 @@ clips:
       TrackingPoints/Y+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
-      # Crawl ease-in: gain rises 0 -> 0.65 over 0.5 s (flat tangents = smooth onset); see header.
+      # Crawl ease-in (block above). Flat tangents = smooth onset; end key = the prefab's source0.
       TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: [ [0, 0], [0.5, 0.65] ]
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f

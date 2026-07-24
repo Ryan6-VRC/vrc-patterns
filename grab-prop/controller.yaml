@@ -11,11 +11,12 @@
 #                     world-frozen rotation frame) while IsActive, holds while not.
 #   GrabPosition    — the bone chain's rest home; multiplexes [HomeAnchor, Container].
 #
-# Empirical constants (runtime.md 90% rule) — every one labeled:
-#   released pulse: freeze at t=0, re-sample window [0.25, 0.50) s  [EMPIRICAL: emulator sweep]
-#   remote settle dwell: 1.0 s (timer clip)                         [EMPIRICAL: in-game candidate]
-# The released pulse is an explicit stepped curve (0 → 1 at 0.25 → 0 at 0.5): each key's value holds
-# until the next, so IsActive snaps rather than eases — sample-rate-independent, no phantom hold keys.
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these clips authors it. Values live at those sites only; the inline comments below carry each one's
+# rationale. runtime.md's 90% rule governs changing any of them.
+# The released pulse is an explicit stepped curve (0 → 1 at the sample key → 0 at the clip end): each
+# key's value holds until the next, so IsActive snaps rather than eases — sample-rate-independent,
+# no phantom hold keys.
 
 schema: 1
 controller: GrabProp_Fx
@@ -119,7 +120,7 @@ clips:
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
-  timer:        # disabled pose held for the remote settle dwell  [EMPIRICAL: 1.0 s]
+  timer:        # disabled pose held for the remote settle dwell = this clip's length  [EMPIRICAL]
     seconds: 1.0
     set:
       "Container/GameObject.m_IsActive": 0
