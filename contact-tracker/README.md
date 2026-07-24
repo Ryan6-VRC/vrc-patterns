@@ -25,7 +25,7 @@ One prefab, one controller: `ContactTracker.prefab` — sphere probes, tag `Hand
 
 ## Verifying the install
 
-With Enable off the cage must sit at `HomeAnchor/Offset`, on the wearer; finding it at the avatar-root origin means the BoneProxy never resolved. Enable on, then put a scripted `Hand` sender (`docs/verify.md`) in the cage: all six floats leave zero together and `allowOthers` shuts on every probe. A partial latch means the acquisition scale no longer suits this avatar's contact placement.
+With Enable off the cage must sit at `HomeAnchor/Offset`, on the wearer; finding it at the avatar-root origin means the BoneProxy never resolved. Enable on, then put a scripted `Hand` sender (`docs/verify.md`) in the cage: all six floats leave zero together and `allowOthers` shuts on every probe. A partial latch means the acquisition scale doesn't suit this avatar's contact placement.
 
 Two clients in-game, not the emulator: remote-side receiver firing (clones never simulate contacts), chase feel under real IK, and whether the settle dwell is right.
 
