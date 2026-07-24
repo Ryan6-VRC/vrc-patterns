@@ -17,20 +17,20 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 
 ## Before you compose it
 
-**`HomeAnchor` rides the wearer.** It is an MA BoneProxy (Hips, AsChildAtRoot) with the recall target as its `Offset` child (0.1 up / 0.35 forward — drag it in edit mode): the prop rests on, and recalls to, the avatar, while the module root stays world-frozen (`FreezeToWorld`, enabled during upload) so drops hold their world spot. For a fixed world-spot home instead (recall to your spawn point), delete the BoneProxy. The anchor is referenced only as a constraint source (an object reference — path-immune), which is what makes proxying it safe; keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes at build (`nondestructive.md` has the measured build order).
+**`HomeAnchor` rides the wearer.** It is an MA BoneProxy (Hips, AsChildAtRoot) with the recall target as its `Offset` child (**Rig** has the shipped offset — drag it in edit mode): the prop rests on, and recalls to, the avatar, while the module root stays world-frozen (`FreezeToWorld`, enabled during upload) so drops hold their world spot. For a fixed world-spot home instead (recall to your spawn point), delete the BoneProxy. The anchor is referenced only as a constraint source (an object reference — path-immune), which is what makes proxying it safe; keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes at build (`nondestructive.md` has the measured build order).
 
 ## How it works
 
 `GrabPosition` (the bone chain's rest home) multiplexes `[HomeAnchor, Container]`. The grab physbone's tip is measured by `DropPosition`, a child of a world-rotation-frozen frame; the `SourcePosition` cell samples it; `Container` (the payload mount) follows `SourcePosition`.
 
-Release choreography (`Released`, 0.5 s): at t=0 the Container constraint **disables** — a disabled constraint holds its transform, that is the freeze — and the bone chain re-anchors onto the frozen prop; at t=0.25 `SourcePosition` re-samples the settled tip; at t=0.5 it holds. `Dropped` keeps the constraint disabled (the frozen transform is the hold); the sample exists so a re-grab, which re-enables it, picks up at the drop point instead of teleporting.
+Release choreography (the `Released` pulse): at t=0 the Container constraint **disables** — a disabled constraint holds its transform, that is the freeze — and the bone chain re-anchors onto the frozen prop; at the sample key `SourcePosition` re-samples the settled tip; at the clip end it holds. `Dropped` keeps the constraint disabled (the frozen transform is the hold); the sample exists so a re-grab, which re-enables it, picks up at the drop point instead of teleporting.
 
 Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Locked by |
 |---|---|---|
-| Released pulse phases | freeze 0 s / sample 0.25 s / hold 0.5 s | emulator sweep |
-| Remote settle dwell | 1.0 s (`timer` clip) | in-game batch (network timing) |
+| Released pulse phases | the `released` clip's phase keys — freeze at t=0, then the re-sample key, then hold to the clip end | emulator sweep. The sample must land after the physbone tip has settled but before a re-grab is plausible; the clip length is the pulse |
+| Remote settle dwell | the `timer` clip's length | in-game batch (network timing) |
 | Physbone constants | see Rig | emulator sweep (stiffness) |
 
 **Late join:** a dropped prop carries no synced position, so a late joiner parks in `Waiting` with the prop hidden (fail-visible — never shown at a wrong spot) until it witnesses a grab. The grab physbone lives outside the hidden branch, so a grab always re-establishes it. The wearer's own view never hides (IsLocal skips the park).

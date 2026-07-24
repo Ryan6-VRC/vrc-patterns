@@ -17,33 +17,27 @@
 # UNSYNCED local params — the synced pair carries the outcome, so menu costs 0 extra bits.
 #
 # TRACKING = box-tracker's 4-box exact readout (lifted from that entry's controller; see its
-# README for the reconstruction math). The head-catcher's cage is 4 face-proximity BOX receivers
-# (X+ X- Y+ Z+), an exact linear readout writing Output.localPosition inside the Tracked state's
-# direct tree, and a feedback constraint (source0 Output : source1 self, steady g ~= 0.39) that
-# crawls the cage onto the reading. Steady gain is a static prefab weight; the Tracked clip eases
-# source0 0 -> 0.65 over 0.5 s at acquisition — the ease-in the exact readout still needs, since a
-# constant gain slams the first-frame acquisition gap (box-tracker).
+# README for the reconstruction math and the crawl-gain contract, which owns both). The head-
+# catcher's cage is 4 face-proximity BOX receivers (X+ X- Y+ Z+), an exact linear readout writing
+# Output.localPosition inside the Tracked state's direct tree, and a feedback constraint (source0
+# Output : source1 self) crawling the cage onto the reading, its gain eased in by the tracked clip.
 # The old 6-sphere crawler-servo (a separate always-on layer, raw proximity => source weights, ALL-
-# loss, a 1.0 s park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
+# loss, a park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
 # converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
 #
-# Head-catch zone (wear-test-tuned): the acquisition cube is stretched to a VERTICAL COLUMN — 0.15 m wide/deep,
-# 0.3 m tall — so lowering a prop onto a head reliably catches (and it widens the release-
-# arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints
-# rest localScale + VRCScaleConstraint ScaleAtRest (0.05, 0.1, 0.05) — zone side = 3 × scale
-# per axis. The receiver box is a 1.5³ cube in local space, so the 90° rotations are shape-
-# invariant and a non-uniform parent scale gives a clean axis-aligned box; tracking geometry is
-# constraint-pinned absolute (World.prefab, uniform) so the readout stays EXACT. Cost: one latch
-# frame of ~r·(s_y/s_x − 1) ≈ 3 cm radius-compensation skew on Y/Z, which decays via the crawl
-# (box-tracker's documented non-uniform trap — benign for a prop).
+# Head-catch zone (wear-test-tuned): the acquisition cube is stretched to a VERTICAL COLUMN — taller
+# than it is wide — so lowering a prop onto a head reliably catches (and it widens the release-
+# arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints rest
+# localScale + VRCScaleConstraint ScaleAtRest, edited together — zone side = 3 × scale per axis. The
+# receiver box is a 1.5³ cube in local space, so the 90° rotations are shape-invariant and a
+# non-uniform parent scale gives a clean axis-aligned box; tracking geometry is constraint-pinned
+# absolute (World.prefab, uniform) so the readout stays EXACT. Cost: one latch frame of
+# ~r·(s_y/s_x − 1) radius-compensation skew on Y/Z, which decays via the crawl (box-tracker's
+# documented non-uniform trap — benign for a prop).
 #
-# Empirical constants (runtime.md 90% rule) — every one labeled:
-#   released pulse: freeze t=0, re-sample window [0.25, 0.50) s   [EMPIRICAL: grab-prop emulator sweep]
-#   remote release-settle: 0.5 s (= pulse length; remotes route by pair at pulse end, covering
-#     the sync tick so a world-drop doesn't flash through a stale mode)  [EMPIRICAL: source-avatar attach dwell]
-#   remote boot dwell: 1.0 s (timer clip)                          [EMPIRICAL: grab-prop in-game candidate]
-#   crawl gain: source0 0.65 : source1 1 -> steady g ~= 0.39; Tracked clip eases source0 0 -> 0.65 over 0.5 s  [box-tracker]
-#   acquisition zone 0.15 × 0.15 × 0.3 m (TrackingPoints ScaleAtRest); loss <0.00001, acquire >0
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these clips or which prefab field authors it. Values live at those sites only; the inline comments
+# below carry each one's rationale. runtime.md's 90% rule governs changing any of them.
 #
 # Deliberate deltas from the source ancestor: no banded mode int (2 direct bools —
 # few exclusive states, gimmicks.md §Packaging); no 6 s world-band dwell (it existed for
@@ -155,7 +149,7 @@ layers:
           - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
           - { to: Tracked,  when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is true ] }
       # Tracked — the box cage latches (allowOthers shut), the readout writes Output.localPosition
-      # inside this state's direct tree, and the static-gain feedback constraint crawls the cage
+      # inside this state's direct tree, and the feedback constraint crawls the cage
       # onto it; every client runs this on its own sensors. ANY-loss (box-tracker): one dead box
       # breaks the reconstruction, so the loss edges fire on the FIRST box to drop, not the last.
       # LOCAL loss stamps Dropped (freeze, never snap-home — observers unload the target at
@@ -234,9 +228,9 @@ layers:
 # semantics survive a VRCFury WD-OFF conversion). The cage is box-tracker's: 4 BOX receivers
 # (X+ X- Y+ Z+) coincident at the cage center, resized only by host-GO localScale — (0.5,0.5,1)
 # collapses them to one acquisition column, (1,1,1) is the absolute tracking geometry. No clip
-# moves a receiver's localPosition (the readout is the DBT, not a position spread); the crawl
-# constraint's steady source weights are static in the prefab, and only the Tracked clip animates
-# source0 (the acquisition ease-in above). Output is pinned to the cage center everywhere but
+# moves a receiver's localPosition (the readout is the DBT, not a position spread); of the crawl
+# constraint's source weights only source0 is animated, by the Tracked clip alone (the acquisition
+# ease-in above), the rest holding their prefab values. Output is pinned to the cage center everywhere but
 # Tracked, where the readout tree writes it.
 # Off-state hygiene: Disabled kills the grab physbone's GO (an "off" module must not stay
 # grabbable; resetWhenDisabled 0 preserves pose) and the four cage-receiver GOs (no sensing while
@@ -257,7 +251,8 @@ layers:
 #                                         source2 TrackedPoint/RideOffset
 #   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
 #   GrabPosition/VRCPositionConstraint:   source0 HeadMount/AnchorOffset, source1 Container
-#   TrackingPoints/VRCPositionConstraint: source0 Output (own child), source1 self — steady g ~= 0.39 (0.65:1) crawl feedback, eased in at acquisition
+#   TrackingPoints/VRCPositionConstraint: source0 Output (own child), source1 self — the crawl
+#                                         feedback loop, gain eased in at acquisition (box-tracker)
 #   TrackingPoints/VRCParentConstraint:   source0 Container/TrackingOffset (the cage rides the sensed
 #                                         point below the prop when not tracking — at release the cage
 #                                         sits at head-contact level under the prop: the arbitration geometry)
@@ -303,7 +298,7 @@ clips:
       "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
       "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
-  timer:        # disabled pose held for the remote boot dwell  [EMPIRICAL: 1.0 s]
+  timer:        # disabled pose held for the remote boot dwell = this clip's length  [EMPIRICAL]
     seconds: 1.0
     set:
       "Container/GameObject.m_IsActive": 0
@@ -512,7 +507,7 @@ clips:
       "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   tracked:      # latch geometry + tracked-mode rig config; rides the readout tree at weight One.
-    set:        # crawl gain: source0 (Output) eases 0 -> 0.65 over 0.5 s (curve below), steady g ~= 0.39 (box-tracker).
+    set:        # crawl gain: source0 (Output) eased in by the curve below (box-tracker's contract).
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
@@ -552,9 +547,9 @@ clips:
       "TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      # Crawl ease-in (acquisition damp, box-tracker idiom): source0 (Output) rises 0 -> 0.65 over
-      # 0.5 s vs self-brake 1 — g=0 at latch freezes the cage in place, then glides onto the head.
-      # End value = prefab static source0 (one knob, two homes; clip-owned, so no live in-play scrub).
+      # Crawl ease-in (acquisition damp, box-tracker idiom): source0 (Output) rises against the
+      # self-brake — g=0 at latch freezes the cage in place, then it glides onto the head. The end
+      # key and the prefab's source0 are one knob in two homes; clip-owned, so no in-play scrub.
       "TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.5, 0.65] ]
 
   waiting:      # late-join park: hidden, everything home; the grab physbone stays live outside

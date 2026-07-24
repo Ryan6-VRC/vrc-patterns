@@ -8,13 +8,9 @@
 # Contact-Tracker, MIT). Mechanism confirmed against both sources; vestigial Size motion-time
 # bindings and orphaned transitions not ported.
 #
-# Empirical constants (runtime.md 90% rule — change only with an emulator test):
-#   acquisition scale 0.15 (prefab TrackingPoints localScale; receiver radius 1 => 0.15 m)
-#   tracking cage scale x3 absolute (prefab VRCScaleConstraint ScaleOffset, World.prefab source)
-#   probe spread +/-0.5 local (tracking clip)
-#   settle dwell 1.0 s park-brake hold, then release (tracking clip; source of the
-#     Infinity-slope stepped key in the ancestor — approximated flat with a key one frame early)
-#   loss threshold 0.00001, acquisition threshold >0 (transitions)
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these clips or which prefab field authors it. Values live at those sites only; the inline comments
+# below carry each one's rationale. runtime.md's 90% rule governs changing any of them.
 
 schema: 1
 controller: ContactTracker_Fx
@@ -191,8 +187,9 @@ clips:
       TrackingPoints/Z-/VRCContactReceiver.allowOthers: 0
       TrackingPoints/Z-/GameObject.m_IsActive: 1
     curves:
-      # Park brake: hold 1 for the settle dwell, then release (ancestor uses a stepped key at
-      # t=1.0; approximated with a flat-tangent hold key one frame before the drop).
+      # Park brake: hold 1 for the settle dwell, then release. The dwell IS this clip's length
+      # (`seconds` above); the ancestor's stepped key at the clip end is approximated with a
+      # flat-tangent hold key one frame before the drop.
       TrackingPoints/VRCPositionConstraint.Sources.source6.Weight: [ [0, 1], [0.9833333, 1], [1, 0] ]
       # Probe spread: coincident for one frame (the latch samples first), then the +/-0.5 cage.
       TrackingPoints/X+/Transform.m_LocalPosition.x: [ [0, 0], [0.016666668, 0.5] ]

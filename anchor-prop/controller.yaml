@@ -6,13 +6,12 @@
 # proximity + gesture and stamp AnchorProp/Mode on rest-state entry; remotes re-derive every pose
 # from Mode alone through the entry-dispatch hub — each rest state exits on a foreign Mode, the
 # entry ladder is the priority encoder, an invalid value parks in Guard (poses Stowed, no stamp).
-#   [VERIFY: exit-transition crossfade — the 0.25 s glide must survive the Exit->Entry hop on
+#   [VERIFY: exit-transition crossfade — the anchor glide must survive the Exit->Entry hop on
 #   remotes; if the emulator shows anchor snaps, move the duration to explicit remote edges.]
 #
-# Empirical constants (runtime.md 90% rule; feel-tunables labeled inline):
-#   anchor crossfade 0.25 s      held-prop lineage (emulator sweep)
-#   world-drop dwell 0.5 s       chosen against idle-fist misfire; feel-tunable
-#   arm >0 / disarm <0.00001     contact-tracker lineage
+# The tuned constants are the README's Empirical-constants table — what each knob does, and which of
+# these transitions or clips authors it. Values live at those sites only; the inline comments below
+# carry each one's rationale. runtime.md's 90% rule governs changing any of them.
 
 schema: 1
 controller: AnchorProp_Fx

@@ -20,7 +20,8 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
     synced; the grab itself is natively synced, every client re-derives the pull locally.
   - `MirrorDetection/IsMirror` (float, consumed) — declared here with **default 1**, the variant
     switch: see `mirror-detect` §Behavior for why only the driven −1 may be special.
-  - `HeadDeform/SmoothAmount` (float, default 0.9) — smoother λ, install-time tunable, unsynced.
+  - `HeadDeform/SmoothAmount` (float) — smoother λ, its default the feel constant below; install-time
+    tunable, unsynced.
     `HeadDeform/Smoothed` (AAP) and `One` are internal.
 - **Seam:** VRCFury `FullController` on the prefab root (`basis: mount-root` ↔ `rootBindingsApplyToAvatar: 0`); `globalParams: [HeadDeform/Active]` only — everything else takes instance prefixes. A VRCFury `ArmatureLink` puts `Cheek_Root` on the humanoid **Head**; a VRCFury `ConstraintRetarget` (conventional prefab only) points the scale constraint's target at the humanoid Head at build. Link and animation share the VRCFury framework; the animated nodes (`ScaleConstraint`, `WideTransform`) stay direct children of the module root, untouched by the link.
 - **Dependencies:** VRCFury. Conventional prefab: a rig whose humanoid head actually chops. Proxy prefab: a `head-proxy`-class rig, plus one consumer wiring step — point the `ScaleConstraint`'s `TargetTransform` at the **deforming** head bone (a cross-prefab object reference is structurally a scene-level assignment; `head-proxy` §Reaching out of the prefab owns the mechanism and the silent-null trap).
@@ -29,7 +30,7 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 ## Before you compose it
 
 - **Strangers can stretch your face.** The grab filter ships `allowSelf` + `allowOthers` — being poked is the point, but flip `allowOthers` off on the physbone for a self-only face.
-- **The stretch endpoints are feel constants** (wide 4.5/1.1/1.1, squish 0.3/1.4/1.2, squish deadband to −0.25, λ 0.9) — wear-tested on the production source; retune in `controller.yaml`, not in the built assets.
+- **The stretch endpoints are feel constants** — the `headscale_wide` / `headscale_squish` clips' `WideTransform` scales, the rest clip's deadband threshold, and `HeadDeform/SmoothAmount`'s default (λ). Wear-tested on the production source; retune in `controller.yaml`, never in the built assets.
 - **Your own first-person view never shows the stretch.** Not a bug: the scale is gated off on the real local copy by design. You see it in mirrors and cameras; everyone else sees it always.
 
 ## Verifying the install
