@@ -15,7 +15,7 @@ Three float-smoothing constructions — the exponential smoother in two α-flavo
 
 ## λ by IsLocal
 
-The rate the smoothers consume is `RateSelected = IsLocal·rateLocal + (1−IsLocal)·rateRemote` — a 1D-on-IsLocal selection stage (a vendor outfit smoother's construction, survey-verified; the Plum FT add-on's OSCmooth Local/Remote paths are the same fork at scale). Both constants live in param **defaults**, so tuning is an install-time edit, no tree surgery; `RateSelected`'s own default matches, so the selection adds no startup-fill frame.
+The rate the smoothers consume is `RateSelected = IsLocal·rateLocal + (1−IsLocal)·rateRemote` — a 1D-on-IsLocal selection stage (a vendor outfit smoother's construction, survey-verified; a private OSC-driven avatar's face-tracking add-on runs the same Local/Remote fork at scale). Both constants live in param **defaults**, so tuning is an install-time edit, no tree surgery; `RateSelected`'s own default matches, so the selection adds no startup-fill frame.
 
 **The guard — don't split reflexively.** A local/remote λ split is warranted only when the two clients see *genuinely different input*: mostly OSC-driven params, where the wearer's client gets the immediate high-resolution update while remotes receive it capped to ~10 Hz at reduced resolution (bool-encoded or 8-bit-float synced params) — heavier remote smoothing masks that jitter. Absent that input asymmetry one λ is correct, which is why the shipped defaults are **equal**: the split exists as two editable numbers, not as shipped behavior.
 

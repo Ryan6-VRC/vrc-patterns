@@ -16,7 +16,7 @@
 # the rig from the pair + natively-synced GrabBone_IsGrabbed. Menu intents (Enable, ToHead) are
 # UNSYNCED local params — the synced pair carries the outcome, so menu costs 0 extra bits.
 #
-# TRACKING = box-tracker's 4-box exact readout (P3 — lifted from that entry's controller; see its
+# TRACKING = box-tracker's 4-box exact readout (lifted from that entry's controller; see its
 # README for the reconstruction math). The head-catcher's cage is 4 face-proximity BOX receivers
 # (X+ X- Y+ Z+), an exact linear readout writing Output.localPosition inside the Tracked state's
 # direct tree, and a feedback constraint (source0 Output : source1 self, steady g ~= 0.39) that
@@ -27,7 +27,7 @@
 # loss, a 1.0 s park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
 # converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
 #
-# Head-catch zone (P3): the acquisition cube is stretched to a VERTICAL COLUMN — 0.15 m wide/deep,
+# Head-catch zone (wear-test-tuned): the acquisition cube is stretched to a VERTICAL COLUMN — 0.15 m wide/deep,
 # 0.3 m tall — so lowering a prop onto a head reliably catches (and it widens the release-
 # arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints
 # rest localScale + VRCScaleConstraint ScaleAtRest (0.05, 0.1, 0.05) — zone side = 3 × scale
