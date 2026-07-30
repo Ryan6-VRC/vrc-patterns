@@ -1,0 +1,83 @@
+# selective-animation — tag a player by pointing at them (Module)
+
+Point at someone and hold the gesture: their copy of your avatar changes, and nobody else's does. The tag persists on that person's client until you clear it, and a menu bool tags your own copy for you. A native `VRCRaycast` masked to the observer's own player capsule does the addressing, and a state latch on that observer's animator does the remembering — so the per-player state lives distributed across the people who hold it, and **nothing identifying anyone crosses the wire: 3 synced bits total**, the same three whether one person is tagged or twenty.
+
+**Provenance:** VRLabs' MIT [`Selective-Animation`](https://github.com/VRLabs/Selective-Animation) established the mechanism and is the direct ancestor. It predates `VRCRaycast` and so reconstructed a hit flag out of geometry — two identically-configured FinalIK Grounders whose end transforms coincide on a hit and separate on a miss, plus a contact sender/receiver pair, across 16 GameObjects and 4 constraints. Native `_Hit` reports that flag directly, so all of it drops out along with the FinalIK dependency. Two things are inherited deliberately: the single-layer collision mask (below), and the wearer-facing laser, which is not decoration.
+
+## Interface
+
+- **Params:**
+  - `SelectiveAnimation/Enable` (bool, in) — synced, **unsaved**. The master gate, and **off is the
+    all-clear**: every client drops its latch at once, which is why this entry ships no separate
+    failsafe control.
+  - `SelectiveAnimation/Paint` (bool, out) — synced, **unsaved**. The held command; an observer latches
+    on (their own `_Hit` AND this). Written only by the wearer's `localOnly` drivers.
+  - `SelectiveAnimation/Erase` (bool, in) — synced, **unsaved**. A mode, not a second command: it flips
+    what a hit writes, so pointing untags instead of tagging.
+  - `SelectiveAnimation/SelfTag` (bool, in) — **unsynced**, unsaved. Tags your own copy. Being unsynced
+    is load-bearing, not an economy — see **Before you compose it**.
+  - `SelectiveAnimation/PaintMenu` (bool, in) — **unsynced**. Menu parity for the point gesture; ORed
+    with it into the one synced `Paint`, so parity costs no bit.
+  - `SelectiveAnimation/Ray_Hit`, `Ray_Ratio`, `Wall_Ratio` (sensing) — the two rays' outputs. Never
+    synced: a natively-driven param is re-driven locally every frame, and a synced copy would read the
+    wearer's replicated value on a clone instead of that clone's own ray.
+  - `SelectiveAnimation/Tagged` (bool, out) — animator-local on each client, the consumption point for
+    gating your own layers. `Clear` (float, AAP) is the clearance test; `One` is a Direct-tree weight.
+  - `GestureRight` (VRC built-in) — FingerPoint is the affordance.
+- **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), merging `built/SelectiveAnimation_Fx_Parameters.asset`; `globalParams` exports the four menu-driven names, and four Toggles drive them. MA `BoneProxy` on the hand anchor alone — placement you can see while authoring; every animated binding targets `Beam`/`Payload`, which no BoneProxy touches.
+- **Dependencies:** VRC SDK + VRCFury + Modular Avatar, and a **humanoid** avatar (the BoneProxy resolves Right Hand through the humanoid mapping). Composes well with `anti-cull` — see below.
+- **Required assets:** `assets/SelectiveAnimationBeam.mat` (Unity Standard, self-contained — no Poiyomi or lilToon dependency). `Payload` is a placeholder sphere on the built-in default material.
+
+## Before you compose it
+
+- **The ray is a line, and there is no occlusion between players.** On each client the only candidate collider is *that client's own capsule*, so a person standing behind your target is not shadowed by them — everyone whose capsule the line crosses latches. This is the entry's defining failure mode, and the two things that bound it are the deliberately short range and the wearer-only beam: **look at the beam and see who is standing in it before you commit.** Lengthening the range widens the blast radius in direct proportion.
+- **Set the aim direction per rig.** `raycastDirection` is local to the ray's transform and ships at `(0, 1, 0)`, correct on most vendor rigs but not all: derive it as `hand.InverseTransformDirection((indexProximal.position - hand.position).normalized)` and read the result. Bone roll is a red herring — a direction along the bone's own long axis is invariant under roll; what varies between rigs is *which* local axis runs along the bone. Unity's `forward` is correct on none of the rigs measured. The beam needs no second derivation: it is aim-constrained at the world ray's result transform, so it follows whatever direction you set.
+- **Nudge `Origin`'s position, not its rotation.** It is the consumer-editable offset (`AsChildAtRoot` discards edits on the proxy GO itself at build), and the direction above is derived in the hand bone's frame — rotating `Origin` invalidates it.
+- **A target who has you view-culled cannot be tagged**: their client is not running your animator, so no ray of yours evaluates there. This is why the command is **held** rather than pulsed — a held command latches the frame they turn back and their animator resumes, where a momentary one would have risen and fallen unseen. To paint people who are looking away, compose `anti-cull`, whose bounds inflation is what keeps a remote's animator running when you leave their view.
+- **Keep `SelfTag` unsynced.** It is not just a saved bit: being unsynced is what distinguishes your own copy and its mirror clone from every remote (a remote reads its default forever), which is how the self-tag reaches a mirror without a mirror-detection rig. Declaring it synced would tag you on everyone's screen at once.
+- **The wearer never sees a hit register.** Your own client carries no remote's capsule, so your ray reports nothing when you point at someone. Nothing is broken; there is simply no local confirmation to give, which is the whole reason the beam ships.
+
+## How it works
+
+Two rays leave the same transform with the same direction and range. The **player ray** is masked to `PlayerLocal` **alone** — not the SDK's `HitPlayers` mode, which also queries the `Player` layer. That single-layer mask is what makes unintended painting structurally impossible rather than merely unlikely: whatever colliders remote players may present on `Player`, the ray does not query that layer, so the only thing it can ever return on a given client is that client's own capsule. VRLabs' shipped ancestor masks the same single layer, which is the strongest evidence available that the observer's own capsule lives there. The **world ray** exists only to keep tags from passing through geometry; a Direct blend tree subtracts the two `_Ratio` values into `Clear`, positive when the player hit is nearer than the world hit, and the latch requires it.
+
+The latch itself is a **state, not a parameter** — the animator's own position is the memory, so no driver holds it and a mirror clone reaches it through the entry ladder. `Tagged` (ray-latched) and `SelfTagged` (menu-latched) play the same payload clip and exist separately only because they must leave on different conditions; one shared state could not tell them apart, and its exit would either strand the wearer's copy or untag every observer the instant it read `SelfTag` false. Both stamp the exported `SelectiveAnimation/Tagged` for consumers.
+
+**Durability is `runtime.md`'s cull table** and needs no re-measuring: view cull and distance-hide pause an observer's animator without rebuilding it, so the latch survives both; manual hide/show is the only genuine rebuild, so that — along with an avatar switch or reload — drops it. Re-pointing is the only repair, which is what holding the command is for.
+
+Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
+
+| Constant | Value | Locked by |
+|---|---|---|
+| Range | the `distance` field on **both** raycasts — **the two must agree**, or the `Clear` comparison of their ratios is meaningless | chosen short so the no-occlusion line stays surveyable from the beam; widening it widens the blast radius |
+| Clearance tolerance | the `Clear greater` threshold on both latch transitions | biased so a target standing *against* a wall still tags while one clearly behind it does not; a razor at exactly 0 would fail the first case |
+| Beam length | `BeamMesh`'s local position and scale carry the range, so `Beam`'s animated `scale.z` stays unitless and a retune touches only the prefab | structural |
+| Payload | the `sa_tagged` / `sa_untagged` clip pair | the swap point — this is a placeholder |
+
+**Two documented extensions.** A **class band** (green / spotlight / hidden rather than one bit) is a synced class param plus a `copy` in place of the latch's `set`: one int costs 8 bits, or 2 bools for up to four classes. **Stripping to one raycast** drops the world ray and the `Clear` condition, buying back the perf rating (`raycastCount` 1 is Excellent on both platforms, 2 is one grade below) at the cost of tags passing through walls. Neither changes the mechanism.
+
+## Verifying the install
+
+Post-bake the sync surface is exactly three bools; `SelfTag`, `PaintMenu` and both rays' outputs must read unsynced. MA must have moved `Aim` onto the right hand — check the BoneProxy's `target` as well as the position, because in an unfocused or agent-driven editor MA's edit-time placement does not tick and the anchor reads at the avatar-root origin *with its target correctly resolved*, which is indistinguishable from a real failure. Enable the module and confirm the beam appears on your own copy and not on a remote clone, that its length tracks the world ray (walk it up to a wall), and that it changes colour under Paint and again under Erase.
+
+What the emulator cannot show for this entry is **selectivity itself** — that the person you point at is the one who latches. The editor has no player colliders at all, and standing a capsule in for one is a false pass, because the client strips every collider off a real avatar. Substituting a collider on the `PlayerLocal` layer does exercise the machine — the param path, the clearance test, the latch, the `IsLocal` split — and that is what the entry was verified against; it proves nothing about where a real capsule sits or which client owns it. Selectivity needs two real clients.
+
+## Rig
+
+    SelectiveAnimation              root — VRCFury FullController + four Toggles
+    ├─ Aim                          MA BoneProxy → Right Hand, AsChildAtRoot
+    │  └─ Origin                    consumer-editable offset (position only — see above)
+    │     │                         VRCRaycast ×2: player ray (HitCustomLayers, PlayerLocal alone)
+    │     │                         and world ray (HitWorlds); same direction, range and SnapToEnd
+    │     └─ Beam                    VRCAimConstraint → WallHit (Locked, zero offsets), so the beam
+    │        │                       needs no copy of the aim derivation; scale.z = the world _Ratio
+    │        └─ BeamMesh             carries the range; owned Standard material, colour = the mode
+    ├─ PlayerHit                    result transform — MANDATORY: a raycast with none never registers
+    ├─ WallHit                      result transform, and the beam's aim source
+    └─ Payload                      placeholder sphere, built-in default material — swap this
+
+A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic.
+
+## Rebuilding
+
+`controller.yaml` → `CompileController` → `built/` (committed; the prefab references it by GUID — recompile is GUID-stable; regenerate controller + params asset as a unit over the committed `.meta`s). The prefab is hand-maintained against the Rig section above.
