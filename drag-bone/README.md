@@ -18,7 +18,7 @@ Two prefabs, one mechanism:
 
 ## Before you compose it
 
-**The rig solves in a world-stable frame, and must stay in one.** The shipped root is world-frozen at load-in (`FreezeToWorld` parent constraint, enabled by ApplyDuringUpload — the grab-prop idiom), so the tip trails only when the *followed container* moves. Re-parent the rig under a bone, or defeat the freeze, and avatar locomotion drags the tip directly — the prop yaws to face the walk direction even while parked. Measured with the freeze intact: 1.5 m of avatar travel moved the module root 3 mm and left yaw tracking the container exactly.
+**The rig solves in a world-stable frame, and must stay in one.** The shipped root is world-frozen at load-in (`FreezeToWorld` parent constraint, enabled by ApplyDuringUpload — the grab-prop idiom), so the tip trails only when the *followed container* moves. Re-parent the rig under a bone, or defeat the freeze, and avatar locomotion drags the tip directly — the prop yaws to face the walk direction even while parked. Measured with the freeze intact, yaw tracked the container exactly and the root's displacement was **transient only** — a speed-scaled excursion while the avatar is moving (3 mm over 1.5 m of walking, 8.7 mm at 1 m/s) that settles to 0.00 mm residual. Judge the freeze by the residual; a peak read mid-stride proves nothing either way.
 
 ## How it works
 
@@ -47,7 +47,7 @@ Empirical constants (90% rule — test before changing):
 
 ## Verifying the install
 
-Drag the followed container horizontally: the prop must swing to face the direction of travel and **hold that heading when the container stops**. A heading that decays back to rest means a nonzero `pull`/`stiffness` crept in; a prop that yaws while you walk with the container parked means the world-freeze is defeated (root riding a bone, or `FreezeToWorld` left inactive at build). The emulator shows all of this; what it cannot show is feel under real IK hand motion — trail-length taste is an in-game call.
+Drag the followed container horizontally: the prop must swing to face the direction of travel and **hold that heading when the container stops**. Stopped means the *container* is at rest, not your hand — a physics-driven container (a hair or tail tip) keeps settling for seconds after you release, and the trailing yaw drifts along with it the whole time, so a sound rig reads as a hold failure unless you let the container come to rest first. A heading that decays back to rest means a nonzero `pull`/`stiffness` crept in; a prop that yaws while you walk with the container parked means the world-freeze is defeated (root riding a bone, or `FreezeToWorld` left inactive at build). The emulator shows all of this; what it cannot show is feel under real IK hand motion — trail-length taste is an in-game call.
 
 ## Rig
 
