@@ -2,7 +2,7 @@
 
 The DBT-math primitives an agent reaches for when a gimmick needs arithmetic on animator floats without a scripted behaviour, organized into four **concern-layers** — `Math/Arithmetic`, `Math/MinMax`, `Math/Smoothing`, `Math/FrameTime` — each an always-on WD-ON Direct root tree whose named children are that concern's idioms.
 
-**Layers are author-time legibility, not runtime structure** (`docs/gimmicks.md`, the bullet of that name): both dominant FX optimizers flatten always-on Direct-tree layers into one tree on upload, so layer structure never affected the math and the flatten is behavior-preserving. This is Pattern tier: a consumer lifts the YAML and recompiles it in their own project with their own params/GUIDs; `built/` is committed only so the graphs are readable without a compile. Generalized from standard VRChat DBT-math constructions (vrc.school Advanced Blend Trees); no real-avatar naming.
+**The four concern-layers are author-time legibility, not runtime structure.** Collapsing them into a single Direct tree is mechanical — nest the children — and costs no timing, because layer order never bought same-frame data flow in the first place (`docs/gimmicks.md` "Layer order buys no same-frame data flow"). Fold them if you are counting layers. This is Pattern tier: a consumer lifts the YAML and recompiles it in their own project with their own params/GUIDs; `built/` is committed only so the graphs are readable without a compile. Generalized from standard VRChat DBT-math constructions (vrc.school Advanced Blend Trees); no real-avatar naming.
 
 ## Interface
 

@@ -1,8 +1,8 @@
 # smooth-frametime — frametime-aware, clean-settling float smoothing, authored as TWO cosmetic always-on
 # WD-ON Direct-tree layers: a shared FrameTime front-end (the owned rig + α), and the Smoothers that read
-# it. The split is author-time legibility ONLY — open one blend tree, read one concern — an optimizer
-# merges both into one DBT on upload regardless (README; docs/gimmicks.md "Layers are author-time
-# legibility, not runtime structure"). Named tree nodes and value-named clips make each graph
+# it. The split is author-time legibility ONLY — open one blend tree, read one concern; collapsing the
+# two into one Direct tree is mechanical and costs no timing (README; docs/gimmicks.md "Layer order
+# buys no same-frame data flow"). Named tree nodes and value-named clips make each graph
 # self-describing in the Animator window. Same house style as blendtree-math (its FrameTime rig is authored
 # identically here — node names `Time Ramp` / `FrameTime = Time − LastTime` match verbatim).
 #

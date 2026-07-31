@@ -6,8 +6,8 @@
 #
 # STRUCTURE — four concern-layers, each an always-on WD-ON Direct root state whose named children are the
 # idioms of that concern (Arithmetic, MinMax, Smoothing, FrameTime). Layers are author-time legibility
-# only — open one blend tree, read one concern — an optimizer merges them all into one DBT regardless
-# (README; docs/gimmicks.md "Layers are author-time legibility, not runtime structure"). Named tree nodes
+# only — open one blend tree, read one concern; collapsing them into one Direct tree is mechanical and
+# costs no timing (README; docs/gimmicks.md "Layer order buys no same-frame data flow"). Named tree nodes
 # and value-named clips make each graph self-describing in the Animator window.
 #
 # WD-ON: every state is Write-Defaults ON and carries "(WD ON)" in its name (vrc.school's caution — a
