@@ -2,7 +2,7 @@
 
 Reusable avatar building blocks. Primary reader: an agent with the full Atelier workspace. YAML is the source of truth; built Unity assets are regenerable.
 
-The general avatar-tooling doctrine an entry *embodies* — module seams and the build-order that constrains them, gimmick packaging, graph-layout legibility, the binding schema — lives in the workspace docs (`nondestructive.md`, `gimmicks.md`, `animator-schema.md`). This file is only the mechanics a contributor **to vrc-patterns itself** needs: the entry's shape on disk, the README's shape and Interface slot, and the gate.
+The general avatar-tooling doctrine an entry *embodies* — module seams and the build-order that constrains them, gimmick packaging, graph-layout legibility, whether a behaviour earns a layer at all or folds into a Direct tree, the binding schema — lives in the workspace docs (`nondestructive.md`, `gimmicks.md`, `animator-schema.md`). This file is only the mechanics a contributor **to vrc-patterns itself** needs: the entry's shape on disk, the README's shape and Interface slot, and the gate.
 
 ## An entry is a folder
 
