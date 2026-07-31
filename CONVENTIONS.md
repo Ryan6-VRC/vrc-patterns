@@ -50,6 +50,8 @@ The register is the anti-cringe pin, load-bearing because the pull is toward a m
 - **Dependencies** — physbones/contacts/menu params the entry assumes exist.
 - **Required assets** — and any hard external dependency.
 
+**A module's menu ships as an asset once it has more than one control.** A VRCFury `Toggle` drives its parameter **by name**, so every name it drives must be listed in `globalParams` — which is the instruction *"do not prefix this"*, and leaves the name exposed: a host avatar declaring the same one captures it, **its** synced/saved flags winning, with no build error. A menu asset merged through the FullController's `menus:` (whose `prefix` places it) is rewritten by the same `RewriteParamName` as the controller, so control and parameter take the instance prefix **together** and nothing escapes. Reserve a bare `Toggle` for a lone enable; reserve `globalParams` for names something outside the module must read — an export another layer consumes, or an OSC surface. The menu asset belongs in `assets/`, not `built/`: `built/` is what `CompileController` regenerates from the YAML, and the compiler emits no menu, so one filed there would be a hand-maintained file sitting in the regenerable pile. Keep it hand-maintained against the README's **Params** list, the way a Module's prefab is kept against its **Rig** section.
+
 ## Verifying the install (fixed README slot, Module tier)
 
 An entry in this library is **assumed working** — it passed the gate to get in, and git holds how it got there. So this slot is not a record of what was proven; it is written for the agent who has just composed the entry onto an unfamiliar avatar and needs to know it landed. Two things only:

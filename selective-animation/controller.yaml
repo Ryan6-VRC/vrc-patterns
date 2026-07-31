@@ -1,0 +1,334 @@
+# selective-animation — tag one player by pointing at them; their copy of your avatar holds the state.
+# Mechanism from VRLabs' MIT Selective-Animation (github.com/VRLabs/Selective-Animation), rebuilt on the
+# native VRCRaycast the SDK has since shipped: the ancestor reconstructed a hit flag out of FinalIK
+# Grounders and spatial coincidence because no component reported one. `_Hit` reports it directly.
+#
+# WHY THIS IS POSSIBLE AT ALL, in one paragraph, because every condition below rests on it:
+# every client runs its own copy of this raycast, and the ONLY player collider on a given client is that
+# client's own capsule (runtime.md §Other load-bearing components). So the ray evaluates a different world
+# on every machine, and `_Hit` is true on exactly the machines whose owner the ray crosses. A latch keyed
+# on (_Hit AND a synced command) therefore fires per-observer, and NOTHING identifying an observer ever
+# crosses the wire -- which is the only reason per-player targeting is reachable at all, since an avatar
+# has no way to address or name an observer.
+#
+# THE LATCH IS THE STATE, NOT A PARAMETER. `Tagged` is a state this layer sits in, so the animator's own
+# position is the memory and no parameter driver is needed to hold it. The state's driver also exports
+# SelectiveAnimation/Tagged for consumers gating their OWN layers -- and that export is what makes the
+# latch survive cloning: a mirror clone traverses fresh from Entry and runs no StateMachineBehaviours, so
+# it cannot re-derive the latch, but it does INHERIT the driven parameter value (vrc-patterns/mirror-detect
+# rests on exactly that: "the mirror clone enters later with the driver-set true value"). The entry ladder
+# reads the export back, which is the only reason a tagged observer sees the tag in a mirror too.
+#
+# Durability is `runtime.md`'s cull table, measured in-game: view cull and distance-hide PAUSE the
+# observer's animator without rebuilding it (the latch survives both), manual hide/show is the sole
+# rebuild path (the latch dies). Avatar switch and re-load likewise. Re-pointing is the only repair, which
+# is why the command is HELD rather than pulsed -- see the Command layer.
+#
+# SYNCED SURFACE IS 3 BITS: Enable, Paint, Erase. The raycast's own params are never synced (a natively
+# driven param is re-driven every frame locally, so a synced copy is a wasted bit AND reads the wearer's
+# replicated value on a clone rather than that clone's own ray -- docs/verify.md). SelfTag and PaintMenu
+# are unsynced: both are wearer-local intents whose only outcome is on the wearer's own screen.
+
+schema: 1
+controller: SelectiveAnimation_Fx
+basis: mount-root          # paths bind against the module prefab root (VRCFury FullController seam)
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # --- the sync surface (3 bits) ---
+  SelectiveAnimation/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  # The held command. Stamped by the wearer's localOnly drivers in the Command layer; every observer's
+  # latch reads it. Synced because an observer must know the wearer is commanding right now.
+  SelectiveAnimation/Paint:  { type: bool, default: false, vrc: { synced: true, saved: false } }
+  # The mode, not a second command: it flips what a hit WRITES. Synced for the same reason as Paint.
+  SelectiveAnimation/Erase:  { type: bool, default: false, vrc: { synced: true, saved: false } }
+
+  # --- wearer-local intents, 0 synced bits ---
+  # Self-tag. Purely local: your own copy is the one you see, so nothing needs to reach an observer.
+  # Read by the Latch layer's TRANSITIONS (never a driver) so the mirror clone follows it too.
+  SelectiveAnimation/SelfTag:   { type: bool, default: false, vrc: { synced: false, saved: false } }
+  # Menu parity for the point gesture (gimmicks.md §In-game UX: every affordance-reachable intent is also
+  # menu-reachable). ORed with the gesture into the one synced Paint, so parity costs no extra bit.
+  SelectiveAnimation/PaintMenu: { type: bool, default: false, vrc: { synced: false, saved: false } }
+
+  # --- sensing: the two rays. Never synced, never saved, never menu-exposed. ---
+  # Ray = the player ray, masked to PlayerLocal ALONE (see the prefab's Rig section). Wall = the world ray
+  # whose only job is to keep the tag from passing through geometry.
+  SelectiveAnimation/Ray_Hit:    bool
+  SelectiveAnimation/Ray_Ratio:  float
+  SelectiveAnimation/Wall_Ratio: float
+
+  # --- computed ---
+  # Clearance = Wall_Ratio - Ray_Ratio: positive when the player hit is NEARER than the world hit, i.e.
+  # nothing solid stands between. Both rays share one `distance`, which is what makes their ratios
+  # comparable -- the constants table's one hard invariant.
+  SelectiveAnimation/Clear:  { type: float, aap: true }
+  # The export. Written by the Latch states (localOnly false: every client stamps its own) so a consumer
+  # can gate an existing layer on one bool instead of copying this machine.
+  SelectiveAnimation/Tagged: { type: bool, default: false, vrc: { synced: false, saved: false } }
+  # Constant-1 Direct-tree weight.
+  SelectiveAnimation/One:    { type: float, default: 1.0, scratch: true }
+
+  IsLocal:      bool         # VRC built-in
+  GestureRight: int          # VRC built-in — 3 is FingerPoint, the affordance
+
+layers:
+  # ===== Compute — always-on WD-ON Direct root: the clearance test and the beam's length =====
+  # Both are pure arithmetic over the two rays' ratios, so they share one always-on state. An optimizer
+  # flattens always-on Direct-tree layers regardless (gimmicks.md "Layers are author-time legibility").
+  - name: SelectiveAnimation/Compute
+    states:
+      "Compute (WD ON)":
+        motion:
+          tree: direct
+          name: Compute
+          children:
+            # Clearance = Wall_Ratio - Ray_Ratio. The sign lives in the clip's curve value, never in the
+            # weight -- Unity clamps a directWeight to >=0 (vrc-patterns/blendtree-math §Subtract).
+            - tree: direct
+              name: Clearance
+              directWeight: SelectiveAnimation/One
+              children:
+                - { clip: sa_clear_pos, directWeight: SelectiveAnimation/Wall_Ratio }
+                - { clip: sa_clear_neg, directWeight: SelectiveAnimation/Ray_Ratio }
+            # Beam length rides the WORLD ray, which is the only one that reports a distance the wearer
+            # can act on: their player ray never registers the person they are aiming at (no remote
+            # carries a capsule on their machine), so it reports either their own body or nothing, and
+            # could not shorten the beam toward a target. The beam shows reach and occlusion honestly,
+            # and stops short only at geometry.
+            - tree: 1d
+              name: "Beam length"
+              param: SelectiveAnimation/Wall_Ratio
+              directWeight: SelectiveAnimation/One
+              children:
+                - { clip: sa_beam_min, threshold: 0.0 }
+                - { clip: sa_beam_max, threshold: 1.0 }
+    default: "Compute (WD ON)"
+
+  # ===== Rig — the raycasts' lifecycle. Keyed on Enable ALONE, deliberately. =====
+  # gimmicks.md §Off-state hygiene: a module whose enable is off leaves no interactive component live.
+  # Without this the two rays cast on every client for as long as the avatar is loaded, and the module
+  # bills its perf whether or not it is in use. The IsLocal-free gate is the load-bearing part -- the
+  # Command layer parks every remote in Disabled forever by design, so hanging the rig off THAT state
+  # would deactivate the rig on exactly the clients whose rays do the work.
+  # A disabled component freezes its parameter at the last value rather than zeroing it, so the off state
+  # clears the sensing set itself (localOnly false: unsynced sensing, every client clears its own). A
+  # frozen Ray_Hit true plus a held Paint would otherwise tag on the frame after re-enable, before any
+  # ray had cast.
+  - name: SelectiveAnimation/Rig
+    states:
+      Stowed:
+        behaviours:
+          - driver: { set: { SelectiveAnimation/Ray_Hit: 0, SelectiveAnimation/Ray_Ratio: 0, SelectiveAnimation/Wall_Ratio: 0 } }
+        motion: { clip: sa_rig_stowed }
+        transitions:
+          - { to: Casting, when: [ SelectiveAnimation/Enable is true ] }
+      Casting:
+        motion: { clip: sa_rig_casting }
+        transitions:
+          - { to: Stowed, when: [ SelectiveAnimation/Enable is false ] }
+    default: Stowed
+    layout:
+      nodes:
+        Stowed:  [30, 180]
+        Casting: [30, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===== Latch — the feature. The state IS the per-observer memory. =====
+  # Tagged and SelfTagged play the SAME payload clip and are separate states because the wearer's own ray
+  # CAN hit their own capsule: a single shared state would expose the wearer's self-tag to the observer's
+  # untag edge, so erasing near your own body would clear it. (A one-state form is expressible -- gate the
+  # self-exit on `IsLocal is true` -- it just has that defect.)
+  - name: SelectiveAnimation/Latch
+    states:
+      Untagged:
+        behaviours:
+          - driver: { set: { SelectiveAnimation/Tagged: 0 } }
+        motion: { clip: sa_untagged }
+        transitions:
+          # The wearer's own copy: self-tag is a menu intent, never the ray. IsLocal is true on the wearer
+          # AND on their mirror clone (vrc-patterns/mirror-detect routes on exactly that), so this one
+          # condition covers both and excludes every remote structurally -- belt to SelfTag's unsynced
+          # braces, which matters because SelfTag is a globalParam and so keeps whatever flags a host
+          # avatar already declaring that name gave it.
+          - { to: SelfTagged, when: [ IsLocal is true, SelectiveAnimation/Enable is true, SelectiveAnimation/SelfTag is true ] }
+          # The observer's copy. Erase false makes this the paint case; the clearance test happens in
+          # Aiming, one frame later, and never here -- see Aiming.
+          - { to: Aiming, when: [ IsLocal is false, SelectiveAnimation/Enable is true, SelectiveAnimation/Paint is true, SelectiveAnimation/Erase is false, SelectiveAnimation/Ray_Hit is true ] }
+      # The clearance test cannot be read on the same frame the ray acquires. Clear is an AAP written by
+      # the Compute tree's clips, and a clip's write is invisible to any transition until the next
+      # evaluation (runtime.md), so on the frame Ray_Hit first goes true, Clear still holds the PREVIOUS
+      # frame's value -- 0 if both rays were missing, which passes any threshold at or below zero. Sweeping
+      # off open space onto a wall with someone behind it would tag them through it, once, permanently,
+      # because the latch is sticky. This state costs one frame and closes that window; the abort rungs
+      # come first so a command released inside the window commits nothing.
+      Aiming:
+        motion: { clip: sa_untagged }
+        transitions:
+          - { to: Untagged, when: [ SelectiveAnimation/Enable is false ] }
+          - { to: Untagged, when: [ SelectiveAnimation/Paint is false ] }
+          - { to: Untagged, when: [ SelectiveAnimation/Ray_Hit is false ] }
+          - { to: Tagged,   when: [ SelectiveAnimation/Clear greater 0 ] }
+      Tagged:
+        behaviours:
+          - driver: { set: { SelectiveAnimation/Tagged: 1 } }
+        motion: { clip: sa_tagged }
+        transitions:
+          # Enable-off IS the all-clear, on every client at once -- which is why this entry ships no
+          # separate failsafe control (gimmicks.md §In-game UX splits enable / options / failsafe, and
+          # off-is-reset already fills the third slot here).
+          - { to: Untagged, when: [ SelectiveAnimation/Enable is false ] }
+          # Point-to-untag: the same gesture and the same ray, with Erase flipping what the hit writes.
+          # Unstaged deliberately -- a stale Clear here can only clear a tag early, and an over-eager
+          # untag is the cheap error where an over-eager tag is the expensive one.
+          - { to: Untagged, when: [ SelectiveAnimation/Paint is true, SelectiveAnimation/Erase is true, SelectiveAnimation/Ray_Hit is true, SelectiveAnimation/Clear greater 0 ] }
+      SelfTagged:
+        behaviours:
+          - driver: { set: { SelectiveAnimation/Tagged: 1 } }
+        motion: { clip: sa_tagged }
+        transitions:
+          - { to: Untagged, when: [ SelectiveAnimation/Enable is false ] }
+          - { to: Untagged, when: [ SelectiveAnimation/SelfTag is false ] }
+    # A clone traverses fresh from Entry and cannot re-derive either latch -- it runs no drivers, and a
+    # mirror clone of a remote has no ray hit to re-acquire from. It does inherit the driven Tagged value,
+    # so reading the export back here is what keeps a tagged avatar tagged in an observer's mirror; without
+    # this rung the reflection contradicts the direct view.
+    entry:
+      - { to: Tagged,     when: [ SelectiveAnimation/Tagged is true ] }
+      - { to: SelfTagged, when: [ SelectiveAnimation/Enable is true, SelectiveAnimation/SelfTag is true ] }
+    default: Untagged
+    # Lifecycle descends Untagged -> Aiming -> Tagged; the wearer's lane forks outboard right.
+    layout:
+      nodes:
+        Untagged:   [30, 180]
+        Aiming:     [-90, 260]
+        Tagged:     [-90, 340]
+        SelfTagged: [210, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===== Command — the wearer's surface: stamps the synced command, drives the wearer-only beam. =====
+  # Runs on every client but leaves Off only on IsLocal, so remotes never render the beam and never stamp.
+  - name: SelectiveAnimation/Command
+    states:
+      Disabled:
+        behaviours:
+          - driver: { localOnly: true, set: { SelectiveAnimation/Paint: 0 } }
+        motion: { clip: sa_beam_off }
+        transitions:
+          - { to: Ready, when: [ IsLocal is true, SelectiveAnimation/Enable is true ] }
+      # Armed, not commanding. The beam is up so the wearer can see their reach and who stands in it
+      # BEFORE committing -- the ray tags everyone whose capsule the line crosses, so seeing the line is
+      # the only defence against over-painting.
+      Ready:
+        behaviours:
+          - driver: { localOnly: true, set: { SelectiveAnimation/Paint: 0 } }
+        motion: { clip: sa_beam_ready }
+        transitions:
+          - { to: Disabled, when: [ SelectiveAnimation/Enable is false ] }
+          - { to: Erasing,  when: [ SelectiveAnimation/Erase is true, GestureRight equals 3 ] }
+          - { to: Erasing,  when: [ SelectiveAnimation/Erase is true, SelectiveAnimation/PaintMenu is true ] }
+          - { to: Painting, when: [ GestureRight equals 3 ] }
+          - { to: Painting, when: [ SelectiveAnimation/PaintMenu is true ] }
+      # HELD, not pulsed. An observer who has the wearer view-culled is not evaluating this avatar's
+      # animator at all, so a momentary command rises and falls unseen (runtime.md); a held one latches
+      # the frame they turn back and resume. Holding is also what makes re-painting a room after reloads
+      # one sweep rather than N presses.
+      Painting:
+        behaviours:
+          - driver: { localOnly: true, set: { SelectiveAnimation/Paint: 1 } }
+        motion: { clip: sa_beam_paint }
+        transitions:
+          - { to: Disabled, when: [ SelectiveAnimation/Enable is false ] }
+          # Release outranks the mode flip. The other order emits a one-frame synced Paint with no input
+          # held: releasing the gesture while flipping Erase would route into Erasing, whose entry driver
+          # stamps Paint 1, before the release rung was ever reached.
+          - { to: Ready,   when: [ GestureRight notEqual 3, SelectiveAnimation/PaintMenu is false ] }
+          - { to: Erasing, when: [ SelectiveAnimation/Erase is true ] }
+      Erasing:
+        behaviours:
+          - driver: { localOnly: true, set: { SelectiveAnimation/Paint: 1 } }
+        motion: { clip: sa_beam_erase }
+        transitions:
+          - { to: Disabled, when: [ SelectiveAnimation/Enable is false ] }
+          - { to: Ready,    when: [ GestureRight notEqual 3, SelectiveAnimation/PaintMenu is false ] }
+          - { to: Painting, when: [ SelectiveAnimation/Erase is false ] }
+    default: Disabled
+    # Lifecycle descends Off -> Ready; the two command modes fan one row below Ready.
+    layout:
+      nodes:
+        Disabled: [30, 180]
+        Ready:    [30, 260]
+        Painting: [-90, 340]
+        Erasing:  [150, 340]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Rig: Aim (MA BoneProxy -> Right Hand) / Origin carries both raycasts and the beam; Payload is the
+# placeholder output. Every clip owns its full property set explicitly (no reliance on WD revert; survives
+# WD-OFF conversion), and every transform-vector clip writes all three components -- the animator drives an
+# unbound component to 0 rather than leaving it at rest (docs/animator-schema.md §clips).
+clips:
+  # Clearance endpoints: bare declared-parameter writes, so they compile to animator-parameter curves.
+  sa_clear_pos: { set: { SelectiveAnimation/Clear: 1 } }
+  sa_clear_neg: { set: { SelectiveAnimation/Clear: -1 } }
+
+  # Beam length is unitless here: Beam's scale.z of 1 IS full range, because BeamMesh is authored to span
+  # the range in the prefab. So retuning the range touches the prefab only, never this document.
+  sa_beam_min:
+    set:
+      "Aim/Origin/Beam/Transform.m_LocalScale.x": 1
+      "Aim/Origin/Beam/Transform.m_LocalScale.y": 1
+      "Aim/Origin/Beam/Transform.m_LocalScale.z": 0
+  sa_beam_max:
+    set:
+      "Aim/Origin/Beam/Transform.m_LocalScale.x": 1
+      "Aim/Origin/Beam/Transform.m_LocalScale.y": 1
+      "Aim/Origin/Beam/Transform.m_LocalScale.z": 1
+
+  # Beam mode. Colour is the wearer's ONLY readout of which mode a hit will write, and they are otherwise
+  # blind -- no hit ever registers on the pointer's own machine, so nothing else can confirm the command.
+  sa_beam_off:
+    set:
+      "Aim/Origin/Beam/GameObject.m_IsActive": 0
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.r": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.g": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.b": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.a": 1
+  sa_beam_ready:
+    set:
+      "Aim/Origin/Beam/GameObject.m_IsActive": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.r": 0.6
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.g": 0.6
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.b": 0.6
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.a": 1
+  sa_beam_paint:
+    set:
+      "Aim/Origin/Beam/GameObject.m_IsActive": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.r": 0.1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.g": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.b": 0.3
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.a": 1
+  sa_beam_erase:
+    set:
+      "Aim/Origin/Beam/GameObject.m_IsActive": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.r": 1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.g": 0.2
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.b": 0.1
+      "Aim/Origin/Beam/BeamMesh/MeshRenderer.material._Color.a": 1
+
+  # The payload, and the whole of it: swap this pair's content (or the Payload child) for your effect.
+  sa_untagged: { set: { "Payload/GameObject.m_IsActive": 0 } }
+  sa_tagged:   { set: { "Payload/GameObject.m_IsActive": 1 } }
+
+  # Both raycasts live on Aim/Origin, so its active flag is the rig's whole lifecycle.
+  sa_rig_stowed:  { set: { "Aim/Origin/GameObject.m_IsActive": 0 } }
+  sa_rig_casting: { set: { "Aim/Origin/GameObject.m_IsActive": 1 } }
