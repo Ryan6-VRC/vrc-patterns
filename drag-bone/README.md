@@ -2,12 +2,12 @@
 
 Gives heading to a prop that is positioned but never rotated — a dropped grab-prop, a contact-tracker cage. A force-free physbone tip trails the moving rig like a pull-cord; an aim constraint faces away from it, which is the direction of travel. Rotation synthesized purely from position history: **zero synced params, no controller, no menu** — every client re-derives it.
 
-**Provenance:** generalized from a private production avatar's carryable-prop rotation rig. Abstracted away: the consumer-side rotation-source multiplex and damping (see Combinations), and a face-the-wearer companion aim source. Mechanism and trail length otherwise verbatim.
+**Provenance:** generalized from a private production avatar's carryable-prop rotation rig.
 
 Two prefabs, one mechanism:
 
-- `DragBone_Yaw.prefab` — yaw only; the default. `Follower` never passes vertical motion (`AffectsPositionY` off), so the trail cannot verticalize and yaw stays defined everywhere.
-- `DragBone_Full.prefab` — all axes; the aim pitches too. Degenerate at the pole: a trail crossing vertical pitches through smoothly (measured) but yaw/roll there is arbitrary. Only for props that genuinely need pitch.
+- `DragBone_Yaw.prefab` — yaw only; the default. `Follower` never passes vertical motion (`AffectsPositionY` off), so yaw stays defined everywhere.
+- `DragBone_Full.prefab` — all axes; the aim pitches too. Degenerate at the pole: yaw/roll there is arbitrary. Only for props that genuinely need pitch.
 
 ## Interface
 
@@ -18,32 +18,29 @@ Two prefabs, one mechanism:
 
 ## Before you compose it
 
-**The rig solves in a world-stable frame, and must stay in one.** The shipped root is world-frozen at load-in (`FreezeToWorld` parent constraint, enabled by ApplyDuringUpload — the grab-prop idiom), so the tip trails only when the *followed container* moves. Re-parent the rig under a bone, or defeat the freeze, and avatar locomotion drags the tip directly — the prop yaws to face the walk direction even while parked. Measured with the freeze intact, yaw tracked the container exactly and the root's displacement was **transient only** — a speed-scaled excursion while the avatar is moving (3 mm over 1.5 m of walking, 8.7 mm at 1 m/s) that settles to 0.00 mm residual. Judge the freeze by the residual; a peak read mid-stride proves nothing either way.
+**The rig solves in a world-stable frame, and must stay in one.** The shipped root is world-frozen at load-in (`FreezeToWorld` parent constraint, enabled by ApplyDuringUpload), so the tip trails only when the *followed container* moves. Re-parent the rig under a bone, or defeat the freeze, and avatar locomotion drags the tip directly. With the freeze intact, the root's displacement while walking is transient only — judge the freeze by whether it settles back to zero once the avatar stops, not by a peak read mid-stride. Never mount the rig on the rotating prop itself, either: its aim output rotating its own solve frame is a feedback loop.
 
 ## How it works
 
-The physbone is a pure trailing particle: every force zeroed (`pull`/`spring`/`stiffness`/ `gravity` 0), so the tip holds its world position until the moving root drags it along at fixed bone length — root→tip always points opposite the motion, and the aim constraint (aim +Z, offset 180° yaw) faces along it. A stationary prop has a stationary tip, so the heading **holds** rather than decaying or wobbling: no return force means no oscillation and no rest-pose snap-back.
+The physbone is a pure trailing particle: every force zeroed (`pull`/`spring`/`stiffness`/`gravity` 0), so the tip holds its world position until the moving root drags it along at fixed bone length — root→tip always points opposite the motion, and the aim constraint faces along it. A stationary prop has a stationary tip: no return force means no oscillation and no rest-pose snap-back.
 
 Degenerate cases, and what fences each:
 
-- **Trail length → 0** (aim target on the constraint origin): fenced by `maxSquish 0` — the solver holds bone length exactly (measured invariant at 5 m/s). That one setting is the invariant; `maxStretch` only lengthens the trail (feel, not validity).
-- **Trail goes vertical** (yaw undefined): fenced structurally by the yaw variant's planar follower — the bone root never moves vertically and nothing else (gravity 0, collision off) can move the tip. Physbone angle limits cannot replace this: a hinge (`limitRotation` zero) confines swing to the bone-local X axis, the one tested reorientation (0,0,90) tracked one heading then froze at its limit mid-turn while still allowing a vertical trail, and cone/polar limits are rest-axis-centered so they cannot exclude the poles — a 91° cone tested alongside the sandwich below clamped legitimate rear headings mid-turn. Keep `limitType None`. A **two-plane collider sandwich** *can* replace it where a planar follower won't fit (a rig that must ride a vertically-moving parent): two Plane `VRCPhysBoneCollider`s riding the bone root, facing each other at ±(radius + slack) around root height, with a nonzero bone radius. Measured (r 0.02, slack 0.005): tip vertical deviation ≤9 mm and zero yaw disturbance under 1 m of vertical root drive, horizontal tracking unchanged. Two colliders is the collider-fence **minimum**: a plane is one-sided, and nothing can press the tip onto a single pane from the far side — physbone gravity expresses only through `pull` (measured inert at pull 0), and nonzero pull + gravity collapses the trail's horizontal component against the pane exactly when the prop rests, undefining yaw. The shipped prefab keeps the follower — same fence, **zero colliders** (colliders cost avatar performance rank) — and never mount the rig on the rotating prop itself: its aim output rotating its own solve frame is a feedback loop.
-- **Pure 180° reversal:** an exactly-collinear reversal *pushes through* the tip instead of swinging it — heading reads backwards until any lateral motion breaks the symmetry, then recovers in a fast smooth swing (~3°/frame max, no snap). Real hand and locomotion paths always carry lateral motion; scripted perfectly-straight reversals are the only place this shows.
+- **Trail length → 0** (aim target on the constraint origin): fenced by `maxSquish 0` — the solver holds bone length exactly. `maxStretch` only lengthens the trail (feel, not validity).
+- **Trail goes vertical** (yaw undefined): fenced structurally by the yaw variant's planar follower — the bone root never moves vertically and nothing else (gravity 0, collision off) can move the tip, at zero colliders. Keep `limitType None`.
 
 Empirical constants (90% rule — test before changing):
 
-| Constant | Value | Measured behavior |
-|---|---|---|
-| Trail length | `DragBone_End`'s local −Z offset (see **Rig**) — drag it to retune | response distance: heading settles after ~one trail length of travel; curvature lag ≈ trail/turn-radius radians (at the shipped length, 13° on a 0.5 m-radius circle). Lengthen for calmer, laggier heading |
-| `maxSquish` | 0 | the length invariant above — the one setting that reintroduces the zero-length degeneracy |
-| Straight-line tracking | ≤3° error | steady-state, both variants |
-| Stationary hold | exact | zero yaw drift/jump over multi-second holds |
+| Constant | Value |
+|---|---|
+| Trail length | `DragBone_End`'s local −Z offset (see **Rig**) — drag it to retune. Lengthen for calmer, laggier heading |
+| `maxSquish` | 0 |
 
 ## Combinations
 
-- **grab-prop / contact-tracker** — the intended pairings: both position a container without rotating it. Source `Follower` at the container (grab-prop's `Container`, contact-tracker's `Container`), and the payload's rotation constraint at `Drag_Rotation`.
-- **Mode switching and damping** are the consumer's, not this rig's: multiplex `Drag_Rotation` against other rotation sources with animated source weights, and damp the raw aim (it snaps with the tip) with a self-sourced rotation constraint — the ancestor runs self-weight 1 / drag-weight 0.2. Both are their own patterns; this entry ships the source, not the mux.
-- **Face-the-wearer** (the return-flight companion): not a drag bone at all — a second yaw-only aim constraint targeting an MA BoneProxy anchor on the wearer, multiplexed the same way.
+- **grab-prop / contact-tracker** — the intended pairings. Source `Follower` at the container, and the payload's rotation constraint at `Drag_Rotation`.
+- **Mode switching and damping** are the consumer's, not this rig's: multiplex `Drag_Rotation` against other rotation sources, and damp the raw aim (it snaps with the tip) with a self-sourced rotation constraint. Both are their own patterns; this entry ships the source, not the mux.
+- **Face-the-wearer**: not a drag bone at all — a second yaw-only aim constraint targeting an MA BoneProxy anchor on the wearer, multiplexed the same way.
 
 ## Verifying the install
 
