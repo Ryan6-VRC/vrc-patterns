@@ -8,8 +8,8 @@ The general avatar-tooling doctrine an entry *embodies* — module seams and the
 
     <entry-name>/
       README.md          # prose + the Interface stanza + provenance
-      controller.yaml    # the YAML source (CompileController); declares basis, role, parameters
-      built/             # committed when a GUID references it, OR for a declared study/reference entry (see tiers): .controller + *_Parameters.asset (+ .meta)
+      controller.yaml    # the YAML source (CompileController); declares basis, role, parameters, menu
+      built/             # committed when a GUID references it, OR for a declared study/reference entry (see tiers): .controller + *_Parameters.asset + *_Menu.asset where the entry ships a menu (+ .meta)
       assets/            # owned, self-contained assets the entry ships (meshes, reference prefabs, materials)
       <entry>.prefab     # the drop-in, referencing built/ by GUID via an MA/VRCFury merge component
 
@@ -54,7 +54,7 @@ The register is the anti-cringe pin, load-bearing because the pull is toward a m
 
 The menu is authored as a `menu:` block in `controller.yaml` and lands in `built/` with everything else `CompileController` emits (`animator-schema.md` §menu), so it regenerates as a unit with the controller and params asset and the gate holds it to the same committed-equals-compiled check. A menu the schema cannot express — puppets, per-control icons — is the exception that stays hand-maintained in `assets/`, kept against the README's **Params** list the way a Module's prefab is kept against its **Rig** section.
 
-**A bare `Toggle` is sound only while the module cannot be instanced twice**, since two instances export the same un-prefixed name and collide. `head-deform` is the sanctioned case in both respects: one control, and one per avatar by construction — you have one head.
+**A bare `Toggle` needs one control *and* a module that cannot be instanced twice** — two instances export the same un-prefixed name and collide. `head-deform` is the sanctioned case: one control, and one per avatar, since you have one head. Note what single-instancing does **not** buy. The exposure in ¶1 is still live: the name stays un-prefixed, so a host avatar declaring it captures it with its own synced/saved flags and no build error. Single-instancing rules out only the module colliding with *itself* — which is why `head-deform`'s two prefab variants may both export `HeadDeform/Active` (they are alternatives, never composed together) while still resting on nobody else claiming that name.
 
 ## Verifying the install (fixed README slot, Module tier)
 
