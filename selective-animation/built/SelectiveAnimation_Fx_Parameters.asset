@@ -14,12 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   isEmpty: 0
   parameters:
-  - name: SelectiveAnimation/Enable
+  - name: SelectiveAnimation/Tag
     valueType: 2
     saved: 0
     defaultValue: 0
     networkSynced: 1
-  - name: SelectiveAnimation/Paint
+  - name: SelectiveAnimation/Gen
     valueType: 2
     saved: 0
     defaultValue: 0
@@ -28,13 +28,8 @@ MonoBehaviour:
     valueType: 2
     saved: 0
     defaultValue: 0
-    networkSynced: 1
-  - name: SelectiveAnimation/SelfTag
-    valueType: 2
-    saved: 0
-    defaultValue: 0
     networkSynced: 0
-  - name: SelectiveAnimation/PaintMenu
+  - name: SelectiveAnimation/SelfTag
     valueType: 2
     saved: 0
     defaultValue: 0
@@ -55,6 +50,16 @@ MonoBehaviour:
     defaultValue: 0
     networkSynced: 0
   - name: SelectiveAnimation/Clear
+    valueType: 1
+    saved: 0
+    defaultValue: 0
+    networkSynced: 0
+  - name: SelectiveAnimation/Casting
+    valueType: 1
+    saved: 0
+    defaultValue: 0
+    networkSynced: 0
+  - name: SelectiveAnimation/Armed
     valueType: 1
     saved: 0
     defaultValue: 0
