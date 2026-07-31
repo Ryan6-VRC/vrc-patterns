@@ -72,6 +72,17 @@ parameters:
   GrabBone_IsGrabbed: bool         # minted by the grab physbone (parameter: GrabBone); native grab sync
   IsLocal: bool                    # VRC built-in
 
+# The shipped menu. Two controls, so it ships as an asset rather than two bare VRCFury Toggles:
+# `menus:` places it at the FullController's prefix and RewriteParamName rewrites control and parameter
+# together, which is what keeps both names OFF `globalParams` and out of a host avatar's reach
+# (CONVENTIONS.md §The Interface stanza). Enable latches; ToHead is the momentary recall, so it is a
+# Button — a Toggle would leave the recall asserted until the wearer noticed and switched it back.
+menu:
+  - toggle: Enable
+    param: DropOnPlayer/Enable
+  - button: Recall to Head
+    param: DropOnPlayer/ToHead
+
 layers:
   # Mode machine. Local edges arbitrate off live sensors and stamp the pair; remote edges pose
   # from the pair alone (deterministic resume). Grab edges are shared — the grab is natively

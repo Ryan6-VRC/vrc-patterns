@@ -93,6 +93,18 @@ parameters:
   # equality and the compiler validates the operator against the declared type.
   IsLocal: float
 
+# The shipped menu. All three are Buttons, not Toggles: Tag is HELD (the rig casts only while pressed --
+# see the header), and Erase/SelfTag are momentary intents with nothing to hold. The FullController's
+# `menus:` row places this at its prefix, and RewriteParamName rewrites control and parameter together,
+# which is why none of these three names appears in `globalParams`.
+menu:
+  - button: Tag
+    param: SelectiveAnimation/Tag
+  - button: Tag Myself
+    param: SelectiveAnimation/SelfTag
+  - button: Erase All
+    param: SelectiveAnimation/Erase
+
 layers:
   # ===== Compute — the whole rig, as one always-on WD-ON Direct root =====
   # Everything here is either arithmetic or an on/off flag, which is exactly what a Direct tree does
