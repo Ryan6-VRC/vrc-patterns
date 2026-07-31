@@ -97,7 +97,7 @@ layers:
   # ===== Compute — the whole rig, as one always-on WD-ON Direct root =====
   # Everything here is either arithmetic or an on/off flag, which is exactly what a Direct tree does
   # statelessly; none of it needs a state machine, and a separate layer for it is per-frame cost for
-  # nothing (gimmicks.md "Layers are author-time legibility").
+  # nothing (gimmicks.md "A separate layer is a cost, and it is paid per frame forever").
   - name: SelectiveAnimation/Compute
     states:
       "Compute (WD ON)":
