@@ -11,34 +11,14 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: -340790334, guid: 67cc4cb7839cd3741b63733d5adf0442, type: 3}
   m_Name: SelectiveAnimationMenu
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   Parameters: {fileID: 0}
   controls:
-  - name: Enable
+  - name: Tag
     icon: {fileID: 0}
-    type: 102
+    type: 101
     parameter:
-      name: SelectiveAnimation/Enable
-    value: 1
-    style: 0
-    subMenu: {fileID: 0}
-    subParameters: []
-    labels: []
-  - name: Paint
-    icon: {fileID: 0}
-    type: 102
-    parameter:
-      name: SelectiveAnimation/PaintMenu
-    value: 1
-    style: 0
-    subMenu: {fileID: 0}
-    subParameters: []
-    labels: []
-  - name: Erase Mode
-    icon: {fileID: 0}
-    type: 102
-    parameter:
-      name: SelectiveAnimation/Erase
+      name: SelectiveAnimation/Tag
     value: 1
     style: 0
     subMenu: {fileID: 0}
@@ -46,9 +26,19 @@ MonoBehaviour:
     labels: []
   - name: Tag Myself
     icon: {fileID: 0}
-    type: 102
+    type: 101
     parameter:
       name: SelectiveAnimation/SelfTag
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
+  - name: Erase All
+    icon: {fileID: 0}
+    type: 101
+    parameter:
+      name: SelectiveAnimation/Erase
     value: 1
     style: 0
     subMenu: {fileID: 0}
