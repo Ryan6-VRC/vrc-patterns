@@ -31,8 +31,8 @@ Point at someone and hold the gesture: their copy of your avatar changes, and th
 ## Before you compose it
 
 - **The ray is a line, and there is no occlusion between players.** On each client the only candidate collider is *that client's own capsule*, so a person standing behind your target is not shadowed by them — everyone whose capsule the line crosses latches. This is the entry's defining failure mode, and the two things that bound it are the deliberately short range and the wearer-only beam: **look at the beam and see who is standing in it before you commit.** Lengthening the range widens the blast radius in direct proportion.
-- **Set the aim direction per rig.** `raycastDirection` is local to the ray's transform and ships at `(0, 1, 0)`, correct on most vendor rigs but not all: derive it as `hand.InverseTransformDirection((indexProximal.position - hand.position).normalized)` and read the result. Bone roll is a red herring — a direction along the bone's own long axis is invariant under roll; what varies between rigs is *which* local axis runs along the bone. Unity's `forward` is correct on none of the rigs measured. The beam needs no second derivation: it is aim-constrained at the world ray's result transform, so it follows whatever direction you set.
-- **Nudge `Origin`'s position, not its rotation.** It is the consumer-editable offset (`AsChildAtRoot` discards edits on the proxy GO itself at build), and the direction above is derived in the hand bone's frame — rotating `Origin` invalidates it.
+- **Aim `Origin` per rig — it is the entry's one install-time value.** `Origin` *is* the ray frame: both rays fire along its local `+Z` (a constant they never need edited), the beam is a plain child pointing the same way, and the hit transforms rest at range along it. So orienting `Origin` aims the ray, the beam and the rest pose together, and there is no second value to keep in step. Drag its blue `+Z` axis onto your index finger, or set it exactly with `Quaternion.LookRotation(hand.InverseTransformDirection((indexProximal.position - hand.position).normalized))`. Bone roll is a red herring — a direction along the bone's own long axis is invariant under roll; what varies between rigs is *which* local axis runs along the bone, and Unity's `forward` is correct on none of the rigs measured.
+- **`Origin` carries both the offset and the aim**, and it is the node to edit — `AsChildAtRoot` discards edits made on the `Aim` proxy itself at build. Slide it to move the ray's start point; rotate it to aim.
 - **A target who has you view-culled cannot be tagged**: their client is not running your animator, so no ray of yours evaluates there. This is why the command is **held** rather than pulsed — a held command latches the frame they turn back and their animator resumes, where a momentary one would have risen and fallen unseen. To paint people who are looking away, compose `anti-cull`, whose bounds inflation is what keeps a remote's animator running when you leave their view.
 - **Keep `SelfTag` unsynced.** It is not just a saved bit: being unsynced is what distinguishes your own copy and its mirror clone from every remote (a remote reads its default forever), which is how the self-tag reaches a mirror without a mirror-detection rig. Declaring it synced would tag you on everyone's screen at once.
 - **The wearer never sees a hit register.** Your own client carries no remote's capsule, so your ray reports nothing when you point at someone. Nothing is broken; there is simply no local confirmation to give, which is the whole reason the beam ships.
@@ -67,15 +67,17 @@ What the emulator cannot show for this entry is **selectivity itself** — that 
     SelectiveAnimation              root — VRCFury FullController + four Toggles
     ├─ Aim                          MA BoneProxy → Right Hand, AsChildAtRoot
     │  └─ Origin                    consumer-editable offset (position only — see above)
-    │     │                         VRCRaycast ×2: player ray (HitCustomLayers, PlayerLocal alone)
-    │     │                         and world ray (HitWorlds); same direction, range and SnapToEnd.
-    │     │                         Origin's active flag IS the rig's lifecycle — the Rig layer stows it
-    │     │                         whenever Enable is off, so a disabled module casts nothing
-    │     └─ Beam                    VRCAimConstraint → WallHit (Locked, zero offsets), so the beam
-    │        │                       needs no copy of the aim derivation; scale.z = the world _Ratio
-    │        └─ BeamMesh             carries the range; owned Standard material, colour = the mode
-    ├─ PlayerHit                    result transform — MANDATORY: a raycast with none never registers
-    ├─ WallHit                      result transform, and the beam's aim source
+    │     │                         THE ray frame — its rotation is the one per-rig install value.
+    │     │                         VRCRaycast ×2 both firing local +Z (constant): player ray
+    │     │                         (HitCustomLayers, PlayerLocal alone) and world ray (HitWorlds);
+    │     │                         same range and SnapToEnd. Origin's active flag IS the rig's
+    │     │                         lifecycle — the Rig layer stows it whenever Enable is off
+    │     ├─ Beam                    plain child, +Z down the ray; scale.z = the world _Ratio
+    │     │  └─ BeamMesh             carries the range; owned Standard material, colour = the mode
+    │     ├─ PlayerHit               result transform — MANDATORY: a raycast with none never registers
+    │     └─ WallHit                 result transform. Both rest at local (0,0,range) so the rig reads
+    │                                correctly before any ray has run: parented to the module root they
+    │                                would sit at the avatar's feet and drag the beam down with them
     └─ Payload                      placeholder sphere, built-in default material — swap this
 
 A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic.
