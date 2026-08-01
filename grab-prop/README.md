@@ -15,7 +15,7 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 
 ## Before you compose it
 
-**`HomeAnchor` rides the wearer** — an MA BoneProxy with the recall target as its `Offset` child (**Rig** has the shipped offset), while the module root stays world-frozen so drops hold their world spot. Delete the BoneProxy for a fixed world-spot home instead. Keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a VRCF clip binding through an MA-moved node silently vanishes at build (`nondestructive.md` has the measured build order).
+**`HomeAnchor` rides the wearer** — an MA BoneProxy with the recall target as its `Offset` child (**Rig** has the shipped offset), while the module root stays world-frozen so drops hold their world spot. Delete the BoneProxy for a fixed world-spot home instead. Keep the module's animated cells (`Container`/`SourcePosition`/`GrabPosition`) out of any re-parented subtree — a VRCF clip binding through an MA-moved node is dropped at build, and the warning that follows names the clip rather than the anchor (`nondestructive.md` has the measured build order).
 
 ## How it works
 
