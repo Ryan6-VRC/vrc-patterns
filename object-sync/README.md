@@ -10,18 +10,21 @@ VRLabs **Custom-Object-Sync** (MIT, © VRLabs) is the studied ancestor. Two of i
 
 ## Interface
 
-- **Params in**: none. The module measures a transform, not a parameter — point `Rig/Prop/Coarse/Sender` and `Rig/Prop/Fine/Sender` at whatever your gimmick uses as the prop's authority transform (a grab bone, a drop anchor) and it syncs that.
+- **Params in**: none. The module measures a transform, not a parameter — the prefab ships an `Authority` node at its root as the source of `Rig/Prop/Coarse/Sender`, `Rig/Prop/Fine/Sender` and `Rig/Prop/Rot/Holder`, and the install step is to re-point or re-parent it at whatever your gimmick uses as the prop's authority transform (a grab bone, a drop anchor). All three must name the same transform or the position and rotation stages measure different objects.
 - **Params out** (every client): `Prop/PX/{C,F}` + `Prop/PX/{C0..C4,F0..F3}` and the same per axis, `Prop/R{A,B}/{X,Y,Z}` + four bools each — the word table, driven by the receiver on remotes and by the encode layers on the wearer. `ObjectSync/Ch/Cycle` is word-channel's remote freshness counter. Everything else is `scratch:`.
 - **Wire** (the only synced params, all unsaved): 4 index bools + 2 8-bit int slots + 9 bool slots = **29 bits**, 6 batches, ~0.70 s full refresh at 60 fps.
-- **Seam**: VRCFury `FullController` on the prefab root, `basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0` — every clip binding paths through the module's own rig, so the internal hierarchy names in **Rig** below are load-bearing. `globalParams` is **empty**: nothing outside the module reads a name, so every param takes an instance prefix and two instances compose without colliding.
+- **Seam**: VRCFury `FullController` on the prefab root, `basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0` — every clip binding paths through the module's own rig, so the internal hierarchy names in **Rig** below are load-bearing. `globalParams` is **empty**: nothing outside the module reads a name, so every param takes an instance prefix. That makes the *parameters* instance-safe and nothing else — the four collision tags are fixed strings VRCFury's prefixing does not reach, and two copies park their contact clusters at the same point, so a second instance needs a regeneration with its own tags, not a second drop of the prefab.
 - **Dependencies**: **compose `anti-cull` alongside** — the decode runs only while a remote client evaluates the wearer's animator, and a view-culled wearer's prop freezes where it was last decoded. Distance-hide is not defeatable and is a declared limit, not a defect.
-- **Required assets**: `assets/World.prefab` — the never-instantiated prefab whose transform every rig constraint sources, which is what makes the frame the same world origin on every client. Do not instantiate or delete it.
+- **Required assets**: `assets/World.prefab` — the never-instantiated prefab the rig sources, which is what makes the frame the same world origin on every client. Its `Park` child carries the park offset, because a constraint's own `PositionOffset` resolves in the constrained object's *parent* space and would therefore ride the wearer's yaw; sourcing a transform that already sits at the offset keeps it world-aligned with nothing to cancel. Do not instantiate or delete it.
 
 ## Rig
 
 The prefab is hand-maintained against this section; the numbers are `generate.py`'s CONFIG, and a retune happens there and lands here, never the other way round. Clip bindings name these paths verbatim, so a rename in the prefab silently unbinds the controller.
 
-    Rig/                                   VRCPositionConstraint → World.prefab; local position (73, 932, 233)
+    Authority                              the prop's authority transform; re-pointed or re-parented at install
+    Rig/                                   VRCPositionConstraint AND VRCRotationConstraint → World.prefab's Park,
+                                             all offsets zero — position parks the cluster at (73, 932, 233) and
+                                             rotation is what makes every receiver below read WORLD axes
       Prop/
         Coarse/
           Sender                           VRCPositionConstraint, 2 sources: Rig at weight 0.999664306640625,
@@ -44,7 +47,7 @@ The prefab is hand-maintained against this section; the numbers are `generate.py
         Display/                           VRCPositionConstraint → Rig, PositionOffset animated;
                                              VRCRotationConstraint → Recon. Parent the visible prop here.
 
-Four rig facts are the design, not preferences:
+Five rig facts are the design, not preferences:
 
 | Fact | Value | Why it is that |
 |---|---|---|
@@ -52,6 +55,7 @@ Four rig facts are the design, not preferences:
 | Receiver face | `size` 6 on the read axis (the per-shape maximum), 2.5 for rotation | `size` is the FULL extent. Face mode is a linear unlerp from the +Z face plane, so the read axis is the box's local Z and the other two only have to contain the sender. |
 | Sender radius | 0.05 m, spheres | A sender is read by its nearest surface, so a sphere biases the reading by exactly its radius toward the face — a constant, folded into the walk's calibration. Changing the radius without regenerating skews every reading. |
 | `Fine/Sender`, `Fine/Anchor`, `Fine/Recv*` under one `Rig` | not negotiable | This is what makes the fine stage bias-cancelling (below). Re-parenting the sender under the prop instead breaks it. |
+| Collision tags | `ObjectSyncCoarse`, `ObjectSyncFine`, `ObjectSyncRotA`, `ObjectSyncRotB` | One tag per sender group is what keeps the four readouts from reading each other's senders — all four clusters sit at the same point. Receivers are `allowSelf` only and every contact is `localOnly`, so nobody else's rig is on the hook either. |
 
 **Empirical constants** (measured in the emulator; re-measure before changing any of them):
 
@@ -60,8 +64,8 @@ Four rig facts are the design, not preferences:
 | Coarse readout error, contact space | 0.39 mm worst case, avatar 4–8 km from world origin | `coarseNoise` in CONFIG; amplified by `range/coarseHalfSpan` to 1.16 m of world error, and the fine field is widened by twice that |
 | Fine readout | float32-exact, zero noise; ≤1 frame stale under motion | why the fine stage sets system precision and the coarse stage's error costs bits, not accuracy |
 | Fine-anchor settle | 1 frame to the cell centre, 2–4 frames to a coherent reading | `settleFrames` = 4 |
-| Rotation error at 12 bits/component | 0.014° mean, 0.036° max, at 90° marker separation | `rotBits`; the bar it beats is Custom-Object-Sync's 0.176° |
-| End-to-end position error at 7.8 km | 0.43 mm ≈ one float32 ulp of the prop's own coordinate | the precision floor; more bits here would be fake precision |
+| Rotation error at 12 bits/component | 0.032° mean, 0.12° max, at 90° marker separation | `rotBits`; the bar it beats is Custom-Object-Sync's 0.176° |
+| End-to-end position error, 2 m to 9.6 km | 0.7–1.8 mm, per axis inside `[−1.3, 0] mm` | the precision floor: the walk floors rather than rounds, so the residual is one-sided and stays under the 1.07 mm fine LSB. More bits here would be fake precision |
 
 ## How it works
 
@@ -79,4 +83,6 @@ Four rig facts are the design, not preferences:
 
 ## Verifying the install
 
-**TODO — this slot is written in the fixture phase**, alongside the emulator fixtures for the committed build and both presets. It will carry two things and nothing else: the cheapest observable that separates a correct install from a plausible-looking broken one, and what the emulator structurally cannot show for this entry.
+Cheapest observable: in play mode with av3emu, `Rig` resolves to exactly `(73, 932, 233)` with **identity rotation**, on the wearer and on a remote clone alike — and read it with the wearer standing away from the world origin and facing away from +Z, because a rig frame that has quietly stayed avatar-relative is indistinguishable from a correct one at the origin, and every receiver under it then measures the wearer's axes rather than the world's. With that holding, spawn a remote clone, move the authority transform, and the clone's `Rig/Prop/Display` reaches the prop's true world pose inside about a second — millimetres of position, hundredths of a degree of rotation — while the wearer's own `Display` reads the same value from the same words. Local and clone disagreeing by more than that quantization is the decode reading a different word table, not the wire being slow; a `Display` frozen while `ObjectSync/Ch/Cycle` climbs on the clone is the rig rather than the wire (`../word-channel`'s own §Verifying owns the `Cycle` reading).
+
+What the emulator structurally cannot show for this entry: everything `../word-channel` declares — its wire is this entry's wire — plus one that belongs to the measure rig. **Contacts are never simulated against a remote clone**, so the twelve receivers are only ever exercised on the wearer's own client, and nothing here can reach a fault that needs another player's dynamics to appear — which is also why the park is an argument rather than a measurement: `(73, 932, 233)` is empty in a test scene by construction, where a real world may put geometry or another player's props through it.

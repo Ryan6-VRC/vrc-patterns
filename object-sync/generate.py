@@ -847,7 +847,10 @@ def component_walk(doc, c, d, ob, comp, multi):
                          walk_rungs(res, 1, "R1A", "R1R")))
         out.extend(state("Far0R", driver(adds={st: 128}),
                          walk_rungs(res, 1, "R1A", "R1R")))
-        extras += ["StartNear", "StartFar", "Near0A", "Near0R", "Far0A", "Far0R"]
+        # The four bit-0 states are laid out by `rows` as ordinary walk rungs;
+        # naming them in `extras` as well emits a duplicate `layout.nodes` key,
+        # which CompileController refuses at parse.
+        extras += ["StartNear", "StartFar"]
         rows = [("Near0A", "Near0R"), ("Far0A", "Far0R")]
         rows += emit_walk_from(1, "R", c["rotBits"], res, plan, out, "Commit",
                                f"{p}/True")
