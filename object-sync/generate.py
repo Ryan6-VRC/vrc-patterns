@@ -567,6 +567,7 @@ def build(c):
     layers.append(floatify_layer(doc, c, bools))
     layers.append(decode_layer(doc, c, d))
     layers.append(display_layer(doc, c, d))
+    layers.append(follow_layer(doc, c))
     if multi:
         layers.append(slice_layer(doc, c))
     for ob in c["objects"]:
@@ -747,7 +748,9 @@ def display_layer(doc, c, d):
                 kids.append("{ clip: " + doc.clip(
                     f"prox_{safe(o)}_yaw_{LOWER[a]}", step) +
                     f", directWeight: {p}/D/{o}/RA/{a} }}")
-    kids.append(enable_subtree(doc, c))
+    sub = enable_subtree(doc, c)
+    if sub:
+        kids.append(sub)
     out = [f"  - name: {p}/Display", "    states:"]
     out.extend(tree_state("Display", "DisplaySum", kids))
     out.append("    default: Display")
@@ -755,28 +758,24 @@ def display_layer(doc, c, d):
 
 
 def enable_subtree(doc, c):
-    """The enable, as a 1D tree on it rather than a layer of its own.
+    """The enable's reach into the measure rig, as a 1D tree rather than a layer.
 
-    Two clips over one binding set: what the wearer's measure rig is, and where
-    the consumer's Container looks. Off deactivates the sender/receiver subtrees
-    (which is what makes the encode layers' clears stick) and hands Container
-    back to Home; on reverses both. The wire is not gated — it is the transport,
-    its bits are allocated whether or not the prop is out, and a receiver that
-    kept decoding through the toggle is what makes re-enabling instant."""
+    Only the measure subtrees: whether the wearer's rig is sensing. The
+    consumer's Container is not in here — see `follow_layer`, which needs
+    IsLocal and so cannot be a tree at all.
+
+    None with several objects, where the Slice layer owns `m_IsActive` outright
+    (one property, one writer) and Enable reaches it through that layer's Parked
+    clip. The wire is not gated either way: it is the transport, its bits are
+    allocated whether or not the prop is out, and a receiver that kept decoding
+    through the toggle is what makes re-enabling instant."""
     p = c["prefix"]
+    if len(c["objects"]) > 1:
+        return None
     park, live = {}, {}
-    # With several objects the Slice layer owns m_IsActive on the measure
-    # subtrees — one property, one writer, so there is no layer-order fight to
-    # reason about. Enable still reaches them, through that layer's Parked clip.
-    if len(c["objects"]) == 1:
-        for sub in ("Coarse", "Fine", "Rot"):
-            b = f"Rig/{c['objects'][0]['name']}/{sub}/GameObject.m_IsActive"
-            park[b], live[b] = 0, 1
-    for ob in c["objects"]:
-        o = ob["name"]
-        con = f"{container_path(c, o)}/VRCParentConstraint.Sources"
-        park[f"{con}.source0.Weight"], live[f"{con}.source0.Weight"] = 1, 0
-        park[f"{con}.source1.Weight"], live[f"{con}.source1.Weight"] = 0, 1
+    for sub in ("Coarse", "Fine", "Rot"):
+        b = f"Rig/{c['objects'][0]['name']}/{sub}/GameObject.m_IsActive"
+        park[b], live[b] = 0, 1
     return ["- tree: 1d",
             "  name: EnableGate",
             f"  param: {p}/Enable",
@@ -784,6 +783,43 @@ def enable_subtree(doc, c):
             "  children:",
             f"    - {{ clip: {doc.clip('enable_park', park)}, threshold: 0 }}",
             f"    - {{ clip: {doc.clip('enable_live', live)}, threshold: 1 }}"]
+
+
+def follow_layer(doc, c):
+    """Whether the entry's hands are on the consumer's prop at all.
+
+    `Container` has ONE source, the reconstruction — so its source weight going
+    to 0 is the writes-nothing no-op (a zero source-weight SUM, not GlobalWeight
+    0, which would drive the transform to its captured rest instead). The prop
+    then moves under whatever else drives it, which locally is the whole point:
+    the wearer's copy is never touched, so a grab has no latency and no fight,
+    and only remotes reconstruct.
+
+    A layer rather than a tree because the condition is `!IsLocal AND Enable`
+    and IsLocal is a bool built-in: a blend tree reads 0 from it forever."""
+    p = c["prefix"]
+    release, engage = {}, {}
+    for ob in c["objects"]:
+        b = f"{container_path(c, ob['name'])}/VRCParentConstraint.Sources.source0.Weight"
+        release[b], engage[b] = 0, 1
+    out = [f"  - name: {p}/Follow", "    states:"]
+    out.extend(state("Release", None, None,
+                     motion=f"{{ clip: {doc.clip('follow_release', release)} }}"))
+    out.extend(state("Follow", None, None,
+                     motion=f"{{ clip: {doc.clip('follow_engage', engage)} }}"))
+    out.extend([
+        "    any:",
+        f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5 ], "
+        "canTransitionToSelf: false }",
+        "      - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }",
+        f"      - {{ to: Release, when: [ {p}/Enable less 0.5 ], "
+        "canTransitionToSelf: false }"])
+    out.append("    default: Release")
+    out.extend(["    layout:", "      nodes:",
+                "        Release: [30, 180]", "        Follow:  [270, 180]",
+                "      entry: [50, 120]", "      any:   [50, 40]",
+                "      exit:  [50, 80]"])
+    return out
 
 
 def all_sense(c):
@@ -1026,7 +1062,7 @@ def gate_bindings(c, live_object):
 
 def container_path(c, o):
     """The consumer's node. One object owns `Container` outright; several take a
-    child each, because one parked node cannot hold two poses."""
+    child each, because one constraint follows one reconstruction."""
     return "Container" if len(c["objects"]) == 1 else f"Container/{o}"
 
 
@@ -1471,8 +1507,9 @@ def check():
                         f"slice {o}: unblocks only once all "
                         f"{len(slice_wake_params(cfg, o))} of its coarse and marker "
                         "receivers read live")
-            assert_(not any("m_IsActive" in k for k in f["clips"]["enable_park"][0]),
-                    "enable clips leave m_IsActive to the Slice layer (one property, one writer)")
+            assert_("enable_park" not in f["clips"],
+                    "no enable clips at all with several objects — the Slice layer "
+                    "owns m_IsActive (one property, one writer)")
             assert_(all("m_IsActive" in k
                         for k in f["clips"]["slice_gate_park"][0]),
                     "the Slice layer's parked clip is what Enable reaches the subtrees through")
@@ -1488,24 +1525,58 @@ def check():
         assert_(len(set(flat)) == len(flat),
                 f"collision tags are unique across objects and stages ({flat})")
 
-        # The multiplex: two clips over one binding set, opposite everywhere.
-        park, live = f["clips"]["enable_park"][0], f["clips"]["enable_live"][0]
-        assert_(set(park) == set(live) and park and
-                all(str(park[k]) != str(live[k]) for k in park),
-                f"enable_park / enable_live cover the same {len(park)} bindings "
-                "with opposite values")
-        for ob in cfg["objects"]:
-            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
-            assert_(str(park.get(f"{con}.source0.Weight")) == "1"
-                    and str(park.get(f"{con}.source1.Weight")) == "0"
-                    and str(live.get(f"{con}.source0.Weight")) == "0"
-                    and str(live.get(f"{con}.source1.Weight")) == "1",
-                    f"{ob['name']}: Container multiplexes Home(source0) <-> "
-                    "Display(source1)")
-            if len(cfg["objects"]) == 1:
+        if len(cfg["objects"]) == 1:
+            park = f["clips"]["enable_park"][0]
+            live_c = f["clips"]["enable_live"][0]
+            assert_(set(park) == set(live_c) and park and
+                    all(str(park[k]) != str(live_c[k]) for k in park),
+                    f"enable_park / enable_live cover the same {len(park)} bindings "
+                    "with opposite values")
+            for ob in cfg["objects"]:
                 assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
                             for s in ("Coarse", "Fine", "Rot")),
                         f"{ob['name']}: parking deactivates all three measure subtrees")
+        assert_(not any(k.startswith("Container")
+                        for k in f["clips"].get("enable_park", ({},))[0]),
+                "the enable's tree reaches the measure rig only — Container is the "
+                "Follow layer's alone")
+
+        # The consumer surface: ONE source on Container, one layer driving its
+        # weight, and the wearer's side never in the engaged branch. A zero
+        # source-weight SUM is the hands-off no-op (`runtime.md` §Constraints) —
+        # GlobalWeight 0 would instead drive the prop to a captured rest, which
+        # is the whole difference between "we are not touching it" and a park.
+        release = f["clips"]["follow_release"][0]
+        engage = f["clips"]["follow_engage"][0]
+        assert_(set(release) == set(engage) and release
+                and all(str(release[k]) == "0" and str(engage[k]) == "1"
+                        for k in release),
+                f"follow_release / follow_engage cover the same {len(release)} "
+                "Container source weight(s), released 0 / engaged 1")
+        for ob in cfg["objects"]:
+            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
+            assert_(f"{con}.source0.Weight" in release,
+                    f"{ob['name']}: source0's weight is what Follow drives")
+            assert_(f"{con}.source1" not in text,
+                    f"{ob['name']}: Container carries no second source anywhere "
+                    "in the document")
+        rungs = any_rungs(text, f"{pf}/Follow")
+        engaging = [r for r in rungs if r.startswith("- { to: Follow")]
+        assert_(len(engaging) == 1
+                and "IsLocal is false" in engaging[0]
+                and f"{pf}/Enable greater 0.5" in engaging[0],
+                "the one rung into Follow requires !IsLocal AND Enable — so the "
+                "wearer's own copy is never driven, at zero decode latency")
+        assert_(any(r.startswith("- { to: Release") and "IsLocal is true" in r
+                    for r in rungs)
+                and any(r.startswith("- { to: Release")
+                        and f"{pf}/Enable less 0.5" in r for r in rungs),
+                "either IsLocal or Enable-off releases Container on its own")
+        assert_(f"    default: Release" in rung_block(text, f"{pf}/Follow"),
+                "Follow's default state is Release — hands off until proven remote")
+        assert_("Home" not in text,
+                "no Home anywhere: no path, no clip, no park pose (stow belongs "
+                "to a composed system, not to this entry)")
 
         d = facts["geometry"]
         assert_(d["fineSpan"] >= cfg["cellSize"] + 2 * d["coarseWorldError"],
@@ -1525,8 +1596,10 @@ def check():
         body = open(readme, encoding="utf-8").read()
         assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable`" in body,
                 "README specifies Enable as the one globalParams entry")
-        assert_("source0 = `Home`, source1 = `Rig/<obj>/Display`" in body,
-                "README pins the Container source order the enable clips index")
+        assert_("exactly one: source0 = `Rig/<obj>/Display`" in body,
+                "README pins the single Container source the Follow layer indexes")
+        assert_("Home" not in body,
+                "README carries no home/park concept either")
     else:
         assert_(False, "README.md is missing")
 
@@ -1605,6 +1678,36 @@ def rung_text(text, layer, state_name):
         if ln.strip().startswith("- { to: "):
             out.append(ln)
     return "\n".join(out)
+
+
+def rung_block(text, layer):
+    """One layer's whole emitted block, for the assertions whose claim is about
+    the machine rather than about any one state."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(f"  - name: {layer}")
+    except ValueError:
+        return ""
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("  - name: ")), len(lines))
+    return "\n".join(lines[i:end])
+
+
+def any_rungs(text, layer):
+    """One layer's AnyState rungs, raw. The conditions ARE the claim wherever a
+    gate is what makes a branch unreachable, so these are read as text rather
+    than reduced to destinations the way `transitions_of` does."""
+    body = rung_block(text, layer).splitlines()
+    try:
+        s = body.index("    any:")
+    except ValueError:
+        return []
+    out = []
+    for ln in body[s + 1:]:
+        if not ln.startswith("      "):
+            break
+        out.append(ln.strip())
+    return out
 
 
 def transitions_of(text, layer):

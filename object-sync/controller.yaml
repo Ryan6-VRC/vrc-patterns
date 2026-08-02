@@ -1183,6 +1183,24 @@ layers:
                 - { clip: enable_park, threshold: 0 }
                 - { clip: enable_live, threshold: 1 }
     default: Display
+  - name: ObjectSync/Follow
+    states:
+      Release:
+        motion: { clip: follow_release }
+      Follow:
+        motion: { clip: follow_engage }
+    any:
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5 ], canTransitionToSelf: false }
+      - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }
+      - { to: Release, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
+    default: Release
+    layout:
+      nodes:
+        Release: [30, 180]
+        Follow:  [270, 180]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
   - name: ObjectSync/Enc/Prop/PX
     states:
       Idle:
@@ -4639,15 +4657,13 @@ clips:
       Rig/Prop/Coarse/GameObject.m_IsActive: 0
       Rig/Prop/Fine/GameObject.m_IsActive: 0
       Rig/Prop/Rot/GameObject.m_IsActive: 0
-      Container/VRCParentConstraint.Sources.source0.Weight: 1
-      Container/VRCParentConstraint.Sources.source1.Weight: 0
   enable_live:
     set:
       Rig/Prop/Coarse/GameObject.m_IsActive: 1
       Rig/Prop/Fine/GameObject.m_IsActive: 1
       Rig/Prop/Rot/GameObject.m_IsActive: 1
-      Container/VRCParentConstraint.Sources.source0.Weight: 0
-      Container/VRCParentConstraint.Sources.source1.Weight: 1
+  follow_release: { set: { Container/VRCParentConstraint.Sources.source0.Weight: 0 } }
+  follow_engage: { set: { Container/VRCParentConstraint.Sources.source0.Weight: 1 } }
 
 # One control, so a bare Toggle rather than a menu asset — and the module is
 # single-instance per avatar anyway, since its collision tags are fixed strings
