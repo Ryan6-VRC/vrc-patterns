@@ -1441,6 +1441,7 @@ layers:
         motion: ~
         transitions:
           - { to: FineStart, when: [ ObjectSync/Sense/Prop/FX greater 0.0125 ] }
+          - { to: Idle, when: [], exitTime: 0.5 }   # motionless state: exitTime is literal seconds. The fine sender left its box; restage the cell.
       FineStart:
         motion: ~
         behaviours:
@@ -2007,6 +2008,7 @@ layers:
         motion: ~
         transitions:
           - { to: FineStart, when: [ ObjectSync/Sense/Prop/FY greater 0.0125 ] }
+          - { to: Idle, when: [], exitTime: 0.5 }   # motionless state: exitTime is literal seconds. The fine sender left its box; restage the cell.
       FineStart:
         motion: ~
         behaviours:
@@ -2573,6 +2575,7 @@ layers:
         motion: ~
         transitions:
           - { to: FineStart, when: [ ObjectSync/Sense/Prop/FZ greater 0.0125 ] }
+          - { to: Idle, when: [], exitTime: 0.5 }   # motionless state: exitTime is literal seconds. The fine sender left its box; restage the cell.
       FineStart:
         motion: ~
         behaviours:

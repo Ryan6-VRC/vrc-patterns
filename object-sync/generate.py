@@ -134,6 +134,12 @@ CONFIG = {
     # receiver. Measured coherent-readout lag is 2-4 frames; this is the max,
     # held unconditionally (see the README on why it is not adaptive).
     "settleFrames": 4,
+    # How long the fine stage waits for its receiver before abandoning back to
+    # the coarse stage. Sized well above contact re-acquisition (7 frames
+    # measured) because it costs nothing in normal operation: it fires only when
+    # the fine sender is outside its box, which nothing but a fresh coarse cell
+    # can fix.
+    "fineEscapeFrames": 30,
 
     # Parks the contact cluster away from spawn-dense space. Any string; the
     # offset it derives is a rig fact the README's Rig section declares and the
@@ -939,6 +945,62 @@ def live(d, params):
     return [f"{x} greater {num(d['livenessEps'])}" for x in params]
 
 
+def liveness_audit(c, d):
+    """Every state that waits on a receiver reading, and why waiting there is
+    survivable. This is the audit the in-venue stall bought.
+
+    A liveness wait is safe only if its condition can be restored WITHOUT the
+    machine advancing past the wait. Where that holds, the source is
+    self-restoring and the wait is a wait. Where it does not, the wait is a
+    deadlock and needs a bounded escape to whatever stage does restore it.
+
+    `--check` reads this table and holds the emitted document to it, including
+    the completeness direction: a liveness condition on a rung this table does
+    not name fails, so a new gate cannot be added without an audit entry."""
+    p = c["prefix"]
+    multi = len(c["objects"]) > 1
+    rows = []
+    for ob in c["objects"]:
+        o = ob["name"]
+        for a in AXES:
+            lay = f"{p}/Enc/{o}/P{a}"
+            for st in ("Idle", "Commit"):
+                rows.append({
+                    "layer": lay, "state": st,
+                    "params": [f"{p}/Sense/{o}/C{a}"], "escape": None,
+                    "why": "self-restoring: the coarse receiver's box spans the "
+                           "whole working volume and the squeeze constraint keeps "
+                           "its sender inside, so a 0 means only re-acquisition "
+                           "or a prop outside the range — both clear on their own"})
+            rows.append({
+                "layer": lay, "state": f"Settle{c['settleFrames'] - 1}",
+                "params": [f"{p}/Sense/{o}/F{a}"], "escape": "Idle",
+                "why": "NOT self-restoring: the fine receiver rides the "
+                       "measurement anchor, which only a fresh coarse commit "
+                       "moves, so a teleport out of the cell leaves this waiting "
+                       "on a stage it cannot reach"})
+        for comp in rot_comps(ob["rotation"]):
+            rows.append({
+                "layer": f"{p}/Enc/{o}/R{comp}", "state": "Idle",
+                "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
+                "why": "self-restoring: the marker rides a rigid arm on a holder "
+                       "pinned to the rig and cannot leave its receiver's box, so "
+                       "a 0 means re-acquisition and nothing else"})
+        if multi:
+            rows.append({
+                "layer": f"{p}/Slice", "state": f"Enter_{o}",
+                "params": slice_wake_params(c, o), "escape": f"Enter_{next_object(c, o)}",
+                "why": "self-restoring (coarse and marker sources, as above), and "
+                       "bounded anyway by the skip rung that stops one dead rig "
+                       "starving the other slices"})
+    return rows
+
+
+def next_object(c, o):
+    names = [x["name"] for x in c["objects"]]
+    return names[(names.index(o) + 1) % len(names)]
+
+
 def tag_set(c, o):
     """Contact collision tags for one object's four sender groups.
 
@@ -1004,14 +1066,27 @@ def position_walk(doc, c, d, ob, a, multi):
                      [f"{{ to: Settle0, when: [ {p}/True is true ] }}"]))
     # The fine-anchor settle IS this entry's own quantity — the anchor takes one
     # frame to reach the cell centre and the readout up to four to cohere — so it
-    # stays a dwell. Its last hop still gates on the fine receiver being live,
-    # because that receiver was reactivated with the rest of the rig.
+    # stays a dwell. Its last hop gates on the fine receiver being live, and
+    # carries the one ESCAPE in the machine, because this is the only liveness
+    # wait whose condition it cannot itself restore: the fine receiver rides the
+    # measurement anchor, and only a fresh coarse commit moves that. Teleport the
+    # prop out of the current cell mid-walk and the fine sender leaves its box
+    # for good — measured in-venue, 2 of 5 instantaneous teleports stalling the
+    # position stage indefinitely while rotation kept tracking. Falling back to
+    # Idle rather than straight to CoarseStart keeps the coarse liveness
+    # precondition in the path instead of stepping around it.
+    escape = num(round(c["fineEscapeFrames"] / 60.0, 4))
     for i in range(c["settleFrames"]):
         last = i + 1 == c["settleFrames"]
         nxt = "FineStart" if last else f"Settle{i + 1}"
         when = live(d, [sf]) if last else [f"{p}/True is true"]
-        out.extend(state(f"Settle{i}", None,
-                         [f"{{ to: {nxt}, when: [ {', '.join(when)} ] }}"]))
+        rungs = [f"{{ to: {nxt}, when: [ {', '.join(when)} ] }}"]
+        if last:
+            rungs.append(
+                f"{{ to: Idle, when: [], exitTime: {escape} }}"
+                "   # motionless state: exitTime is literal seconds. The fine "
+                "sender left its box; restage the cell.")
+        out.extend(state(f"Settle{i}", None, rungs))
     out.extend(state(
         "FineStart",
         driver(sets=dict({f"{st}/F": 0}, **{b: 0 for b in fbools}),
@@ -1350,20 +1425,27 @@ def check():
         # corner of the range — so this is the assertion standing between a
         # graceful wait and a confident wrong answer.
         eps = f"greater {num(d0['livenessEps'])}"
-        for ob in cfg["objects"]:
-            o = ob["name"]
-            for a in AXES:
-                lay = f"{pf}/Enc/{o}/P{a}"
-                for src, param in (("Idle", f"{pf}/Sense/{o}/C{a}"),
-                                   ("Commit", f"{pf}/Sense/{o}/C{a}"),
-                                   (f"Settle{cfg['settleFrames'] - 1}",
-                                    f"{pf}/Sense/{o}/F{a}")):
-                    assert_(f"{param} {eps}" in rung_text(text, lay, src),
-                            f"{lay}: {src} -> walk requires {param.split('/')[-2:]} live")
-            for comp in rot_comps(ob["rotation"]):
-                lay = f"{pf}/Enc/{o}/R{comp}"
-                assert_(f"{pf}/Sense/{o}/R{comp} {eps}" in rung_text(text, lay, "Idle"),
-                        f"{lay}: Idle -> Start requires its marker receiver live")
+        audit = liveness_audit(cfg, d0)
+        for row in audit:
+            rungs = rung_text(text, row["layer"], row["state"])
+            assert_(all(f"{q} {eps}" in rungs for q in row["params"]),
+                    f"{row['layer']}/{row['state']}: waits on "
+                    f"{len(row['params'])} receiver reading(s)")
+            # The audit's whole point: a wait whose condition it cannot restore
+            # must have a way out, or an in-venue teleport stalls it forever.
+            if row["escape"]:
+                assert_(f"to: {row['escape']}, when: [], exitTime:" in rungs,
+                        f"{row['layer']}/{row['state']}: bounded escape to "
+                        f"{row['escape']} ({row['why'][:40]}...)")
+            else:
+                assert_("exitTime:" not in rungs,
+                        f"{row['layer']}/{row['state']}: no escape needed — "
+                        f"{row['why'][:60]}...")
+        # Completeness: no liveness condition anywhere the audit does not name.
+        named = {(r["layer"], r["state"]) for r in audit}
+        assert_(liveness_sites(text, num(d0["livenessEps"])) == named,
+                "every liveness wait in the document is an audited one "
+                f"({sorted(liveness_sites(text, num(d0['livenessEps'])) - named)})")
         assert_(all(d0["livenessEps"] < d0[k]
                     for k in ("coarseMin", "fineMin", "rotMin")),
                 f"liveness threshold {d0['livenessEps']} sits below every legal "
@@ -1482,6 +1564,23 @@ def driver_ops(text):
         elif s and not ln.startswith("              "):
             op = None
     return ops
+
+
+def liveness_sites(text, eps):
+    """(layer, state) for every rung that waits on a receiver reading.
+
+    The discriminator is a `/Sense/` param compared against the liveness
+    threshold: a walk's own bit rungs compare residuals, never sense params."""
+    out, layer, st = set(), None, None
+    for ln in text.splitlines():
+        if ln.startswith("  - name: "):
+            layer, st = ln.split("- name: ", 1)[1].strip(), None
+        elif ln.startswith("      ") and not ln.startswith("       ") \
+                and ln.rstrip().endswith(":"):
+            st = ln.strip()[:-1]
+        elif layer and st and "/Sense/" in ln and f"greater {eps}" in ln:
+            out.add((layer, st))
+    return out
 
 
 def rung_text(text, layer, state_name):
