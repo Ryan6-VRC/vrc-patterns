@@ -191,6 +191,7 @@ layers:
                 Pos/Lo: WordChannel/Latch/Pos/Lo
                 Flag/A: WordChannel/Latch/Flag/A
                 Flag/B: WordChannel/Latch/Flag/B
+          - driver:
               add: { WordChannel/Cycle: 1 }
         transitions:
           - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }
@@ -226,6 +227,7 @@ layers:
                 Pos/Lo: WordChannel/Latch/Pos/Lo
                 Flag/A: WordChannel/Latch/Flag/A
                 Flag/B: WordChannel/Latch/Flag/B
+          - driver:
               add: { WordChannel/Cycle: 1 }
         transitions:
           - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }

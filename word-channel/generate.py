@@ -353,6 +353,7 @@ def main():
                         o(f"                {w['name']}: {latch(w['name'])}")
                     for x in jbs:
                         o(f"                {x}: {latch(x)}")
+            o("          - driver:")
             o(f"              add: {{ {p}/Cycle: 1 }}")
         o("        transitions:")
         adv = ", ".join(cond(idx[k], nxt[k]) for k in range(bits))
