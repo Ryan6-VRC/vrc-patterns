@@ -52,8 +52,9 @@ The prefab is hand-maintained against this section; the numbers are `generate.py
                                              WorldUp ObjectRotationUp, WorldUpVector (0,1,0), WorldUpTransform UpAim
         Display/                           VRCPositionConstraint → Rig, PositionOffset animated;
                                              VRCRotationConstraint → Recon
-    Container/                             VRCParentConstraint, ONE source: source0 = Rig/Prop/Display,
-                                             its weight animated (1 on remotes with Enable on, else 0)
+    Container/                             VRCParentConstraint, ONE source at fixed weight 1:
+                                             source0 = Rig/Prop/Display; IsActive animated
+                                             (1 on remotes with Enable on, else 0)
       Marker                               placeholder — replace with the visible prop
 
 With more than one object, three things gain the object name rather than staying bare: `Container` gains a child per object carrying the constraint (one constraint follows one reconstruction), each object gets its own collision-tag set (below), and the `m_IsActive` bindings pass from the enable's clips to the `Slice` layer's, which owns them alone.
