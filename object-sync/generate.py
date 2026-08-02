@@ -225,9 +225,24 @@ def derive(c):
         "posBase": -c["range"] + c["cellSize"] / 2 - fine_span / 2,
         "rigOffset": rig_offset(c["rigSeed"]),
     }
+    # The edge guard's second job. It keeps every legal in-volume reading a
+    # clear margin off both face edges, which means a reading of exactly 0 is
+    # never something the geometry can produce — it is the signature of a
+    # receiver that has not registered with the contact manager yet, or a sender
+    # out of range. Half the guaranteed margin is the liveness threshold: below
+    # every legal reading, above the only illegal one.
+    d["livenessEps"] = round(c["edgeGuard"] / max(c["faceSpan"], c["rotSpan"]) / 2, 6)
     for label, lo, hi, span in (("coarse", d["coarseMin"], d["coarseMax"], c["faceSpan"]),
                                 ("fine", d["fineMin"], d["fineMax"], c["faceSpan"]),
                                 ("rotation", d["rotMin"], d["rotMax"], c["rotSpan"])):
+        if lo <= d["livenessEps"]:
+            raise SystemExit(
+                f"REFUSE: the {label} readout's lowest legal value {lo:.4f} is "
+                f"at or below the liveness threshold {d['livenessEps']} — a live "
+                "receiver at the low end of the working volume would be "
+                "indistinguishable from one that has not acquired, and every "
+                "walk gates on that distinction. Widen edgeGuard's readout "
+                "margin, or shrink the working span.")
         near, far = lo * span, (1 - hi) * span
         if min(near, far) < c["edgeGuard"] - 1e-9:
             raise SystemExit(
@@ -778,6 +793,19 @@ def all_sense(c):
     return out
 
 
+def slice_wake_params(c, o):
+    """What a slice waits to see live before unblocking its object's walks.
+
+    Coarse and rotation receivers only. The fine receiver rides the anchor,
+    which is parked at cell 0 until that object's coarse walk has run, so it
+    legitimately reads 0 here — its liveness is checked later, inside the walk,
+    where the anchor is already placed."""
+    p = c["prefix"]
+    ob = next(x for x in c["objects"] if x["name"] == o)
+    return ([f"{p}/Sense/{o}/C{a}" for a in AXES] +
+            [f"{p}/Sense/{o}/R{comp}" for comp in rot_comps(ob["rotation"])])
+
+
 def slice_layer(doc, c):
     """Multi-object time-multiplex: one object's measure rig is live per slice,
     so N objects cost one rig instead of N.
@@ -788,14 +816,15 @@ def slice_layer(doc, c):
     anything either file says. The enable's authority survives as the AnyState
     rung into Parked, whose clip deactivates all of them.
 
-    Each slice runs deactivate -> clear -> settle -> walk, in that order and by
-    transition structure rather than by hoping the timing works out. The clear
-    only sticks because the same frame's gate clip has already deactivated the
-    other objects' receivers: a live receiver re-asserts its parameter the next
-    frame, which is exactly how a driver-only clear failed (measured: an
-    off-slice object's sense params held ~0.5, not 0). The walk is unblocked only
-    at `Run`, several frames after the reactivated receivers began acquiring."""
-    p = c["prefix"]
+    Each slice runs deactivate -> clear -> wait for live -> walk, in that order
+    and by transition structure rather than by hoping the timing works out. The
+    clear only sticks because the same frame's gate clip has already deactivated
+    the other objects' receivers: a live receiver re-asserts its parameter the
+    next frame, which is exactly how a driver-only clear failed (measured: an
+    off-slice object's sense params held ~0.5, not 0). The walks are unblocked
+    only at `Run`, and only once this object's receivers actually read something
+    the geometry could have produced."""
+    p, d = c["prefix"], derive(c)
     names = [ob["name"] for ob in c["objects"]]
     for o in names:
         doc.param(f"  {p}/Slice/{o}: {{ type: float, scratch: true }}",
@@ -804,25 +833,29 @@ def slice_layer(doc, c):
              for o in names}
     parked_clip = doc.clip("slice_gate_park", gate_bindings(c, None), seconds=1)
     blocked = dict(all_sense(c), **{f"{p}/Slice/{x}": 0 for x in names})
-    # The run window holds the slowest walk in the slice plus its Parked->Wake
-    # climb and its Commit hop.
+    # The run window holds the slowest walk in the slice plus its Parked climb
+    # and its Commit hop; the skip window bounds how long a dead rig may hold
+    # the slice before the next object gets its turn.
     hold = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
+    skip = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
 
     out = [f"  - name: {p}/Slice", "    states:"]
     for i, o in enumerate(names):
         motion = f"{{ clip: {gates[o]} }}"
         # Deactivate every other object's rig AND block every walk, in one
         # frame, before anything is cleared.
-        out.extend(state(f"Enter_{o}", driver(sets=blocked),
-                         [f"{{ to: Settle0_{o}, when: [ {p}/True is true ] }}"],
-                         motion=motion))
-        for k in range(c["settleFrames"]):
-            nxt = (f"Settle{k + 1}_{o}" if k + 1 < c["settleFrames"]
-                   else f"Run_{o}")
-            out.extend(state(f"Settle{k}_{o}", None,
-                             [f"{{ to: {nxt}, when: [ {p}/True is true ] }}"],
-                             motion=motion))
         nxt_obj = names[(i + 1) % len(names)]
+        # Wait for this object's reactivated receivers to come live rather than
+        # counting frames at them; the skip rung is there so one dead rig cannot
+        # starve the other objects of their slices. Advancing on it is safe —
+        # the walks carry the same gate, so a skipped slice measures nothing
+        # rather than measuring zeros.
+        out.extend(state(
+            f"Enter_{o}", driver(sets=blocked),
+            [f"{{ to: Run_{o}, when: [ {', '.join(live(d, slice_wake_params(c, o)))} ] }}",
+             f"{{ to: Enter_{nxt_obj}, when: [], exitTime: {skip} }}"
+             "   # a rig that never wakes must not starve the other slices"],
+            motion=motion))
         out.extend(state(
             f"Run_{o}",
             driver(sets={f"{p}/Slice/{x}": (1 if x == o else 0) for x in names}),
@@ -892,23 +925,18 @@ def wake_up(c, ob, multi):
     return up
 
 
-def wake_chain(c, first):
-    """Parked -> settle -> the walk's own entry state.
+def live(d, params):
+    """Liveness conditions for the sense params a walk is about to sample.
 
-    Parked clears the sense params and the gate clip deactivates the receivers,
-    so on the way back up those params read 0 until the reactivated receivers
-    have re-acquired. Sampling one frame too early quantizes a 0 reading and
-    publishes the far corner of the range — measured on the single-object build
-    as a two-commit sweep through (-8120, -7261, -7960) after an unpark. The
-    dwell is the same `settleFrames` the fine anchor uses, and it sits on the
-    ONLY path out of Parked, so no Commit anywhere can fire against a receiver
-    that has not re-acquired."""
-    out = []
-    for i in range(c["settleFrames"]):
-        nxt = f"Wake{i + 1}" if i + 1 < c["settleFrames"] else first
-        out.extend(state(f"Wake{i}", None,
-                         [f"{{ to: {nxt}, when: [ {c['prefix']}/True is true ] }}"]))
-    return out
+    A reactivated receiver reads exactly 0 until it re-registers with the
+    contact manager — measured at 7 frames in the emulator, and not a quantity
+    this entry controls or can bound for the shipping client. A timed dwell
+    against it is a guess; this is not. Sampling early is the one failure this
+    design refuses to have, because 0 is a legal-looking reading that quantizes
+    to cell 0 and puts the prop at the corner of the range with full confidence.
+    Gating instead makes the failure graceful: a rig that never wakes leaves the
+    walk waiting, and the wire holds its last committed pose."""
+    return [f"{x} greater {num(d['livenessEps'])}" for x in params]
 
 
 def tag_set(c, o):
@@ -957,9 +985,12 @@ def position_walk(doc, c, d, ob, a, multi):
     for nm in cbools + fbools:
         doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
 
+    # Walk-entry conditions: the gate, plus liveness on the very param the state
+    # it leads to is about to sample.
+    enter = gate(c, ob, multi) + live(d, [sc])
     out = [f"  - name: {lay}", "    states:"]
     out.extend(state("Idle", None,
-                     [f"{{ to: CoarseStart, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
+                     [f"{{ to: CoarseStart, when: [ {', '.join(enter)} ] }}"]))
     out.extend(state(
         "CoarseStart",
         driver(sets=dict({f"{st}/C": 0, kacc: 0}, **{b: 0 for b in cbools}),
@@ -971,10 +1002,16 @@ def position_walk(doc, c, d, ob, a, multi):
                      kacc, out, "CoarseEnd", f"{p}/True")
     out.extend(state("CoarseEnd", driver(copies={kfloat: kacc}),
                      [f"{{ to: Settle0, when: [ {p}/True is true ] }}"]))
+    # The fine-anchor settle IS this entry's own quantity — the anchor takes one
+    # frame to reach the cell centre and the readout up to four to cohere — so it
+    # stays a dwell. Its last hop still gates on the fine receiver being live,
+    # because that receiver was reactivated with the rest of the rig.
     for i in range(c["settleFrames"]):
-        nxt = f"Settle{i + 1}" if i + 1 < c["settleFrames"] else "FineStart"
+        last = i + 1 == c["settleFrames"]
+        nxt = "FineStart" if last else f"Settle{i + 1}"
+        when = live(d, [sf]) if last else [f"{p}/True is true"]
         out.extend(state(f"Settle{i}", None,
-                         [f"{{ to: {nxt}, when: [ {p}/True is true ] }}"]))
+                         [f"{{ to: {nxt}, when: [ {', '.join(when)} ] }}"]))
     out.extend(state(
         "FineStart",
         driver(sets=dict({f"{st}/F": 0}, **{b: 0 for b in fbools}),
@@ -989,7 +1026,9 @@ def position_walk(doc, c, d, ob, a, multi):
         commit[f"{o}/P{a}/C{j}"] = f"{st}/C{j}"
     for j in range(c["fineBits"] - 8):
         commit[f"{o}/P{a}/F{j}"] = f"{st}/F{j}"
-    leave = [f"{{ to: CoarseStart, when: [ {', '.join(gate(c, ob, multi))} ] }}",
+    # The loop back into the walk is a walk entry too: a rig that dies mid-run
+    # must not restart against a receiver reading 0.
+    leave = [f"{{ to: CoarseStart, when: [ {', '.join(enter)} ] }}",
              "{ to: Idle, when: [ IsLocal is false ] }"]
     if multi:
         leave.append(f"{{ to: Idle, when: [ {p}/Slice/{o} less 0.5 ] }}")
@@ -998,14 +1037,12 @@ def position_walk(doc, c, d, ob, a, multi):
                  kacc: 0, kfloat: 0, sc: 0, sf: 0},
                 **{b: 0 for b in cbools + fbools})
     out.extend(state("Parked", driver(sets=park),
-                     [f"{{ to: Wake0, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
-    out.extend(wake_chain(c, "Idle"))
+                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
     out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
     out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart",
                                   "Commit", "Parked"] +
-                           [f"Settle{i}" for i in range(c["settleFrames"])] +
-                           [f"Wake{i}" for i in range(c["settleFrames"])]))
+                           [f"Settle{i}" for i in range(c["settleFrames"])]))
     return out
 
 
@@ -1026,8 +1063,9 @@ def component_walk(doc, c, d, ob, comp, multi):
     out = [f"  - name: {lay}", "    states:"]
     extras = ["Idle", "Commit", "Start", "Parked"]
     sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
+    enter = gate(c, ob, multi) + live(d, [sr])
     out.extend(state("Idle", None,
-                     [f"{{ to: Start, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
+                     [f"{{ to: Start, when: [ {', '.join(enter)} ] }}"]))
     out.extend(state("Start", driver(
         sets=clear,
         copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
@@ -1041,12 +1079,10 @@ def component_walk(doc, c, d, ob, comp, multi):
     out.extend(state("Commit", driver(copies=commit),
                      [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     out.extend(state("Parked", driver(sets=dict(clear, **{res: 0, sr: 0})),
-                     [f"{{ to: Wake0, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
-    out.extend(wake_chain(c, "Idle"))
+                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
     out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
-    out.extend(walk_layout(rows, extras +
-                           [f"Wake{i}" for i in range(c["settleFrames"])]))
+    out.extend(walk_layout(rows, extras))
     return out
 
 
@@ -1189,6 +1225,7 @@ def check():
         text2, _ = document(cfg)
         assert_(text == text2, "regeneration is byte-identical")
         facts = f["facts"]
+        d0 = facts["geometry"]
 
         # Packing: every declared group's number words AND bool words in one batch.
         nb, bb, gb = facts["numberBatches"], facts["boolBatches"], facts["groupBatch"]
@@ -1304,13 +1341,33 @@ def check():
                 assert_(into == {last + "A", last + "R"},
                         f"{lay}: Commit reachable only from the final walk pair "
                         f"({sorted(into)})")
-                assert_(tr.get("Parked") == ["Wake0"],
-                        f"{lay}: the only road out of Parked is the wake dwell "
-                        f"({tr.get('Parked')})")
-                chain = [tr.get(f"Wake{i}") for i in range(cfg["settleFrames"])]
-                assert_(chain == [[f"Wake{i + 1}"] for i in
-                                  range(cfg["settleFrames"] - 1)] + [["Idle"]],
-                        f"{lay}: {cfg['settleFrames']}-frame wake dwell ends at Idle")
+                assert_(tr.get("Parked") == ["Idle"],
+                        f"{lay}: Parked exits only to Idle ({tr.get('Parked')})")
+
+        # Liveness: every transition that leads a walk into sampling a sense
+        # param carries that param's own liveness condition. A reactivated
+        # receiver reads exactly 0, 0 quantizes to cell 0, and cell 0 is the
+        # corner of the range — so this is the assertion standing between a
+        # graceful wait and a confident wrong answer.
+        eps = f"greater {num(d0['livenessEps'])}"
+        for ob in cfg["objects"]:
+            o = ob["name"]
+            for a in AXES:
+                lay = f"{pf}/Enc/{o}/P{a}"
+                for src, param in (("Idle", f"{pf}/Sense/{o}/C{a}"),
+                                   ("Commit", f"{pf}/Sense/{o}/C{a}"),
+                                   (f"Settle{cfg['settleFrames'] - 1}",
+                                    f"{pf}/Sense/{o}/F{a}")):
+                    assert_(f"{param} {eps}" in rung_text(text, lay, src),
+                            f"{lay}: {src} -> walk requires {param.split('/')[-2:]} live")
+            for comp in rot_comps(ob["rotation"]):
+                lay = f"{pf}/Enc/{o}/R{comp}"
+                assert_(f"{pf}/Sense/{o}/R{comp} {eps}" in rung_text(text, lay, "Idle"),
+                        f"{lay}: Idle -> Start requires its marker receiver live")
+        assert_(all(d0["livenessEps"] < d0[k]
+                    for k in ("coarseMin", "fineMin", "rotMin")),
+                f"liveness threshold {d0['livenessEps']} sits below every legal "
+                f"reading (lowest is {min(d0['coarseMin'], d0['fineMin'], d0['rotMin']):.4f})")
 
         # Defect A: the slice must deactivate a rig, not merely stop reading it.
         if len(cfg["objects"]) > 1:
@@ -1323,11 +1380,15 @@ def check():
                             for x in cfg["objects"]
                             for s in ("Coarse", "Fine", "Rot")),
                         f"slice {o}: its three subtrees live, every other object's dead")
-                assert_(f"      Enter_{o}:" in text
-                        and tr.get(f"Enter_{o}") == [f"Settle0_{o}"],
-                        f"slice {o}: entry deactivates and clears before any settle")
-                assert_(tr.get(f"Settle{cfg['settleFrames'] - 1}_{o}") == [f"Run_{o}"],
-                        f"slice {o}: {cfg['settleFrames']}-frame settle before the walk unblocks")
+                nxt = cfg["objects"][(cfg["objects"].index(ob) + 1)
+                                     % len(cfg["objects"])]["name"]
+                assert_(tr.get(f"Enter_{o}") == [f"Run_{o}", f"Enter_{nxt}"],
+                        f"slice {o}: entry waits for live, then yields rather than starving")
+                entry = rung_text(text, f"{pf}/Slice", f"Enter_{o}")
+                assert_(all(f"{q} {eps}" in entry for q in slice_wake_params(cfg, o)),
+                        f"slice {o}: unblocks only once all "
+                        f"{len(slice_wake_params(cfg, o))} of its coarse and marker "
+                        "receivers read live")
             assert_(not any("m_IsActive" in k for k in f["clips"]["enable_park"][0]),
                     "enable clips leave m_IsActive to the Slice layer (one property, one writer)")
             assert_(all("m_IsActive" in k
@@ -1421,6 +1482,30 @@ def driver_ops(text):
         elif s and not ln.startswith("              "):
             op = None
     return ops
+
+
+def rung_text(text, layer, state_name):
+    """The raw transition lines of one state — the surface the liveness
+    assertions read, since a condition list is what they are about."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(f"  - name: {layer}")
+    except ValueError:
+        return ""
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("  - name: ")), len(lines))
+    body = lines[i:end]
+    try:
+        s = body.index(f"      {state_name}:")
+    except ValueError:
+        return ""
+    out = []
+    for ln in body[s + 1:]:
+        if ln.startswith("      ") and not ln.startswith("       "):
+            break
+        if ln.strip().startswith("- { to: "):
+            out.append(ln)
+    return "\n".join(out)
 
 
 def transitions_of(text, layer):

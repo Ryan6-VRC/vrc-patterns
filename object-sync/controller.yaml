@@ -1188,7 +1188,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CX greater 0.0125 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -1440,7 +1440,7 @@ layers:
       Settle3:
         motion: ~
         transitions:
-          - { to: FineStart, when: [ ObjectSync/True is true ] }
+          - { to: FineStart, when: [ ObjectSync/Sense/Prop/FX greater 0.0125 ] }
       FineStart:
         motion: ~
         behaviours:
@@ -1655,7 +1655,7 @@ layers:
                 Prop/PX/F2: ObjectSync/S/Prop/PX/F2
                 Prop/PX/F3: ObjectSync/S/Prop/PX/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CX greater 0.0125 ] }
           - { to: Idle, when: [ IsLocal is false ] }
       Parked:
         motion: ~
@@ -1680,23 +1680,7 @@ layers:
                 ObjectSync/S/Prop/PX/F2: 0
                 ObjectSync/S/Prop/PX/F3: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -1712,10 +1696,6 @@ layers:
         Settle1: [-300, 450]
         Settle2: [-540, 540]
         Settle3: [-300, 540]
-        Wake0: [-540, 630]
-        Wake1: [-300, 630]
-        Wake2: [-540, 720]
-        Wake3: [-300, 720]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -1774,7 +1754,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CY greater 0.0125 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -2026,7 +2006,7 @@ layers:
       Settle3:
         motion: ~
         transitions:
-          - { to: FineStart, when: [ ObjectSync/True is true ] }
+          - { to: FineStart, when: [ ObjectSync/Sense/Prop/FY greater 0.0125 ] }
       FineStart:
         motion: ~
         behaviours:
@@ -2241,7 +2221,7 @@ layers:
                 Prop/PY/F2: ObjectSync/S/Prop/PY/F2
                 Prop/PY/F3: ObjectSync/S/Prop/PY/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CY greater 0.0125 ] }
           - { to: Idle, when: [ IsLocal is false ] }
       Parked:
         motion: ~
@@ -2266,23 +2246,7 @@ layers:
                 ObjectSync/S/Prop/PY/F2: 0
                 ObjectSync/S/Prop/PY/F3: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -2298,10 +2262,6 @@ layers:
         Settle1: [-300, 450]
         Settle2: [-540, 540]
         Settle3: [-300, 540]
-        Wake0: [-540, 630]
-        Wake1: [-300, 630]
-        Wake2: [-540, 720]
-        Wake3: [-300, 720]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -2360,7 +2320,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CZ greater 0.0125 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -2612,7 +2572,7 @@ layers:
       Settle3:
         motion: ~
         transitions:
-          - { to: FineStart, when: [ ObjectSync/True is true ] }
+          - { to: FineStart, when: [ ObjectSync/Sense/Prop/FZ greater 0.0125 ] }
       FineStart:
         motion: ~
         behaviours:
@@ -2827,7 +2787,7 @@ layers:
                 Prop/PZ/F2: ObjectSync/S/Prop/PZ/F2
                 Prop/PZ/F3: ObjectSync/S/Prop/PZ/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/CZ greater 0.0125 ] }
           - { to: Idle, when: [ IsLocal is false ] }
       Parked:
         motion: ~
@@ -2852,23 +2812,7 @@ layers:
                 ObjectSync/S/Prop/PZ/F2: 0
                 ObjectSync/S/Prop/PZ/F3: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -2884,10 +2828,6 @@ layers:
         Settle1: [-300, 450]
         Settle2: [-540, 540]
         Settle3: [-300, 540]
-        Wake0: [-540, 630]
-        Wake1: [-300, 630]
-        Wake2: [-540, 720]
-        Wake3: [-300, 720]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -2946,7 +2886,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RA/X greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -3169,23 +3109,7 @@ layers:
                 ObjectSync/R/Prop/RA/X: 0
                 ObjectSync/Sense/Prop/RA/X: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -3195,10 +3119,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3231,7 +3151,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RA/Y greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -3454,23 +3374,7 @@ layers:
                 ObjectSync/R/Prop/RA/Y: 0
                 ObjectSync/Sense/Prop/RA/Y: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -3480,10 +3384,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3516,7 +3416,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RA/Z greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -3739,23 +3639,7 @@ layers:
                 ObjectSync/R/Prop/RA/Z: 0
                 ObjectSync/Sense/Prop/RA/Z: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -3765,10 +3649,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3801,7 +3681,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/X greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -4024,23 +3904,7 @@ layers:
                 ObjectSync/R/Prop/RB/X: 0
                 ObjectSync/Sense/Prop/RB/X: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -4050,10 +3914,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -4086,7 +3946,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/Y greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -4309,23 +4169,7 @@ layers:
                 ObjectSync/R/Prop/RB/Y: 0
                 ObjectSync/Sense/Prop/RB/Y: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -4335,10 +4179,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -4371,7 +4211,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/Z greater 0.0125 ] }
       Start:
         motion: ~
         behaviours:
@@ -4594,23 +4434,7 @@ layers:
                 ObjectSync/R/Prop/RB/Z: 0
                 ObjectSync/Sense/Prop/RB/Z: 0
         transitions:
-          - { to: Wake0, when: [ ObjectSync/Enable greater 0.5 ] }
-      Wake0:
-        motion: ~
-        transitions:
-          - { to: Wake1, when: [ ObjectSync/True is true ] }
-      Wake1:
-        motion: ~
-        transitions:
-          - { to: Wake2, when: [ ObjectSync/True is true ] }
-      Wake2:
-        motion: ~
-        transitions:
-          - { to: Wake3, when: [ ObjectSync/True is true ] }
-      Wake3:
-        motion: ~
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
       - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
@@ -4620,10 +4444,6 @@ layers:
         Commit: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
-        Wake0: [-540, 360]
-        Wake1: [-300, 360]
-        Wake2: [-540, 450]
-        Wake3: [-300, 450]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
