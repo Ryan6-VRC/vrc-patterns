@@ -4662,8 +4662,8 @@ clips:
       Rig/Prop/Coarse/GameObject.m_IsActive: 1
       Rig/Prop/Fine/GameObject.m_IsActive: 1
       Rig/Prop/Rot/GameObject.m_IsActive: 1
-  follow_release: { set: { Container/VRCParentConstraint.Sources.source0.Weight: 0 } }
-  follow_engage: { set: { Container/VRCParentConstraint.Sources.source0.Weight: 1 } }
+  follow_release: { set: { Container/VRCParentConstraint.IsActive: 0 } }
+  follow_engage: { set: { Container/VRCParentConstraint.IsActive: 1 } }
 
 # One control, so a bare Toggle rather than a menu asset — and the module is
 # single-instance per avatar anyway, since its collision tags are fixed strings

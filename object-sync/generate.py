@@ -788,19 +788,23 @@ def enable_subtree(doc, c):
 def follow_layer(doc, c):
     """Whether the entry's hands are on the consumer's prop at all.
 
-    `Container` has ONE source, the reconstruction — so its source weight going
-    to 0 is the writes-nothing no-op (a zero source-weight SUM, not GlobalWeight
-    0, which would drive the transform to its captured rest instead). The prop
-    then moves under whatever else drives it, which locally is the whole point:
-    the wearer's copy is never touched, so a grab has no latency and no fight,
-    and only remotes reconstruct.
+    The driven property is `IsActive`, and that choice is a measurement, not a
+    preference. Only two configurations of a VRCParentConstraint are actually
+    hands-off — `IsActive` false, and a source list of length ZERO. A constraint
+    holding one source at Weight 0 is NOT: measured in play, it drives its
+    transform to the captured rest every frame, exactly as GlobalWeight 0 does.
+    So the weight cannot be the gate here; `Container` ships its one source
+    (the reconstruction) at a fixed Weight 1 and this layer switches the whole
+    component. Off, the prop moves under whatever else drives it, which locally
+    is the whole point: the wearer's copy is never touched, so a grab has no
+    latency and no fight, and only remotes reconstruct.
 
     A layer rather than a tree because the condition is `!IsLocal AND Enable`
     and IsLocal is a bool built-in: a blend tree reads 0 from it forever."""
     p = c["prefix"]
     release, engage = {}, {}
     for ob in c["objects"]:
-        b = f"{container_path(c, ob['name'])}/VRCParentConstraint.Sources.source0.Weight"
+        b = f"{container_path(c, ob['name'])}/VRCParentConstraint.IsActive"
         release[b], engage[b] = 0, 1
     out = [f"  - name: {p}/Follow", "    states:"]
     out.extend(state("Release", None, None,
@@ -1541,23 +1545,29 @@ def check():
                 "the enable's tree reaches the measure rig only — Container is the "
                 "Follow layer's alone")
 
-        # The consumer surface: ONE source on Container, one layer driving its
-        # weight, and the wearer's side never in the engaged branch. A zero
-        # source-weight SUM is the hands-off no-op (`runtime.md` §Constraints) —
-        # GlobalWeight 0 would instead drive the prop to a captured rest, which
-        # is the whole difference between "we are not touching it" and a park.
+        # The consumer surface: one layer switching Container's whole constraint,
+        # and the wearer's side never in the engaged branch. `IsActive` and NOT a
+        # source weight — measured, a VRCParentConstraint holding one source at
+        # Weight 0 drives its transform to the captured rest every frame, the same
+        # park GlobalWeight 0 gives. Only IsActive false (or a zero-length source
+        # list) is the hands-off no-op this entry needs.
         release = f["clips"]["follow_release"][0]
         engage = f["clips"]["follow_engage"][0]
         assert_(set(release) == set(engage) and release
                 and all(str(release[k]) == "0" and str(engage[k]) == "1"
                         for k in release),
                 f"follow_release / follow_engage cover the same {len(release)} "
-                "Container source weight(s), released 0 / engaged 1")
+                "Container binding(s), released 0 / engaged 1")
         for ob in cfg["objects"]:
-            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
-            assert_(f"{con}.source0.Weight" in release,
-                    f"{ob['name']}: source0's weight is what Follow drives")
-            assert_(f"{con}.source1" not in text,
+            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint"
+            assert_(f"{con}.IsActive" in release,
+                    f"{ob['name']}: Follow switches Container's IsActive")
+            assert_(not any(k.startswith(f"{con}.Sources") for k in release)
+                    and not any(k.startswith(f"{con}.Sources") for k in engage)
+                    and f"{con}.GlobalWeight" not in text,
+                    f"{ob['name']}: neither a source weight nor GlobalWeight is "
+                    "animated — both park the prop rather than releasing it")
+            assert_(f"{con}.Sources.source1" not in text,
                     f"{ob['name']}: Container carries no second source anywhere "
                     "in the document")
         rungs = any_rungs(text, f"{pf}/Follow")
@@ -1596,7 +1606,7 @@ def check():
         body = open(readme, encoding="utf-8").read()
         assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable`" in body,
                 "README specifies Enable as the one globalParams entry")
-        assert_("exactly one: source0 = `Rig/<obj>/Display`" in body,
+        assert_("exactly one source, `Rig/<obj>/Display`" in body,
                 "README pins the single Container source the Follow layer indexes")
         assert_("Home" not in body,
                 "README carries no home/park concept either")
