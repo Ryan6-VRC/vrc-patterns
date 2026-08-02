@@ -90,6 +90,8 @@ CONFIG = {
     # sit under it but differ, or word-channel's own internals collide.
     "prefix": "ObjectSync",
     "channel": "ObjectSync/Ch",
+    # The wearer-facing control's label in the expression menu.
+    "menuLabel": "Object Sync",
 
     # The synced objects. `rotation` is per-object and resolved at generation
     # time — full (6 components, two markers, aim pair), y (2 components, one
@@ -425,7 +427,12 @@ def tree_state(name, tree_name, children, motion_indent="        "):
            f"{motion_indent}  tree: direct",
            f"{motion_indent}  name: {tree_name}",
            f"{motion_indent}  children:"]
-    out.extend(f"{motion_indent}    - {ch}" for ch in children)
+    for ch in children:
+        if isinstance(ch, list):
+            # A nested subtree; its own lines already carry the `- `/`  ` shape.
+            out.extend(f"{motion_indent}    {ln}" for ln in ch)
+        else:
+            out.append(f"{motion_indent}    - {ch}")
     return out
 
 
@@ -523,6 +530,13 @@ def build(c):
               "# constant for +1-frame hops", f"{p}/True")
     doc.param(f"  {p}/One: {{ type: float, default: 1, scratch: true }}      "
               "# Direct-tree carrier weight", f"{p}/One")
+    # The wearer-facing enable. Declared FLOAT in the animator so trees can read
+    # it, BOOL on the wire so the menu Toggle and the params asset see a bool —
+    # one synced bit, and the schema's sanctioned spelling for a toggle a blend
+    # tree has to weigh. Unsaved: off is the reset, and the prop never resurrects
+    # "on" at avatar load.
+    doc.param(f"  {p}/Enable: {{ type: float, default: 0, "
+              "vrc: { type: bool, synced: true, saved: false } }", f"{p}/Enable")
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, bools))
@@ -708,10 +722,39 @@ def display_layer(doc, c, d):
                 kids.append("{ clip: " + doc.clip(
                     f"prox_{safe(o)}_yaw_{LOWER[a]}", step) +
                     f", directWeight: {p}/D/{o}/RA/{a} }}")
+    kids.append(enable_subtree(doc, c))
     out = [f"  - name: {p}/Display", "    states:"]
     out.extend(tree_state("Display", "DisplaySum", kids))
     out.append("    default: Display")
     return out
+
+
+def enable_subtree(doc, c):
+    """The enable, as a 1D tree on it rather than a layer of its own.
+
+    Two clips over one binding set: what the wearer's measure rig is, and where
+    the consumer's Container looks. Off deactivates the sender/receiver subtrees
+    (which is what makes the encode layers' clears stick) and hands Container
+    back to Home; on reverses both. The wire is not gated — it is the transport,
+    its bits are allocated whether or not the prop is out, and a receiver that
+    kept decoding through the toggle is what makes re-enabling instant."""
+    p = c["prefix"]
+    park, live = {}, {}
+    for ob in c["objects"]:
+        o = ob["name"]
+        for sub in ("Coarse", "Fine", "Rot"):
+            b = f"Rig/{o}/{sub}/GameObject.m_IsActive"
+            park[b], live[b] = 0, 1
+        con = f"{container_path(c, o)}/VRCParentConstraint.Sources"
+        park[f"{con}.source0.Weight"], live[f"{con}.source0.Weight"] = 1, 0
+        park[f"{con}.source1.Weight"], live[f"{con}.source1.Weight"] = 0, 1
+    return ["- tree: 1d",
+            "  name: EnableGate",
+            f"  param: {p}/Enable",
+            f"  directWeight: {p}/One",
+            "  children:",
+            f"    - {{ clip: {doc.clip('enable_park', park)}, threshold: 0 }}",
+            f"    - {{ clip: {doc.clip('enable_live', live)}, threshold: 1 }}"]
 
 
 def slice_layer(doc, c):
@@ -744,6 +787,17 @@ def slice_layer(doc, c):
         out.extend(state(f"Slice_{o}", driver(sets=sets),
                          [f"{{ to: Slice_{nxt}, when: [], exitTime: {hold} }}"
                           "   # empty state: exitTime is literal seconds"]))
+    park = {f"{p}/Slice/{x}": 0 for x in names}
+    for ob in c["objects"]:
+        x = ob["name"]
+        for a in AXES:
+            park[f"{p}/Sense/{x}/C{a}"] = 0
+            park[f"{p}/Sense/{x}/F{a}"] = 0
+        for comp in rot_comps(ob["rotation"]):
+            park[f"{p}/Sense/{x}/R{comp}"] = 0
+    out.extend(state("Parked", driver(sets=park),
+                     [f"{{ to: Slice_{names[0]}, when: [ {p}/Enable greater 0.5 ] }}"]))
+    out.extend(off_ladder(c))
     out.append(f"    default: Slice_{names[0]}")
     return out
 
@@ -763,10 +817,33 @@ def sense_param(doc, c, name):
 
 
 def gate(c, ob, multi):
-    g = ["IsLocal is true"]
+    g = ["IsLocal is true", f"{c['prefix']}/Enable greater 0.5"]
     if multi:
         g.append(f"{c['prefix']}/Slice/{ob['name']} greater 0.5")
     return g
+
+
+def off_ladder(c):
+    """The enable's teeth on an encode layer: an AnyState rung into Parked.
+
+    The state is `Parked`, not `Off`: a bare `Off` in value position infers as
+    the boolean false and every `to:` naming it would silently retarget.
+
+    `canTransitionToSelf: false` is what makes it a one-shot — the rung fires
+    from whatever state the walk was in, Off's driver clears once, and nothing
+    re-enters. The clear sticks because the same frame's enable clip has already
+    deactivated the receiver GOs, and a deactivated sensing component never
+    writes again (it only freezes what it last wrote, which is what the clear is
+    for)."""
+    return ["    any:",
+            f"      - {{ to: Parked, when: [ {c['prefix']}/Enable less 0.5 ], "
+            "canTransitionToSelf: false }"]
+
+
+def container_path(c, o):
+    """The consumer's node. One object owns `Container` outright; several take a
+    child each, because one parked node cannot hold two poses."""
+    return "Container" if len(c["objects"]) == 1 else f"Container/{o}"
 
 
 def position_walk(doc, c, d, ob, a, multi):
@@ -823,8 +900,15 @@ def position_walk(doc, c, d, ob, a, multi):
     if multi:
         leave.append(f"{{ to: Idle, when: [ {p}/Slice/{o} less 0.5 ] }}")
     out.extend(state("Commit", driver(copies=commit), leave))
+    park = dict({f"{st}/C": 0, f"{st}/F": 0, f"{res}/C": 0, f"{res}/F": 0,
+                 kacc: 0, kfloat: 0, sc: 0, sf: 0},
+                **{b: 0 for b in cbools + fbools})
+    out.extend(state("Parked", driver(sets=park),
+                     [f"{{ to: Idle, when: [ {p}/Enable greater 0.5 ] }}"]))
+    out.extend(off_ladder(c))
     out.append("    default: Idle")
-    out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart", "Commit"] +
+    out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart",
+                                  "Commit", "Parked"] +
                            [f"Settle{i}" for i in range(c["settleFrames"])]))
     return out
 
@@ -844,7 +928,7 @@ def component_walk(doc, c, d, ob, comp, multi):
     clear = dict({st: 0}, **{b: 0 for b in rbools})
 
     out = [f"  - name: {lay}", "    states:"]
-    extras = ["Idle", "Commit", "Start"]
+    extras = ["Idle", "Commit", "Start", "Parked"]
     sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
     out.extend(state("Idle", None,
                      [f"{{ to: Start, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
@@ -860,6 +944,9 @@ def component_walk(doc, c, d, ob, comp, multi):
         commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
     out.extend(state("Commit", driver(copies=commit),
                      [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
+    out.extend(state("Parked", driver(sets=dict(clear, **{res: 0, sr: 0})),
+                     [f"{{ to: Idle, when: [ {p}/Enable greater 0.5 ] }}"]))
+    out.extend(off_ladder(c))
     out.append("    default: Idle")
     out.extend(walk_layout(rows, extras))
     return out
@@ -949,6 +1036,14 @@ def document(c):
             L.append("    set:")
             for k, v in bindings.items():
                 L.append(f"      {k}: {v}")
+    L.append("")
+    L.append("# One control, so a bare Toggle rather than a menu asset — and the module is")
+    L.append("# single-instance per avatar anyway, since its collision tags are fixed strings")
+    L.append("# VRCFury's param prefixing does not reach (the README's Rig section).")
+    L.append("menu:")
+    L.append(f"  - toggle: {c['menuLabel']}")
+    L.append(f"    param: {p}/Enable")
+    L.append("    value: 1")
     return "\n".join(L) + "\n", f
 
 
@@ -1049,6 +1144,53 @@ def check():
                 assert_(f"Rig/{o}/Recon/ProxyB/Transform.m_LocalPosition" in text,
                         f"{o}: full mode drives both marker proxies")
 
+        # The enable: a lone synced bit, a bare Toggle on it, and a Parked state
+        # in every layer that measures — which clears what a deactivated sensing
+        # component would otherwise leave frozen at its last live reading.
+        pf = cfg["prefix"]
+        assert_(f"  {pf}/Enable: {{ type: float, default: 0, "
+                "vrc: { type: bool, synced: true, saved: false }" in text,
+                "Enable is a float in the animator and a synced unsaved bool on the wire")
+        assert_(f"  - toggle: {cfg['menuLabel']}" in text
+                and f"    param: {pf}/Enable" in text,
+                "menu block carries one Toggle bound to Enable")
+        enc = [ln.split("- name: ")[1] for ln in text.splitlines()
+               if "  - name: " + pf in ln and ("/Enable" not in ln)]
+        measuring = [n for n in enc if "/Enc/" in n or n.endswith("/Slice")]
+        assert_(text.count("- { to: Parked, when: [ " + pf + "/Enable less 0.5 ], "
+                           "canTransitionToSelf: false }") == len(measuring),
+                f"all {len(measuring)} measuring layers park on Enable false")
+        assert_("Off:" not in text and "to: Off" not in text,
+                "the parked state is not named Off (a bare Off infers as false)")
+        for ob in cfg["objects"]:
+            o = ob["name"]
+            cleared = parked_clears(text, f"{pf}/Enc/{o}/PX")
+            want = {f"{pf}/Sense/{o}/CX", f"{pf}/Sense/{o}/FX",
+                    f"{pf}/S/{o}/PX/C", f"{pf}/S/{o}/PX/F",
+                    f"{pf}/R/{o}/PX/C", f"{pf}/R/{o}/PX/F",
+                    f"{pf}/K/{o}/PX", f"{pf}/S/{o}/PX/Kacc"}
+            assert_(want <= cleared,
+                    f"{o}/PX Parked clears staging, residual, cell index and both "
+                    f"sense params ({len(cleared)} params; missing {want - cleared})")
+
+        # The multiplex: two clips over one binding set, opposite everywhere.
+        park, live = f["clips"]["enable_park"], f["clips"]["enable_live"]
+        assert_(set(park) == set(live) and park and
+                all(str(park[k]) != str(live[k]) for k in park),
+                f"enable_park / enable_live cover the same {len(park)} bindings "
+                "with opposite values")
+        for ob in cfg["objects"]:
+            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
+            assert_(str(park.get(f"{con}.source0.Weight")) == "1"
+                    and str(park.get(f"{con}.source1.Weight")) == "0"
+                    and str(live.get(f"{con}.source0.Weight")) == "0"
+                    and str(live.get(f"{con}.source1.Weight")) == "1",
+                    f"{ob['name']}: Container multiplexes Home(source0) <-> "
+                    "Display(source1)")
+            assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
+                        for s in ("Coarse", "Fine", "Rot")),
+                    f"{ob['name']}: parking deactivates all three measure subtrees")
+
         d = facts["geometry"]
         assert_(d["fineSpan"] >= cfg["cellSize"] + 2 * d["coarseWorldError"],
                 "fine field spans the cell plus twice the coarse world error "
@@ -1057,6 +1199,20 @@ def check():
                 f"fine field sits {d['faceGuard']:.2f} m off each face edge")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.2f}s refresh")
+
+    # `globalParams` is a VRCFury field with no CompileController spelling, so
+    # the document cannot carry it and the README is where it is specified for
+    # the prefab. Assert the line exists rather than letting it drift silently.
+    print("[README]")
+    readme = os.path.join(HERE, "README.md")
+    if os.path.exists(readme):
+        body = open(readme, encoding="utf-8").read()
+        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable`" in body,
+                "README specifies Enable as the one globalParams entry")
+        assert_("source0 = `Home`, source1 = `Rig/<obj>/Display`" in body,
+                "README pins the Container source order the enable clips index")
+    else:
+        assert_(False, "README.md is missing")
 
     # The committed build is the one artifact `built/` was compiled from, so a
     # generator change that moves it is a defect until built/ is regenerated.
@@ -1092,6 +1248,29 @@ def driver_ops(text):
         elif s and not ln.startswith("              "):
             op = None
     return ops
+
+
+def parked_clears(text, layer):
+    """The params one layer's Parked state sets, read off the emitted text."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(f"  - name: {layer}")
+    except ValueError:
+        return set()
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("  - name: ")), len(lines))
+    body = lines[i:end]
+    try:
+        s = body.index("      Parked:")
+    except ValueError:
+        return set()
+    out = set()
+    for ln in body[s + 1:]:
+        if ln.startswith("      ") and not ln.startswith("       "):
+            break
+        if ln.startswith("                ") and ":" in ln:
+            out.add(ln.strip().split(":", 1)[0])
+    return out
 
 
 def aap_params(text):

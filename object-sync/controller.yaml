@@ -115,6 +115,7 @@ parameters:
   IsLocal: bool              # VRC built-in
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
+  ObjectSync/Enable: { type: float, default: 0, vrc: { type: bool, synced: true, saved: false } }
   ObjectSync/B/Prop/PX/C0: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C2: { type: float, scratch: true }
@@ -1166,13 +1167,20 @@ layers:
             - { clip: prox_prop_b_x, directWeight: ObjectSync/D/Prop/RB/X }
             - { clip: prox_prop_b_y, directWeight: ObjectSync/D/Prop/RB/Y }
             - { clip: prox_prop_b_z, directWeight: ObjectSync/D/Prop/RB/Z }
+            - tree: 1d
+              name: EnableGate
+              param: ObjectSync/Enable
+              directWeight: ObjectSync/One
+              children:
+                - { clip: enable_park, threshold: 0 }
+                - { clip: enable_live, threshold: 1 }
     default: Display
   - name: ObjectSync/Enc/Prop/PX
     states:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -1639,8 +1647,34 @@ layers:
                 Prop/PX/F2: ObjectSync/S/Prop/PX/F2
                 Prop/PX/F3: ObjectSync/S/Prop/PX/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
           - { to: Idle, when: [ IsLocal is false ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/PX/C: 0
+                ObjectSync/S/Prop/PX/F: 0
+                ObjectSync/R/Prop/PX/C: 0
+                ObjectSync/R/Prop/PX/F: 0
+                ObjectSync/S/Prop/PX/Kacc: 0
+                ObjectSync/K/Prop/PX: 0
+                ObjectSync/Sense/Prop/CX: 0
+                ObjectSync/Sense/Prop/FX: 0
+                ObjectSync/S/Prop/PX/C0: 0
+                ObjectSync/S/Prop/PX/C1: 0
+                ObjectSync/S/Prop/PX/C2: 0
+                ObjectSync/S/Prop/PX/C3: 0
+                ObjectSync/S/Prop/PX/C4: 0
+                ObjectSync/S/Prop/PX/F0: 0
+                ObjectSync/S/Prop/PX/F1: 0
+                ObjectSync/S/Prop/PX/F2: 0
+                ObjectSync/S/Prop/PX/F3: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
@@ -1649,10 +1683,11 @@ layers:
         CoarseEnd: [-540, 270]
         FineStart: [-300, 270]
         Commit: [-540, 360]
-        Settle0: [-300, 360]
-        Settle1: [-540, 450]
-        Settle2: [-300, 450]
-        Settle3: [-540, 540]
+        Parked: [-300, 360]
+        Settle0: [-540, 450]
+        Settle1: [-300, 450]
+        Settle2: [-540, 540]
+        Settle3: [-300, 540]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -1711,7 +1746,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -2178,8 +2213,34 @@ layers:
                 Prop/PY/F2: ObjectSync/S/Prop/PY/F2
                 Prop/PY/F3: ObjectSync/S/Prop/PY/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
           - { to: Idle, when: [ IsLocal is false ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/PY/C: 0
+                ObjectSync/S/Prop/PY/F: 0
+                ObjectSync/R/Prop/PY/C: 0
+                ObjectSync/R/Prop/PY/F: 0
+                ObjectSync/S/Prop/PY/Kacc: 0
+                ObjectSync/K/Prop/PY: 0
+                ObjectSync/Sense/Prop/CY: 0
+                ObjectSync/Sense/Prop/FY: 0
+                ObjectSync/S/Prop/PY/C0: 0
+                ObjectSync/S/Prop/PY/C1: 0
+                ObjectSync/S/Prop/PY/C2: 0
+                ObjectSync/S/Prop/PY/C3: 0
+                ObjectSync/S/Prop/PY/C4: 0
+                ObjectSync/S/Prop/PY/F0: 0
+                ObjectSync/S/Prop/PY/F1: 0
+                ObjectSync/S/Prop/PY/F2: 0
+                ObjectSync/S/Prop/PY/F3: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
@@ -2188,10 +2249,11 @@ layers:
         CoarseEnd: [-540, 270]
         FineStart: [-300, 270]
         Commit: [-540, 360]
-        Settle0: [-300, 360]
-        Settle1: [-540, 450]
-        Settle2: [-300, 450]
-        Settle3: [-540, 540]
+        Parked: [-300, 360]
+        Settle0: [-540, 450]
+        Settle1: [-300, 450]
+        Settle2: [-540, 540]
+        Settle3: [-300, 540]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -2250,7 +2312,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       CoarseStart:
         motion: ~
         behaviours:
@@ -2717,8 +2779,34 @@ layers:
                 Prop/PZ/F2: ObjectSync/S/Prop/PZ/F2
                 Prop/PZ/F3: ObjectSync/S/Prop/PZ/F3
         transitions:
-          - { to: CoarseStart, when: [ IsLocal is true ] }
+          - { to: CoarseStart, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
           - { to: Idle, when: [ IsLocal is false ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/PZ/C: 0
+                ObjectSync/S/Prop/PZ/F: 0
+                ObjectSync/R/Prop/PZ/C: 0
+                ObjectSync/R/Prop/PZ/F: 0
+                ObjectSync/S/Prop/PZ/Kacc: 0
+                ObjectSync/K/Prop/PZ: 0
+                ObjectSync/Sense/Prop/CZ: 0
+                ObjectSync/Sense/Prop/FZ: 0
+                ObjectSync/S/Prop/PZ/C0: 0
+                ObjectSync/S/Prop/PZ/C1: 0
+                ObjectSync/S/Prop/PZ/C2: 0
+                ObjectSync/S/Prop/PZ/C3: 0
+                ObjectSync/S/Prop/PZ/C4: 0
+                ObjectSync/S/Prop/PZ/F0: 0
+                ObjectSync/S/Prop/PZ/F1: 0
+                ObjectSync/S/Prop/PZ/F2: 0
+                ObjectSync/S/Prop/PZ/F3: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
@@ -2727,10 +2815,11 @@ layers:
         CoarseEnd: [-540, 270]
         FineStart: [-300, 270]
         Commit: [-540, 360]
-        Settle0: [-300, 360]
-        Settle1: [-540, 450]
-        Settle2: [-300, 450]
-        Settle3: [-540, 540]
+        Parked: [-300, 360]
+        Settle0: [-540, 450]
+        Settle1: [-300, 450]
+        Settle2: [-540, 540]
+        Settle3: [-300, 540]
         C0A: [30, 180]
         C0R: [30, 300]
         C1A: [270, 180]
@@ -2789,7 +2878,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -2999,12 +3088,29 @@ layers:
                 Prop/RA/X/B3: ObjectSync/S/Prop/RA/X/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RA/X: 0
+                ObjectSync/S/Prop/RA/X/B0: 0
+                ObjectSync/S/Prop/RA/X/B1: 0
+                ObjectSync/S/Prop/RA/X/B2: 0
+                ObjectSync/S/Prop/RA/X/B3: 0
+                ObjectSync/R/Prop/RA/X: 0
+                ObjectSync/Sense/Prop/RA/X: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3037,7 +3143,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -3247,12 +3353,29 @@ layers:
                 Prop/RA/Y/B3: ObjectSync/S/Prop/RA/Y/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RA/Y: 0
+                ObjectSync/S/Prop/RA/Y/B0: 0
+                ObjectSync/S/Prop/RA/Y/B1: 0
+                ObjectSync/S/Prop/RA/Y/B2: 0
+                ObjectSync/S/Prop/RA/Y/B3: 0
+                ObjectSync/R/Prop/RA/Y: 0
+                ObjectSync/Sense/Prop/RA/Y: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3285,7 +3408,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -3495,12 +3618,29 @@ layers:
                 Prop/RA/Z/B3: ObjectSync/S/Prop/RA/Z/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RA/Z: 0
+                ObjectSync/S/Prop/RA/Z/B0: 0
+                ObjectSync/S/Prop/RA/Z/B1: 0
+                ObjectSync/S/Prop/RA/Z/B2: 0
+                ObjectSync/S/Prop/RA/Z/B3: 0
+                ObjectSync/R/Prop/RA/Z: 0
+                ObjectSync/Sense/Prop/RA/Z: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3533,7 +3673,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -3743,12 +3883,29 @@ layers:
                 Prop/RB/X/B3: ObjectSync/S/Prop/RB/X/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RB/X: 0
+                ObjectSync/S/Prop/RB/X/B0: 0
+                ObjectSync/S/Prop/RB/X/B1: 0
+                ObjectSync/S/Prop/RB/X/B2: 0
+                ObjectSync/S/Prop/RB/X/B3: 0
+                ObjectSync/R/Prop/RB/X: 0
+                ObjectSync/Sense/Prop/RB/X: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -3781,7 +3938,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -3991,12 +4148,29 @@ layers:
                 Prop/RB/Y/B3: ObjectSync/S/Prop/RB/Y/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RB/Y: 0
+                ObjectSync/S/Prop/RB/Y/B0: 0
+                ObjectSync/S/Prop/RB/Y/B1: 0
+                ObjectSync/S/Prop/RB/Y/B2: 0
+                ObjectSync/S/Prop/RB/Y/B3: 0
+                ObjectSync/R/Prop/RB/Y: 0
+                ObjectSync/Sense/Prop/RB/Y: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -4029,7 +4203,7 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true ] }
+          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
       Start:
         motion: ~
         behaviours:
@@ -4239,12 +4413,29 @@ layers:
                 Prop/RB/Z/B3: ObjectSync/S/Prop/RB/Z/B3
         transitions:
           - { to: Idle, when: [ ObjectSync/True is true ] }
+      Parked:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/S/Prop/RB/Z: 0
+                ObjectSync/S/Prop/RB/Z/B0: 0
+                ObjectSync/S/Prop/RB/Z/B1: 0
+                ObjectSync/S/Prop/RB/Z/B2: 0
+                ObjectSync/S/Prop/RB/Z/B3: 0
+                ObjectSync/R/Prop/RB/Z: 0
+                ObjectSync/Sense/Prop/RB/Z: 0
+        transitions:
+          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
+    any:
+      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Idle
     layout:
       nodes:
         Idle: [-540, 180]
         Commit: [-300, 180]
         Start: [-540, 270]
+        Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
         R1A: [270, 180]
@@ -4432,3 +4623,25 @@ clips:
       Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.x: 0
       Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.y: 0
       Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.z: 0.000488281
+  enable_park:
+    set:
+      Rig/Prop/Coarse/GameObject.m_IsActive: 0
+      Rig/Prop/Fine/GameObject.m_IsActive: 0
+      Rig/Prop/Rot/GameObject.m_IsActive: 0
+      Container/VRCParentConstraint.Sources.source0.Weight: 1
+      Container/VRCParentConstraint.Sources.source1.Weight: 0
+  enable_live:
+    set:
+      Rig/Prop/Coarse/GameObject.m_IsActive: 1
+      Rig/Prop/Fine/GameObject.m_IsActive: 1
+      Rig/Prop/Rot/GameObject.m_IsActive: 1
+      Container/VRCParentConstraint.Sources.source0.Weight: 0
+      Container/VRCParentConstraint.Sources.source1.Weight: 1
+
+# One control, so a bare Toggle rather than a menu asset — and the module is
+# single-instance per avatar anyway, since its collision tags are fixed strings
+# VRCFury's param prefixing does not reach (the README's Rig section).
+menu:
+  - toggle: Object Sync
+    param: ObjectSync/Enable
+    value: 1

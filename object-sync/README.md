@@ -10,10 +10,13 @@ VRLabs **Custom-Object-Sync** (MIT, © VRLabs) is the studied ancestor. Two of i
 
 ## Interface
 
-- **Params in**: none. The module measures a transform, not a parameter — the prefab ships an `Authority` node at its root as the source of `Rig/Prop/Coarse/Sender`, `Rig/Prop/Fine/Sender` and `Rig/Prop/Rot/Holder`, and the install step is to re-point or re-parent it at whatever your gimmick uses as the prop's authority transform (a grab bone, a drop anchor). All three must name the same transform or the position and rotation stages measure different objects.
+**Coming from Custom-Object-Sync / GestureTools:** your prop replaces `Container`'s `Marker` child, and `ObjectSync/Enable` is that rig's enable — off parks, on measures and displays. There is no per-object sync bit here, because there is no runtime object index: multi-object is a list in `generate.py`'s CONFIG, resolved at generation time into that many objects' worth of words.
+
+- **Params in**: `ObjectSync/Enable` (bool, synced, **unsaved**, default off) — the master gate, on `globalParams`, so an outside driver or OSC can reach it under that bare name. Nothing else: the module measures a transform, not a parameter — the prefab ships an `Authority` node at its root as the source of `Rig/Prop/Coarse/Sender`, `Rig/Prop/Fine/Sender` and `Rig/Prop/Rot/Holder`, and the install step is to re-point or re-parent it at whatever your gimmick uses as the prop's authority transform (a grab bone, a drop anchor). All three must name the same transform or the position and rotation stages measure different objects.
+- **Menu**: a bare VRCFury `Toggle` on `ObjectSync/Enable`, labelled `Object Sync` — one control, so no menu asset (`CONVENTIONS.md` §The Interface stanza), and the module is single-instance per avatar regardless, for the collision-tag reason under **Seam**.
 - **Params out** (every client): `Prop/PX/{C,F}` + `Prop/PX/{C0..C4,F0..F3}` and the same per axis, `Prop/R{A,B}/{X,Y,Z}` + four bools each — the word table, driven by the receiver on remotes and by the encode layers on the wearer. `ObjectSync/Ch/Cycle` is word-channel's remote freshness counter. Everything else is `scratch:`.
 - **Wire** (the only synced params, all unsaved): 4 index bools + 2 8-bit int slots + 9 bool slots = **29 bits**, 6 batches, ~0.70 s full refresh at 60 fps.
-- **Seam**: VRCFury `FullController` on the prefab root, `basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0` — every clip binding paths through the module's own rig, so the internal hierarchy names in **Rig** below are load-bearing. `globalParams` is **empty**: nothing outside the module reads a name, so every param takes an instance prefix. That makes the *parameters* instance-safe and nothing else — the four collision tags are fixed strings VRCFury's prefixing does not reach, and two copies park their contact clusters at the same point, so a second instance needs a regeneration with its own tags, not a second drop of the prefab.
+- **Seam**: VRCFury `FullController` on the prefab root, `basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0` — every clip binding paths through the module's own rig, so the internal hierarchy names in **Rig** below are load-bearing. `globalParams` is exactly `ObjectSync/Enable`, which the module's own `Toggle` drives by name and so has to carry; every other param takes an instance prefix. That makes the *parameters* instance-safe and nothing else — the four collision tags are fixed strings VRCFury's prefixing does not reach, and two copies park their contact clusters at the same point, so a second instance needs a regeneration with its own tags, not a second drop of the prefab.
 - **Dependencies**: **compose `anti-cull` alongside** — the decode runs only while a remote client evaluates the wearer's animator, and a view-culled wearer's prop freezes where it was last decoded. Distance-hide is not defeatable and is a declared limit, not a defect.
 - **Required assets**: `assets/World.prefab` — the never-instantiated prefab the rig sources, which is what makes the frame the same world origin on every client. Its `Park` child carries the park offset, because a constraint's own `PositionOffset` resolves in the constrained object's *parent* space and would therefore ride the wearer's yaw; sourcing a transform that already sits at the offset keeps it world-aligned with nothing to cancel. Do not instantiate or delete it.
 
@@ -45,11 +48,18 @@ The prefab is hand-maintained against this section; the numbers are `generate.py
             Recon                          VRCAimConstraint: AimAxis (0,0,1), source ProxyA,
                                              WorldUp ObjectRotationUp, WorldUpVector (0,1,0), WorldUpTransform UpAim
         Display/                           VRCPositionConstraint → Rig, PositionOffset animated;
-                                             VRCRotationConstraint → Recon. Parent the visible prop here.
+                                             VRCRotationConstraint → Recon
+    Home                                   where a parked prop rests; an MA BoneProxy anchor or a
+                                             plain child, the module never drives it
+    Container/                             VRCParentConstraint, SOURCE ORDER source0 = Home,
+                                             source1 = Rig/Prop/Display; both weights animated
+      Marker                               placeholder — replace with the visible prop
+
+With more than one object, `Container` gains a child per object (`Container/Prop`) carrying the constraint, since one parked node cannot hold two poses.
 
 A `y`-mode rig is this one with `MarkB`, `RecvAY`, the four `RecvB*`, `ProxyB` and `UpAim` deleted, and `Recon` re-parented to `Recon/` carrying `WorldUpType: Vector`, `WorldUpVector (0,1,0)` instead of the object-rotation up. Nothing else moves.
 
-Five rig facts are the design, not preferences:
+Seven rig facts are the design, not preferences:
 
 | Fact | Value | Why it is that |
 |---|---|---|
@@ -57,6 +67,8 @@ Five rig facts are the design, not preferences:
 | Receiver face | `size` 6 on the read axis (the per-shape maximum), 2.5 for rotation | `size` is the FULL extent. Face mode is a linear unlerp from the +Z face plane, so the read axis is the box's local Z and the other two only have to contain the sender. |
 | Sender radius | 0.05 m, spheres | A sender is read by its nearest surface, so a sphere biases the reading by exactly its radius toward the face — a constant, folded into the walk's calibration. Changing the radius without regenerating skews every reading. |
 | `Fine/Sender`, `Fine/Anchor`, `Fine/Recv*` under one `Rig` | not negotiable | This is what makes the fine stage bias-cancelling (below). Re-parenting the sender under the prop instead breaks it. |
+| `Container` source order | source0 = `Home`, source1 = `Rig/<obj>/Display` | The enable clips write those two weights by index, not by name. Swapping the sources inverts the toggle with nothing to see in either file. |
+| Enable's reach | the three subtree roots `Rig/<obj>/{Coarse,Fine,Rot}` carry the animated `m_IsActive` | Deactivating the subtree root kills a stage's senders and receivers together, and it is the *deactivation* that makes the encode layers' clears stick — a live receiver re-asserts its parameter the next frame. |
 | Collision tags | `ObjectSyncCoarse`, `ObjectSyncFine`, `ObjectSyncRotA`, `ObjectSyncRotB` | One tag per sender group is what keeps the four readouts from reading each other's senders — all four clusters sit at the same point. Receivers are `allowSelf` only and every contact is `localOnly`, so nobody else's rig is on the hook either. |
 
 **Empirical constants** (measured in the emulator; re-measure before changing any of them):
@@ -81,7 +93,9 @@ Five rig facts are the design, not preferences:
 
 **Two anchors, not one.** The measurement anchor rides the walk's running cell index — a staged value, mid-cycle, local. The display anchor rides the committed word and is side-agnostic: the wearer decodes its own prop from the same words a remote does. They cannot be one node, because sharing would mean committing the coarse word before the fine walk has run, which is exactly the torn axis the commit exists to prevent.
 
-**Costs.** 381 states and 13 layers for the committed configuration; 34 frames (~0.57 s) per local measure cycle, ~0.70 s per wire refresh, ~1.3 s worst case end to end. Twelve local-only receivers, zero physbones. `generate.py --check` holds regeneration byte-identical, pins the committed document against the one `built/` was compiled from, and asserts the packing, commit and reconstruction structure for all three configurations — including that no driver anywhere reads or writes an AAP param, which is the shape of the defect that cost y-mode its first design.
+**The enable, and what it does not gate.** `ObjectSync/Enable` is one synced bit, so wearer and remotes park together. Off, a 1D tree on it deactivates the three measure subtrees and hands `Container` back to `Home`; each measuring layer takes an AnyState rung into a `Parked` state whose driver clears that layer's staging, residual, cell index and sense params — in that order, because a deactivated sensing component does not fall to zero, it *freezes* at its last live reading, and only a clear written after the deactivation sticks. What Enable does **not** gate is the wire: word-channel's 29 bits are allocated whether or not the prop is out, so gating it would save nothing and would cost the re-enable a full re-acquisition. The word table is left holding the last committed pose for the same reason — re-enabling shows the prop where it was, not at the origin, until the first fresh commit lands.
+
+**Costs.** 390 states and 13 layers for the committed configuration; 34 frames (~0.57 s) per local measure cycle, ~0.70 s per wire refresh, ~1.3 s worst case end to end. Twelve local-only receivers, zero physbones. `generate.py --check` holds regeneration byte-identical, pins the committed document against the one `built/` was compiled from, and asserts the packing, commit and reconstruction structure for all three configurations — including that no driver anywhere reads or writes an AAP param, which is the shape of the defect that cost y-mode its first design.
 
 ## Verifying the install
 
