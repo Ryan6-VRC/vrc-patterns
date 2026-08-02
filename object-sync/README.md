@@ -2,7 +2,7 @@
 
 A prop that can be set down anywhere in the world and is in the same place for everyone, including a player who joins after it was dropped: a two-stage contact measure quantizes its world transform on the wearer's client and `word-channel` replicates the bits, with no physbone, no Rigidbody, and no synced position of its own. The packaged novelty is the redundant fine stage — a second, bias-cancelling readout wide enough to absorb the coarse stage's error — which puts millimetre placement anywhere in a ±8192 m world inside **29 synced bits**, refreshed end to end in ~0.7 s.
 
-The generator ships one built configuration (one object, full rotation). Two further configurations are generator paths — `y` (one object, heading only) and `y_double` (two objects, heading only, time-multiplexed onto one measure rig) — carried in `generate.py`'s `PRESETS`, not committed as builds.
+The generator ships one built configuration: one object, full rotation, 72 rotation bits on the wire. Two further configurations are generator paths — `y` (one object, heading only, 24 rotation bits) and `y_double` (two objects, heading only, time-multiplexed onto one measure rig) — carried in `generate.py`'s `PRESETS`, not committed as builds.
 
 ## Provenance
 
@@ -47,6 +47,8 @@ The prefab is hand-maintained against this section; the numbers are `generate.py
         Display/                           VRCPositionConstraint → Rig, PositionOffset animated;
                                              VRCRotationConstraint → Recon. Parent the visible prop here.
 
+A `y`-mode rig is this one with `MarkB`, `RecvAY`, the four `RecvB*`, `ProxyB` and `UpAim` deleted, and `Recon` re-parented to `Recon/` carrying `WorldUpType: Vector`, `WorldUpVector (0,1,0)` instead of the object-rotation up. Nothing else moves.
+
 Five rig facts are the design, not preferences:
 
 | Fact | Value | Why it is that |
@@ -73,13 +75,13 @@ Five rig facts are the design, not preferences:
 
 **Why 13+12 and not 13+11.** The coarse stage does *not* cancel that displacement: at 8 km its world error runs to 1.16 m, more than half a cell, so the cell it picks can be one boundary out. The fine field is therefore **redundant** — it spans the cell plus twice the coarse error (4.4 m), not the cell (2 m) — so an off-by-one cell is still reconstructed exactly, at the cost of one bit per axis and no correction pass anywhere. That 4.4 m field sits inside the 6 m face with 0.8 m spare at each end, which is what keeps the readout off the two ways a face receiver lies: it saturates at 1.0 for about 20 mm past the face plane, and past that it reads exactly 0 — the same value as "nothing overlaps".
 
-**Rotation without trig or physbones.** A rotation-only holder carries two markers on orthogonal 1 m arms; three face receivers per marker give six components, sent raw. Every client rebuilds the orientation with a `VRCAimConstraint` pair: `UpAim` aims +Y at proxy B, and `Recon` — **its child**, so the solver is forced to resolve `UpAim` first in the same frame — aims +Z at proxy A with `WorldUpType` **ObjectRotationUp** against `UpAim`. `ObjectUp` looks like the right token and silently degenerates to world up; it is never correct here. The `y` preset instead reads one marker in XZ and converts it to an angle *before* the wire with a 2D freeform-directional blend tree, which is an exact angle interpolator, magnitude-invariant, and wrong only inside the one sector where its output value wraps — so a second tree carries the same angle with its seam half a turn away, and the walk enters through whichever start state the marker's own Z reading selects.
+**Rotation without trig or physbones.** A rotation-only holder carries two markers on orthogonal 1 m arms; three face receivers per marker give six components, sent raw. Every client rebuilds the orientation with a `VRCAimConstraint` pair: `UpAim` aims +Y at proxy B, and `Recon` — **its child**, so the solver is forced to resolve `UpAim` first in the same frame — aims +Z at proxy A with `WorldUpType` **ObjectRotationUp** against `UpAim`. `ObjectUp` looks like the right token and silently degenerates to world up; it is never correct here. The `y` preset is a strict subset of the same rig — marker A's X and Z components on the wire, one `Recon` aim constraint with `WorldUpType` **Vector** `(0,1,0)`, no second marker and no `UpAim` — and it sends components rather than the heading itself because a parameter driver reads 0 from an AAP, so no walk can quantize a number a blend tree computed.
 
 **The wire, and why nothing tears.** Each axis's coarse byte, fine byte and nine bools share one `group:`, so word-channel pins them into one batch and `atomic: batch` applies them together: an adjacent-cell coarse always lands with its matched fine, which reconstructs the same position, so cell-boundary flicker needs no hysteresis anywhere. Each rotation component's byte and four bools share a cross-kind group the same way. The walks are multi-frame and that is safe — they run only on the wearer's own client, which cannot cull itself — but the handoff to the wire must not be, because word-channel's sender copies the word params on its own clock and would happily latch a half-written axis. So the walks fill scratch staging and one `Commit` state driver-copies a whole axis, all eleven words, in a single frame.
 
 **Two anchors, not one.** The measurement anchor rides the walk's running cell index — a staged value, mid-cycle, local. The display anchor rides the committed word and is side-agnostic: the wearer decodes its own prop from the same words a remote does. They cannot be one node, because sharing would mean committing the coarse word before the fine walk has run, which is exactly the torn axis the commit exists to prevent.
 
-**Costs.** 381 states and 13 layers for the committed configuration; 34 frames (~0.57 s) per local measure cycle, ~0.70 s per wire refresh, ~1.3 s worst case end to end. Twelve local-only receivers, zero physbones. `generate.py --check` holds regeneration byte-identical and asserts the packing and commit structure for all three configurations.
+**Costs.** 381 states and 13 layers for the committed configuration; 34 frames (~0.57 s) per local measure cycle, ~0.70 s per wire refresh, ~1.3 s worst case end to end. Twelve local-only receivers, zero physbones. `generate.py --check` holds regeneration byte-identical, pins the committed document against the one `built/` was compiled from, and asserts the packing, commit and reconstruction structure for all three configurations — including that no driver anywhere reads or writes an AAP param, which is the shape of the defect that cost y-mode its first design.
 
 ## Verifying the install
 

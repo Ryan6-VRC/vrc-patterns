@@ -38,10 +38,12 @@ Rotation `full` needs no trig: a rotation-only holder carries two markers
 on orthogonal arms, each marker's three components measured by the same face
 readout and sent raw; every client rebuilds the orientation with a
 VRCAimConstraint pair (`UpAim` aiming +Y at proxy B, `Recon` as its CHILD aiming
-+Z at proxy A with WorldUpType ObjectRotationUp against UpAim). Rotation `y` is
-one marker read in XZ, converted to an angle by a 2D freeform-directional blend
-tree (an exact angle interpolator) before the walk, so the wire carries one
-12-bit angle and the receive side is a single Y rotation offset.
++Z at proxy A with WorldUpType ObjectRotationUp against UpAim). Rotation `y` is a
+strict subset of that: marker A's X and Z components on the wire, and one
+`Recon` aim constraint with WorldUpType Vector (0,1,0) — no second marker, no
+UpAim, and no angle anywhere. An angle wire format is not merely more expensive,
+it is impossible: a parameter driver reads 0 from an AAP (measured), so no walk
+can ever quantize a number a blend tree computed.
 
 WIRE DISCIPLINE
 ---------------
@@ -90,8 +92,9 @@ CONFIG = {
     "channel": "ObjectSync/Ch",
 
     # The synced objects. `rotation` is per-object and resolved at generation
-    # time — full (6 components, aim-constraint reconstruction), y (one angle),
-    # or none. See PRESETS below for the two non-committed generator paths.
+    # time — full (6 components, two markers, aim pair), y (2 components, one
+    # marker, one aim against world up), or none. See PRESETS below for the two
+    # non-committed generator paths.
     "objects": [{"name": "Prop", "rotation": "full"}],
 
     # Position measure. range is the half-extent about the rig anchor, so the
@@ -124,9 +127,6 @@ CONFIG = {
     "rotBits": 12,
     "armLength": 1.0,
     "rotSpan": 2.5,
-    # Sectors in the y-mode angle lookup (each tree; the seam is one sector
-    # wide, and the second tree's seam sits half a turn away).
-    "lutSectors": 32,
 
     # Frames held between placing the fine anchor and sampling the fine
     # receiver. Measured coherent-readout lag is 2-4 frames; this is the max,
@@ -253,14 +253,37 @@ LOWER = {"X": "x", "Y": "y", "Z": "z"}
 FULL_COMPS = ("A/X", "A/Y", "A/Z", "B/X", "B/Y", "B/Z")
 
 
+Y_COMPS = ("A/X", "A/Z")
+
+
 def rot_comps(mode):
     if mode == "full":
         return FULL_COMPS
     if mode == "y":
-        return ("Y",)
+        return Y_COMPS
     if mode == "none":
         return ()
     raise SystemExit(f"REFUSE: rotation mode '{mode}' — full | y | none")
+
+
+def rot_groups(c, ob):
+    """(group label, [components]) for one object's rotation words.
+
+    `full`'s six components belong to two different markers and are independent
+    values, so each takes its own group. `y`'s two components are ONE value — a
+    heading — and want the same adjacent-cell coherence a position axis wants,
+    so they share a group when the slots can hold it."""
+    o, mode = ob["name"], ob["rotation"]
+    comps = rot_comps(mode)
+    if mode == "y":
+        w, rb = c["wire"], c["rotBits"] - 8
+        if w["numberSlots"] >= len(comps) and w["boolSlots"] >= len(comps) * rb:
+            return [(f"{o}/ry", list(comps))]
+        # One group each: the slots cannot hold both components in one batch, so
+        # the two halves of a heading may land a batch apart and a fast spin can
+        # briefly reconstruct an angle neither snapshot held.
+        return [(f"{o}/r{safe(x)}", [x]) for x in comps]
+    return [(f"{o}/r{safe(x)}", [x]) for x in comps]
 
 
 def safe(name):
@@ -305,11 +328,12 @@ def word_table(c):
             for j in range(fb - 8):
                 bools.append({"name": f"{o}/P{a}/F{j}", "group": g})
             groups.append(g)
-        for comp in rot_comps(ob["rotation"]):
-            g = f"{o}/r{safe(comp)}"
-            numbers.append({"name": f"{o}/R{comp}", "kind": "byte", "group": g})
-            for j in range(rb - 8):
-                bools.append({"name": f"{o}/R{comp}/B{j}", "group": g})
+        for g, comps in rot_groups(c, ob):
+            for comp in comps:
+                numbers.append({"name": f"{o}/R{comp}", "kind": "byte", "group": g})
+            for comp in comps:
+                for j in range(rb - 8):
+                    bools.append({"name": f"{o}/R{comp}/B{j}", "group": g})
             groups.append(g)
     return numbers, bools, groups
 
@@ -507,8 +531,6 @@ def build(c):
     if multi:
         layers.append(slice_layer(doc, c))
     for ob in c["objects"]:
-        if ob["rotation"] == "y":
-            layers.append(angle_layer(doc, c, d, ob))
         for a in AXES:
             layers.append(position_walk(doc, c, d, ob, a, multi))
         for comp in rot_comps(ob["rotation"]):
@@ -671,14 +693,21 @@ def display_layer(doc, c, d):
                             f"prox_{safe(o)}_{mk.lower()}_{LOWER[a]}", step) +
                         f", directWeight: {p}/D/{o}/R{mk}/{a} }}")
         elif ob["rotation"] == "y":
-            rot = f"Rig/{o}/Display/VRCRotationConstraint.RotationOffset"
-            zero = {f"{rot}.{LOWER[x]}": 0 for x in AXES}
-            b = dict(zero, **{f"{rot}.y": -180})
-            step = dict(zero, **{f"{rot}.y": num(360 / 2 ** c["rotBits"])})
-            kids.append("{ clip: " + doc.clip(f"ry_{safe(o)}_base", b) +
+            # A strict subset of the full-mode reconstruction: one marker, read
+            # in XZ, aimed at by a single constraint whose up comes from a world
+            # vector rather than a second marker. Marker A's Y offset is
+            # identically zero under yaw, so the proxy's Y is pinned there.
+            node = f"Rig/{o}/Recon/ProxyA/Transform.m_LocalPosition"
+            b = {f"{node}.x": num(-c["armLength"]), f"{node}.y": 0,
+                 f"{node}.z": num(-c["armLength"])}
+            kids.append("{ clip: " + doc.clip(f"prox_{safe(o)}_yaw_base", b) +
                         f", directWeight: {p}/One }}")
-            kids.append("{ clip: " + doc.clip(f"ry_{safe(o)}_step", step) +
-                        f", directWeight: {p}/D/{o}/RY }}")
+            for a in ("X", "Z"):
+                z = {f"{node}.{LOWER[x]}": 0 for x in AXES}
+                step = dict(z, **{f"{node}.{LOWER[a]}": num(d["rotLSB"])})
+                kids.append("{ clip: " + doc.clip(
+                    f"prox_{safe(o)}_yaw_{LOWER[a]}", step) +
+                    f", directWeight: {p}/D/{o}/RA/{a} }}")
     out = [f"  - name: {p}/Display", "    states:"]
     out.extend(tree_state("Display", "DisplaySum", kids))
     out.append("    default: Display")
@@ -709,12 +738,8 @@ def slice_layer(doc, c):
             for a in AXES:
                 sets[f"{p}/Sense/{x}/C{a}"] = 0
                 sets[f"{p}/Sense/{x}/F{a}"] = 0
-            if other["rotation"] == "y":
-                sets[f"{p}/Sense/{x}/RX"] = 0
-                sets[f"{p}/Sense/{x}/RZ"] = 0
-            else:
-                for comp in rot_comps(other["rotation"]):
-                    sets[f"{p}/Sense/{x}/R{comp}"] = 0
+            for comp in rot_comps(other["rotation"]):
+                sets[f"{p}/Sense/{x}/R{comp}"] = 0
         nxt = names[(i + 1) % len(names)]
         out.extend(state(f"Slice_{o}", driver(sets=sets),
                          [f"{{ to: Slice_{nxt}, when: [], exitTime: {hold} }}"
@@ -805,13 +830,8 @@ def position_walk(doc, c, d, ob, a, multi):
 
 
 def component_walk(doc, c, d, ob, comp, multi):
-    """One 12-bit rotation component (or the y-mode angle), one layer.
-
-    The y-mode entry splits in two: the angle lookup has a garbage sector at its
-    wrap, so a second tree carries the same angle with its seam half a turn away
-    and the walk enters through whichever start state the marker's own Z reading
-    selects. The two differ only in the top bit — the low bits of an angle and
-    of that angle plus half a turn are identical."""
+    """One marker component, one layer. Both rotation modes use this walk
+    unchanged — `y` is `full` with four of the six components dropped."""
     p, o = c["prefix"], ob["name"]
     lay = f"{p}/Enc/{o}/R{comp}"
     st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
@@ -821,79 +841,28 @@ def component_walk(doc, c, d, ob, comp, multi):
     for nm in rbools:
         doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
     plan = bit_plan(c["rotBits"], st, rbools)
-    ymode = ob["rotation"] == "y"
     clear = dict({st: 0}, **{b: 0 for b in rbools})
 
     out = [f"  - name: {lay}", "    states:"]
-    extras = ["Idle", "Commit"]
-    if ymode:
-        sz = sense_param(doc, c, f"{p}/Sense/{o}/RZ")
-        sense_param(doc, c, f"{p}/Sense/{o}/RX")
-        out.extend(state("Idle", None, [
-            f"{{ to: StartNear, when: [ {', '.join(gate(c, ob, multi))}, "
-            f"{sz} greater {num(d['rotMid'])} ] }}",
-            f"{{ to: StartFar, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
-        for tag, src in (("StartNear", f"{p}/D/{o}/AngNear"),
-                         ("StartFar", f"{p}/D/{o}/AngFar")):
-            out.extend(state(tag, driver(sets=clear, copies={res: src}),
-                             walk_rungs(res, 0, f"{tag[5:]}0A", f"{tag[5:]}0R")))
-        # Near: ordinary top bit. Far: the tree it reads is the same angle
-        # rotated half a turn, so the top bit is inverted and the residual keeps
-        # its low bits either way.
-        out.extend(state("Near0A", driver(adds={res: num(-0.5), st: 128}),
-                         walk_rungs(res, 1, "R1A", "R1R")))
-        out.extend(state("Near0R", None, walk_rungs(res, 1, "R1A", "R1R")))
-        out.extend(state("Far0A", driver(adds={res: num(-0.5)}),
-                         walk_rungs(res, 1, "R1A", "R1R")))
-        out.extend(state("Far0R", driver(adds={st: 128}),
-                         walk_rungs(res, 1, "R1A", "R1R")))
-        # The four bit-0 states are laid out by `rows` as ordinary walk rungs;
-        # naming them in `extras` as well emits a duplicate `layout.nodes` key,
-        # which CompileController refuses at parse.
-        extras += ["StartNear", "StartFar"]
-        rows = [("Near0A", "Near0R"), ("Far0A", "Far0R")]
-        rows += emit_walk_from(1, "R", c["rotBits"], res, plan, out, "Commit",
-                               f"{p}/True")
-    else:
-        sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
-        out.extend(state("Idle", None,
-                         [f"{{ to: Start, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
-        out.extend(state("Start", driver(
-            sets=clear,
-            copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
-                         f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
-            walk_rungs(res, 0, "R0A", "R0R")))
-        extras.append("Start")
-        rows = emit_walk("R", c["rotBits"], res, plan, None, out, "Commit",
-                         f"{p}/True")
+    extras = ["Idle", "Commit", "Start"]
+    sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
+    out.extend(state("Idle", None,
+                     [f"{{ to: Start, when: [ {', '.join(gate(c, ob, multi))} ] }}"]))
+    out.extend(state("Start", driver(
+        sets=clear,
+        copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
+                     f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
+        walk_rungs(res, 0, "R0A", "R0R")))
+    rows = emit_walk("R", c["rotBits"], res, plan, None, out, "Commit",
+                     f"{p}/True")
     commit = {f"{o}/R{comp}": st}
     for j in range(c["rotBits"] - 8):
         commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
-    first = "StartNear" if ymode else "Start"
     out.extend(state("Commit", driver(copies=commit),
                      [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     out.append("    default: Idle")
     out.extend(walk_layout(rows, extras))
     return out
-
-
-def emit_walk_from(start, tag, nbits, resid, plan, out, exit_to, true_param):
-    rows = []
-    for b in range(start, nbits):
-        kind, target, place = plan[b]
-        acc, rej = f"{tag}{b}A", f"{tag}{b}R"
-        adds, sets = {resid: num(-(0.5 ** (b + 1)))}, {}
-        if kind == "byte":
-            adds[target] = num(place)
-        else:
-            sets[target] = 1
-        nxt = (walk_rungs(resid, b + 1, f"{tag}{b + 1}A", f"{tag}{b + 1}R")
-               if b + 1 < nbits
-               else [f"{{ to: {exit_to}, when: [ {true_param} is true ] }}"])
-        out.extend(state(acc, driver(sets=sets or None, adds=adds), nxt))
-        out.extend(state(rej, None, nxt))
-        rows.append((acc, rej))
-    return rows
 
 
 def walk_layout(rows, extras):
@@ -908,64 +877,6 @@ def walk_layout(rows, extras):
         out.append(f"        {rej}: [{x}, 300]")
     out.extend(["      entry: [50, 120]", "      any:   [50, 40]",
                 "      exit:  [50, 80]"])
-    return out
-
-
-def angle_layer(doc, c, d, ob):
-    """XZ marker reading -> angle, twice, with the two seams half a turn apart.
-
-    A 2D freeform-directional tree over unit-vector children is an exact angle
-    interpolator and is magnitude-invariant, so the arm length never enters the
-    result — but the sector spanning the value wrap carries garbage, so the
-    consumer picks the tree whose seam faces away."""
-    p, o = c["prefix"], ob["name"]
-    n = c["lutSectors"]
-    ux, uz = f"{p}/D/{o}/UX", f"{p}/D/{o}/UZ"
-    near, far = f"{p}/D/{o}/AngNear", f"{p}/D/{o}/AngFar"
-    for nm in (ux, uz, near, far):
-        doc.param(f"  {nm}: {{ type: float, aap: true }}", nm)
-    sx = sense_param(doc, c, f"{p}/Sense/{o}/RX")
-    sz = sense_param(doc, c, f"{p}/Sense/{o}/RZ")
-
-    kids = []
-    for dest, src in ((ux, sx), (uz, sz)):
-        kids.append("{ clip: " + doc.clip(f"ctr_{safe(dest)}_span", {dest: 1}) +
-                    f", directWeight: {src} }}")
-        kids.append("{ clip: " + doc.clip(f"ctr_{safe(dest)}_base",
-                                          {dest: num(-d["rotMid"])}) +
-                    f", directWeight: {p}/One }}")
-
-    import math
-    for label, dest in (("near", near), ("far", far)):
-        sub = [f"    - tree: freeformDirectional2d",
-               f"      name: Ang{label.capitalize()}",
-               f"      param: {ux}", f"      paramY: {uz}",
-               f"      directWeight: {p}/One", "      children:"]
-        for k in range(n):
-            th = -180.0 + k * (360.0 / n)
-            v = (th + 180.0) / 360.0 if label == "near" else (th % 360.0) / 360.0
-            cname = doc.clip(f"ang_{safe(o)}_{label}_{k:03d}",
-                             {dest: num(round(v, 9))})
-            sub.append(f"        - {{ clip: {cname}, "
-                       f"x: {num(round(math.sin(math.radians(th)), 9))}, "
-                       f"y: {num(round(math.cos(math.radians(th)), 9))} }}")
-        kids.append(("TREE", sub))
-
-    flat = []
-    for k in kids:
-        if isinstance(k, tuple):
-            flat.append(k[1])
-        else:
-            flat.append(k)
-    out = [f"  - name: {p}/Angle/{o}", "    states:",
-           "      Angle:", "        motion:", "          tree: direct",
-           "          name: AngleSum", "          children:"]
-    for k in flat:
-        if isinstance(k, list):
-            out.extend("        " + ln for ln in k)
-        else:
-            out.append(f"            - {k}")
-    out.append("    default: Angle")
     return out
 
 
@@ -1101,13 +1012,42 @@ def check():
                                           "NoSuchWord/Never"]),
                 "commit-driver probe rejects a word that is not there")
 
+        # A driver reads 0 from an AAP — measured, and the defect that forced
+        # y-mode's redesign. This is the assertion that would have caught it.
+        aaps = aap_params(text)
+        bad_src = [(op, dst, src) for op, dst, src in driver_ops(text)
+                   if src in aaps]
+        bad_dst = [(op, dst, src) for op, dst, src in driver_ops(text)
+                   if dst in aaps]
+        assert_(bool(aaps), f"{len(aaps)} AAP params declared (probe has teeth)")
+        assert_(not bad_src, f"no driver reads an AAP param {bad_src[:2]}")
+        assert_(not bad_dst, f"no driver writes an AAP param {bad_dst[:2]}")
+
         assert_("ObjectUp" not in text,
                 "no bare ObjectUp anywhere (it degenerates to world-up)")
+        assert_("freeformDirectional" not in text,
+                "no freeform-directional tree anywhere (the angle lookup is gone)")
         assert_(text.count("motion: ~") > 0 and "tree: direct" in text,
                 "document carries both ladder states and Direct trees")
         assert_(all(f"  - name: {cfg['prefix']}/Enc/{ob['name']}/P{a}" in text
                     for ob in cfg["objects"] for a in AXES),
                 "one encode layer per object per axis")
+
+        # Rotation reconstruction: `y` is `full` minus marker B, so its decode
+        # drives ProxyA's X and Z and never mentions ProxyB.
+        for ob in cfg["objects"]:
+            o = ob["name"]
+            pa = f"Rig/{o}/Recon/ProxyA/Transform.m_LocalPosition"
+            if ob["rotation"] == "y":
+                assert_(all(f"{pa}.{ax}" in text for ax in "xyz")
+                        and f"Rig/{o}/Recon/ProxyB" not in text,
+                        f"{o}: single-marker aim chain — ProxyA driven, no ProxyB")
+                assert_(f"directWeight: {cfg['prefix']}/D/{o}/RA/X" in text
+                        and f"directWeight: {cfg['prefix']}/D/{o}/RA/Z" in text,
+                        f"{o}: ProxyA rides the received X and Z components")
+            elif ob["rotation"] == "full":
+                assert_(f"Rig/{o}/Recon/ProxyB/Transform.m_LocalPosition" in text,
+                        f"{o}: full mode drives both marker proxies")
 
         d = facts["geometry"]
         assert_(d["fineSpan"] >= cfg["cellSize"] + 2 * d["coarseWorldError"],
@@ -1117,7 +1057,46 @@ def check():
                 f"fine field sits {d['faceGuard']:.2f} m off each face edge")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.2f}s refresh")
+
+    # The committed build is the one artifact `built/` was compiled from, so a
+    # generator change that moves it is a defect until built/ is regenerated.
+    print("[committed vs disk]")
+    on_disk = os.path.join(HERE, "controller.yaml")
+    if os.path.exists(on_disk):
+        with open(on_disk, encoding="utf-8", newline="") as fh:
+            assert_(fh.read().replace("\r\n", "\n") == document(CONFIG)[0],
+                    "controller.yaml on disk matches the committed CONFIG")
+    else:
+        assert_(False, "controller.yaml is missing")
     return 0 if ok else 1
+
+
+def driver_ops(text):
+    """Every (op, destination, source) a parameter driver performs, read off the
+    emitted document. `driver()` and word-channel's emitter share these indents,
+    so one scan covers both."""
+    ops, op = [], None
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s == "- driver:":
+            op = None
+        elif ln.startswith("              ") and not ln.startswith("               ") \
+                and s.endswith(":"):
+            op = s[:-1]
+        elif op and ln.startswith("                ") and ":" in s:
+            dst, val = s.split(":", 1)
+            val = val.strip()
+            src = val.split("source:", 1)[1].split(",")[0].strip() \
+                if val.startswith("{") and "source:" in val else val
+            ops.append((op, dst.strip(), src if op == "copy" else None))
+        elif s and not ln.startswith("              "):
+            op = None
+    return ops
+
+
+def aap_params(text):
+    return {ln.split(":", 1)[0].strip() for ln in text.splitlines()
+            if "aap: true" in ln and ln.startswith("  ")}
 
 
 def one_driver_has(text, names):
