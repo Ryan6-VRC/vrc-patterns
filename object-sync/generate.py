@@ -389,14 +389,18 @@ class Doc:
     def has_param(self, name):
         return name in self._pnames
 
-    def clip(self, name, bindings):
+    def clip(self, name, bindings, seconds=None):
+        # `seconds` matters wherever a state holding this clip exits on
+        # exitTime: a set-clip with no declared length floors at one frame, and
+        # exitTime would then read in 1/60 s units instead of seconds.
+        entry = (dict(bindings), seconds)
         if name in self.clips:
-            if self.clips[name] != bindings:
+            if self.clips[name] != entry:
                 raise SystemExit(
                     f"REFUSE: clip '{name}' declared twice with different "
-                    f"content: {self.clips[name]} vs {bindings}")
+                    f"content: {self.clips[name]} vs {entry}")
             return name
-        self.clips[name] = dict(bindings)
+        self.clips[name] = entry
         return name
 
 
@@ -740,11 +744,15 @@ def enable_subtree(doc, c):
     kept decoding through the toggle is what makes re-enabling instant."""
     p = c["prefix"]
     park, live = {}, {}
+    # With several objects the Slice layer owns m_IsActive on the measure
+    # subtrees — one property, one writer, so there is no layer-order fight to
+    # reason about. Enable still reaches them, through that layer's Parked clip.
+    if len(c["objects"]) == 1:
+        for sub in ("Coarse", "Fine", "Rot"):
+            b = f"Rig/{c['objects'][0]['name']}/{sub}/GameObject.m_IsActive"
+            park[b], live[b] = 0, 1
     for ob in c["objects"]:
         o = ob["name"]
-        for sub in ("Coarse", "Fine", "Rot"):
-            b = f"Rig/{o}/{sub}/GameObject.m_IsActive"
-            park[b], live[b] = 0, 1
         con = f"{container_path(c, o)}/VRCParentConstraint.Sources"
         park[f"{con}.source0.Weight"], live[f"{con}.source0.Weight"] = 1, 0
         park[f"{con}.source1.Weight"], live[f"{con}.source1.Weight"] = 0, 1
@@ -757,48 +765,75 @@ def enable_subtree(doc, c):
             f"    - {{ clip: {doc.clip('enable_live', live)}, threshold: 1 }}"]
 
 
-def slice_layer(doc, c):
-    """Multi-object time-multiplex: one object's senders and receivers are live
-    per slice, so N objects cost one measure rig instead of N.
+def all_sense(c):
+    p = c["prefix"]
+    out = {}
+    for ob in c["objects"]:
+        x = ob["name"]
+        for a in AXES:
+            out[f"{p}/Sense/{x}/C{a}"] = 0
+            out[f"{p}/Sense/{x}/F{a}"] = 0
+        for comp in rot_comps(ob["rotation"]):
+            out[f"{p}/Sense/{x}/R{comp}"] = 0
+    return out
 
-    A disabled sensing component freezes its parameter at the last written
-    value, so every slice clears the other objects' sense params rather than
-    trusting them to fall to zero (gimmicks.md off-state hygiene)."""
+
+def slice_layer(doc, c):
+    """Multi-object time-multiplex: one object's measure rig is live per slice,
+    so N objects cost one rig instead of N.
+
+    The layer OWNS `m_IsActive` on every object's three measure subtrees — the
+    enable's own clips deliberately leave that binding alone here, because two
+    layers writing one property is a fight decided by layer order rather than by
+    anything either file says. The enable's authority survives as the AnyState
+    rung into Parked, whose clip deactivates all of them.
+
+    Each slice runs deactivate -> clear -> settle -> walk, in that order and by
+    transition structure rather than by hoping the timing works out. The clear
+    only sticks because the same frame's gate clip has already deactivated the
+    other objects' receivers: a live receiver re-asserts its parameter the next
+    frame, which is exactly how a driver-only clear failed (measured: an
+    off-slice object's sense params held ~0.5, not 0). The walk is unblocked only
+    at `Run`, several frames after the reactivated receivers began acquiring."""
     p = c["prefix"]
     names = [ob["name"] for ob in c["objects"]]
     for o in names:
         doc.param(f"  {p}/Slice/{o}: {{ type: float, scratch: true }}",
                   f"{p}/Slice/{o}")
-    # A slice holds long enough for the slowest walk in it to finish and commit.
-    hold = num(round((max_walk_frames(c) + 2) / 60.0, 4))
+    gates = {o: doc.clip(f"slice_gate_{safe(o)}", gate_bindings(c, o), seconds=1)
+             for o in names}
+    parked_clip = doc.clip("slice_gate_park", gate_bindings(c, None), seconds=1)
+    blocked = dict(all_sense(c), **{f"{p}/Slice/{x}": 0 for x in names})
+    # The run window holds the slowest walk in the slice plus its Parked->Wake
+    # climb and its Commit hop.
+    hold = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
+
     out = [f"  - name: {p}/Slice", "    states:"]
     for i, o in enumerate(names):
-        sets = {f"{p}/Slice/{x}": (1 if x == o else 0) for x in names}
-        for other in c["objects"]:
-            x = other["name"]
-            if x == o:
-                continue
-            for a in AXES:
-                sets[f"{p}/Sense/{x}/C{a}"] = 0
-                sets[f"{p}/Sense/{x}/F{a}"] = 0
-            for comp in rot_comps(other["rotation"]):
-                sets[f"{p}/Sense/{x}/R{comp}"] = 0
-        nxt = names[(i + 1) % len(names)]
-        out.extend(state(f"Slice_{o}", driver(sets=sets),
-                         [f"{{ to: Slice_{nxt}, when: [], exitTime: {hold} }}"
-                          "   # empty state: exitTime is literal seconds"]))
-    park = {f"{p}/Slice/{x}": 0 for x in names}
-    for ob in c["objects"]:
-        x = ob["name"]
-        for a in AXES:
-            park[f"{p}/Sense/{x}/C{a}"] = 0
-            park[f"{p}/Sense/{x}/F{a}"] = 0
-        for comp in rot_comps(ob["rotation"]):
-            park[f"{p}/Sense/{x}/R{comp}"] = 0
-    out.extend(state("Parked", driver(sets=park),
-                     [f"{{ to: Slice_{names[0]}, when: [ {p}/Enable greater 0.5 ] }}"]))
+        motion = f"{{ clip: {gates[o]} }}"
+        # Deactivate every other object's rig AND block every walk, in one
+        # frame, before anything is cleared.
+        out.extend(state(f"Enter_{o}", driver(sets=blocked),
+                         [f"{{ to: Settle0_{o}, when: [ {p}/True is true ] }}"],
+                         motion=motion))
+        for k in range(c["settleFrames"]):
+            nxt = (f"Settle{k + 1}_{o}" if k + 1 < c["settleFrames"]
+                   else f"Run_{o}")
+            out.extend(state(f"Settle{k}_{o}", None,
+                             [f"{{ to: {nxt}, when: [ {p}/True is true ] }}"],
+                             motion=motion))
+        nxt_obj = names[(i + 1) % len(names)]
+        out.extend(state(
+            f"Run_{o}",
+            driver(sets={f"{p}/Slice/{x}": (1 if x == o else 0) for x in names}),
+            [f"{{ to: Enter_{nxt_obj}, when: [], exitTime: {hold} }}"
+             "   # the gate clip declares its length, so exitTime is seconds"],
+            motion=motion))
+    out.extend(state("Parked", driver(sets=blocked),
+                     [f"{{ to: Enter_{names[0]}, when: [ {p}/Enable greater 0.5 ] }}"],
+                     motion=f"{{ clip: {parked_clip} }}"))
     out.extend(off_ladder(c))
-    out.append(f"    default: Slice_{names[0]}")
+    out.append("    default: Parked")
     return out
 
 
@@ -823,21 +858,80 @@ def gate(c, ob, multi):
     return g
 
 
-def off_ladder(c):
-    """The enable's teeth on an encode layer: an AnyState rung into Parked.
+def off_ladder(c, ob=None, multi=False):
+    """The AnyState rungs that yank an encode layer out of its walk.
 
     The state is `Parked`, not `Off`: a bare `Off` in value position infers as
     the boolean false and every `to:` naming it would silently retarget.
 
-    `canTransitionToSelf: false` is what makes it a one-shot — the rung fires
-    from whatever state the walk was in, Off's driver clears once, and nothing
-    re-enters. The clear sticks because the same frame's enable clip has already
+    `canTransitionToSelf: false` is what makes each rung a one-shot — it fires
+    from whatever state the walk was in, Parked's driver clears once, and nothing
+    re-enters. The clear sticks because the same frame's gate clip has already
     deactivated the receiver GOs, and a deactivated sensing component never
     writes again (it only freezes what it last wrote, which is what the clear is
-    for)."""
-    return ["    any:",
-            f"      - {{ to: Parked, when: [ {c['prefix']}/Enable less 0.5 ], "
-            "canTransitionToSelf: false }"]
+    for).
+
+    The second rung is what keeps a multi-object slice honest: a walk whose
+    object just lost the measure rig must ABANDON rather than run on to its
+    Commit and publish limbs measured against another object's senders."""
+    p = c["prefix"]
+    out = ["    any:",
+           f"      - {{ to: Parked, when: [ {p}/Enable less 0.5 ], "
+           "canTransitionToSelf: false }"]
+    if multi:
+        out.append(f"      - {{ to: Parked, when: [ {p}/Slice/{ob['name']} "
+                   "less 0.5 ], canTransitionToSelf: false }")
+    return out
+
+
+def wake_up(c, ob, multi):
+    """The conditions that let a Parked encode layer start climbing again."""
+    up = [f"{c['prefix']}/Enable greater 0.5"]
+    if multi:
+        up.append(f"{c['prefix']}/Slice/{ob['name']} greater 0.5")
+    return up
+
+
+def wake_chain(c, first):
+    """Parked -> settle -> the walk's own entry state.
+
+    Parked clears the sense params and the gate clip deactivates the receivers,
+    so on the way back up those params read 0 until the reactivated receivers
+    have re-acquired. Sampling one frame too early quantizes a 0 reading and
+    publishes the far corner of the range — measured on the single-object build
+    as a two-commit sweep through (-8120, -7261, -7960) after an unpark. The
+    dwell is the same `settleFrames` the fine anchor uses, and it sits on the
+    ONLY path out of Parked, so no Commit anywhere can fire against a receiver
+    that has not re-acquired."""
+    out = []
+    for i in range(c["settleFrames"]):
+        nxt = f"Wake{i + 1}" if i + 1 < c["settleFrames"] else first
+        out.extend(state(f"Wake{i}", None,
+                         [f"{{ to: {nxt}, when: [ {c['prefix']}/True is true ] }}"]))
+    return out
+
+
+def tag_set(c, o):
+    """Contact collision tags for one object's four sender groups.
+
+    Deterministic from the prefix and — when there is more than one object — the
+    object name, the same rule `Container` follows and for a sharper reason:
+    measured with two objects on one tag set, NEITHER converges, because every
+    receiver reads whichever sender is strongest rather than its own."""
+    base = c["prefix"].replace("/", "")
+    mid = o if len(c["objects"]) > 1 else ""
+    return [f"{base}{mid}{s}" for s in ("Coarse", "Fine", "RotA", "RotB")]
+
+
+def gate_bindings(c, live_object):
+    """m_IsActive across every object's three measure subtrees, with one
+    object's live. `live_object` None parks them all."""
+    b = {}
+    for ob in c["objects"]:
+        x = ob["name"]
+        for sub in ("Coarse", "Fine", "Rot"):
+            b[f"Rig/{x}/{sub}/GameObject.m_IsActive"] = 1 if x == live_object else 0
+    return b
 
 
 def container_path(c, o):
@@ -904,12 +998,14 @@ def position_walk(doc, c, d, ob, a, multi):
                  kacc: 0, kfloat: 0, sc: 0, sf: 0},
                 **{b: 0 for b in cbools + fbools})
     out.extend(state("Parked", driver(sets=park),
-                     [f"{{ to: Idle, when: [ {p}/Enable greater 0.5 ] }}"]))
-    out.extend(off_ladder(c))
+                     [f"{{ to: Wake0, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
+    out.extend(wake_chain(c, "Idle"))
+    out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
     out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart",
                                   "Commit", "Parked"] +
-                           [f"Settle{i}" for i in range(c["settleFrames"])]))
+                           [f"Settle{i}" for i in range(c["settleFrames"])] +
+                           [f"Wake{i}" for i in range(c["settleFrames"])]))
     return out
 
 
@@ -945,10 +1041,12 @@ def component_walk(doc, c, d, ob, comp, multi):
     out.extend(state("Commit", driver(copies=commit),
                      [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     out.extend(state("Parked", driver(sets=dict(clear, **{res: 0, sr: 0})),
-                     [f"{{ to: Idle, when: [ {p}/Enable greater 0.5 ] }}"]))
-    out.extend(off_ladder(c))
+                     [f"{{ to: Wake0, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
+    out.extend(wake_chain(c, "Idle"))
+    out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
-    out.extend(walk_layout(rows, extras))
+    out.extend(walk_layout(rows, extras +
+                           [f"Wake{i}" for i in range(c["settleFrames"])]))
     return out
 
 
@@ -990,8 +1088,17 @@ def header(c, d, facts, numbers, bools):
         o(f"#   component LSB {num(round(d['rotLSB'] * 1000, 4))} mm.")
     o(f"# Wire: {facts['wireBits']} synced bits carrying {facts['payloadBits']} payload bits in "
       f"{facts['batchCount']} batches, atomic=batch,")
-    o(f"#   ~{facts['cycleSeconds']:.2f}s full refresh @60fps. Local measure cycle "
-      f"{max_walk_frames(c)} frames (~{max_walk_frames(c) / 60:.2f}s).")
+    o(f"#   ~{facts['cycleSeconds']:.2f}s full refresh @60fps.")
+    if len(c["objects"]) == 1:
+        o(f"# Local measure cycle: {max_walk_frames(c)} frames (~{max_walk_frames(c) / 60:.2f}s); "
+          f"an unpark costs {c['settleFrames']} more, waiting out contact re-acquisition")
+        o("#   before the first sample, so the wire holds its last committed pose rather than")
+        o("#   publishing a cleared one.")
+    else:
+        per = max_walk_frames(c) + 2 * c["settleFrames"] + 5
+        o(f"# Local measure cycle: {len(c['objects'])} slices x {per} frames = "
+          f"~{len(c['objects']) * per / 60:.2f}s — each slice deactivates every other object's")
+        o("#   rig, clears, settles, and only then unblocks its walks.")
     o(f"# Rig park (deterministic from rigSeed '{c['rigSeed']}'): "
       f"({d['rigOffset'][0]}, {d['rigOffset'][1]}, {d['rigOffset'][2]}) m — the README's Rig section")
     o("#   is the spec the prefab is kept against.")
@@ -999,6 +1106,12 @@ def header(c, d, facts, numbers, bools):
     o("# Per axis the coarse and fine words share one group, so word-channel pins them into one")
     o("# batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary")
     o("# flicker reconstructs the same position with no hysteresis anywhere.")
+    o("#")
+    o("# Collision tags the prefab must carry, one set per object (measured: two objects sharing")
+    o("# a tag set leaves NEITHER converging, since every receiver reads the strongest sender in")
+    o("# range rather than its own):")
+    for ob in c["objects"]:
+        o(f"#   {ob['name']}: " + ", ".join(tag_set(c, ob["name"])))
     return h
 
 
@@ -1027,12 +1140,15 @@ def document(c):
         L.extend(block)
     L.append("")
     L.append("clips:")
-    for name, bindings in f["clips"].items():
-        if len(bindings) == 1:
+    for name, (bindings, seconds) in f["clips"].items():
+        if len(bindings) == 1 and seconds is None:
             k, v = next(iter(bindings.items()))
             L.append(f"  {name}: {{ set: {{ {k}: {v} }} }}")
         else:
             L.append(f"  {name}:")
+            if seconds is not None:
+                L.append(f"    seconds: {num(seconds)}   "
+                         "# declared length: the holding state exits on exitTime, in seconds")
             L.append("    set:")
             for k, v in bindings.items():
                 L.append(f"      {k}: {v}")
@@ -1173,8 +1289,64 @@ def check():
                     f"{o}/PX Parked clears staging, residual, cell index and both "
                     f"sense params ({len(cleared)} params; missing {want - cleared})")
 
+        # Defect B and its single-object twin: a Commit must be reachable ONLY
+        # by walking every bit, and the one road out of Parked runs through the
+        # re-acquisition dwell. Neither a slice entry nor an unpark may reach a
+        # Commit whose staging was cleared and never recomputed.
+        for ob in cfg["objects"]:
+            o = ob["name"]
+            for lay, last in ([(f"{pf}/Enc/{o}/P{a}", f"F{cfg['fineBits'] - 1}")
+                               for a in AXES] +
+                              [(f"{pf}/Enc/{o}/R{comp}", f"R{cfg['rotBits'] - 1}")
+                               for comp in rot_comps(ob["rotation"])]):
+                tr = transitions_of(text, lay)
+                into = {s for s, tg in tr.items() if "Commit" in tg}
+                assert_(into == {last + "A", last + "R"},
+                        f"{lay}: Commit reachable only from the final walk pair "
+                        f"({sorted(into)})")
+                assert_(tr.get("Parked") == ["Wake0"],
+                        f"{lay}: the only road out of Parked is the wake dwell "
+                        f"({tr.get('Parked')})")
+                chain = [tr.get(f"Wake{i}") for i in range(cfg["settleFrames"])]
+                assert_(chain == [[f"Wake{i + 1}"] for i in
+                                  range(cfg["settleFrames"] - 1)] + [["Idle"]],
+                        f"{lay}: {cfg['settleFrames']}-frame wake dwell ends at Idle")
+
+        # Defect A: the slice must deactivate a rig, not merely stop reading it.
+        if len(cfg["objects"]) > 1:
+            tr = transitions_of(text, f"{pf}/Slice")
+            for ob in cfg["objects"]:
+                o = ob["name"]
+                gate = f["clips"][f"slice_gate_{safe(o)}"][0]
+                assert_(all(str(gate[f"Rig/{x['name']}/{s}/GameObject.m_IsActive"])
+                            == ("1" if x["name"] == o else "0")
+                            for x in cfg["objects"]
+                            for s in ("Coarse", "Fine", "Rot")),
+                        f"slice {o}: its three subtrees live, every other object's dead")
+                assert_(f"      Enter_{o}:" in text
+                        and tr.get(f"Enter_{o}") == [f"Settle0_{o}"],
+                        f"slice {o}: entry deactivates and clears before any settle")
+                assert_(tr.get(f"Settle{cfg['settleFrames'] - 1}_{o}") == [f"Run_{o}"],
+                        f"slice {o}: {cfg['settleFrames']}-frame settle before the walk unblocks")
+            assert_(not any("m_IsActive" in k for k in f["clips"]["enable_park"][0]),
+                    "enable clips leave m_IsActive to the Slice layer (one property, one writer)")
+            assert_(all("m_IsActive" in k
+                        for k in f["clips"]["slice_gate_park"][0]),
+                    "the Slice layer's parked clip is what Enable reaches the subtrees through")
+            for ob in cfg["objects"]:
+                assert_(all(str(v) == "0" for v in
+                            f["clips"]["slice_gate_park"][0].values()),
+                        "parking the Slice layer deactivates every object's rig")
+                break
+
+        # Per-object collision tags: two objects on one tag set is measured-broken.
+        tags = [tag_set(cfg, ob["name"]) for ob in cfg["objects"]]
+        flat = [t for group in tags for t in group]
+        assert_(len(set(flat)) == len(flat),
+                f"collision tags are unique across objects and stages ({flat})")
+
         # The multiplex: two clips over one binding set, opposite everywhere.
-        park, live = f["clips"]["enable_park"], f["clips"]["enable_live"]
+        park, live = f["clips"]["enable_park"][0], f["clips"]["enable_live"][0]
         assert_(set(park) == set(live) and park and
                 all(str(park[k]) != str(live[k]) for k in park),
                 f"enable_park / enable_live cover the same {len(park)} bindings "
@@ -1187,9 +1359,10 @@ def check():
                     and str(live.get(f"{con}.source1.Weight")) == "1",
                     f"{ob['name']}: Container multiplexes Home(source0) <-> "
                     "Display(source1)")
-            assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
-                        for s in ("Coarse", "Fine", "Rot")),
-                    f"{ob['name']}: parking deactivates all three measure subtrees")
+            if len(cfg["objects"]) == 1:
+                assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
+                            for s in ("Coarse", "Fine", "Rot")),
+                        f"{ob['name']}: parking deactivates all three measure subtrees")
 
         d = facts["geometry"]
         assert_(d["fineSpan"] >= cfg["cellSize"] + 2 * d["coarseWorldError"],
@@ -1248,6 +1421,35 @@ def driver_ops(text):
         elif s and not ln.startswith("              "):
             op = None
     return ops
+
+
+def transitions_of(text, layer):
+    """state name -> its transition targets, in ladder order, for one layer.
+
+    Deliberately structural: what a state can reach is the property the walk's
+    integrity rests on, and it is not something a timing argument can stand in
+    for."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(f"  - name: {layer}")
+    except ValueError:
+        return {}
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("  - name: ")), len(lines))
+    out, cur = {}, None
+    for ln in lines[i:end]:
+        if ln.startswith("    ") and not ln.startswith("     "):
+            # A layer-level key (`any:`, `default:`, `layout:`) — its rungs
+            # belong to the machine, not to the state that happened to precede it.
+            cur = None
+        elif ln.startswith("      ") and not ln.startswith("       ") \
+                and ln.rstrip().endswith(":"):
+            cur = ln.strip()[:-1]
+            out[cur] = []
+        elif cur and ln.strip().startswith("- { to: "):
+            out[cur].append(ln.strip().split("to: ", 1)[1].split(",")[0]
+                            .replace("}", "").strip())
+    return {k: v for k, v in out.items() if v or k in out}
 
 
 def parked_clears(text, layer):
