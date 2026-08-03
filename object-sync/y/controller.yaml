@@ -2,15 +2,15 @@
 # object-sync: absolute world position (+rotation) for droppable props, measured with
 # contacts only and carried over word-channel. No physbones, no Rigidbody.
 #
-# Objects: Prop (rotation full)
+# Objects: Prop (rotation y)
 # Position: +/-8192 m about the rig anchor, 13 coarse bits (2 m cells) + 12 fine bits
 #   over a 4.4 m redundant field (cell + 2 x 1.2 m coarse guard,
 #   the guard covering the coarse stage's own 1.162 m worst-case world error),
 #   fine LSB 1.0742 mm, 0.8 m of face left on each side of the field.
 # Rotation: 12 bits per component, 1 m arms in a 2.5 m face (0.25 m guard),
 #   component LSB 0.4883 mm.
-# Wire: 28 synced bits carrying 147 payload bits in 6 batches, atomic=batch,
-#   ~0.70s full refresh @60fps.
+# Wire: 28 synced bits carrying 99 payload bits in 4 batches, atomic=batch,
+#   ~0.47s full refresh @60fps.
 # Local measure cycle: 34 frames (~0.57s); an unpark costs 4 more, waiting out contact re-acquisition
 #   before the first sample, so the wire holds its last committed pose rather than
 #   publishing a cleared one.
@@ -24,7 +24,7 @@
 # Collision tags the prefab must carry, one set per object (measured: two objects sharing
 # a tag set leaves NEITHER converging, since every receiver reads the strongest sender in
 # range rather than its own):
-#   Prop: ObjectSyncCoarse, ObjectSyncFine, ObjectSyncRotA, ObjectSyncRotB
+#   Prop: ObjectSyncCoarse, ObjectSyncFine, ObjectSyncRotA
 
 schema: 1
 controller: ObjectSync_Fx
@@ -47,11 +47,7 @@ parameters:
   Prop/PZ/C: float            # byte word: integral 0..255
   Prop/PZ/F: float            # byte word: integral 0..255
   Prop/RA/X: float            # byte word: integral 0..255
-  Prop/RA/Y: float            # byte word: integral 0..255
   Prop/RA/Z: float            # byte word: integral 0..255
-  Prop/RB/X: float            # byte word: integral 0..255
-  Prop/RB/Y: float            # byte word: integral 0..255
-  Prop/RB/Z: float            # byte word: integral 0..255
   Prop/PX/C0: bool
   Prop/PX/C1: bool
   Prop/PX/C2: bool
@@ -83,26 +79,10 @@ parameters:
   Prop/RA/X/B1: bool
   Prop/RA/X/B2: bool
   Prop/RA/X/B3: bool
-  Prop/RA/Y/B0: bool
-  Prop/RA/Y/B1: bool
-  Prop/RA/Y/B2: bool
-  Prop/RA/Y/B3: bool
   Prop/RA/Z/B0: bool
   Prop/RA/Z/B1: bool
   Prop/RA/Z/B2: bool
   Prop/RA/Z/B3: bool
-  Prop/RB/X/B0: bool
-  Prop/RB/X/B1: bool
-  Prop/RB/X/B2: bool
-  Prop/RB/X/B3: bool
-  Prop/RB/Y/B0: bool
-  Prop/RB/Y/B1: bool
-  Prop/RB/Y/B2: bool
-  Prop/RB/Y/B3: bool
-  Prop/RB/Z/B0: bool
-  Prop/RB/Z/B1: bool
-  Prop/RB/Z/B2: bool
-  Prop/RB/Z/B3: bool
   ObjectSync/Ch/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)
   # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and
   # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole
@@ -157,26 +137,10 @@ parameters:
   ObjectSync/B/Prop/RA/X/B1: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/X/B2: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/X/B3: { type: float, scratch: true }
-  ObjectSync/B/Prop/RA/Y/B0: { type: float, scratch: true }
-  ObjectSync/B/Prop/RA/Y/B1: { type: float, scratch: true }
-  ObjectSync/B/Prop/RA/Y/B2: { type: float, scratch: true }
-  ObjectSync/B/Prop/RA/Y/B3: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B0: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B1: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B2: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B3: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/X/B0: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/X/B1: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/X/B2: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/X/B3: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Y/B0: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Y/B1: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Y/B2: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Y/B3: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Z/B0: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Z/B1: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Z/B2: { type: float, scratch: true }
-  ObjectSync/B/Prop/RB/Z/B3: { type: float, scratch: true }
   ObjectSync/D/Prop/PX/C: { type: float, aap: true }
   ObjectSync/D/Prop/PX/F: { type: float, aap: true }
   ObjectSync/D/Prop/PY/C: { type: float, aap: true }
@@ -184,11 +148,7 @@ parameters:
   ObjectSync/D/Prop/PZ/C: { type: float, aap: true }
   ObjectSync/D/Prop/PZ/F: { type: float, aap: true }
   ObjectSync/D/Prop/RA/X: { type: float, aap: true }
-  ObjectSync/D/Prop/RA/Y: { type: float, aap: true }
   ObjectSync/D/Prop/RA/Z: { type: float, aap: true }
-  ObjectSync/D/Prop/RB/X: { type: float, aap: true }
-  ObjectSync/D/Prop/RB/Y: { type: float, aap: true }
-  ObjectSync/D/Prop/RB/Z: { type: float, aap: true }
   ObjectSync/Sense/Prop/CX: float            # contact receiver (localOnly)
   ObjectSync/Sense/Prop/FX: float            # contact receiver (localOnly)
   ObjectSync/S/Prop/PX/C: { type: float, scratch: true }
@@ -246,42 +206,16 @@ parameters:
   ObjectSync/S/Prop/RA/X/B1: { type: bool, scratch: true }
   ObjectSync/S/Prop/RA/X/B2: { type: bool, scratch: true }
   ObjectSync/S/Prop/RA/X/B3: { type: bool, scratch: true }
+  ObjectSync/RDone/Prop/RA/X: { type: bool, scratch: true }
   ObjectSync/Sense/Prop/RA/X: float            # contact receiver (localOnly)
-  ObjectSync/S/Prop/RA/Y: { type: float, scratch: true }
-  ObjectSync/R/Prop/RA/Y: { type: float, scratch: true }
-  ObjectSync/S/Prop/RA/Y/B0: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RA/Y/B1: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RA/Y/B2: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RA/Y/B3: { type: bool, scratch: true }
-  ObjectSync/Sense/Prop/RA/Y: float            # contact receiver (localOnly)
   ObjectSync/S/Prop/RA/Z: { type: float, scratch: true }
   ObjectSync/R/Prop/RA/Z: { type: float, scratch: true }
   ObjectSync/S/Prop/RA/Z/B0: { type: bool, scratch: true }
   ObjectSync/S/Prop/RA/Z/B1: { type: bool, scratch: true }
   ObjectSync/S/Prop/RA/Z/B2: { type: bool, scratch: true }
   ObjectSync/S/Prop/RA/Z/B3: { type: bool, scratch: true }
+  ObjectSync/RDone/Prop/RA/Z: { type: bool, scratch: true }
   ObjectSync/Sense/Prop/RA/Z: float            # contact receiver (localOnly)
-  ObjectSync/S/Prop/RB/X: { type: float, scratch: true }
-  ObjectSync/R/Prop/RB/X: { type: float, scratch: true }
-  ObjectSync/S/Prop/RB/X/B0: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/X/B1: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/X/B2: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/X/B3: { type: bool, scratch: true }
-  ObjectSync/Sense/Prop/RB/X: float            # contact receiver (localOnly)
-  ObjectSync/S/Prop/RB/Y: { type: float, scratch: true }
-  ObjectSync/R/Prop/RB/Y: { type: float, scratch: true }
-  ObjectSync/S/Prop/RB/Y/B0: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Y/B1: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Y/B2: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Y/B3: { type: bool, scratch: true }
-  ObjectSync/Sense/Prop/RB/Y: float            # contact receiver (localOnly)
-  ObjectSync/S/Prop/RB/Z: { type: float, scratch: true }
-  ObjectSync/R/Prop/RB/Z: { type: float, scratch: true }
-  ObjectSync/S/Prop/RB/Z/B0: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Z/B1: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Z/B2: { type: bool, scratch: true }
-  ObjectSync/S/Prop/RB/Z/B3: { type: bool, scratch: true }
-  ObjectSync/Sense/Prop/RB/Z: float            # contact receiver (localOnly)
 
 layers:
   - name: ObjectSync/Ch/Sync
@@ -291,7 +225,7 @@ layers:
         transitions:
           - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
-      # counter 1/6 = batch 1/6: Prop/PX/C, Prop/PX/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3
+      # counter 1/4 = batch 1/4: Prop/PX/C, Prop/PX/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3
       Send0:
         motion: ~
         behaviours:
@@ -318,7 +252,7 @@ layers:
         motion: ~
         transitions:
           - { to: Send1, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 2/6 = batch 2/6: Prop/PY/C, Prop/PY/F, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
+      # counter 2/4 = batch 2/4: Prop/PY/C, Prop/PY/F, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
       Send1:
         motion: ~
         behaviours:
@@ -345,7 +279,7 @@ layers:
         motion: ~
         transitions:
           - { to: Send2, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 3/6 = batch 3/6: Prop/PZ/C, Prop/PZ/F, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3
+      # counter 3/4 = batch 3/4: Prop/PZ/C, Prop/PZ/F, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3
       Send2:
         motion: ~
         behaviours:
@@ -372,7 +306,7 @@ layers:
         motion: ~
         transitions:
           - { to: Send3, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 4/6 = batch 4/6: Prop/RA/X, Prop/RA/Y, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
+      # counter 4/4 = batch 4/4: Prop/RA/X, Prop/RA/Z, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Z/B0, Prop/RA/Z/B1, Prop/RA/Z/B2, Prop/RA/Z/B3
       Send3:
         motion: ~
         behaviours:
@@ -383,70 +317,18 @@ layers:
                 ObjectSync/Ch/Wire/Idx2: 0
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/RA/X
-                ObjectSync/Ch/Wire/Num1: Prop/RA/Y
+                ObjectSync/Ch/Wire/Num1: Prop/RA/Z
                 ObjectSync/Ch/Wire/Bool0: Prop/RA/X/B0
                 ObjectSync/Ch/Wire/Bool1: Prop/RA/X/B1
                 ObjectSync/Ch/Wire/Bool2: Prop/RA/X/B2
                 ObjectSync/Ch/Wire/Bool3: Prop/RA/X/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RA/Y/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RA/Y/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RA/Y/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RA/Y/B3
+                ObjectSync/Ch/Wire/Bool4: Prop/RA/Z/B0
+                ObjectSync/Ch/Wire/Bool5: Prop/RA/Z/B1
+                ObjectSync/Ch/Wire/Bool6: Prop/RA/Z/B2
+                ObjectSync/Ch/Wire/Bool7: Prop/RA/Z/B3
         transitions:
           - { to: Extra3, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra3:
-        motion: ~
-        transitions:
-          - { to: Send4, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 5/6 = batch 5/6: Prop/RA/Z, Prop/RB/X, Prop/RA/Z/B0, Prop/RA/Z/B1, Prop/RA/Z/B2, Prop/RA/Z/B3, Prop/RB/X/B0, Prop/RB/X/B1, Prop/RB/X/B2, Prop/RB/X/B3
-      Send4:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 1
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/RA/Z
-                ObjectSync/Ch/Wire/Num1: Prop/RB/X
-                ObjectSync/Ch/Wire/Bool0: Prop/RA/Z/B0
-                ObjectSync/Ch/Wire/Bool1: Prop/RA/Z/B1
-                ObjectSync/Ch/Wire/Bool2: Prop/RA/Z/B2
-                ObjectSync/Ch/Wire/Bool3: Prop/RA/Z/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RB/X/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RB/X/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RB/X/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RB/X/B3
-        transitions:
-          - { to: Extra4, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra4:
-        motion: ~
-        transitions:
-          - { to: Send5, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 6/6 = batch 6/6: Prop/RB/Y, Prop/RB/Z, Prop/RB/Y/B0, Prop/RB/Y/B1, Prop/RB/Y/B2, Prop/RB/Y/B3, Prop/RB/Z/B0, Prop/RB/Z/B1, Prop/RB/Z/B2, Prop/RB/Z/B3
-      Send5:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 1
-                ObjectSync/Ch/Wire/Idx2: 0
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/RB/Y
-                ObjectSync/Ch/Wire/Num1: Prop/RB/Z
-                ObjectSync/Ch/Wire/Bool0: Prop/RB/Y/B0
-                ObjectSync/Ch/Wire/Bool1: Prop/RB/Y/B1
-                ObjectSync/Ch/Wire/Bool2: Prop/RB/Y/B2
-                ObjectSync/Ch/Wire/Bool3: Prop/RB/Y/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RB/Z/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RB/Z/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RB/Z/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RB/Z/B3
-        transitions:
-          - { to: Extra5, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra5:
         motion: ~
         transitions:
           - { to: Send0, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
@@ -457,8 +339,6 @@ layers:
           - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
           - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
           - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
       Recv0:
         motion: ~
         behaviours:
@@ -530,64 +410,22 @@ layers:
           - driver:
               copy:
                 Prop/RA/X: ObjectSync/Ch/Wire/Num0
-                Prop/RA/Y: ObjectSync/Ch/Wire/Num1
+                Prop/RA/Z: ObjectSync/Ch/Wire/Num1
                 Prop/RA/X/B0: ObjectSync/Ch/Wire/Bool0
                 Prop/RA/X/B1: ObjectSync/Ch/Wire/Bool1
                 Prop/RA/X/B2: ObjectSync/Ch/Wire/Bool2
                 Prop/RA/X/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RA/Y/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RA/Y/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RA/Y/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RA/Y/B3: ObjectSync/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-      Recv4:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RA/Z: ObjectSync/Ch/Wire/Num0
-                Prop/RB/X: ObjectSync/Ch/Wire/Num1
-                Prop/RA/Z/B0: ObjectSync/Ch/Wire/Bool0
-                Prop/RA/Z/B1: ObjectSync/Ch/Wire/Bool1
-                Prop/RA/Z/B2: ObjectSync/Ch/Wire/Bool2
-                Prop/RA/Z/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RB/X/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RB/X/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RB/X/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RB/X/B3: ObjectSync/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
-      Recv5:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RB/Y: ObjectSync/Ch/Wire/Num0
-                Prop/RB/Z: ObjectSync/Ch/Wire/Num1
-                Prop/RB/Y/B0: ObjectSync/Ch/Wire/Bool0
-                Prop/RB/Y/B1: ObjectSync/Ch/Wire/Bool1
-                Prop/RB/Y/B2: ObjectSync/Ch/Wire/Bool2
-                Prop/RB/Y/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RB/Z/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RB/Z/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RB/Z/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RB/Z/B3: ObjectSync/Ch/Wire/Bool7
+                Prop/RA/Z/B0: ObjectSync/Ch/Wire/Bool4
+                Prop/RA/Z/B1: ObjectSync/Ch/Wire/Bool5
+                Prop/RA/Z/B2: ObjectSync/Ch/Wire/Bool6
+                Prop/RA/Z/B3: ObjectSync/Ch/Wire/Bool7
           - driver:
               add: { ObjectSync/Ch/Cycle: 1 }
         transitions:
           - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
     default: Split
     layout:
       nodes:
@@ -605,12 +443,6 @@ layers:
         Send3: [-330, 530]
         Extra3: [-570, 530]
         Recv3: [270, 530]
-        Send4: [-330, 620]
-        Extra4: [-570, 620]
-        Recv4: [270, 620]
-        Send5: [-330, 710]
-        Extra5: [-570, 710]
-        Recv5: [270, 710]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -652,26 +484,10 @@ layers:
                 ObjectSync/B/Prop/RA/X/B1: Prop/RA/X/B1
                 ObjectSync/B/Prop/RA/X/B2: Prop/RA/X/B2
                 ObjectSync/B/Prop/RA/X/B3: Prop/RA/X/B3
-                ObjectSync/B/Prop/RA/Y/B0: Prop/RA/Y/B0
-                ObjectSync/B/Prop/RA/Y/B1: Prop/RA/Y/B1
-                ObjectSync/B/Prop/RA/Y/B2: Prop/RA/Y/B2
-                ObjectSync/B/Prop/RA/Y/B3: Prop/RA/Y/B3
                 ObjectSync/B/Prop/RA/Z/B0: Prop/RA/Z/B0
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
-                ObjectSync/B/Prop/RB/X/B0: Prop/RB/X/B0
-                ObjectSync/B/Prop/RB/X/B1: Prop/RB/X/B1
-                ObjectSync/B/Prop/RB/X/B2: Prop/RB/X/B2
-                ObjectSync/B/Prop/RB/X/B3: Prop/RB/X/B3
-                ObjectSync/B/Prop/RB/Y/B0: Prop/RB/Y/B0
-                ObjectSync/B/Prop/RB/Y/B1: Prop/RB/Y/B1
-                ObjectSync/B/Prop/RB/Y/B2: Prop/RB/Y/B2
-                ObjectSync/B/Prop/RB/Y/B3: Prop/RB/Y/B3
-                ObjectSync/B/Prop/RB/Z/B0: Prop/RB/Z/B0
-                ObjectSync/B/Prop/RB/Z/B1: Prop/RB/Z/B1
-                ObjectSync/B/Prop/RB/Z/B2: Prop/RB/Z/B2
-                ObjectSync/B/Prop/RB/Z/B3: Prop/RB/Z/B3
         transitions:
           - { to: Odd, when: [ ObjectSync/True is true ] }
       Odd:
@@ -710,26 +526,10 @@ layers:
                 ObjectSync/B/Prop/RA/X/B1: Prop/RA/X/B1
                 ObjectSync/B/Prop/RA/X/B2: Prop/RA/X/B2
                 ObjectSync/B/Prop/RA/X/B3: Prop/RA/X/B3
-                ObjectSync/B/Prop/RA/Y/B0: Prop/RA/Y/B0
-                ObjectSync/B/Prop/RA/Y/B1: Prop/RA/Y/B1
-                ObjectSync/B/Prop/RA/Y/B2: Prop/RA/Y/B2
-                ObjectSync/B/Prop/RA/Y/B3: Prop/RA/Y/B3
                 ObjectSync/B/Prop/RA/Z/B0: Prop/RA/Z/B0
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
-                ObjectSync/B/Prop/RB/X/B0: Prop/RB/X/B0
-                ObjectSync/B/Prop/RB/X/B1: Prop/RB/X/B1
-                ObjectSync/B/Prop/RB/X/B2: Prop/RB/X/B2
-                ObjectSync/B/Prop/RB/X/B3: Prop/RB/X/B3
-                ObjectSync/B/Prop/RB/Y/B0: Prop/RB/Y/B0
-                ObjectSync/B/Prop/RB/Y/B1: Prop/RB/Y/B1
-                ObjectSync/B/Prop/RB/Y/B2: Prop/RB/Y/B2
-                ObjectSync/B/Prop/RB/Y/B3: Prop/RB/Y/B3
-                ObjectSync/B/Prop/RB/Z/B0: Prop/RB/Z/B0
-                ObjectSync/B/Prop/RB/Z/B1: Prop/RB/Z/B1
-                ObjectSync/B/Prop/RB/Z/B2: Prop/RB/Z/B2
-                ObjectSync/B/Prop/RB/Z/B3: Prop/RB/Z/B3
         transitions:
           - { to: Even, when: [ ObjectSync/True is true ] }
     default: Even
@@ -785,31 +585,11 @@ layers:
             - { clip: asm_objectsync_d_prop_ra_x_4, directWeight: ObjectSync/B/Prop/RA/X/B1 }
             - { clip: asm_objectsync_d_prop_ra_x_2, directWeight: ObjectSync/B/Prop/RA/X/B2 }
             - { clip: asm_objectsync_d_prop_ra_x_1, directWeight: ObjectSync/B/Prop/RA/X/B3 }
-            - { clip: asm_objectsync_d_prop_ra_y_16, directWeight: Prop/RA/Y }
-            - { clip: asm_objectsync_d_prop_ra_y_8, directWeight: ObjectSync/B/Prop/RA/Y/B0 }
-            - { clip: asm_objectsync_d_prop_ra_y_4, directWeight: ObjectSync/B/Prop/RA/Y/B1 }
-            - { clip: asm_objectsync_d_prop_ra_y_2, directWeight: ObjectSync/B/Prop/RA/Y/B2 }
-            - { clip: asm_objectsync_d_prop_ra_y_1, directWeight: ObjectSync/B/Prop/RA/Y/B3 }
             - { clip: asm_objectsync_d_prop_ra_z_16, directWeight: Prop/RA/Z }
             - { clip: asm_objectsync_d_prop_ra_z_8, directWeight: ObjectSync/B/Prop/RA/Z/B0 }
             - { clip: asm_objectsync_d_prop_ra_z_4, directWeight: ObjectSync/B/Prop/RA/Z/B1 }
             - { clip: asm_objectsync_d_prop_ra_z_2, directWeight: ObjectSync/B/Prop/RA/Z/B2 }
             - { clip: asm_objectsync_d_prop_ra_z_1, directWeight: ObjectSync/B/Prop/RA/Z/B3 }
-            - { clip: asm_objectsync_d_prop_rb_x_16, directWeight: Prop/RB/X }
-            - { clip: asm_objectsync_d_prop_rb_x_8, directWeight: ObjectSync/B/Prop/RB/X/B0 }
-            - { clip: asm_objectsync_d_prop_rb_x_4, directWeight: ObjectSync/B/Prop/RB/X/B1 }
-            - { clip: asm_objectsync_d_prop_rb_x_2, directWeight: ObjectSync/B/Prop/RB/X/B2 }
-            - { clip: asm_objectsync_d_prop_rb_x_1, directWeight: ObjectSync/B/Prop/RB/X/B3 }
-            - { clip: asm_objectsync_d_prop_rb_y_16, directWeight: Prop/RB/Y }
-            - { clip: asm_objectsync_d_prop_rb_y_8, directWeight: ObjectSync/B/Prop/RB/Y/B0 }
-            - { clip: asm_objectsync_d_prop_rb_y_4, directWeight: ObjectSync/B/Prop/RB/Y/B1 }
-            - { clip: asm_objectsync_d_prop_rb_y_2, directWeight: ObjectSync/B/Prop/RB/Y/B2 }
-            - { clip: asm_objectsync_d_prop_rb_y_1, directWeight: ObjectSync/B/Prop/RB/Y/B3 }
-            - { clip: asm_objectsync_d_prop_rb_z_16, directWeight: Prop/RB/Z }
-            - { clip: asm_objectsync_d_prop_rb_z_8, directWeight: ObjectSync/B/Prop/RB/Z/B0 }
-            - { clip: asm_objectsync_d_prop_rb_z_4, directWeight: ObjectSync/B/Prop/RB/Z/B1 }
-            - { clip: asm_objectsync_d_prop_rb_z_2, directWeight: ObjectSync/B/Prop/RB/Z/B2 }
-            - { clip: asm_objectsync_d_prop_rb_z_1, directWeight: ObjectSync/B/Prop/RB/Z/B3 }
     default: Decode
   - name: ObjectSync/Display
     states:
@@ -829,14 +609,9 @@ layers:
             - { clip: disp_prop_y_lsb, directWeight: ObjectSync/D/Prop/PY/F }
             - { clip: disp_prop_z_cell, directWeight: ObjectSync/D/Prop/PZ/C }
             - { clip: disp_prop_z_lsb, directWeight: ObjectSync/D/Prop/PZ/F }
-            - { clip: prox_prop_a_base, directWeight: ObjectSync/One }
-            - { clip: prox_prop_a_x, directWeight: ObjectSync/D/Prop/RA/X }
-            - { clip: prox_prop_a_y, directWeight: ObjectSync/D/Prop/RA/Y }
-            - { clip: prox_prop_a_z, directWeight: ObjectSync/D/Prop/RA/Z }
-            - { clip: prox_prop_b_base, directWeight: ObjectSync/One }
-            - { clip: prox_prop_b_x, directWeight: ObjectSync/D/Prop/RB/X }
-            - { clip: prox_prop_b_y, directWeight: ObjectSync/D/Prop/RB/Y }
-            - { clip: prox_prop_b_z, directWeight: ObjectSync/D/Prop/RB/Z }
+            - { clip: prox_prop_yaw_base, directWeight: ObjectSync/One }
+            - { clip: prox_prop_yaw_x, directWeight: ObjectSync/D/Prop/RA/X }
+            - { clip: prox_prop_yaw_z, directWeight: ObjectSync/D/Prop/RA/Z }
             - tree: 1d
               name: EnableGate
               param: ObjectSync/Enable
@@ -2762,23 +2537,19 @@ layers:
               add:
                 ObjectSync/R/Prop/RA/X: -0.000244141
         transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
+          - { to: Done, when: [ ObjectSync/True is true ] }
       R11R:
         motion: ~
         transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      Commit:
+          - { to: Done, when: [ ObjectSync/True is true ] }
+      Done:
         motion: ~
         behaviours:
           - driver:
-              copy:
-                Prop/RA/X: ObjectSync/S/Prop/RA/X
-                Prop/RA/X/B0: ObjectSync/S/Prop/RA/X/B0
-                Prop/RA/X/B1: ObjectSync/S/Prop/RA/X/B1
-                Prop/RA/X/B2: ObjectSync/S/Prop/RA/X/B2
-                Prop/RA/X/B3: ObjectSync/S/Prop/RA/X/B3
+              set:
+                ObjectSync/RDone/Prop/RA/X: 1
         transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/RDone/Prop/RA/X is false ] }
       Parked:
         motion: ~
         behaviours:
@@ -2791,6 +2562,7 @@ layers:
                 ObjectSync/S/Prop/RA/X/B3: 0
                 ObjectSync/R/Prop/RA/X: 0
                 ObjectSync/Sense/Prop/RA/X: 0
+                ObjectSync/RDone/Prop/RA/X: 0
         transitions:
           - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
@@ -2799,272 +2571,7 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
-        Parked: [-300, 270]
-        R0A: [30, 180]
-        R0R: [30, 300]
-        R1A: [270, 180]
-        R1R: [270, 300]
-        R2A: [510, 180]
-        R2R: [510, 300]
-        R3A: [750, 180]
-        R3R: [750, 300]
-        R4A: [990, 180]
-        R4R: [990, 300]
-        R5A: [1230, 180]
-        R5R: [1230, 300]
-        R6A: [1470, 180]
-        R6R: [1470, 300]
-        R7A: [1710, 180]
-        R7R: [1710, 300]
-        R8A: [1950, 180]
-        R8R: [1950, 300]
-        R9A: [2190, 180]
-        R9R: [2190, 300]
-        R10A: [2430, 180]
-        R10R: [2430, 300]
-        R11A: [2670, 180]
-        R11R: [2670, 300]
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
-  - name: ObjectSync/Enc/Prop/RA/Y
-    states:
-      Idle:
-        motion: ~
-        transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RA/Y greater 0.0125 ] }
-      Start:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y: 0
-                ObjectSync/S/Prop/RA/Y/B0: 0
-                ObjectSync/S/Prop/RA/Y/B1: 0
-                ObjectSync/S/Prop/RA/Y/B2: 0
-                ObjectSync/S/Prop/RA/Y/B3: 0
-              copy:
-                ObjectSync/R/Prop/RA/Y: { source: ObjectSync/Sense/Prop/RA/Y, sourceMin: 0.12, sourceMax: 0.92, destMin: 0, destMax: 1 }
-        transitions:
-          - { to: R0A, when: [ ObjectSync/R/Prop/RA/Y greater 0.49995 ] }
-          - { to: R0R, when: [ ObjectSync/R/Prop/RA/Y less 0.50005 ] }
-      R0A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.5
-                ObjectSync/S/Prop/RA/Y: 128
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RA/Y greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RA/Y less 0.250025 ] }
-      R0R:
-        motion: ~
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RA/Y greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RA/Y less 0.250025 ] }
-      R1A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.25
-                ObjectSync/S/Prop/RA/Y: 64
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RA/Y greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RA/Y less 0.1250125 ] }
-      R1R:
-        motion: ~
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RA/Y greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RA/Y less 0.1250125 ] }
-      R2A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.125
-                ObjectSync/S/Prop/RA/Y: 32
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RA/Y greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RA/Y less 0.06250625 ] }
-      R2R:
-        motion: ~
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RA/Y greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RA/Y less 0.06250625 ] }
-      R3A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.0625
-                ObjectSync/S/Prop/RA/Y: 16
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RA/Y greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RA/Y less 0.031253125 ] }
-      R3R:
-        motion: ~
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RA/Y greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RA/Y less 0.031253125 ] }
-      R4A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.03125
-                ObjectSync/S/Prop/RA/Y: 8
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RA/Y greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RA/Y less 0.015626562 ] }
-      R4R:
-        motion: ~
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RA/Y greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RA/Y less 0.015626562 ] }
-      R5A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.015625
-                ObjectSync/S/Prop/RA/Y: 4
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RA/Y greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RA/Y less 0.007813281 ] }
-      R5R:
-        motion: ~
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RA/Y greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RA/Y less 0.007813281 ] }
-      R6A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.0078125
-                ObjectSync/S/Prop/RA/Y: 2
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RA/Y greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RA/Y less 0.003906641 ] }
-      R6R:
-        motion: ~
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RA/Y greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RA/Y less 0.003906641 ] }
-      R7A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.00390625
-                ObjectSync/S/Prop/RA/Y: 1
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RA/Y greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RA/Y less 0.00195332 ] }
-      R7R:
-        motion: ~
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RA/Y greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RA/Y less 0.00195332 ] }
-      R8A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y/B0: 1
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.001953125
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RA/Y less 0.00097666 ] }
-      R8R:
-        motion: ~
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RA/Y less 0.00097666 ] }
-      R9A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y/B1: 1
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.000976562
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RA/Y less 0.00048833 ] }
-      R9R:
-        motion: ~
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RA/Y less 0.00048833 ] }
-      R10A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y/B2: 1
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.000488281
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RA/Y less 0.000244165 ] }
-      R10R:
-        motion: ~
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RA/Y greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RA/Y less 0.000244165 ] }
-      R11A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y/B3: 1
-              add:
-                ObjectSync/R/Prop/RA/Y: -0.000244141
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      R11R:
-        motion: ~
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      Commit:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RA/Y: ObjectSync/S/Prop/RA/Y
-                Prop/RA/Y/B0: ObjectSync/S/Prop/RA/Y/B0
-                Prop/RA/Y/B1: ObjectSync/S/Prop/RA/Y/B1
-                Prop/RA/Y/B2: ObjectSync/S/Prop/RA/Y/B2
-                Prop/RA/Y/B3: ObjectSync/S/Prop/RA/Y/B3
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
-      Parked:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RA/Y: 0
-                ObjectSync/S/Prop/RA/Y/B0: 0
-                ObjectSync/S/Prop/RA/Y/B1: 0
-                ObjectSync/S/Prop/RA/Y/B2: 0
-                ObjectSync/S/Prop/RA/Y/B3: 0
-                ObjectSync/R/Prop/RA/Y: 0
-                ObjectSync/Sense/Prop/RA/Y: 0
-        transitions:
-          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
-    any:
-      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
-    default: Idle
-    layout:
-      nodes:
-        Idle: [-540, 180]
-        Commit: [-300, 180]
+        Done: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
@@ -3292,23 +2799,19 @@ layers:
               add:
                 ObjectSync/R/Prop/RA/Z: -0.000244141
         transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
+          - { to: Done, when: [ ObjectSync/True is true ] }
       R11R:
         motion: ~
         transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      Commit:
+          - { to: Done, when: [ ObjectSync/True is true ] }
+      Done:
         motion: ~
         behaviours:
           - driver:
-              copy:
-                Prop/RA/Z: ObjectSync/S/Prop/RA/Z
-                Prop/RA/Z/B0: ObjectSync/S/Prop/RA/Z/B0
-                Prop/RA/Z/B1: ObjectSync/S/Prop/RA/Z/B1
-                Prop/RA/Z/B2: ObjectSync/S/Prop/RA/Z/B2
-                Prop/RA/Z/B3: ObjectSync/S/Prop/RA/Z/B3
+              set:
+                ObjectSync/RDone/Prop/RA/Z: 1
         transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
+          - { to: Idle, when: [ ObjectSync/RDone/Prop/RA/Z is false ] }
       Parked:
         motion: ~
         behaviours:
@@ -3321,6 +2824,7 @@ layers:
                 ObjectSync/S/Prop/RA/Z/B3: 0
                 ObjectSync/R/Prop/RA/Z: 0
                 ObjectSync/Sense/Prop/RA/Z: 0
+                ObjectSync/RDone/Prop/RA/Z: 0
         transitions:
           - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
@@ -3329,7 +2833,7 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
+        Done: [-300, 180]
         Start: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
@@ -3359,798 +2863,37 @@ layers:
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-  - name: ObjectSync/Enc/Prop/RB/X
+  - name: ObjectSync/Enc/Prop/Ry
     states:
-      Idle:
+      Wait:
         motion: ~
         transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/X greater 0.0125 ] }
-      Start:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/X: 0
-                ObjectSync/S/Prop/RB/X/B0: 0
-                ObjectSync/S/Prop/RB/X/B1: 0
-                ObjectSync/S/Prop/RB/X/B2: 0
-                ObjectSync/S/Prop/RB/X/B3: 0
-              copy:
-                ObjectSync/R/Prop/RB/X: { source: ObjectSync/Sense/Prop/RB/X, sourceMin: 0.12, sourceMax: 0.92, destMin: 0, destMax: 1 }
-        transitions:
-          - { to: R0A, when: [ ObjectSync/R/Prop/RB/X greater 0.49995 ] }
-          - { to: R0R, when: [ ObjectSync/R/Prop/RB/X less 0.50005 ] }
-      R0A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.5
-                ObjectSync/S/Prop/RB/X: 128
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/X greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/X less 0.250025 ] }
-      R0R:
-        motion: ~
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/X greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/X less 0.250025 ] }
-      R1A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.25
-                ObjectSync/S/Prop/RB/X: 64
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/X greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/X less 0.1250125 ] }
-      R1R:
-        motion: ~
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/X greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/X less 0.1250125 ] }
-      R2A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.125
-                ObjectSync/S/Prop/RB/X: 32
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/X greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/X less 0.06250625 ] }
-      R2R:
-        motion: ~
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/X greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/X less 0.06250625 ] }
-      R3A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.0625
-                ObjectSync/S/Prop/RB/X: 16
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/X greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/X less 0.031253125 ] }
-      R3R:
-        motion: ~
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/X greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/X less 0.031253125 ] }
-      R4A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.03125
-                ObjectSync/S/Prop/RB/X: 8
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/X greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/X less 0.015626562 ] }
-      R4R:
-        motion: ~
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/X greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/X less 0.015626562 ] }
-      R5A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.015625
-                ObjectSync/S/Prop/RB/X: 4
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/X greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/X less 0.007813281 ] }
-      R5R:
-        motion: ~
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/X greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/X less 0.007813281 ] }
-      R6A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.0078125
-                ObjectSync/S/Prop/RB/X: 2
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/X greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/X less 0.003906641 ] }
-      R6R:
-        motion: ~
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/X greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/X less 0.003906641 ] }
-      R7A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/X: -0.00390625
-                ObjectSync/S/Prop/RB/X: 1
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/X greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/X less 0.00195332 ] }
-      R7R:
-        motion: ~
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/X greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/X less 0.00195332 ] }
-      R8A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/X/B0: 1
-              add:
-                ObjectSync/R/Prop/RB/X: -0.001953125
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/X greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/X less 0.00097666 ] }
-      R8R:
-        motion: ~
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/X greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/X less 0.00097666 ] }
-      R9A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/X/B1: 1
-              add:
-                ObjectSync/R/Prop/RB/X: -0.000976562
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/X greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/X less 0.00048833 ] }
-      R9R:
-        motion: ~
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/X greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/X less 0.00048833 ] }
-      R10A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/X/B2: 1
-              add:
-                ObjectSync/R/Prop/RB/X: -0.000488281
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/X greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/X less 0.000244165 ] }
-      R10R:
-        motion: ~
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/X greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/X less 0.000244165 ] }
-      R11A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/X/B3: 1
-              add:
-                ObjectSync/R/Prop/RB/X: -0.000244141
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      R11R:
-        motion: ~
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
+          - { to: Commit, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/RDone/Prop/RA/X is true, ObjectSync/RDone/Prop/RA/Z is true ] }
       Commit:
         motion: ~
         behaviours:
           - driver:
-              copy:
-                Prop/RB/X: ObjectSync/S/Prop/RB/X
-                Prop/RB/X/B0: ObjectSync/S/Prop/RB/X/B0
-                Prop/RB/X/B1: ObjectSync/S/Prop/RB/X/B1
-                Prop/RB/X/B2: ObjectSync/S/Prop/RB/X/B2
-                Prop/RB/X/B3: ObjectSync/S/Prop/RB/X/B3
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
-      Parked:
-        motion: ~
-        behaviours:
-          - driver:
               set:
-                ObjectSync/S/Prop/RB/X: 0
-                ObjectSync/S/Prop/RB/X/B0: 0
-                ObjectSync/S/Prop/RB/X/B1: 0
-                ObjectSync/S/Prop/RB/X/B2: 0
-                ObjectSync/S/Prop/RB/X/B3: 0
-                ObjectSync/R/Prop/RB/X: 0
-                ObjectSync/Sense/Prop/RB/X: 0
+                ObjectSync/RDone/Prop/RA/X: 0
+                ObjectSync/RDone/Prop/RA/Z: 0
+              copy:
+                Prop/RA/X: ObjectSync/S/Prop/RA/X
+                Prop/RA/X/B0: ObjectSync/S/Prop/RA/X/B0
+                Prop/RA/X/B1: ObjectSync/S/Prop/RA/X/B1
+                Prop/RA/X/B2: ObjectSync/S/Prop/RA/X/B2
+                Prop/RA/X/B3: ObjectSync/S/Prop/RA/X/B3
+                Prop/RA/Z: ObjectSync/S/Prop/RA/Z
+                Prop/RA/Z/B0: ObjectSync/S/Prop/RA/Z/B0
+                Prop/RA/Z/B1: ObjectSync/S/Prop/RA/Z/B1
+                Prop/RA/Z/B2: ObjectSync/S/Prop/RA/Z/B2
+                Prop/RA/Z/B3: ObjectSync/S/Prop/RA/Z/B3
         transitions:
-          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
-    any:
-      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
-    default: Idle
+          - { to: Wait, when: [ ObjectSync/True is true ] }
+    default: Wait
     layout:
       nodes:
-        Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
-        Parked: [-300, 270]
-        R0A: [30, 180]
-        R0R: [30, 300]
-        R1A: [270, 180]
-        R1R: [270, 300]
-        R2A: [510, 180]
-        R2R: [510, 300]
-        R3A: [750, 180]
-        R3R: [750, 300]
-        R4A: [990, 180]
-        R4R: [990, 300]
-        R5A: [1230, 180]
-        R5R: [1230, 300]
-        R6A: [1470, 180]
-        R6R: [1470, 300]
-        R7A: [1710, 180]
-        R7R: [1710, 300]
-        R8A: [1950, 180]
-        R8R: [1950, 300]
-        R9A: [2190, 180]
-        R9R: [2190, 300]
-        R10A: [2430, 180]
-        R10R: [2430, 300]
-        R11A: [2670, 180]
-        R11R: [2670, 300]
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
-  - name: ObjectSync/Enc/Prop/RB/Y
-    states:
-      Idle:
-        motion: ~
-        transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/Y greater 0.0125 ] }
-      Start:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y: 0
-                ObjectSync/S/Prop/RB/Y/B0: 0
-                ObjectSync/S/Prop/RB/Y/B1: 0
-                ObjectSync/S/Prop/RB/Y/B2: 0
-                ObjectSync/S/Prop/RB/Y/B3: 0
-              copy:
-                ObjectSync/R/Prop/RB/Y: { source: ObjectSync/Sense/Prop/RB/Y, sourceMin: 0.12, sourceMax: 0.92, destMin: 0, destMax: 1 }
-        transitions:
-          - { to: R0A, when: [ ObjectSync/R/Prop/RB/Y greater 0.49995 ] }
-          - { to: R0R, when: [ ObjectSync/R/Prop/RB/Y less 0.50005 ] }
-      R0A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.5
-                ObjectSync/S/Prop/RB/Y: 128
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/Y greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/Y less 0.250025 ] }
-      R0R:
-        motion: ~
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/Y greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/Y less 0.250025 ] }
-      R1A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.25
-                ObjectSync/S/Prop/RB/Y: 64
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/Y greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/Y less 0.1250125 ] }
-      R1R:
-        motion: ~
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/Y greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/Y less 0.1250125 ] }
-      R2A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.125
-                ObjectSync/S/Prop/RB/Y: 32
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/Y greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/Y less 0.06250625 ] }
-      R2R:
-        motion: ~
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/Y greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/Y less 0.06250625 ] }
-      R3A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.0625
-                ObjectSync/S/Prop/RB/Y: 16
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/Y greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/Y less 0.031253125 ] }
-      R3R:
-        motion: ~
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/Y greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/Y less 0.031253125 ] }
-      R4A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.03125
-                ObjectSync/S/Prop/RB/Y: 8
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/Y greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/Y less 0.015626562 ] }
-      R4R:
-        motion: ~
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/Y greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/Y less 0.015626562 ] }
-      R5A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.015625
-                ObjectSync/S/Prop/RB/Y: 4
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/Y greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/Y less 0.007813281 ] }
-      R5R:
-        motion: ~
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/Y greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/Y less 0.007813281 ] }
-      R6A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.0078125
-                ObjectSync/S/Prop/RB/Y: 2
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/Y greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/Y less 0.003906641 ] }
-      R6R:
-        motion: ~
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/Y greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/Y less 0.003906641 ] }
-      R7A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.00390625
-                ObjectSync/S/Prop/RB/Y: 1
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/Y greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/Y less 0.00195332 ] }
-      R7R:
-        motion: ~
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/Y greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/Y less 0.00195332 ] }
-      R8A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y/B0: 1
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.001953125
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/Y less 0.00097666 ] }
-      R8R:
-        motion: ~
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/Y less 0.00097666 ] }
-      R9A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y/B1: 1
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.000976562
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/Y less 0.00048833 ] }
-      R9R:
-        motion: ~
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/Y less 0.00048833 ] }
-      R10A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y/B2: 1
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.000488281
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/Y less 0.000244165 ] }
-      R10R:
-        motion: ~
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/Y greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/Y less 0.000244165 ] }
-      R11A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y/B3: 1
-              add:
-                ObjectSync/R/Prop/RB/Y: -0.000244141
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      R11R:
-        motion: ~
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      Commit:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RB/Y: ObjectSync/S/Prop/RB/Y
-                Prop/RB/Y/B0: ObjectSync/S/Prop/RB/Y/B0
-                Prop/RB/Y/B1: ObjectSync/S/Prop/RB/Y/B1
-                Prop/RB/Y/B2: ObjectSync/S/Prop/RB/Y/B2
-                Prop/RB/Y/B3: ObjectSync/S/Prop/RB/Y/B3
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
-      Parked:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Y: 0
-                ObjectSync/S/Prop/RB/Y/B0: 0
-                ObjectSync/S/Prop/RB/Y/B1: 0
-                ObjectSync/S/Prop/RB/Y/B2: 0
-                ObjectSync/S/Prop/RB/Y/B3: 0
-                ObjectSync/R/Prop/RB/Y: 0
-                ObjectSync/Sense/Prop/RB/Y: 0
-        transitions:
-          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
-    any:
-      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
-    default: Idle
-    layout:
-      nodes:
-        Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
-        Parked: [-300, 270]
-        R0A: [30, 180]
-        R0R: [30, 300]
-        R1A: [270, 180]
-        R1R: [270, 300]
-        R2A: [510, 180]
-        R2R: [510, 300]
-        R3A: [750, 180]
-        R3R: [750, 300]
-        R4A: [990, 180]
-        R4R: [990, 300]
-        R5A: [1230, 180]
-        R5R: [1230, 300]
-        R6A: [1470, 180]
-        R6R: [1470, 300]
-        R7A: [1710, 180]
-        R7R: [1710, 300]
-        R8A: [1950, 180]
-        R8R: [1950, 300]
-        R9A: [2190, 180]
-        R9R: [2190, 300]
-        R10A: [2430, 180]
-        R10R: [2430, 300]
-        R11A: [2670, 180]
-        R11R: [2670, 300]
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
-  - name: ObjectSync/Enc/Prop/RB/Z
-    states:
-      Idle:
-        motion: ~
-        transitions:
-          - { to: Start, when: [ IsLocal is true, ObjectSync/Enable greater 0.5, ObjectSync/Sense/Prop/RB/Z greater 0.0125 ] }
-      Start:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z: 0
-                ObjectSync/S/Prop/RB/Z/B0: 0
-                ObjectSync/S/Prop/RB/Z/B1: 0
-                ObjectSync/S/Prop/RB/Z/B2: 0
-                ObjectSync/S/Prop/RB/Z/B3: 0
-              copy:
-                ObjectSync/R/Prop/RB/Z: { source: ObjectSync/Sense/Prop/RB/Z, sourceMin: 0.12, sourceMax: 0.92, destMin: 0, destMax: 1 }
-        transitions:
-          - { to: R0A, when: [ ObjectSync/R/Prop/RB/Z greater 0.49995 ] }
-          - { to: R0R, when: [ ObjectSync/R/Prop/RB/Z less 0.50005 ] }
-      R0A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.5
-                ObjectSync/S/Prop/RB/Z: 128
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/Z greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/Z less 0.250025 ] }
-      R0R:
-        motion: ~
-        transitions:
-          - { to: R1A, when: [ ObjectSync/R/Prop/RB/Z greater 0.249975 ] }
-          - { to: R1R, when: [ ObjectSync/R/Prop/RB/Z less 0.250025 ] }
-      R1A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.25
-                ObjectSync/S/Prop/RB/Z: 64
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/Z greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/Z less 0.1250125 ] }
-      R1R:
-        motion: ~
-        transitions:
-          - { to: R2A, when: [ ObjectSync/R/Prop/RB/Z greater 0.1249875 ] }
-          - { to: R2R, when: [ ObjectSync/R/Prop/RB/Z less 0.1250125 ] }
-      R2A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.125
-                ObjectSync/S/Prop/RB/Z: 32
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/Z greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/Z less 0.06250625 ] }
-      R2R:
-        motion: ~
-        transitions:
-          - { to: R3A, when: [ ObjectSync/R/Prop/RB/Z greater 0.06249375 ] }
-          - { to: R3R, when: [ ObjectSync/R/Prop/RB/Z less 0.06250625 ] }
-      R3A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.0625
-                ObjectSync/S/Prop/RB/Z: 16
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/Z greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/Z less 0.031253125 ] }
-      R3R:
-        motion: ~
-        transitions:
-          - { to: R4A, when: [ ObjectSync/R/Prop/RB/Z greater 0.031246875 ] }
-          - { to: R4R, when: [ ObjectSync/R/Prop/RB/Z less 0.031253125 ] }
-      R4A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.03125
-                ObjectSync/S/Prop/RB/Z: 8
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/Z greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/Z less 0.015626562 ] }
-      R4R:
-        motion: ~
-        transitions:
-          - { to: R5A, when: [ ObjectSync/R/Prop/RB/Z greater 0.015623438 ] }
-          - { to: R5R, when: [ ObjectSync/R/Prop/RB/Z less 0.015626562 ] }
-      R5A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.015625
-                ObjectSync/S/Prop/RB/Z: 4
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/Z greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/Z less 0.007813281 ] }
-      R5R:
-        motion: ~
-        transitions:
-          - { to: R6A, when: [ ObjectSync/R/Prop/RB/Z greater 0.007811719 ] }
-          - { to: R6R, when: [ ObjectSync/R/Prop/RB/Z less 0.007813281 ] }
-      R6A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.0078125
-                ObjectSync/S/Prop/RB/Z: 2
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/Z greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/Z less 0.003906641 ] }
-      R6R:
-        motion: ~
-        transitions:
-          - { to: R7A, when: [ ObjectSync/R/Prop/RB/Z greater 0.003905859 ] }
-          - { to: R7R, when: [ ObjectSync/R/Prop/RB/Z less 0.003906641 ] }
-      R7A:
-        motion: ~
-        behaviours:
-          - driver:
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.00390625
-                ObjectSync/S/Prop/RB/Z: 1
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/Z greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/Z less 0.00195332 ] }
-      R7R:
-        motion: ~
-        transitions:
-          - { to: R8A, when: [ ObjectSync/R/Prop/RB/Z greater 0.00195293 ] }
-          - { to: R8R, when: [ ObjectSync/R/Prop/RB/Z less 0.00195332 ] }
-      R8A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z/B0: 1
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.001953125
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/Z less 0.00097666 ] }
-      R8R:
-        motion: ~
-        transitions:
-          - { to: R9A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000976465 ] }
-          - { to: R9R, when: [ ObjectSync/R/Prop/RB/Z less 0.00097666 ] }
-      R9A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z/B1: 1
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.000976562
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/Z less 0.00048833 ] }
-      R9R:
-        motion: ~
-        transitions:
-          - { to: R10A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000488232 ] }
-          - { to: R10R, when: [ ObjectSync/R/Prop/RB/Z less 0.00048833 ] }
-      R10A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z/B2: 1
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.000488281
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/Z less 0.000244165 ] }
-      R10R:
-        motion: ~
-        transitions:
-          - { to: R11A, when: [ ObjectSync/R/Prop/RB/Z greater 0.000244116 ] }
-          - { to: R11R, when: [ ObjectSync/R/Prop/RB/Z less 0.000244165 ] }
-      R11A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z/B3: 1
-              add:
-                ObjectSync/R/Prop/RB/Z: -0.000244141
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      R11R:
-        motion: ~
-        transitions:
-          - { to: Commit, when: [ ObjectSync/True is true ] }
-      Commit:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RB/Z: ObjectSync/S/Prop/RB/Z
-                Prop/RB/Z/B0: ObjectSync/S/Prop/RB/Z/B0
-                Prop/RB/Z/B1: ObjectSync/S/Prop/RB/Z/B1
-                Prop/RB/Z/B2: ObjectSync/S/Prop/RB/Z/B2
-                Prop/RB/Z/B3: ObjectSync/S/Prop/RB/Z/B3
-        transitions:
-          - { to: Idle, when: [ ObjectSync/True is true ] }
-      Parked:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/RB/Z: 0
-                ObjectSync/S/Prop/RB/Z/B0: 0
-                ObjectSync/S/Prop/RB/Z/B1: 0
-                ObjectSync/S/Prop/RB/Z/B2: 0
-                ObjectSync/S/Prop/RB/Z/B3: 0
-                ObjectSync/R/Prop/RB/Z: 0
-                ObjectSync/Sense/Prop/RB/Z: 0
-        transitions:
-          - { to: Idle, when: [ ObjectSync/Enable greater 0.5 ] }
-    any:
-      - { to: Parked, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
-    default: Idle
-    layout:
-      nodes:
-        Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
-        Parked: [-300, 270]
-        R0A: [30, 180]
-        R0R: [30, 300]
-        R1A: [270, 180]
-        R1R: [270, 300]
-        R2A: [510, 180]
-        R2R: [510, 300]
-        R3A: [750, 180]
-        R3R: [750, 300]
-        R4A: [990, 180]
-        R4R: [990, 300]
-        R5A: [1230, 180]
-        R5R: [1230, 300]
-        R6A: [1470, 180]
-        R6R: [1470, 300]
-        R7A: [1710, 180]
-        R7R: [1710, 300]
-        R8A: [1950, 180]
-        R8R: [1950, 300]
-        R9A: [2190, 180]
-        R9R: [2190, 300]
-        R10A: [2430, 180]
-        R10R: [2430, 300]
-        R11A: [2670, 180]
-        R11R: [2670, 300]
+        Wait:   [30, 180]
+        Commit: [270, 180]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -4194,31 +2937,11 @@ clips:
   asm_objectsync_d_prop_ra_x_4: { set: { ObjectSync/D/Prop/RA/X: 4 } }
   asm_objectsync_d_prop_ra_x_2: { set: { ObjectSync/D/Prop/RA/X: 2 } }
   asm_objectsync_d_prop_ra_x_1: { set: { ObjectSync/D/Prop/RA/X: 1 } }
-  asm_objectsync_d_prop_ra_y_16: { set: { ObjectSync/D/Prop/RA/Y: 16 } }
-  asm_objectsync_d_prop_ra_y_8: { set: { ObjectSync/D/Prop/RA/Y: 8 } }
-  asm_objectsync_d_prop_ra_y_4: { set: { ObjectSync/D/Prop/RA/Y: 4 } }
-  asm_objectsync_d_prop_ra_y_2: { set: { ObjectSync/D/Prop/RA/Y: 2 } }
-  asm_objectsync_d_prop_ra_y_1: { set: { ObjectSync/D/Prop/RA/Y: 1 } }
   asm_objectsync_d_prop_ra_z_16: { set: { ObjectSync/D/Prop/RA/Z: 16 } }
   asm_objectsync_d_prop_ra_z_8: { set: { ObjectSync/D/Prop/RA/Z: 8 } }
   asm_objectsync_d_prop_ra_z_4: { set: { ObjectSync/D/Prop/RA/Z: 4 } }
   asm_objectsync_d_prop_ra_z_2: { set: { ObjectSync/D/Prop/RA/Z: 2 } }
   asm_objectsync_d_prop_ra_z_1: { set: { ObjectSync/D/Prop/RA/Z: 1 } }
-  asm_objectsync_d_prop_rb_x_16: { set: { ObjectSync/D/Prop/RB/X: 16 } }
-  asm_objectsync_d_prop_rb_x_8: { set: { ObjectSync/D/Prop/RB/X: 8 } }
-  asm_objectsync_d_prop_rb_x_4: { set: { ObjectSync/D/Prop/RB/X: 4 } }
-  asm_objectsync_d_prop_rb_x_2: { set: { ObjectSync/D/Prop/RB/X: 2 } }
-  asm_objectsync_d_prop_rb_x_1: { set: { ObjectSync/D/Prop/RB/X: 1 } }
-  asm_objectsync_d_prop_rb_y_16: { set: { ObjectSync/D/Prop/RB/Y: 16 } }
-  asm_objectsync_d_prop_rb_y_8: { set: { ObjectSync/D/Prop/RB/Y: 8 } }
-  asm_objectsync_d_prop_rb_y_4: { set: { ObjectSync/D/Prop/RB/Y: 4 } }
-  asm_objectsync_d_prop_rb_y_2: { set: { ObjectSync/D/Prop/RB/Y: 2 } }
-  asm_objectsync_d_prop_rb_y_1: { set: { ObjectSync/D/Prop/RB/Y: 1 } }
-  asm_objectsync_d_prop_rb_z_16: { set: { ObjectSync/D/Prop/RB/Z: 16 } }
-  asm_objectsync_d_prop_rb_z_8: { set: { ObjectSync/D/Prop/RB/Z: 8 } }
-  asm_objectsync_d_prop_rb_z_4: { set: { ObjectSync/D/Prop/RB/Z: 4 } }
-  asm_objectsync_d_prop_rb_z_2: { set: { ObjectSync/D/Prop/RB/Z: 2 } }
-  asm_objectsync_d_prop_rb_z_1: { set: { ObjectSync/D/Prop/RB/Z: 1 } }
   anch_prop_base:
     set:
       Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8191
@@ -4274,46 +2997,21 @@ clips:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 0
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: 0
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0.001074219
-  prox_prop_a_base:
+  prox_prop_yaw_base:
     set:
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.x: -1
-      Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.y: -1
+      Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.y: 0
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.z: -1
-  prox_prop_a_x:
+  prox_prop_yaw_x:
     set:
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.y: 0
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.z: 0
-  prox_prop_a_y:
-    set:
-      Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.x: 0
-      Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.y: 0.000488281
-      Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.z: 0
-  prox_prop_a_z:
+  prox_prop_yaw_z:
     set:
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.x: 0
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.y: 0
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
-  prox_prop_b_base:
-    set:
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.x: -1
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.y: -1
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.z: -1
-  prox_prop_b_x:
-    set:
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.x: 0.000488281
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.y: 0
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.z: 0
-  prox_prop_b_y:
-    set:
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.x: 0
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.y: 0.000488281
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.z: 0
-  prox_prop_b_z:
-    set:
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.x: 0
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.y: 0
-      Rig/Prop/Recon/ProxyB/Transform.m_LocalPosition.z: 0.000488281
   enable_park:
     set:
       Rig/Prop/Coarse/GameObject.m_IsActive: 0

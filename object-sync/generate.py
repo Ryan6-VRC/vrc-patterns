@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""object-sync generator: emits controller.yaml from CONFIG below.
+"""object-sync generator: emits the three committed controller.yaml documents
+(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below.
 
-Edit CONFIG, rerun (`python generate.py`), recompile built/ — controller.yaml is
-generated output and never hand-edited. `python generate.py --check` runs the
-self-test (byte-identical regeneration, the packing table for every preset, and
-the structural assertions on the emitted document).
+Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — every
+controller.yaml is generated output and never hand-edited. `python generate.py
+--check` runs the self-test (byte-identical regeneration, the packing table for
+every build, the structural assertions on every emitted document, and the
+on-disk pin for all three).
 
 WHAT THIS BUILDS
 ----------------
@@ -160,8 +162,12 @@ CONFIG = {
     },
 }
 
-# Generator paths kept honest by fixtures, not committed builds. Apply one by
-# replacing CONFIG["objects"]; both presets ride CONFIG's wire block unchanged.
+# The two other COMMITTED builds (operator-ruled 2026-08-02: all three variants
+# ship as built artifacts, so a GitHub download is usable without this
+# workspace). Each overrides CONFIG["objects"] only and rides CONFIG's wire
+# block unchanged; each emits into its own subdirectory (`y/`, `y_double/`)
+# holding controller.yaml + built/ + prefab, and `--check` pins all three
+# on-disk documents byte-identical, not just the root one.
 PRESETS = {
     "y": {"objects": [{"name": "Prop", "rotation": "y"}]},
     "y_double": {"objects": [{"name": "PropA", "rotation": "y"},
@@ -819,8 +825,9 @@ def enable_subtree(doc, c):
     """The enable's reach into the measure rig, as a 1D tree rather than a layer.
 
     Only the measure subtrees: whether the wearer's rig is sensing. The
-    consumer's Container is not in here — see `follow_layer`, which needs
-    IsLocal and so cannot be a tree at all.
+    Anchor/Container pair is not in here — Container is `follow_layer`'s alone
+    (it needs IsLocal and so cannot be a tree at all), and Anchor is the
+    consumer's write surface, which nothing in this document may bind.
 
     None with several objects, where the Slice layer owns `m_IsActive` outright
     (one property, one writer) and Enable reaches it through that layer's Parked
@@ -853,9 +860,10 @@ def follow_layer(doc, c):
     transform to the captured rest every frame, exactly as GlobalWeight 0 does.
     So the weight cannot be the gate here; `Container` ships its one source
     (the reconstruction) at a fixed Weight 1 and this layer switches the whole
-    component. Off, the prop moves under whatever else drives it, which locally
-    is the whole point: the wearer's copy is never touched, so a grab has no
-    latency and no fight, and only remotes reconstruct.
+    component. Off, `Container` rides its parent — the consumer's `Anchor` — by
+    plain hierarchy, which locally is the whole point: the wearer's copy is
+    never touched, nothing of the entry sits between the consumer's carry
+    constraint and the prop, and only remotes reconstruct.
 
     A layer rather than a tree because the condition is `!IsLocal AND Enable`
     and IsLocal is a bool built-in: a blend tree reads 0 from it forever.
@@ -1122,7 +1130,9 @@ def next_object(c, o):
 
 
 def tag_set(c, o):
-    """Contact collision tags for one object's four sender groups.
+    """Contact collision tags for one object's sender groups — only the groups
+    that object's rotation mode gives a carrier: a tag the prefab cannot carry
+    is a spec-vs-artifact lie waiting for a reviewer.
 
     Deterministic from the prefix and — when there is more than one object — the
     object name, the same rule `Container` follows and for a sharper reason:
@@ -1130,7 +1140,13 @@ def tag_set(c, o):
     receiver reads whichever sender is strongest rather than its own."""
     base = c["prefix"].replace("/", "")
     mid = o if len(c["objects"]) > 1 else ""
-    return [f"{base}{mid}{s}" for s in ("Coarse", "Fine", "RotA", "RotB")]
+    mode = next(x for x in c["objects"] if x["name"] == o)["rotation"]
+    stages = ["Coarse", "Fine"]
+    if mode != "none":
+        stages.append("RotA")
+    if mode == "full":
+        stages.append("RotB")
+    return [f"{base}{mid}{s}" for s in stages]
 
 
 def gate_bindings(c, live_object):
@@ -1145,9 +1161,17 @@ def gate_bindings(c, live_object):
 
 
 def container_path(c, o):
-    """The consumer's node. One object owns `Container` outright; several take a
-    child each, because one constraint follows one reconstruction."""
-    return "Container" if len(c["objects"]) == 1 else f"Container/{o}"
+    """The prop holder — the one node the entry drives in the consumer's view.
+
+    It lives UNDER the consumer's `Anchor`, so with its constraint inactive it
+    rides whatever the consumer gives the anchor (a hand, a freeze, nothing) by
+    plain hierarchy, and the measured default (`Authority` -> `Anchor`) never
+    sits downstream of the entry's own output. One object owns the bare pair;
+    several take a suffixed anchor each (COS ships the same shape as
+    `SyncPositionA Target`/`SyncPositionA`), because one anchor is one
+    consumer-driven frame and one constraint follows one reconstruction."""
+    return ("Anchor/Container" if len(c["objects"]) == 1
+            else f"Anchor{o}/Container")
 
 
 def position_walk(doc, c, d, ob, a, multi):
@@ -1765,10 +1789,21 @@ def check():
                 assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
                             for s in ("Coarse", "Fine", "Rot")),
                         f"{ob['name']}: parking deactivates all three measure subtrees")
-        assert_(not any(k.startswith("Container")
+        assert_(not any(k.startswith(("Container", "Anchor"))
                         for k in f["clips"].get("enable_park", ({},))[0]),
                 "the enable's tree reaches the measure rig only — Container is the "
-                "Follow layer's alone")
+                "Follow layer's alone, and Anchor is the consumer's")
+        # The consumer's Anchor is a write surface this document must never
+        # bind: a binding may pass THROUGH it (Anchor.../Container/... is the
+        # Follow layer's), but none may land on the anchor node itself — that
+        # node belongs to the consumer's carry constraint and the composed
+        # Drop toggle's FreezeToWorld clip, and two systems animating one
+        # component is the defect this split exists to prevent.
+        on_anchor = [k for _, (bs, _s) in f["clips"].items() for k in bs
+                     if k.startswith("Anchor")
+                     and not k.split("/", 1)[1].startswith("Container")]
+        assert_(not on_anchor,
+                f"no clip binding lands on a consumer Anchor node ({on_anchor[:2]})")
 
         # The consumer surface: one layer switching Container's whole constraint,
         # and the wearer's side never in the engaged branch. `IsActive` and NOT a
@@ -1855,17 +1890,26 @@ def check():
     else:
         assert_(False, "README.md is missing")
 
-    # The committed build is the one artifact `built/` was compiled from, so a
-    # generator change that moves it is a defect until built/ is regenerated.
+    # Each committed build is the one artifact its `built/` was compiled from,
+    # so a generator change that moves any of the three documents is a defect
+    # until that variant's built/ is recompiled.
     print("[committed vs disk]")
-    on_disk = os.path.join(HERE, "controller.yaml")
-    if os.path.exists(on_disk):
-        with open(on_disk, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == document(CONFIG)[0],
-                    "controller.yaml on disk matches the committed CONFIG")
-    else:
-        assert_(False, "controller.yaml is missing")
+    for label, cfg in preset_configs().items():
+        on_disk = os.path.join(HERE, *preset_dir(label), "controller.yaml")
+        if os.path.exists(on_disk):
+            with open(on_disk, encoding="utf-8", newline="") as fh:
+                assert_(fh.read().replace("\r\n", "\n") == document(cfg)[0],
+                        f"{label}: controller.yaml on disk matches its CONFIG")
+        else:
+            assert_(False, f"{label}: controller.yaml is missing "
+                           f"({os.path.relpath(on_disk, HERE)})")
     return 0 if ok else 1
+
+
+def preset_dir(label):
+    """The committed full build owns the entry root; the two variants each own
+    a subdirectory, so a human download can take exactly one build whole."""
+    return () if label == "committed" else (label,)
 
 
 def driver_ops(text):
@@ -2041,15 +2085,18 @@ def one_driver_has(text, names):
 def main():
     if "--check" in sys.argv:
         sys.exit(check())
-    text, f = document(CONFIG)
-    out = os.path.join(HERE, "controller.yaml")
-    with open(out, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
-    facts = f["facts"]
-    states = text.count("        motion:") + text.count("        motion: ~")
-    print(f"wrote {out}: {len(f['layers'])} layers, {len(f['clips'])} clips, "
-          f"{facts['wireBits']} wire bits, {facts['payloadBits']} payload bits, "
-          f"{facts['batchCount']} batches, ~{facts['cycleSeconds']:.2f}s refresh @60fps")
+    for label, cfg in preset_configs().items():
+        text, f = document(cfg)
+        outdir = os.path.join(HERE, *preset_dir(label))
+        os.makedirs(outdir, exist_ok=True)
+        out = os.path.join(outdir, "controller.yaml")
+        with open(out, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        facts = f["facts"]
+        print(f"wrote {os.path.relpath(out, HERE)}: {len(f['layers'])} layers, "
+              f"{len(f['clips'])} clips, {facts['wireBits']} wire bits, "
+              f"{facts['payloadBits']} payload bits, {facts['batchCount']} batches, "
+              f"~{facts['cycleSeconds']:.2f}s refresh @60fps")
 
 
 if __name__ == "__main__":
