@@ -35,7 +35,7 @@ Cost model, from the generator: wire bits = indexBits + 8·numberSlots + boolSlo
 |---|---|---|
 | `batchSeconds` | `generate.py` CONFIG | seconds each batch holds; 0.1 s is VRChat's measured tick (VRCFury patches av3emu to it — `Av3EmuSyncTimeFixHook`: "the game actually uses 0.1s"), 0.2 s the community-safe fallback when the in-game `Cycle` rate shows ticks being outrun |
 | `numberSlots`/`boolSlots` | `generate.py` CONFIG | synced bits ↔ full-refresh latency |
-| `indexLoops` | `generate.py` CONFIG | halves pause-alias probability per doubling; ~1 bit each |
+| `indexLoops` | `generate.py` CONFIG | halves pause-alias probability per doubling; ~1 bit each. Inert under `atomic: batch` — there is no pause-alias artifact to divide and `Lost` re-acquires at any counter value, so widening the counter buys nothing and costs bits and states; leave it at 1 |
 | `atomic` | `generate.py` CONFIG | set-atomic with declared pause residual vs batch-atomic with uniform staleness bound |
 
 ## Verifying the install

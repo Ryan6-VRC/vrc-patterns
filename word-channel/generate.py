@@ -72,7 +72,9 @@ CONFIG = {
     "boolSlots": 2,
     # How many loops one counter period spans (>=1). Each extra loop divides
     # the pause-alias probability and usually costs one index bit + a state
-    # row per batch.
+    # row per batch. Buys nothing under `atomic: batch` — no pause-alias
+    # artifact exists there and Lost re-acquires at any counter value, so a
+    # wider counter only costs bits and states. Leave it 1 there.
     "indexLoops": 2,
     # Seconds each batch holds before the guaranteed extra frame. 0.1 is
     # VRChat's measured network tick; 0.2 is the community-safe fallback if
