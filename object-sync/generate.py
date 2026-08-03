@@ -423,15 +423,25 @@ class Doc:
 
     def __init__(self):
         self.params = []
-        self._pnames = set()
+        self._pnames = {}
         self.clips = {}
         self.layers = []
 
     def param(self, line, name=None):
+        # Re-declaring a param with the SAME line is how several layers claim a
+        # shared scratch param, and is fine. A second declaration that differs is
+        # a generator bug: whichever call ran first silently wins, and the loser
+        # gets a param of the wrong type or default with no diagnostic anywhere.
+        # `clip` below is the model.
         if name is not None:
             if name in self._pnames:
+                if self._pnames[name] != line:
+                    raise SystemExit(
+                        f"REFUSE: param '{name}' declared twice with different "
+                        f"content:\n  {self._pnames[name].strip()}\n  "
+                        f"{line.strip()}")
                 return
-            self._pnames.add(name)
+            self._pnames[name] = line
         self.params.append(line)
 
     def has_param(self, name):
