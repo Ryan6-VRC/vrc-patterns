@@ -1614,6 +1614,17 @@ def check():
                 "README pins the single Container source the Follow layer indexes")
         assert_("Home" not in body,
                 "README carries no home/park concept either")
+        # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
+        # cannot see the second term — Enable is this entry's param, not the
+        # transport's. Both figures are quoted in the lead and the Wire bullet,
+        # so pin both to the generator rather than to a reviewer's arithmetic.
+        cfacts = document(CONFIG)[1]["facts"]
+        wire_bits = cfacts["wireBits"]
+        assert_(f"= **{wire_bits} bits**" in body,
+                f"README's Wire bullet states the {wire_bits}-bit transport wire")
+        assert_(f"**{wire_bits + 1} synced bits**" in body,
+                f"README's lead states {wire_bits + 1} synced bits total "
+                f"(wire {wire_bits} + {CONFIG['prefix']}/Enable)")
     else:
         assert_(False, "README.md is missing")
 
