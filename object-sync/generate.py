@@ -854,13 +854,15 @@ def follow_layer(doc, c):
     """Whether the entry's hands are on the consumer's prop at all.
 
     The driven property is `IsActive`, and that choice is a measurement, not a
-    preference. Only two configurations of a VRCParentConstraint are actually
-    hands-off — `IsActive` false, and a source list of length ZERO. A constraint
-    holding one source at Weight 0 is NOT: measured in play, it drives its
-    transform to the captured rest every frame, exactly as GlobalWeight 0 does.
-    So the weight cannot be the gate here; `Container` ships its one source
-    (the reconstruction) at a fixed Weight 1 and this layer switches the whole
-    component. Off, `Container` rides its parent — the consumer's `Anchor` — by
+    preference. Only two configurations of a VRCParentConstraint write nothing
+    — `IsActive` false, and a source list of length ZERO. A weight of 0 (source
+    or GlobalWeight) is NOT that: measured in play, it writes the captured
+    *AtRest pose every frame, in the constrained object's parent frame — the
+    same ride as hands-off while the capture stays the authored zero, but a
+    live writer parked on a baked value, and a stomp on anything else composed
+    onto Container. So the gate is the component, not a weight; `Container`
+    ships its one source (the reconstruction) at a fixed Weight 1 and this
+    layer switches the whole component. Off, `Container` rides its parent — the consumer's `Anchor` — by
     plain hierarchy, which locally is the whole point: the wearer's copy is
     never touched, nothing of the entry sits between the consumer's carry
     constraint and the prop, and only remotes reconstruct.
@@ -1807,10 +1809,11 @@ def check():
 
         # The consumer surface: one layer switching Container's whole constraint,
         # and the wearer's side never in the engaged branch. `IsActive` and NOT a
-        # source weight — measured, a VRCParentConstraint holding one source at
-        # Weight 0 drives its transform to the captured rest every frame, the same
-        # park GlobalWeight 0 gives. Only IsActive false (or a zero-length source
-        # list) is the hands-off no-op this entry needs.
+        # source weight — measured, a weight of 0 (source or GlobalWeight) still
+        # writes the captured rest every frame in the parent frame: it rides
+        # Anchor only while the capture stays the authored zero. Only IsActive
+        # false (or a zero-length source list) writes nothing, which is the
+        # release this entry needs.
         release = f["clips"]["follow_release"][0]
         engage = f["clips"]["follow_engage"][0]
         assert_(set(release) == set(engage) and release
@@ -1826,7 +1829,8 @@ def check():
                     and not any(k.startswith(f"{con}.Sources") for k in engage)
                     and f"{con}.GlobalWeight" not in text,
                     f"{ob['name']}: neither a source weight nor GlobalWeight is "
-                    "animated — both park the prop rather than releasing it")
+                    "animated — a zero weight keeps writing the captured rest "
+                    "instead of releasing")
             assert_(f"{con}.Sources.source1" not in text,
                     f"{ob['name']}: Container carries no second source anywhere "
                     "in the document")
