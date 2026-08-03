@@ -584,6 +584,18 @@ def build(c):
     })
     wc = load_word_channel().build(wire_config)
     facts = wc["facts"]
+    # This entry merges the fragment's header, params and layers, and builds the
+    # document's `clips:` section from `Doc` alone — so a clip line the fragment
+    # emitted would be dropped on the floor and the layer referencing it would
+    # compile against a clip that does not exist. Only word-channel's `assemble:`
+    # block emits any and `wire_config` passes `assemble: []`, so this is
+    # unreachable today; it is here to keep it that way.
+    if wc["clips"]:
+        raise SystemExit(
+            f"REFUSE: word-channel emitted {len(wc['clips'])} clip line(s) this "
+            "generator has nowhere to put. Merge them into Doc.clips before "
+            "lifting this refusal — dropping them leaves a layer bound to a "
+            "clip that was never emitted.")
     for g in groups:
         if g not in facts["groupBatch"]:
             raise SystemExit(f"REFUSE: group '{g}' was not pinned to a batch")
