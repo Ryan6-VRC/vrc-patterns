@@ -297,9 +297,12 @@ def rot_groups(c, ob):
     """(group label, [components]) for one object's rotation words.
 
     `full`'s six components belong to two different markers and are independent
-    values, so each takes its own group. `y`'s two components are ONE value — a
-    heading — and want the same adjacent-cell coherence a position axis wants,
-    so they share a group when the slots can hold it."""
+    readings, so each takes its own group — and for the same reason its own walk
+    layer and its own commit (`rot_walk_plan`): a torn set of six independent
+    readings is a stale orientation, never one no marker ever held. `y`'s two
+    components are ONE value — a heading — and want the same adjacent-cell
+    coherence a position axis wants, so they share a group when the slots can
+    hold it, and one producer-side commit whatever the slots do."""
     o, mode = ob["name"], ob["rotation"]
     comps = rot_comps(mode)
     if mode == "y":
@@ -577,8 +580,8 @@ def build(c):
     for ob in c["objects"]:
         for a in AXES:
             layers.append(position_walk(doc, c, d, ob, a, multi))
-        for comp in rot_comps(ob["rotation"]):
-            layers.append(component_walk(doc, c, d, ob, comp, multi))
+        for comps, lay in rot_walk_plan(c, ob):
+            layers.append(component_walk(doc, c, d, ob, comps, lay, multi))
 
     return {
         "header": header(c, d, facts, numbers, bools),
@@ -934,7 +937,12 @@ def slice_layer(doc, c):
 
 def max_walk_frames(c):
     pos = 2 + c["coarseBits"] + 1 + c["settleFrames"] + 1 + c["fineBits"] + 1
-    rot = 2 + c["rotBits"] + 1
+    # A rotation layer costs Idle + per component (Start + one state per bit) +
+    # one handoff state between components + Commit. y mode walks its two
+    # heading components serially in one layer, so it is the long one.
+    rot = max([len(comps) * (c["rotBits"] + 2) + 1
+               for comps, _ in (r for ob in c["objects"]
+                                for r in rot_walk_plan(c, ob))] or [0])
     return max(pos, rot)
 
 
@@ -1035,13 +1043,18 @@ def liveness_audit(c, d):
                        "measurement anchor, which only a fresh coarse commit "
                        "moves, so a teleport out of the cell leaves this waiting "
                        "on a stage it cannot reach"})
-        for comp in rot_comps(ob["rotation"]):
-            rows.append({
-                "layer": f"{p}/Enc/{o}/R{comp}", "state": "Idle",
-                "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
-                "why": "self-restoring: the marker rides a rigid arm on a holder "
-                       "pinned to the rig and cannot leave its receiver's box, so "
-                       "a 0 means re-acquisition and nothing else"})
+        for comps, lay in rot_walk_plan(c, ob):
+            for i, comp in enumerate(comps):
+                # Component 0 is gated at Idle, the entry to the whole layer;
+                # every later component at the `Hand` state that hands the serial
+                # walk over to it. Same source, same argument, one row each.
+                rows.append({
+                    "layer": lay,
+                    "state": "Idle" if i == 0 else f"Hand{i - 1}",
+                    "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
+                    "why": "self-restoring: the marker rides a rigid arm on a holder "
+                           "pinned to the rig and cannot leave its receiver's box, so "
+                           "a 0 means re-acquisition and nothing else"})
         if multi:
             rows.append({
                 "layer": f"{p}/Slice", "state": f"Enter_{o}",
@@ -1177,39 +1190,95 @@ def position_walk(doc, c, d, ob, a, multi):
     return out
 
 
-def component_walk(doc, c, d, ob, comp, multi):
-    """One marker component, one layer. Both rotation modes use this walk
-    unchanged — `y` is `full` with four of the six components dropped."""
+def rot_walk_plan(c, ob):
+    """([components], layer name) per rotation walk layer.
+
+    `y`'s two components are one heading, so they take ONE layer walked serially
+    into staging and committed together in a single frame — the same discipline a
+    position axis's coarse and fine halves get, and for the same reason: two
+    independent layers commit on their own clocks, so the wire can latch X from
+    one measure cycle and Z from the next and every client reconstructs an angle
+    the prop never held. `full`'s six components are independent readings from two
+    markers (`rot_groups`), so they keep a layer each."""
+    o, mode = ob["name"], ob["rotation"]
+    comps = rot_comps(mode)
+    if mode == "y":
+        return [(list(comps), f"{c['prefix']}/Enc/{o}/Ry")]
+    return [([comp], f"{c['prefix']}/Enc/{o}/R{comp}") for comp in comps]
+
+
+def rot_walk_names(comps, i):
+    """Per-component state/tag names. A lone component keeps the unindexed
+    spelling, so a full-mode layer is emitted exactly as it always was."""
+    if len(comps) == 1:
+        return "Start", "R"
+    return f"Start{i}", f"R{i}"
+
+
+def component_walk(doc, c, d, ob, comps, lay, multi):
+    """One rotation walk layer: each component read, walked MSB-first into its
+    own staging, and — where the layer carries several — the next one entered
+    only after the current one's ladder has run out. One `Commit` state then
+    driver-copies every component's byte and bool tail in a single frame, so
+    word-channel's sender can never latch a half-measured value."""
     p, o = c["prefix"], ob["name"]
-    lay = f"{p}/Enc/{o}/R{comp}"
-    st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
-    doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
-    doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
-    rbools = [f"{st}/B{j}" for j in range(c["rotBits"] - 8)]
-    for nm in rbools:
-        doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
-    plan = bit_plan(c["rotBits"], st, rbools)
-    clear = dict({st: 0}, **{b: 0 for b in rbools})
+    stages, senses = [], []
+    for comp in comps:
+        st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
+        doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
+        doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
+        rbools = [f"{st}/B{j}" for j in range(c["rotBits"] - 8)]
+        for nm in rbools:
+            doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
+        stages.append((st, res, rbools))
+        senses.append(sense_param(doc, c, f"{p}/Sense/{o}/R{comp}"))
 
     out = [f"  - name: {lay}", "    states:"]
-    extras = ["Idle", "Commit", "Start", "Parked"]
-    sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
-    enter = gate(c, ob, multi) + live(d, [sr])
+    extras = ["Idle", "Commit"]
+    if len(comps) == 1:
+        extras += ["Start", "Parked"]
+    else:
+        extras += ["Parked"] + [rot_walk_names(comps, i)[0] for i in range(len(comps))]
+        extras += [f"Hand{i}" for i in range(len(comps) - 1)]
+    enter = gate(c, ob, multi) + live(d, [senses[0]])
     out.extend(state("Idle", None,
-                     [f"{{ to: Start, when: [ {', '.join(enter)} ] }}"]))
-    out.extend(state("Start", driver(
-        sets=clear,
-        copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
-                     f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
-        walk_rungs(res, 0, "R0A", "R0R")))
-    rows = emit_walk("R", c["rotBits"], res, plan, None, out, "Commit",
-                     f"{p}/True")
-    commit = {f"{o}/R{comp}": st}
-    for j in range(c["rotBits"] - 8):
-        commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
+                     [f"{{ to: {rot_walk_names(comps, 0)[0]}, "
+                      f"when: [ {', '.join(enter)} ] }}"]))
+    rows = []
+    for i, comp in enumerate(comps):
+        st, res, rbools = stages[i]
+        start, tag = rot_walk_names(comps, i)
+        last = i + 1 == len(comps)
+        out.extend(state(start, driver(
+            sets=dict({st: 0}, **{b: 0 for b in rbools}),
+            copies={res: f"{{ source: {senses[i]}, sourceMin: {num(d['rotMin'])}, "
+                         f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
+            walk_rungs(res, 0, f"{tag}0A", f"{tag}0R")))
+        rows += emit_walk(tag, c["rotBits"], res,
+                          bit_plan(c["rotBits"], st, rbools), None, out,
+                          "Commit" if last else f"Hand{i}", f"{p}/True")
+        if not last:
+            # The handoff carries the NEXT component's liveness gate, the same
+            # precondition Idle carries for the first: a receiver that has not
+            # re-acquired reads exactly 0, which is a legal-looking component.
+            # Self-restoring like every marker wait — the arm cannot leave the box.
+            out.extend(state(
+                f"Hand{i}", None,
+                [f"{{ to: {rot_walk_names(comps, i + 1)[0]}, "
+                 f"when: [ {', '.join(live(d, [senses[i + 1]]))} ] }}"]))
+    commit = {}
+    for comp, (st, _, _) in zip(comps, stages):
+        commit[f"{o}/R{comp}"] = st
+        for j in range(c["rotBits"] - 8):
+            commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
     out.extend(state("Commit", driver(copies=commit),
                      [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
-    out.extend(state("Parked", driver(sets=dict(clear, **{res: 0, sr: 0})),
+    park = {}
+    for (st, res, rbools), sr in zip(stages, senses):
+        park[st] = 0
+        park.update({b: 0 for b in rbools})
+        park.update({res: 0, sr: 0})
+    out.extend(state("Parked", driver(sets=park),
                      [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
     out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
@@ -1372,19 +1441,36 @@ def check():
                     f"co-batched at batch {(i or 0) + 1}")
         assert_("atomic=batch" in text, "atomic is batch in the emitted header")
 
-        # Every axis commits its whole word in one driver.
+        # Every axis commits its whole word in one driver — probed inside the
+        # ENCODE layer's own block, because word-channel's receiver copies the
+        # same words in one driver too and would satisfy a document-wide probe
+        # while the producer was writing them a limb at a time.
         for ob in cfg["objects"]:
             for a in AXES:
+                lay = f"{cfg['prefix']}/Enc/{ob['name']}/P{a}"
                 names = [f"{ob['name']}/P{a}/C", f"{ob['name']}/P{a}/F"]
                 names += [f"{ob['name']}/P{a}/C{j}" for j in range(cfg["coarseBits"] - 8)]
                 names += [f"{ob['name']}/P{a}/F{j}" for j in range(cfg["fineBits"] - 8)]
-                assert_(one_driver_has(text, names),
+                assert_(one_driver_has(rung_block(text, lay), names),
                         f"{ob['name']}/P{a}: all {len(names)} words in one commit driver")
-            for comp in rot_comps(ob["rotation"]):
-                names = [f"{ob['name']}/R{comp}"]
-                names += [f"{ob['name']}/R{comp}/B{j}" for j in range(cfg["rotBits"] - 8)]
-                assert_(one_driver_has(text, names),
-                        f"{ob['name']}/R{comp}: all {len(names)} words in one commit driver")
+            # One commit driver per WALK LAYER, not per component: y mode's two
+            # heading components are one value and must land on the wire in one
+            # frame, or a client reconstructs an angle from two measure cycles.
+            for comps, lay in rot_walk_plan(cfg, ob):
+                names = []
+                for comp in comps:
+                    names.append(f"{ob['name']}/R{comp}")
+                    names += [f"{ob['name']}/R{comp}/B{j}"
+                              for j in range(cfg["rotBits"] - 8)]
+                assert_(one_driver_has(rung_block(text, lay), names),
+                        f"{lay}: all {len(names)} words of "
+                        f"{len(comps)} component(s) in one commit driver")
+            if ob["rotation"] == "y":
+                assert_(len([ln for ln in text.splitlines()
+                             if ln.startswith(f"  - name: {cfg['prefix']}/Enc/"
+                                              f"{ob['name']}/R")]) == 1,
+                        f"{ob['name']}: the heading is ONE serial walk layer, not "
+                        "one per component")
 
         # Negative control: the assertion above must be able to fail.
         assert_(not one_driver_has(text, [cfg["objects"][0]["name"] + "/PX/C",
@@ -1465,8 +1551,10 @@ def check():
             o = ob["name"]
             for lay, last in ([(f"{pf}/Enc/{o}/P{a}", f"F{cfg['fineBits'] - 1}")
                                for a in AXES] +
-                              [(f"{pf}/Enc/{o}/R{comp}", f"R{cfg['rotBits'] - 1}")
-                               for comp in rot_comps(ob["rotation"])]):
+                              [(lay,
+                                rot_walk_names(comps, len(comps) - 1)[1]
+                                + str(cfg["rotBits"] - 1))
+                               for comps, lay in rot_walk_plan(cfg, ob)]):
                 tr = transitions_of(text, lay)
                 into = {s for s, tg in tr.items() if "Commit" in tg}
                 assert_(into == {last + "A", last + "R"},
