@@ -48,7 +48,9 @@ identifier): `build(config)` returns the emitted pieces without writing a file:
                  importer dedupes it against its own],
      "layers":  [blocks, one per layer, each a list of lines indented for a
                  `layers:` block],
-     "clips":   [lines for a `clips:` block, empty when nothing assembles],
+     "clips":   [clip lines indented for a `clips:` block — the block's own key
+                 and any framing are the importer's, empty when nothing
+                 assembles],
      "facts":   {batchCount, period, indexBits, wireBits, payloadBits,
                  cycleSeconds, numberBatches, boolBatches, groupBatch}}
 
@@ -498,9 +500,6 @@ def build(config):
     clips = []
     if c["assemble"]:
         o = clips.append
-        o("# Reassembly endpoints: each writes the AAP scaled per limb; the Direct tree's")
-        o("# weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.")
-        o("clips:")
         for a in c["assemble"]:
             base = a["name"].replace("/", "_").lower()
             o(f"  asm_{base}_hi: {{ set: {{ {a['name']}: 256 }} }}")
@@ -548,7 +547,11 @@ def main():
     for block in f["layers"]:
         L.extend(block)
     L.append("")
-    L.extend(f["clips"])
+    if f["clips"]:
+        L.append("# Reassembly endpoints: each writes the AAP scaled per limb; the Direct tree's")
+        L.append("# weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.")
+        L.append("clips:")
+        L.extend(f["clips"])
     text = "\n".join(L) + "\n"
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "controller.yaml")
     with open(out, "w", encoding="utf-8", newline="\n") as fh:
