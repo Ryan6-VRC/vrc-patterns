@@ -804,7 +804,18 @@ def follow_layer(doc, c):
     latency and no fight, and only remotes reconstruct.
 
     A layer rather than a tree because the condition is `!IsLocal AND Enable`
-    and IsLocal is a bool built-in: a blend tree reads 0 from it forever."""
+    and IsLocal is a bool built-in: a blend tree reads 0 from it forever.
+
+    Engaging additionally waits on the transport's own freshness counter. A
+    fresh clone starts with every word at 0, 0 quantizes to cell 0, and cell 0 is
+    the far corner of the range — so a Container engaged before the first full
+    word table arrives parks the prop at the corner in front of a late joiner.
+    The threshold is TWO tails, not one: under `atomic: batch` a receiver
+    re-acquires from Lost at any counter value, so it can enter AT a tail and
+    take its first increment after a single batch (word-channel's params block
+    carries that caveat at `Cycle`). Releasing does not test Cycle — the counter
+    only climbs, so a re-enable engages on the frame Enable returns rather than
+    waiting out a fresh loop, which is what makes the toggle feel instant."""
     p = c["prefix"]
     release, engage = {}, {}
     for ob in c["objects"]:
@@ -817,8 +828,9 @@ def follow_layer(doc, c):
                      motion=f"{{ clip: {doc.clip('follow_engage', engage)} }}"))
     out.extend([
         "    any:",
-        f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5 ], "
-        "canTransitionToSelf: false }",
+        f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5, "
+        f"{c['channel']}/Cycle greater 1.5 ], canTransitionToSelf: false }}"
+        "   # Cycle >= 2 = a whole word table received (docstring)",
         "      - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }",
         f"      - {{ to: Release, when: [ {p}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
@@ -1578,9 +1590,15 @@ def check():
         engaging = [r for r in rungs if r.startswith("- { to: Follow")]
         assert_(len(engaging) == 1
                 and "IsLocal is false" in engaging[0]
-                and f"{pf}/Enable greater 0.5" in engaging[0],
-                "the one rung into Follow requires !IsLocal AND Enable — so the "
-                "wearer's own copy is never driven, at zero decode latency")
+                and f"{pf}/Enable greater 0.5" in engaging[0]
+                and f"{cfg['channel']}/Cycle greater 1.5" in engaging[0],
+                "the one rung into Follow requires !IsLocal AND Enable AND "
+                "Cycle >= 2 — so the wearer's own copy is never driven, and a "
+                "late joiner never sees the all-zero word table's range corner")
+        assert_(not any("Cycle" in r for r in rungs
+                        if r.startswith("- { to: Release")),
+                "releasing does not test Cycle — the counter only climbs, so a "
+                "re-enable engages immediately instead of waiting out a loop")
         assert_(any(r.startswith("- { to: Release") and "IsLocal is true" in r
                     for r in rungs)
                 and any(r.startswith("- { to: Release")

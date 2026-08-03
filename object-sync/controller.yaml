@@ -852,7 +852,7 @@ layers:
       Follow:
         motion: { clip: follow_engage }
     any:
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5 ], canTransitionToSelf: false }
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Cycle greater 1.5 ], canTransitionToSelf: false }   # Cycle >= 2 = a whole word table received (docstring)
       - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }
       - { to: Release, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
