@@ -1448,7 +1448,17 @@ def check():
                     and all(n in got_b for n in want_b),
                     f"group {g}: {len(want_n)} number + {len(want_b)} bool words "
                     f"co-batched at batch {(i or 0) + 1}")
-        assert_("atomic=batch" in text, "atomic is batch in the emitted header")
+        # `atomic: batch` asserted on the MACHINE, not on the header line that
+        # describes it: a header comment survives any regression it names. The
+        # two structural signatures are that no latch double-buffer exists (set
+        # mode is the only thing that emits `<channel>/Latch/…`) and that Lost
+        # re-acquires at any counter value rather than only at a loop head.
+        assert_(f"{cfg['channel']}/Latch/" not in text,
+                "no latch params anywhere — a latch is set-atomic's double "
+                "buffer and cannot exist under batch")
+        assert_("re-acquire at any exact counter value" in text,
+                "the receiver's Lost rungs carry batch mode's any-counter "
+                "re-acquisition, not a loop-head-only entry")
 
         # Every axis commits its whole word in one driver — probed inside the
         # ENCODE layer's own block, because word-channel's receiver copies the
