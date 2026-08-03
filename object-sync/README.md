@@ -83,7 +83,7 @@ Nine rig facts are the design, not preferences:
 | Fine readout | float32-exact, zero noise; ≤1 frame stale under motion | why the fine stage sets system precision and the coarse stage's error costs bits, not accuracy |
 | Fine-anchor settle | 1 frame to the cell centre, 2–4 frames to a coherent reading | `settleFrames` = 4 |
 | Rotation error at 12 bits/component | 0.032° mean, 0.12° max, at 90° marker separation | `rotBits`; the bar it beats is Custom-Object-Sync's 0.176° |
-| End-to-end position error, 2 m to 9.6 km | 0.7–1.8 mm, per axis inside `[−1.3, 0] mm` | the precision floor: the walk floors rather than rounds, so the residual is one-sided and stays under the 1.07 mm fine LSB. More bits here would be fake precision |
+| End-to-end position error, 2 m to 9.6 km | 0.7–1.8 mm, per axis inside `[−1.3, 0] mm` | the precision floor: the walk floors rather than rounds, so the residual is one-sided. Two terms make it up — one fine LSB (1.07 mm) of quantization, plus the float32 ulp at range (~0.98 mm at 8192 m) — and together they can exceed a single LSB, which is why the measured band runs past 1.07 mm. More bits would move neither term |
 
 ## How it works
 
