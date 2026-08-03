@@ -346,7 +346,11 @@ def build(config):
             o(f"  {w['name']}: float            # float word: [{w['min']},{w['max']}], 255 wire steps")
     for b in bools:
         o(f"  {b['name']}: bool")
-    o(f"  {p}/Cycle: float           # remote freshness: +1 per applied cycle (float: driver Add clips an Int at 255)")
+    o(f"  {p}/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)")
+    if atomic == "batch":
+        o("  # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and")
+        o("  # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole")
+        o("  # word table has been received, Cycle >= 1 only proves the wire is moving.")
     o("  # Wire — the only synced params.")
     for i in idx:
         o(f"  {i}: {{ type: bool, vrc: {{ synced: true, saved: false }} }}")

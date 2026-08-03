@@ -42,7 +42,7 @@ parameters:
   Flag/B: bool
   Flag/C: bool
   Flag/D: bool
-  WordChannel/Cycle: float           # remote freshness: +1 per applied cycle (float: driver Add clips an Int at 255)
+  WordChannel/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)
   # Wire — the only synced params.
   WordChannel/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   WordChannel/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
