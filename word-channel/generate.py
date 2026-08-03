@@ -48,7 +48,9 @@ identifier): `build(config)` returns the emitted pieces without writing a file:
                  importer dedupes it against its own],
      "layers":  [blocks, one per layer, each a list of lines indented for a
                  `layers:` block],
-     "clips":   [lines for a `clips:` block, empty when nothing assembles],
+     "clips":   [clip lines indented for a `clips:` block — the block's own key
+                 and any framing are the importer's, empty when nothing
+                 assembles],
      "facts":   {batchCount, period, indexBits, wireBits, payloadBits,
                  cycleSeconds, numberBatches, boolBatches, groupBatch}}
 
@@ -70,7 +72,9 @@ CONFIG = {
     "boolSlots": 2,
     # How many loops one counter period spans (>=1). Each extra loop divides
     # the pause-alias probability and usually costs one index bit + a state
-    # row per batch.
+    # row per batch. Buys nothing under `atomic: batch` — no pause-alias
+    # artifact exists there and Lost re-acquires at any counter value, so a
+    # wider counter only costs bits and states. Leave it 1 there.
     "indexLoops": 2,
     # Seconds each batch holds before the guaranteed extra frame. 0.1 is
     # VRChat's measured network tick; 0.2 is the community-safe fallback if
@@ -342,7 +346,11 @@ def build(config):
             o(f"  {w['name']}: float            # float word: [{w['min']},{w['max']}], 255 wire steps")
     for b in bools:
         o(f"  {b['name']}: bool")
-    o(f"  {p}/Cycle: float           # remote freshness: +1 per applied cycle (float: driver Add clips an Int at 255)")
+    o(f"  {p}/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)")
+    if atomic == "batch":
+        o("  # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and")
+        o("  # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole")
+        o("  # word table has been received, Cycle >= 1 only proves the wire is moving.")
     o("  # Wire — the only synced params.")
     for i in idx:
         o(f"  {i}: {{ type: bool, vrc: {{ synced: true, saved: false }} }}")
@@ -498,9 +506,6 @@ def build(config):
     clips = []
     if c["assemble"]:
         o = clips.append
-        o("# Reassembly endpoints: each writes the AAP scaled per limb; the Direct tree's")
-        o("# weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.")
-        o("clips:")
         for a in c["assemble"]:
             base = a["name"].replace("/", "_").lower()
             o(f"  asm_{base}_hi: {{ set: {{ {a['name']}: 256 }} }}")
@@ -548,7 +553,11 @@ def main():
     for block in f["layers"]:
         L.extend(block)
     L.append("")
-    L.extend(f["clips"])
+    if f["clips"]:
+        L.append("# Reassembly endpoints: each writes the AAP scaled per limb; the Direct tree's")
+        L.append("# weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.")
+        L.append("clips:")
+        L.extend(f["clips"])
     text = "\n".join(L) + "\n"
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "controller.yaml")
     with open(out, "w", encoding="utf-8", newline="\n") as fh:
