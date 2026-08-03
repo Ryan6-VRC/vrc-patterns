@@ -376,10 +376,17 @@ def word_table(c):
 def check_slots(c, numbers, bools):
     """Pre-flight the wire block against the table's group shapes, so the
     refusal names the knob rather than surfacing as word-channel's packer
-    complaining about a group it cannot place."""
+    complaining about a group it cannot place.
+
+    The bool refusal runs the REAL packing — word-channel's own `group_runs` +
+    `pack_runs` over the declared table — and reports what the worst batch
+    actually needs. The estimate it replaces (`numberSlots x rotation bools`)
+    assumed every number slot in some batch fills with a rotation component,
+    which is an upper bound the declaration order need not reach: it refused
+    tables that pack fine, and it said nothing at all about a batch made worse
+    by mixed widths."""
     w = c["wire"]
     axis_nums, axis_bools = 2, (c["coarseBits"] - 8) + (c["fineBits"] - 8)
-    rot_bools = c["rotBits"] - 8
     if w["numberSlots"] < axis_nums:
         raise SystemExit(
             f"REFUSE: numberSlots {w['numberSlots']} < {axis_nums} — an axis's "
@@ -390,14 +397,22 @@ def check_slots(c, numbers, bools):
             f"REFUSE: boolSlots {w['boolSlots']} < {axis_bools} — an axis needs "
             f"{c['coarseBits'] - 8} coarse + {c['fineBits'] - 8} fine bools in "
             "its batch")
-    if rot_bools and w["boolSlots"] < w["numberSlots"] * rot_bools:
+    wc = load_word_channel()
+    nbatches, _ = wc.pack_runs(
+        wc.group_runs(numbers, w["numberSlots"], "number"), w["numberSlots"])
+    need = []
+    for batch in nbatches:
+        gs = {n.get("group") for n in batch if n.get("group") is not None}
+        need.append(sum(1 for b in bools if b.get("group") in gs))
+    worst = max(need) if need else 0
+    if w["boolSlots"] < worst:
+        i = need.index(worst)
         raise SystemExit(
-            f"REFUSE: boolSlots {w['boolSlots']} < numberSlots "
-            f"{w['numberSlots']} x {rot_bools} rotation bools — up to "
-            f"{w['numberSlots']} rotation components first-fit into one number "
-            "batch, and every one of them needs its bools in that same batch. "
-            f"Raise boolSlots to {w['numberSlots'] * rot_bools} or drop "
-            "numberSlots.")
+            f"REFUSE: boolSlots {w['boolSlots']} < {worst} — number batch "
+            f"{i + 1} carries {', '.join(n['name'] for n in nbatches[i])} and "
+            f"their groups pin {worst} bool words to that same batch, which is "
+            "where a group's bools have to ride. Raise boolSlots to "
+            f"{worst}, or drop numberSlots so fewer groups share a batch.")
 
 
 # --------------------------------------------------------- emit helpers -----
