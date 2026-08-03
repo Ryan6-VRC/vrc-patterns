@@ -185,10 +185,15 @@ def derive(c):
             f"{2 * c['range'] / cells} or coarseBits = "
             f"{round((2 * c['range'] / c['cellSize'])).bit_length() - 1}")
     for k in ("coarseBits", "fineBits", "rotBits"):
-        if not 9 <= c[k] <= 16:
+        if not 9 <= c[k] <= 14:
             raise SystemExit(
-                f"REFUSE: {k} is {c[k]} — a word is one byte plus its bool "
-                "tail, so 9..16 bits is the expressible range")
+                f"REFUSE: {k} is {c[k]} — the accepted range is 9..14 bits. The "
+                "floor is the wire format: a word is one byte plus its bool "
+                "tail. The ceiling is the SAR walk's own threshold fuzz — EPS "
+                f"admits a mis-decision worth EPS/2 = {EPS / 2:g} of full scale, "
+                "which stays under one LSB through 14 bits (2^-14 = 6.1e-5) and "
+                "exceeds it from 15 on, so a 15th bit would quantize the fuzz "
+                "rather than the reading.")
     guard_raw = c["coarseNoise"] * c["range"] / c["coarseHalfSpan"]
     coarse_guard = round(0.05 * -(-guard_raw // 0.05), 4)
     fine_span = c["cellSize"] + 2 * coarse_guard
@@ -492,9 +497,13 @@ def decode_weights(nbits, nbools):
 
 EPS = 0.0001  # COS's threshold fuzz: the accept and reject rungs overlap by
               # this fraction of the threshold so a reading landing exactly on
-              # it takes the first rung instead of stalling the walk. The
-              # mis-decision it admits is bounded by EPS x 2^-1 of full scale,
-              # which is under one LSB at every width this generator accepts.
+              # it takes the first rung instead of stalling the walk. A reading
+              # inside the overlap takes the accept rung (it is listed first)
+              # and the walk cannot recover, so the mis-decision it admits is
+              # bounded by EPS x the largest threshold = EPS/2 = 5e-5 of full
+              # scale. That is under one LSB through 14 bits (2^-14 = 6.1e-5)
+              # and over it from 15 — which is where derive() caps the widths,
+              # NOT at the 16 the wire format alone would allow.
 
 
 def walk_rungs(resid, b, accept, reject):
