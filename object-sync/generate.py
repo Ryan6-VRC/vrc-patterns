@@ -146,18 +146,22 @@ CONFIG = {
     # prefab implements.
     "rigSeed": "object-sync/g3",
 
-    # Passed to word-channel's build(). `atomic` is not a knob — see the module
-    # docstring.
+    # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
+    # knob here: the discipline is batch (module docstring), and indexLoops is
+    # inert under batch — there is no pause-alias probability to divide and Lost
+    # re-acquires at any counter value, so a wider counter would buy nothing and
+    # cost an index bit plus three Sync states per batch (word-channel's CONFIG
+    # carries the same note at the knob).
     "wire": {
         "numberSlots": 2,
         "boolSlots": 9,
-        "indexLoops": 2,
+        "indexLoops": 1,
         "batchSeconds": 0.1,
     },
 }
 
 # Generator paths kept honest by fixtures, not committed builds. Apply one by
-# replacing CONFIG["objects"] (and, for y_double, the wire block).
+# replacing CONFIG["objects"]; both presets ride CONFIG's wire block unchanged.
 PRESETS = {
     "y": {"objects": [{"name": "Prop", "rotation": "y"}]},
     "y_double": {"objects": [{"name": "PropA", "rotation": "y"},

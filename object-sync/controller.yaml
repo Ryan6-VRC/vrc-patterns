@@ -9,7 +9,7 @@
 #   fine LSB 1.0742 mm, 0.8 m of face left on each side of the field.
 # Rotation: 12 bits per component, 1 m arms in a 2.5 m face (0.25 m guard),
 #   component LSB 0.4883 mm.
-# Wire: 29 synced bits carrying 147 payload bits in 6 batches, atomic=batch,
+# Wire: 28 synced bits carrying 147 payload bits in 6 batches, atomic=batch,
 #   ~0.70s full refresh @60fps.
 # Local measure cycle: 34 frames (~0.57s); an unpark costs 4 more, waiting out contact re-acquisition
 #   before the first sample, so the wire holds its last committed pose rather than
@@ -103,12 +103,14 @@ parameters:
   Prop/RB/Z/B1: bool
   Prop/RB/Z/B2: bool
   Prop/RB/Z/B3: bool
-  ObjectSync/Ch/Cycle: float           # remote freshness: +1 per applied cycle (float: driver Add clips an Int at 255)
+  ObjectSync/Ch/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)
+  # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and
+  # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole
+  # word table has been received, Cycle >= 1 only proves the wire is moving.
   # Wire — the only synced params.
   ObjectSync/Ch/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Idx2: { type: bool, vrc: { synced: true, saved: false } }
-  ObjectSync/Ch/Wire/Idx3: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Num0: { type: int, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Num1: { type: int, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Bool0: { type: bool, vrc: { synced: true, saved: false } }
@@ -289,7 +291,7 @@ layers:
         transitions:
           - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
-      # counter 1/12 = batch 1/6: Prop/PX/C, Prop/PX/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3
+      # counter 1/6 = batch 1/6: Prop/PX/C, Prop/PX/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3
       Send0:
         motion: ~
         behaviours:
@@ -297,8 +299,7 @@ layers:
               set:
                 ObjectSync/Ch/Wire/Idx0: 0
                 ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 1
+                ObjectSync/Ch/Wire/Idx2: 1
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/PX/C
                 ObjectSync/Ch/Wire/Num1: Prop/PX/F
@@ -317,16 +318,15 @@ layers:
         motion: ~
         transitions:
           - { to: Send1, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 2/12 = batch 2/6: Prop/PY/C, Prop/PY/F, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
+      # counter 2/6 = batch 2/6: Prop/PY/C, Prop/PY/F, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
       Send1:
         motion: ~
         behaviours:
           - driver:
               set:
                 ObjectSync/Ch/Wire/Idx0: 0
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 0
+                ObjectSync/Ch/Wire/Idx1: 1
+                ObjectSync/Ch/Wire/Idx2: 0
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/PY/C
                 ObjectSync/Ch/Wire/Num1: Prop/PY/F
@@ -345,16 +345,15 @@ layers:
         motion: ~
         transitions:
           - { to: Send2, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 3/12 = batch 3/6: Prop/PZ/C, Prop/PZ/F, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3
+      # counter 3/6 = batch 3/6: Prop/PZ/C, Prop/PZ/F, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3
       Send2:
         motion: ~
         behaviours:
           - driver:
               set:
                 ObjectSync/Ch/Wire/Idx0: 0
-                ObjectSync/Ch/Wire/Idx1: 0
+                ObjectSync/Ch/Wire/Idx1: 1
                 ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 1
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/PZ/C
                 ObjectSync/Ch/Wire/Num1: Prop/PZ/F
@@ -373,16 +372,15 @@ layers:
         motion: ~
         transitions:
           - { to: Send3, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 4/12 = batch 4/6: Prop/RA/X, Prop/RA/Y, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
+      # counter 4/6 = batch 4/6: Prop/RA/X, Prop/RA/Y, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
       Send3:
         motion: ~
         behaviours:
           - driver:
               set:
-                ObjectSync/Ch/Wire/Idx0: 0
-                ObjectSync/Ch/Wire/Idx1: 1
+                ObjectSync/Ch/Wire/Idx0: 1
+                ObjectSync/Ch/Wire/Idx1: 0
                 ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 0
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/RA/X
                 ObjectSync/Ch/Wire/Num1: Prop/RA/Y
@@ -400,16 +398,15 @@ layers:
         motion: ~
         transitions:
           - { to: Send4, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 5/12 = batch 5/6: Prop/RA/Z, Prop/RB/X, Prop/RA/Z/B0, Prop/RA/Z/B1, Prop/RA/Z/B2, Prop/RA/Z/B3, Prop/RB/X/B0, Prop/RB/X/B1, Prop/RB/X/B2, Prop/RB/X/B3
+      # counter 5/6 = batch 5/6: Prop/RA/Z, Prop/RB/X, Prop/RA/Z/B0, Prop/RA/Z/B1, Prop/RA/Z/B2, Prop/RA/Z/B3, Prop/RB/X/B0, Prop/RB/X/B1, Prop/RB/X/B2, Prop/RB/X/B3
       Send4:
         motion: ~
         behaviours:
           - driver:
               set:
-                ObjectSync/Ch/Wire/Idx0: 0
-                ObjectSync/Ch/Wire/Idx1: 1
-                ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 1
+                ObjectSync/Ch/Wire/Idx0: 1
+                ObjectSync/Ch/Wire/Idx1: 0
+                ObjectSync/Ch/Wire/Idx2: 1
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/RA/Z
                 ObjectSync/Ch/Wire/Num1: Prop/RB/X
@@ -427,16 +424,15 @@ layers:
         motion: ~
         transitions:
           - { to: Send5, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 6/12 = batch 6/6: Prop/RB/Y, Prop/RB/Z, Prop/RB/Y/B0, Prop/RB/Y/B1, Prop/RB/Y/B2, Prop/RB/Y/B3, Prop/RB/Z/B0, Prop/RB/Z/B1, Prop/RB/Z/B2, Prop/RB/Z/B3
+      # counter 6/6 = batch 6/6: Prop/RB/Y, Prop/RB/Z, Prop/RB/Y/B0, Prop/RB/Y/B1, Prop/RB/Y/B2, Prop/RB/Y/B3, Prop/RB/Z/B0, Prop/RB/Z/B1, Prop/RB/Z/B2, Prop/RB/Z/B3
       Send5:
         motion: ~
         behaviours:
           - driver:
               set:
-                ObjectSync/Ch/Wire/Idx0: 0
+                ObjectSync/Ch/Wire/Idx0: 1
                 ObjectSync/Ch/Wire/Idx1: 1
-                ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 0
+                ObjectSync/Ch/Wire/Idx2: 0
               copy:
                 ObjectSync/Ch/Wire/Num0: Prop/RB/Y
                 ObjectSync/Ch/Wire/Num1: Prop/RB/Z
@@ -453,187 +449,16 @@ layers:
       Extra5:
         motion: ~
         transitions:
-          - { to: Send6, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 7/12 = batch 1/6: Prop/PX/C, Prop/PX/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3
-      Send6:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 0
-                ObjectSync/Ch/Wire/Idx1: 1
-                ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 1
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/PX/C
-                ObjectSync/Ch/Wire/Num1: Prop/PX/F
-                ObjectSync/Ch/Wire/Bool0: Prop/PX/C0
-                ObjectSync/Ch/Wire/Bool1: Prop/PX/C1
-                ObjectSync/Ch/Wire/Bool2: Prop/PX/C2
-                ObjectSync/Ch/Wire/Bool3: Prop/PX/C3
-                ObjectSync/Ch/Wire/Bool4: Prop/PX/C4
-                ObjectSync/Ch/Wire/Bool5: Prop/PX/F0
-                ObjectSync/Ch/Wire/Bool6: Prop/PX/F1
-                ObjectSync/Ch/Wire/Bool7: Prop/PX/F2
-                ObjectSync/Ch/Wire/Bool8: Prop/PX/F3
-        transitions:
-          - { to: Extra6, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra6:
-        motion: ~
-        transitions:
-          - { to: Send7, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 8/12 = batch 2/6: Prop/PY/C, Prop/PY/F, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
-      Send7:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 0
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/PY/C
-                ObjectSync/Ch/Wire/Num1: Prop/PY/F
-                ObjectSync/Ch/Wire/Bool0: Prop/PY/C0
-                ObjectSync/Ch/Wire/Bool1: Prop/PY/C1
-                ObjectSync/Ch/Wire/Bool2: Prop/PY/C2
-                ObjectSync/Ch/Wire/Bool3: Prop/PY/C3
-                ObjectSync/Ch/Wire/Bool4: Prop/PY/C4
-                ObjectSync/Ch/Wire/Bool5: Prop/PY/F0
-                ObjectSync/Ch/Wire/Bool6: Prop/PY/F1
-                ObjectSync/Ch/Wire/Bool7: Prop/PY/F2
-                ObjectSync/Ch/Wire/Bool8: Prop/PY/F3
-        transitions:
-          - { to: Extra7, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra7:
-        motion: ~
-        transitions:
-          - { to: Send8, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 9/12 = batch 3/6: Prop/PZ/C, Prop/PZ/F, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3
-      Send8:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 1
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/PZ/C
-                ObjectSync/Ch/Wire/Num1: Prop/PZ/F
-                ObjectSync/Ch/Wire/Bool0: Prop/PZ/C0
-                ObjectSync/Ch/Wire/Bool1: Prop/PZ/C1
-                ObjectSync/Ch/Wire/Bool2: Prop/PZ/C2
-                ObjectSync/Ch/Wire/Bool3: Prop/PZ/C3
-                ObjectSync/Ch/Wire/Bool4: Prop/PZ/C4
-                ObjectSync/Ch/Wire/Bool5: Prop/PZ/F0
-                ObjectSync/Ch/Wire/Bool6: Prop/PZ/F1
-                ObjectSync/Ch/Wire/Bool7: Prop/PZ/F2
-                ObjectSync/Ch/Wire/Bool8: Prop/PZ/F3
-        transitions:
-          - { to: Extra8, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra8:
-        motion: ~
-        transitions:
-          - { to: Send9, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 10/12 = batch 4/6: Prop/RA/X, Prop/RA/Y, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
-      Send9:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 0
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/RA/X
-                ObjectSync/Ch/Wire/Num1: Prop/RA/Y
-                ObjectSync/Ch/Wire/Bool0: Prop/RA/X/B0
-                ObjectSync/Ch/Wire/Bool1: Prop/RA/X/B1
-                ObjectSync/Ch/Wire/Bool2: Prop/RA/X/B2
-                ObjectSync/Ch/Wire/Bool3: Prop/RA/X/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RA/Y/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RA/Y/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RA/Y/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RA/Y/B3
-        transitions:
-          - { to: Extra9, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra9:
-        motion: ~
-        transitions:
-          - { to: Send10, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 11/12 = batch 5/6: Prop/RA/Z, Prop/RB/X, Prop/RA/Z/B0, Prop/RA/Z/B1, Prop/RA/Z/B2, Prop/RA/Z/B3, Prop/RB/X/B0, Prop/RB/X/B1, Prop/RB/X/B2, Prop/RB/X/B3
-      Send10:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 0
-                ObjectSync/Ch/Wire/Idx2: 1
-                ObjectSync/Ch/Wire/Idx3: 1
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/RA/Z
-                ObjectSync/Ch/Wire/Num1: Prop/RB/X
-                ObjectSync/Ch/Wire/Bool0: Prop/RA/Z/B0
-                ObjectSync/Ch/Wire/Bool1: Prop/RA/Z/B1
-                ObjectSync/Ch/Wire/Bool2: Prop/RA/Z/B2
-                ObjectSync/Ch/Wire/Bool3: Prop/RA/Z/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RB/X/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RB/X/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RB/X/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RB/X/B3
-        transitions:
-          - { to: Extra10, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra10:
-        motion: ~
-        transitions:
-          - { to: Send11, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 12/12 = batch 6/6: Prop/RB/Y, Prop/RB/Z, Prop/RB/Y/B0, Prop/RB/Y/B1, Prop/RB/Y/B2, Prop/RB/Y/B3, Prop/RB/Z/B0, Prop/RB/Z/B1, Prop/RB/Z/B2, Prop/RB/Z/B3
-      Send11:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Ch/Wire/Idx0: 1
-                ObjectSync/Ch/Wire/Idx1: 1
-                ObjectSync/Ch/Wire/Idx2: 0
-                ObjectSync/Ch/Wire/Idx3: 0
-              copy:
-                ObjectSync/Ch/Wire/Num0: Prop/RB/Y
-                ObjectSync/Ch/Wire/Num1: Prop/RB/Z
-                ObjectSync/Ch/Wire/Bool0: Prop/RB/Y/B0
-                ObjectSync/Ch/Wire/Bool1: Prop/RB/Y/B1
-                ObjectSync/Ch/Wire/Bool2: Prop/RB/Y/B2
-                ObjectSync/Ch/Wire/Bool3: Prop/RB/Y/B3
-                ObjectSync/Ch/Wire/Bool4: Prop/RB/Z/B0
-                ObjectSync/Ch/Wire/Bool5: Prop/RB/Z/B1
-                ObjectSync/Ch/Wire/Bool6: Prop/RB/Z/B2
-                ObjectSync/Ch/Wire/Bool7: Prop/RB/Z/B3
-        transitions:
-          - { to: Extra11, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
-      Extra11:
-        motion: ~
-        transitions:
           - { to: Send0, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
       Lost:
         motion: ~
         transitions:
-          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }   # re-acquire at any exact counter value (batch applies need no coherent loop)
-          - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Recv6, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Recv7, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Recv8, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Recv9, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Recv10, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Recv11, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
+          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }   # re-acquire at any exact counter value (batch applies need no coherent loop)
+          - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
       Recv0:
         motion: ~
         behaviours:
@@ -651,11 +476,10 @@ layers:
                 Prop/PX/F2: ObjectSync/Ch/Wire/Bool7
                 Prop/PX/F3: ObjectSync/Ch/Wire/Bool8
         transitions:
-          - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
+          - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
       Recv1:
         motion: ~
         behaviours:
@@ -673,10 +497,9 @@ layers:
                 Prop/PY/F2: ObjectSync/Ch/Wire/Bool7
                 Prop/PY/F3: ObjectSync/Ch/Wire/Bool8
         transitions:
-          - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
+          - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false ] }
       Recv2:
         motion: ~
         behaviours:
@@ -694,14 +517,13 @@ layers:
                 Prop/PZ/F2: ObjectSync/Ch/Wire/Bool7
                 Prop/PZ/F3: ObjectSync/Ch/Wire/Bool8
         transitions:
-          - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
+          - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
       Recv3:
         motion: ~
         behaviours:
@@ -718,10 +540,9 @@ layers:
                 Prop/RA/Y/B2: ObjectSync/Ch/Wire/Bool6
                 Prop/RA/Y/B3: ObjectSync/Ch/Wire/Bool7
         transitions:
-          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Recv4, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
       Recv4:
         motion: ~
         behaviours:
@@ -738,11 +559,10 @@ layers:
                 Prop/RB/X/B2: ObjectSync/Ch/Wire/Bool6
                 Prop/RB/X/B3: ObjectSync/Ch/Wire/Bool7
         transitions:
-          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
+          - { to: Recv5, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
       Recv5:
         motion: ~
         behaviours:
@@ -761,153 +581,13 @@ layers:
           - driver:
               add: { ObjectSync/Ch/Cycle: 1 }
         transitions:
-          - { to: Recv6, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false ] }
-      Recv6:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/PX/C: ObjectSync/Ch/Wire/Num0
-                Prop/PX/F: ObjectSync/Ch/Wire/Num1
-                Prop/PX/C0: ObjectSync/Ch/Wire/Bool0
-                Prop/PX/C1: ObjectSync/Ch/Wire/Bool1
-                Prop/PX/C2: ObjectSync/Ch/Wire/Bool2
-                Prop/PX/C3: ObjectSync/Ch/Wire/Bool3
-                Prop/PX/C4: ObjectSync/Ch/Wire/Bool4
-                Prop/PX/F0: ObjectSync/Ch/Wire/Bool5
-                Prop/PX/F1: ObjectSync/Ch/Wire/Bool6
-                Prop/PX/F2: ObjectSync/Ch/Wire/Bool7
-                Prop/PX/F3: ObjectSync/Ch/Wire/Bool8
-        transitions:
-          - { to: Recv7, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-      Recv7:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/PY/C: ObjectSync/Ch/Wire/Num0
-                Prop/PY/F: ObjectSync/Ch/Wire/Num1
-                Prop/PY/C0: ObjectSync/Ch/Wire/Bool0
-                Prop/PY/C1: ObjectSync/Ch/Wire/Bool1
-                Prop/PY/C2: ObjectSync/Ch/Wire/Bool2
-                Prop/PY/C3: ObjectSync/Ch/Wire/Bool3
-                Prop/PY/C4: ObjectSync/Ch/Wire/Bool4
-                Prop/PY/F0: ObjectSync/Ch/Wire/Bool5
-                Prop/PY/F1: ObjectSync/Ch/Wire/Bool6
-                Prop/PY/F2: ObjectSync/Ch/Wire/Bool7
-                Prop/PY/F3: ObjectSync/Ch/Wire/Bool8
-        transitions:
-          - { to: Recv8, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true ] }
-      Recv8:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/PZ/C: ObjectSync/Ch/Wire/Num0
-                Prop/PZ/F: ObjectSync/Ch/Wire/Num1
-                Prop/PZ/C0: ObjectSync/Ch/Wire/Bool0
-                Prop/PZ/C1: ObjectSync/Ch/Wire/Bool1
-                Prop/PZ/C2: ObjectSync/Ch/Wire/Bool2
-                Prop/PZ/C3: ObjectSync/Ch/Wire/Bool3
-                Prop/PZ/C4: ObjectSync/Ch/Wire/Bool4
-                Prop/PZ/F0: ObjectSync/Ch/Wire/Bool5
-                Prop/PZ/F1: ObjectSync/Ch/Wire/Bool6
-                Prop/PZ/F2: ObjectSync/Ch/Wire/Bool7
-                Prop/PZ/F3: ObjectSync/Ch/Wire/Bool8
-        transitions:
-          - { to: Recv9, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-      Recv9:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RA/X: ObjectSync/Ch/Wire/Num0
-                Prop/RA/Y: ObjectSync/Ch/Wire/Num1
-                Prop/RA/X/B0: ObjectSync/Ch/Wire/Bool0
-                Prop/RA/X/B1: ObjectSync/Ch/Wire/Bool1
-                Prop/RA/X/B2: ObjectSync/Ch/Wire/Bool2
-                Prop/RA/X/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RA/Y/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RA/Y/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RA/Y/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RA/Y/B3: ObjectSync/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv10, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false ] }
-      Recv10:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RA/Z: ObjectSync/Ch/Wire/Num0
-                Prop/RB/X: ObjectSync/Ch/Wire/Num1
-                Prop/RA/Z/B0: ObjectSync/Ch/Wire/Bool0
-                Prop/RA/Z/B1: ObjectSync/Ch/Wire/Bool1
-                Prop/RA/Z/B2: ObjectSync/Ch/Wire/Bool2
-                Prop/RA/Z/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RB/X/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RB/X/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RB/X/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RB/X/B3: ObjectSync/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv11, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
-      Recv11:
-        motion: ~
-        behaviours:
-          - driver:
-              copy:
-                Prop/RB/Y: ObjectSync/Ch/Wire/Num0
-                Prop/RB/Z: ObjectSync/Ch/Wire/Num1
-                Prop/RB/Y/B0: ObjectSync/Ch/Wire/Bool0
-                Prop/RB/Y/B1: ObjectSync/Ch/Wire/Bool1
-                Prop/RB/Y/B2: ObjectSync/Ch/Wire/Bool2
-                Prop/RB/Y/B3: ObjectSync/Ch/Wire/Bool3
-                Prop/RB/Z/B0: ObjectSync/Ch/Wire/Bool4
-                Prop/RB/Z/B1: ObjectSync/Ch/Wire/Bool5
-                Prop/RB/Z/B2: ObjectSync/Ch/Wire/Bool6
-                Prop/RB/Z/B3: ObjectSync/Ch/Wire/Bool7
-          - driver:
-              add: { ObjectSync/Ch/Cycle: 1 }
-        transitions:
-          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is true ] }
     default: Split
     layout:
       nodes:
@@ -931,24 +611,6 @@ layers:
         Send5: [-330, 710]
         Extra5: [-570, 710]
         Recv5: [270, 710]
-        Send6: [-330, 800]
-        Extra6: [-570, 800]
-        Recv6: [270, 800]
-        Send7: [-330, 890]
-        Extra7: [-570, 890]
-        Recv7: [270, 890]
-        Send8: [-330, 980]
-        Extra8: [-570, 980]
-        Recv8: [270, 980]
-        Send9: [-330, 1070]
-        Extra9: [-570, 1070]
-        Recv9: [270, 1070]
-        Send10: [-330, 1160]
-        Extra10: [-570, 1160]
-        Recv10: [270, 1160]
-        Send11: [-330, 1250]
-        Extra11: [-570, 1250]
-        Recv11: [270, 1250]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
