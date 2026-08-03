@@ -307,7 +307,8 @@ def rot_groups(c, ob):
     readings is a stale orientation, never one no marker ever held. `y`'s two
     components are ONE value — a heading — and want the same adjacent-cell
     coherence a position axis wants, so they share a group when the slots can
-    hold it, and one producer-side commit whatever the slots do."""
+    hold it, and a commit barrier publishes both limbs in one frame whatever the
+    slots do."""
     o, mode = ob["name"], ob["rotation"]
     comps = rot_comps(mode)
     if mode == "y":
@@ -627,7 +628,11 @@ def build(c):
         for a in AXES:
             layers.append(position_walk(doc, c, d, ob, a, multi))
         for comps, lay in rot_walk_plan(c, ob):
-            layers.append(component_walk(doc, c, d, ob, comps, lay, multi))
+            for comp in comps:
+                layers.append(component_walk(doc, c, d, ob, comp, multi,
+                                             barrier=lay is not None))
+            if lay is not None:
+                layers.append(barrier_layer(doc, c, ob, comps, lay, multi))
 
     return {
         "header": header(c, d, facts, numbers, bools),
@@ -983,12 +988,13 @@ def slice_layer(doc, c):
 
 def max_walk_frames(c):
     pos = 2 + c["coarseBits"] + 1 + c["settleFrames"] + 1 + c["fineBits"] + 1
-    # A rotation layer costs Idle + per component (Start + one state per bit) +
-    # one handoff state between components + Commit. y mode walks its two
-    # heading components serially in one layer, so it is the long one.
-    rot = max([len(comps) * (c["rotBits"] + 2) + 1
-               for comps, _ in (r for ob in c["objects"]
-                                for r in rot_walk_plan(c, ob))] or [0])
+    # A rotation layer costs Idle + Start + one state per bit + its end state.
+    # Components walk in parallel whatever the mode; a barriered value pays two
+    # more frames (the barrier's own Commit, then the flag-lowered hop home).
+    rot = 2 + c["rotBits"] + 1
+    if any(lay is not None for ob in c["objects"]
+           for _, lay in rot_walk_plan(c, ob)):
+        rot += 2
     return max(pos, rot)
 
 
@@ -1089,18 +1095,17 @@ def liveness_audit(c, d):
                        "measurement anchor, which only a fresh coarse commit "
                        "moves, so a teleport out of the cell leaves this waiting "
                        "on a stage it cannot reach"})
-        for comps, lay in rot_walk_plan(c, ob):
-            for i, comp in enumerate(comps):
-                # Component 0 is gated at Idle, the entry to the whole layer;
-                # every later component at the `Hand` state that hands the serial
-                # walk over to it. Same source, same argument, one row each.
-                rows.append({
-                    "layer": lay,
-                    "state": "Idle" if i == 0 else f"Hand{i - 1}",
-                    "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
-                    "why": "self-restoring: the marker rides a rigid arm on a holder "
-                           "pinned to the rig and cannot leave its receiver's box, so "
-                           "a 0 means re-acquisition and nothing else"})
+        for comp in rot_comps(ob["rotation"]):
+            # One row per component walk, barriered or not: the barrier changes
+            # what the layer does at the END of its ladder, never how it enters.
+            # The barrier's own `Wait` is not a liveness site — it waits on a
+            # peer walk's staged-done flag, and that peer's entry is this row.
+            rows.append({
+                "layer": f"{p}/Enc/{o}/R{comp}", "state": "Idle",
+                "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
+                "why": "self-restoring: the marker rides a rigid arm on a holder "
+                       "pinned to the rig and cannot leave its receiver's box, so "
+                       "a 0 means re-acquisition and nothing else"})
         if multi:
             rows.append({
                 "layer": f"{p}/Slice", "state": f"Enter_{o}",
@@ -1237,98 +1242,127 @@ def position_walk(doc, c, d, ob, a, multi):
 
 
 def rot_walk_plan(c, ob):
-    """([components], layer name) per rotation walk layer.
+    """([components], barrier layer or None) per rotation value.
 
-    `y`'s two components are one heading, so they take ONE layer walked serially
-    into staging and committed together in a single frame — the same discipline a
-    position axis's coarse and fine halves get, and for the same reason: two
-    independent layers commit on their own clocks, so the wire can latch X from
-    one measure cycle and Z from the next and every client reconstructs an angle
-    the prop never held. `full`'s six components are independent readings from two
-    markers (`rot_groups`), so they keep a layer each."""
+    A rotation VALUE is what has to reach the wire in one piece. `full`'s six
+    components are six independent readings from two markers, so each is its own
+    value: its own walk layer, its own commit, and a torn set of them is a stale
+    orientation rather than one no marker held. `y`'s two components are one
+    value — a heading — so they walk in PARALLEL, as always, and hand their
+    staging to a commit barrier that publishes all 24 bits in one frame
+    (`barrier_layer`).
+
+    Parallel-plus-barrier, not one serial walk: serializing would add a whole
+    component's ladder (~0.2 s) to every measure cycle of the y configuration to
+    close a window worth ~1.7% of commits (measured — see the README), on a
+    display already a second behind. The barrier costs two frames and two scratch
+    bools."""
     o, mode = ob["name"], ob["rotation"]
     comps = rot_comps(mode)
     if mode == "y":
         return [(list(comps), f"{c['prefix']}/Enc/{o}/Ry")]
-    return [([comp], f"{c['prefix']}/Enc/{o}/R{comp}") for comp in comps]
+    return [([comp], None) for comp in comps]
 
 
-def rot_walk_names(comps, i):
-    """Per-component state/tag names. A lone component keeps the unindexed
-    spelling, so a full-mode layer is emitted exactly as it always was."""
-    if len(comps) == 1:
-        return "Start", "R"
-    return f"Start{i}", f"R{i}"
+def done_flag(c, ob, comp):
+    return f"{c['prefix']}/RDone/{ob['name']}/R{comp}"
 
 
-def component_walk(doc, c, d, ob, comps, lay, multi):
-    """One rotation walk layer: each component read, walked MSB-first into its
-    own staging, and — where the layer carries several — the next one entered
-    only after the current one's ladder has run out. One `Commit` state then
-    driver-copies every component's byte and bool tail in a single frame, so
-    word-channel's sender can never latch a half-measured value."""
+def component_walk(doc, c, d, ob, comp, multi, barrier=False):
+    """One marker component, one layer. Both rotation modes use this walk
+    unchanged — `y` is `full` with four of the six components dropped.
+
+    `barrier` swaps the layer's own `Commit` for a `Done` state that raises this
+    component's staged-done flag and waits for `barrier_layer` to lower it. The
+    walk itself is identical, so nothing about the measure cycle changes."""
     p, o = c["prefix"], ob["name"]
-    stages, senses = [], []
-    for comp in comps:
-        st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
-        doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
-        doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
-        rbools = [f"{st}/B{j}" for j in range(c["rotBits"] - 8)]
-        for nm in rbools:
-            doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
-        stages.append((st, res, rbools))
-        senses.append(sense_param(doc, c, f"{p}/Sense/{o}/R{comp}"))
+    lay = f"{p}/Enc/{o}/R{comp}"
+    st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
+    doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
+    doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
+    rbools = [f"{st}/B{j}" for j in range(c["rotBits"] - 8)]
+    for nm in rbools:
+        doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
+    plan = bit_plan(c["rotBits"], st, rbools)
+    clear = dict({st: 0}, **{b: 0 for b in rbools})
+    flag = done_flag(c, ob, comp) if barrier else None
+    if flag:
+        doc.param(f"  {flag}: {{ type: bool, scratch: true }}", flag)
 
     out = [f"  - name: {lay}", "    states:"]
-    extras = ["Idle", "Commit"]
-    if len(comps) == 1:
-        extras += ["Start", "Parked"]
-    else:
-        extras += ["Parked"] + [rot_walk_names(comps, i)[0] for i in range(len(comps))]
-        extras += [f"Hand{i}" for i in range(len(comps) - 1)]
-    enter = gate(c, ob, multi) + live(d, [senses[0]])
+    end = "Done" if barrier else "Commit"
+    extras = ["Idle", end, "Start", "Parked"]
+    sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
+    enter = gate(c, ob, multi) + live(d, [sr])
     out.extend(state("Idle", None,
-                     [f"{{ to: {rot_walk_names(comps, 0)[0]}, "
-                      f"when: [ {', '.join(enter)} ] }}"]))
-    rows = []
-    for i, comp in enumerate(comps):
-        st, res, rbools = stages[i]
-        start, tag = rot_walk_names(comps, i)
-        last = i + 1 == len(comps)
-        out.extend(state(start, driver(
-            sets=dict({st: 0}, **{b: 0 for b in rbools}),
-            copies={res: f"{{ source: {senses[i]}, sourceMin: {num(d['rotMin'])}, "
-                         f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
-            walk_rungs(res, 0, f"{tag}0A", f"{tag}0R")))
-        rows += emit_walk(tag, c["rotBits"], res,
-                          bit_plan(c["rotBits"], st, rbools), None, out,
-                          "Commit" if last else f"Hand{i}", f"{p}/True")
-        if not last:
-            # The handoff carries the NEXT component's liveness gate, the same
-            # precondition Idle carries for the first: a receiver that has not
-            # re-acquired reads exactly 0, which is a legal-looking component.
-            # Self-restoring like every marker wait — the arm cannot leave the box.
-            out.extend(state(
-                f"Hand{i}", None,
-                [f"{{ to: {rot_walk_names(comps, i + 1)[0]}, "
-                 f"when: [ {', '.join(live(d, [senses[i + 1]]))} ] }}"]))
-    commit = {}
-    for comp, (st, _, _) in zip(comps, stages):
-        commit[f"{o}/R{comp}"] = st
+                     [f"{{ to: Start, when: [ {', '.join(enter)} ] }}"]))
+    out.extend(state("Start", driver(
+        sets=clear,
+        copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
+                     f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
+        walk_rungs(res, 0, "R0A", "R0R")))
+    rows = emit_walk("R", c["rotBits"], res, plan, None, out, end, f"{p}/True")
+    if barrier:
+        # Raise the flag and hold. The wait ends when the barrier lowers it,
+        # which happens as soon as the sibling component's walk also finishes —
+        # a wait on the peer, not on a receiver, so it is not a liveness site and
+        # needs no escape: the peer's own liveness gate is the self-restoring one
+        # (`liveness_audit`), and a peer that never wakes leaves the wire holding
+        # its last committed heading, which is this entry's declared failure.
+        out.extend(state("Done", driver(sets={flag: 1}),
+                         [f"{{ to: Idle, when: [ {flag} is false ] }}"]))
+    else:
+        commit = {f"{o}/R{comp}": st}
         for j in range(c["rotBits"] - 8):
             commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
-    out.extend(state("Commit", driver(copies=commit),
-                     [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
-    park = {}
-    for (st, res, rbools), sr in zip(stages, senses):
-        park[st] = 0
-        park.update({b: 0 for b in rbools})
-        park.update({res: 0, sr: 0})
+        out.extend(state("Commit", driver(copies=commit),
+                         [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
+    park = dict(clear, **{res: 0, sr: 0})
+    if flag:
+        park[flag] = 0
     out.extend(state("Parked", driver(sets=park),
                      [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
     out.extend(off_ladder(c, ob, multi))
     out.append("    default: Idle")
     out.extend(walk_layout(rows, extras))
+    return out
+
+
+def barrier_layer(doc, c, ob, comps, lay, multi):
+    """The commit barrier for a multi-component rotation value.
+
+    Two states. `Wait` holds until every component has raised its staged-done
+    flag; `Commit` copies all of their bytes and bool tails into the word params
+    in ONE driver frame and lowers the flags, releasing the walks. The walks are
+    the same length and start together, so the barrier costs one frame of waiting
+    plus one commit frame — not a component's worth of ladder.
+
+    `Wait` carries the same `gate()` the walks do, deliberately: on the frame
+    Enable (or the slice) drops, the walks' Parked drivers clear staging in that
+    same frame, and a barrier that fired on the previous frame's flags would
+    publish the cleared staging — which decodes to cell 0, the corner of the
+    range. Both sides read one Enable value per frame, so gating here is what
+    makes that race impossible rather than merely unlikely."""
+    p, o = c["prefix"], ob["name"]
+    flags = [done_flag(c, ob, x) for x in comps]
+    commit = {}
+    for x in comps:
+        st = f"{p}/S/{o}/R{x}"
+        commit[f"{o}/R{x}"] = st
+        for j in range(c["rotBits"] - 8):
+            commit[f"{o}/R{x}/B{j}"] = f"{st}/B{j}"
+    ready = gate(c, ob, multi) + [f"{f} is true" for f in flags]
+    out = [f"  - name: {lay}", "    states:"]
+    out.extend(state("Wait", None,
+                     [f"{{ to: Commit, when: [ {', '.join(ready)} ] }}"]))
+    out.extend(state("Commit",
+                     driver(sets={f: 0 for f in flags}, copies=commit),
+                     [f"{{ to: Wait, when: [ {p}/True is true ] }}"]))
+    out.append("    default: Wait")
+    out.extend(["    layout:", "      nodes:",
+                "        Wait:   [30, 180]", "        Commit: [270, 180]",
+                "      entry: [50, 120]", "      any:   [50, 40]",
+                "      exit:  [50, 80]"])
     return out
 
 
@@ -1467,6 +1501,7 @@ def check():
 
     for label, cfg in preset_configs().items():
         print(f"[{label}]")
+        pf = cfg["prefix"]
         text, f = document(cfg)
         text2, _ = document(cfg)
         assert_(text == text2, "regeneration is byte-identical")
@@ -1509,24 +1544,43 @@ def check():
                 names += [f"{ob['name']}/P{a}/F{j}" for j in range(cfg["fineBits"] - 8)]
                 assert_(one_driver_has(rung_block(text, lay), names),
                         f"{ob['name']}/P{a}: all {len(names)} words in one commit driver")
-            # One commit driver per WALK LAYER, not per component: y mode's two
-            # heading components are one value and must land on the wire in one
-            # frame, or a client reconstructs an angle from two measure cycles.
+            # One commit driver per rotation VALUE, not per component: y mode's
+            # two heading components are one value, so all 24 bits leave in one
+            # frame or a client reconstructs an angle from two measure cycles.
+            # Where a barrier owns that commit, the probe runs on the BARRIER's
+            # block and the component walks must carry no word write at all.
             for comps, lay in rot_walk_plan(cfg, ob):
                 names = []
                 for comp in comps:
                     names.append(f"{ob['name']}/R{comp}")
                     names += [f"{ob['name']}/R{comp}/B{j}"
                               for j in range(cfg["rotBits"] - 8)]
-                assert_(one_driver_has(rung_block(text, lay), names),
-                        f"{lay}: all {len(names)} words of "
+                where = lay or f"{pf}/Enc/{ob['name']}/R{comps[0]}"
+                assert_(one_driver_has(rung_block(text, where), names),
+                        f"{where}: all {len(names)} words of "
                         f"{len(comps)} component(s) in one commit driver")
-            if ob["rotation"] == "y":
-                assert_(len([ln for ln in text.splitlines()
-                             if ln.startswith(f"  - name: {cfg['prefix']}/Enc/"
-                                              f"{ob['name']}/R")]) == 1,
-                        f"{ob['name']}: the heading is ONE serial walk layer, not "
-                        "one per component")
+                if lay is None:
+                    continue
+                for comp in comps:
+                    wlay = rung_block(text, f"{pf}/Enc/{ob['name']}/R{comp}")
+                    wrote = [dst for op, dst, _ in driver_ops(wlay)
+                             if dst.startswith(f"{ob['name']}/R")]
+                    assert_(not wrote,
+                            f"{ob['name']}/R{comp}: the walk stages only — no word "
+                            f"write outside the barrier ({wrote[:2]})")
+                    assert_(f"{done_flag(cfg, ob, comp)}: 1" in wlay,
+                            f"{ob['name']}/R{comp}: the walk ends by raising its "
+                            "staged-done flag")
+                # The barrier fires only with every flag up AND the gate, so the
+                # frame Enable drops cannot publish just-cleared staging.
+                bw = rung_text(text, lay, "Wait")
+                assert_(all(f"{done_flag(cfg, ob, x)} is true" in bw for x in comps)
+                        and f"{pf}/Enable greater 0.5" in bw,
+                        f"{lay}: Wait releases only on every staged-done flag "
+                        "plus the enable gate")
+                assert_(all(f"{done_flag(cfg, ob, x)}: 0" in rung_block(text, lay)
+                            for x in comps),
+                        f"{lay}: Commit lowers every flag, releasing the walks")
 
         # Negative control: the assertion above must be able to fail.
         assert_(not one_driver_has(text, [cfg["objects"][0]["name"] + "/PX/C",
@@ -1573,7 +1627,6 @@ def check():
         # The enable: a lone synced bit, a bare Toggle on it, and a Parked state
         # in every layer that measures — which clears what a deactivated sensing
         # component would otherwise leave frozen at its last live reading.
-        pf = cfg["prefix"]
         assert_(f"  {pf}/Enable: {{ type: float, default: 0, "
                 "vrc: { type: bool, synced: true, saved: false }" in text,
                 "Enable is a float in the animator and a synced unsaved bool on the wire")
@@ -1582,10 +1635,18 @@ def check():
                 "menu block carries one Toggle bound to Enable")
         enc = [ln.split("- name: ")[1] for ln in text.splitlines()
                if "  - name: " + pf in ln and ("/Enable" not in ln)]
-        measuring = [n for n in enc if "/Enc/" in n or n.endswith("/Slice")]
+        # Barrier layers are exempt by construction: they stage nothing, so a
+        # Parked driver would have nothing to clear, and their `Wait` carries the
+        # enable gate instead — the stronger guarantee, since that is what stops
+        # a commit firing on the frame the walks clear their staging.
+        barriers = {lay for ob in cfg["objects"]
+                    for _, lay in rot_walk_plan(cfg, ob) if lay is not None}
+        measuring = [n for n in enc
+                     if ("/Enc/" in n or n.endswith("/Slice")) and n not in barriers]
         assert_(text.count("- { to: Parked, when: [ " + pf + "/Enable less 0.5 ], "
                            "canTransitionToSelf: false }") == len(measuring),
-                f"all {len(measuring)} measuring layers park on Enable false")
+                f"all {len(measuring)} measuring layers park on Enable false "
+                f"({len(barriers)} barrier layer(s) exempt — they gate instead)")
         assert_("Off:" not in text and "to: Off" not in text,
                 "the parked state is not named Off (a bare Off infers as false)")
         for ob in cfg["objects"]:
@@ -1605,16 +1666,20 @@ def check():
         # Commit whose staging was cleared and never recomputed.
         for ob in cfg["objects"]:
             o = ob["name"]
-            for lay, last in ([(f"{pf}/Enc/{o}/P{a}", f"F{cfg['fineBits'] - 1}")
-                               for a in AXES] +
-                              [(lay,
-                                rot_walk_names(comps, len(comps) - 1)[1]
-                                + str(cfg["rotBits"] - 1))
-                               for comps, lay in rot_walk_plan(cfg, ob)]):
+            # A barriered walk ends at `Done` instead of `Commit`; the property is
+            # the same one — the end state is reachable only by walking every bit.
+            barriered = {c for comps, lay in rot_walk_plan(cfg, ob)
+                         if lay is not None for c in comps}
+            plan = [(f"{pf}/Enc/{o}/P{a}", f"F{cfg['fineBits'] - 1}", "Commit")
+                    for a in AXES]
+            plan += [(f"{pf}/Enc/{o}/R{comp}", f"R{cfg['rotBits'] - 1}",
+                      "Done" if comp in barriered else "Commit")
+                     for comp in rot_comps(ob["rotation"])]
+            for lay, last, end in plan:
                 tr = transitions_of(text, lay)
-                into = {s for s, tg in tr.items() if "Commit" in tg}
+                into = {s for s, tg in tr.items() if end in tg}
                 assert_(into == {last + "A", last + "R"},
-                        f"{lay}: Commit reachable only from the final walk pair "
+                        f"{lay}: {end} reachable only from the final walk pair "
                         f"({sorted(into)})")
                 assert_(tr.get("Parked") == ["Idle"],
                         f"{lay}: Parked exits only to Idle ({tr.get('Parked')})")
