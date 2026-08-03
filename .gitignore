@@ -12,3 +12,6 @@ tools/gate.log.meta
 
 # Python bytecode from the entry generators
 __pycache__/
+
+# Unity generates .meta for the generators' bytecode dirs; the dirs themselves are ignored above
+__pycache__.meta
