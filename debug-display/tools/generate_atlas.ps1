@@ -70,8 +70,11 @@ param(
   # the cell's usable 22x28 with a 1px margin.
   [double]$Size = 34.22,
   # Font::sdf() computes atlas_offset_px.y as atlas_size_px.y - cell_size_px.y * (row + 1), i.e. glyph
-  # ID 0 sits in the TOP-left cell. Verified against the emitted image, not assumed.
-  [ValidateSet("top","bottom")][string]$YOrigin = "top"
+  # `bottom` is what built the committed atlas, and the default must match it: it puts glyph ID 0 in the
+  # TOP-left cell (verified against the emitted image, not assumed), which is what Font::sdf() assumes,
+  # AND it reports the metrics in the positive convention the shader's constants are written in --
+  # `top` returns a negative ascender and inverted plane bounds.
+  [ValidateSet("top","bottom")][string]$YOrigin = "bottom"
 )
 $ErrorActionPreference = "Stop"
 
@@ -158,4 +161,22 @@ if ($first) {
 Write-Host ("  ascender_em              = {0}" -f $meta.metrics.ascender)
 Write-Host ("  line_height_em           = {0}" -f $meta.metrics.lineHeight)
 Write-Host "[atlas] --- also VERIFY glyph 0 sits in the TOP-left cell (Font::sdf assumes it) ---"
+
+# Bind the committed PNG to the charset it was generated FROM.
+#
+# The codepoint-ascending invariant is tested on both sides, but nothing tied the ATLAS to the table --
+# the PNG is itself a second copy of the charset, in image form, in another repo. Slots pinned only by
+# ordinal rank could therefore be swapped for another character of the same rank ('~' U+007E -> '}'
+# U+007D) with every test still green, the shader still compiling, and SetDisplayEntry encoding an ID the
+# atlas draws as something else. This digest is what the gate compares against, closing the last echo in
+# the format that had only discipline behind it.
+$sha = [System.Security.Cryptography.SHA256]::Create()
+$digest = ($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($charset)) |
+           ForEach-Object { $_.ToString("x2") }) -join ""
+$sha.Dispose()
+$digestPath = Join-Path $OutDir "GlyphAtlas.charset.sha256"
+Set-Content -Path $digestPath -Value $digest -Encoding ASCII -NoNewline
+Write-Host "[atlas] charset digest -> $digestPath"
+Write-Host "[atlas]   $digest"
+
 Remove-Item $charsetFile -ErrorAction SilentlyContinue

@@ -185,11 +185,15 @@ void dd_unpack_format(float packed, out uint decimals, out uint palette, out uin
 
 // ── Value formatting ────────────────────────────────────────────────────────────────────────────────
 
+// Bounded at 10^9 -- the largest power of ten a uint holds (10^10 exceeds 2^32). The bound is
+// load-bearing, not defensive: at 6u this saturated, so dd_digit_count scored four spurious increments
+// for any value >= 10^6 (1234567 counted as 10 digits) and every place value at index >= 6 read the
+// millions digit, printing 1234567 as 1111234567. Mirrors DisplayGlyphs.Pow10.
 uint dd_pow10(uint k)
 {
     uint r = 1u;
     [unroll]
-    for (uint i = 0u; i < 6u; i++) { if (i < k) r *= 10u; }
+    for (uint i = 0u; i < 9u; i++) { if (i < k) r *= 10u; }
     return r;
 }
 
@@ -199,6 +203,13 @@ uint dd_digit_count(uint v)
     [unroll]
     for (uint i = 0u; i < 9u; i++) { if (v >= dd_pow10(i + 1u)) d++; }
     return d;
+}
+
+uint dd_overflow_glyph(bool neg, int n)
+{
+    if (n == 0) return Font::infinity;
+    if (n == 1 && neg) return Font::minus;
+    return Font::space;
 }
 
 // Returns the glyph for column `n` of the value field, counted from the RIGHT (0 = rightmost).
@@ -223,18 +234,26 @@ uint dd_value_glyph_at(float value, uint decimals, int n)
     // The escape the ancestor had and an earlier draft of the spec dropped while keeping the constant.
     // Phrased as !(a < ceiling) so NaN lands here too -- every comparison against NaN is false, so a NaN
     // would otherwise reach (uint)NaN == 0 and print "0.00", which is a lie where a diagnostic belongs.
-    if (!(a < 16777216.0))
-    {
-        if (n == 0) return Font::infinity;
-        if (n == 1 && neg) return Font::minus;
-        return Font::space;
-    }
+    if (!(a < 16777216.0)) return dd_overflow_glyph(neg, n);
+
+    // decimals is a 3-bit field so it decodes 0..7, but only 0..5 is exact and TryPackFormat refuses
+    // above 5. A hand-edited or debug-inspector write could still land 6 or 7 here, so clamp to the same
+    // ceiling the C# side enforces rather than printing digits it cannot compute.
+    decimals = min(decimals, 5u);
 
     uint mult = dd_pow10(decimals);
     uint ip = (uint)floor(a);
     uint fp = (uint)floor(frac(a) * (float)mult + 0.5);
     // Rounding the fraction can carry: 1.999 at 2 decimals rounds to 2.00, not 1.100.
     if (fp >= mult) { fp -= mult; ip += 1u; }
+
+    // WIDTH, not just magnitude. The magnitude escape above says nothing about whether the RENDERED
+    // form fits DD_VALUE_GLYPHS columns, and the sign is emitted LAST (at m == digits) -- so without
+    // this an over-wide negative silently dropped its sign and printed a confident positive:
+    // -1234.5 at 5 decimals needs 11 columns and rendered "1234.50000".
+    uint digits = dd_digit_count(ip);
+    uint needed = digits + (decimals > 0u ? decimals + 1u : 0u) + (neg ? 1u : 0u);
+    if (needed > (uint)DD_VALUE_GLYPHS) return dd_overflow_glyph(neg, n);
 
     if (decimals > 0u)
     {
@@ -245,7 +264,6 @@ uint dd_value_glyph_at(float value, uint decimals, int n)
     // m == 0 is the units digit.
     int m = n - (int)decimals - (decimals > 0u ? 1 : 0);
     if (m < 0) return Font::space;
-    uint digits = dd_digit_count(ip);
     if (m < (int)digits) return Font::zero + ((ip / dd_pow10((uint)m)) % 10u);
     if (m == (int)digits && neg) return Font::minus;
     return Font::space;

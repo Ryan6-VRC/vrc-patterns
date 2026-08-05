@@ -340,8 +340,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 if (cell_px.x >= value_left_px && cell_px.x < value_right_px)
                 {
                     int n = (int)floor((value_right_px - cell_px.x) / Font::advance_px);   // 0 = rightmost
-                    glyph = dd_value_glyph_at(value, decimals, n);
-                    x_in_advance = cell_px.x - (value_right_px - (float)(n + 1) * Font::advance_px);
+                    // The left bound is inclusive, so exactly on it the division yields n ==
+                    // DD_VALUE_GLYPHS -- one column past the field, which is the column the minus sign
+                    // wants. Bound n rather than widening the region: the same strict-vs-inclusive care
+                    // the col/row guard above takes, applied here too.
+                    if (n >= 0 && n < DD_VALUE_GLYPHS)
+                    {
+                        glyph = dd_value_glyph_at(value, decimals, n);
+                        x_in_advance = cell_px.x - (value_right_px - (float)(n + 1) * Font::advance_px);
+                    }
                 }
                 if (glyph == Font::space && cell_px.x < (float)DD_MAX_LABEL_CHARS * Font::advance_px)
                 {

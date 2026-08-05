@@ -33,7 +33,7 @@ Derived from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-
 
 **Required assets** — all shipped and self-contained: the shader, its `.hlsl`, the glyph atlas, two cubemaps, and `WorldCoords.mat`. The material has zero dependencies outside this entry.
 
-**Optional tool** — the `SetDisplayEntry` / `ReportDisplay` doors and the material inspector live in `vrc-unity-tools` (`com.ryan6vrc.avatar-tools`). Without it the entry still imports and renders; every property stays editable, but a label reads as a packed integer like `262143` and Unity logs one "Could not create a custom UI" warning per inspect.
+**Optional tool** — the `SetDisplayEntry` / `ReportDisplay` doors and the material inspector live in `vrc-unity-tools` (`com.ryan6vrc.avatar-tools`). Without it the entry still imports and renders unchanged, but it is **not fully configurable**: labels read as packed integers like `262143`, and `_E{i}_Format` is `[HideInInspector]`, so **decimals, right-pad, palette and value source are unreachable** short of a debug-inspector or YAML edit. Values, colours, grid dimensions and the mode enum stay editable. Unity also logs one "Could not create a custom UI" warning per inspect.
 
 ## Before you compose it
 
@@ -55,7 +55,7 @@ A managed echo of `DisplayGlyphs.cs` in `com.ryan6vrc.avatar-tools`, which is th
 | Label | 12 chars, 3 per `Vector` component | 4×6 = 24 bits is float32-exact but does **not** survive d4rk's text round-trip of material properties (`float.ToString()` is G7; 16777215 re-parses as 16777220, changing all four chars). 18 bits caps at 262143 — six digits, which survives |
 | Label default | `(262143, 262143, 262143, 262143)` | All-space. A zeroed vector decodes as glyph 0 twelve times and prints `++++++++++++` |
 | Format bitfield | decimals(3) palette(2) rpad(4) source(5), LSB-first | 14 bits, max 16383 — five digits, so G7-safe |
-| Value field | 10 glyphs | Integer part exact to 16,777,215; decimals always exact |
+| Value field | 10 glyphs | A value whose rendered form (digits + sign + point + decimals) exceeds 10 columns prints the overflow glyph rather than truncating — the sign is emitted last, so truncation would drop it and print a confident positive. Magnitude ceiling 16,777,215 (float32's exact-integer limit). Decimals are exact **where the input is**: splitting the parts removes the multiply's overflow, but `frac(a)` still inherits `a`'s own quantization, so at `_Time.y ≈ 1000` the last digits are noise |
 | Entries | 12 | A shader constant, not a preference: the fragment stage selects an entry with a `switch` over this many cases, and ShaderLab cannot declare a property array |
 | `_Total_Width` | glyph **advances** | Not metres. One advance is derived from `_Font_Size`, so a metre-valued width would silently rescale the layout every time the font size moved |
 
@@ -69,7 +69,7 @@ Compass convention is **ours**: azimuth 0° at world +Z increasing toward +X, ra
 
 **The cheapest observable:** drop the prefab on an avatar and look at the readout. If the three numbers track the wearer moving, it landed. If they read near `0.00 / 0.00 / 0.00` and stay there, the `BoneProxy` never resolved and the display is sitting at the avatar-root origin — the same wrong-looking-plausible reading the batching trap produces, so check the proxy's target before suspecting anything subtler.
 
-If the text is missing entirely but the mesh is visible, the material's atlas slot is empty. If the shell looks flat grey rather than glassy, its cubemap slot is empty — both fail quietly by design of the render pipeline, neither errors.
+If the text is missing entirely but the mesh is visible, the material's atlas slot is empty — **except in UV mode**, where a mesh with no UVs renders nothing on purpose, so check the mesh's `TEXCOORD0` before the slot. If the shell looks flat grey rather than glassy, its cubemap slot is empty, or the cubemap imported as a `Texture2D` (`samplerCUBE` then receives nothing). All of these fail quietly by design of the render pipeline; none errors.
 
 **What cannot be checked outside the real client:** sources 13–15 (`VRChatCameraMode`, `VRChatMirrorMode`, `StereoEyeIndex`). They read 0 in the Editor whether or not the globals exist, so an Editor render cannot distinguish "correct, normal mode" from "never set". The stereo-centre billboard fix is likewise unobservable in a monoscopic render — it only manifests as per-eye disparity in a headset. `docs/verify.md` owns the general boundary.
 
@@ -80,4 +80,6 @@ Both generated binaries ship with the script that made them, because a generated
 - `tools/generate_atlas.ps1` — fetch the `msdf-atlas-gen` release binary named in its header, run, delete the binary. It parses the charset out of `DisplayGlyphs.cs` rather than carrying a copy, and prints the `Font` constants to paste into `debug_display_common.hlsl`. It expects a "cell too constrained" warning; the header explains why that is correct and what the alternative costs.
 - `tools/generate_cubemaps.py` — stdlib only, no PIL.
 
-**Texture import settings are load-bearing, and Unity's defaults are wrong for all three.** The atlas must be uncompressed, non-sRGB, mip-free (it is distance data sampled at LOD 0, and sRGB would gamma-curve the distances); the cubemaps must import as `TextureCube` with mips on. A cubemap that imports as `Texture2D` leaves `samplerCUBE` with nothing and the shell renders flat grey without erroring. The gate asserts the shader compiles and that no material has a texture dependency outside the entry; the import settings themselves are pinned in the committed `.meta`s.
+**Texture import settings are load-bearing, and Unity's defaults are wrong for all three.** The atlas must be uncompressed, non-sRGB, mip-free (it is distance data sampled at LOD 0, and sRGB would gamma-curve the distances); the cubemaps must import as `TextureCube` with mips on. A cubemap that imports as `Texture2D` leaves `samplerCUBE` with nothing and the shell renders flat grey without erroring.
+
+**What the gate does and does not cover here.** It asserts the shaders compile (warming every declared keyword variant first, since variants compile lazily and a default-only check would be weaker than a one-time review), that each material's shader reference resolves, and that no material's texture slot carries a GUID from outside the entry — read as raw GUIDs out of the `.mat`, because a GUID into a package the venue lacks resolves to nothing and would otherwise vanish from a dependency walk. It does **not** assert the import settings themselves; those are pinned only in the committed `.meta`s, so a deliberate reimport can still change them and only this README will object.
