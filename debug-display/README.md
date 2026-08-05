@@ -16,7 +16,7 @@ Derived from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-
 
 **Deliberately not inherited:** upstream's depth-texture rangefinder. Its own comment reads "Cannot detect presence of Depth texture, this may be garbage", and that texture is not reliably present on avatars — camera-to-object distance needs no depth texture and is always correct.
 
-**Bundled font.** The atlas rasterizes Geist Mono, SIL Open Font License 1.1 — see `assets/GeistMono-OFL.txt`, which ships because OFL requires the notice to accompany a bundled copy. Inheriting upstream's atlas PNG would have avoided the question; regenerating it does not, and regenerating is what a 64-slot charset requires.
+**Bundled font.** The atlas rasterizes Geist Mono, SIL Open Font License 1.1 — see `assets/font/GeistMono-OFL.txt`, which ships because OFL requires the notice to accompany a bundled copy. The atlas, its charset digest and that notice all live in `assets/font/` — font-derived files a consumer never wires up by hand, kept out of the four assets they do. Inheriting upstream's atlas PNG would have avoided the question; regenerating it does not, and regenerating is what a 64-slot charset requires.
 
 **Two inherited bugs fixed here**, both of which printed a wrong number rather than failing:
 
@@ -63,7 +63,7 @@ A managed echo of `DisplayGlyphs.cs` in `com.ryan6vrc.avatar-tools`, which is th
 | Format bitfield | decimals(3) palette(2) rpad(4) source(5), LSB-first | 14 bits, max 16383 — five digits, so G7-safe |
 | Value field | 10 glyphs | A value whose rendered form (digits + sign + point + decimals) exceeds 10 columns prints the overflow glyph rather than truncating — the sign is emitted last, so truncation would drop it and print a confident positive. Magnitude ceiling 16,777,215 (float32's exact-integer limit). Decimals are exact **where the input is**: splitting the parts removes the multiply's overflow, but `frac(a)` still inherits `a`'s own quantization, so at `_Time.y ≈ 1000` the last digits are noise |
 | Entries | 12 | A shader constant, not a preference: the fragment stage selects an entry with a `switch` over this many cases, and ShaderLab cannot declare a property array |
-| `_Total_Width` | glyph **advances** | Not metres. One advance is derived from `_Font_Size`, so a metre-valued width would silently rescale the layout every time the font size moved |
+| `_Total_Width` | glyph **advances**, across all columns | Not metres. One advance is derived from `_Font_Size`, so a metre-valued width would silently rescale the layout every time the font size moved. The layout math wants the total; the inspector edits it **per column** (total ÷ columns), which is the number that decides whether a label clears its value |
 
 **Right-pad, not an align-decimals flag.** The value right-aligns to `cell_width − rpad`, one subtraction. `rpad = max_decimals − entry_decimals` aligns decimal points across a grid column; an integer picks its own depth (`rpad 0` parks it at the cell's right edge). Right-alignment is deliberate — it makes values in the same grid column line up. rpad knows nothing about the label, so `label + value + rpad` over the cell width runs the value into the label; the value wins its region and the label's tail is overdrawn, which is visibly garbled and therefore a diagnostic. The material inspector catches it before anything renders: the offending entry gets a warning box, its collapsed row carries a warning icon, and the summary at the top of the inspector names the entry even with every section shut.
 

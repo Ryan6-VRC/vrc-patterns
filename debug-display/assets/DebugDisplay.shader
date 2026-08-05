@@ -15,7 +15,9 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
 {
     Properties
     {
-        [Header(Layout)]
+        // No [Header] decorators: the grouping lives in DebugDisplayShaderGUI, and a header here draws a
+        // SECOND title inside the section that already carries the name. With avatar-tools absent Unity's
+        // default ShaderGUI lists these in declaration order, which is the same grouping without the labels.
         [KeywordEnum(Billboard, Object, UV)] _Display_Mode("Display mode", Float) = 0
         _Font_Size("Font size (m per ascender)", Range(0.001, 0.25)) = 0.0225
         // Billboard and object modes trace against a plane built from NORMALIZED basis vectors, which
@@ -28,19 +30,21 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         [ToggleUI] _Font_Scale_Relative("Scale text with object", Float) = 1
         // In GLYPH ADVANCES, not metres. With _Font_Size in metres-per-ascender one advance is a derived
         // length, so a metre-valued width would silently rescale the layout every time the font size
-        // moved. In advances the two knobs are independent and the GUI's preview is computable from
-        // neither. A cell needs 12 (label) + 10 (value) = 22 advances to avoid clipping.
+        // moved. In advances the two knobs are independent. A cell needs 12 (label) + 10 (value) = 22
+        // advances to avoid clipping. The layout math wants the TOTAL, so that is what is stored; the
+        // GUI presents it per column (total / columns), which is the number an author reasons in.
         _Total_Width("Total width (glyph advances)", Range(10, 200)) = 24
         [IntRange] _Grid_Columns("Grid columns", Range(1, 6)) = 1
         [IntRange] _Grid_Rows("Grid rows", Range(1, 6)) = 3
         _Text_Depth_Offset("Depth offset", Range(-0.5, 0.5)) = 0.0
         [NoScaleOffset] _MSDF_Glyph_Atlas("MSDF glyph atlas", 2D) = "" {}
 
-        [Header(Text palette)]
-        [HDR] _Palette_0("Palette 0", Color) = (1, 0.2, 0.2, 1)
-        [HDR] _Palette_1("Palette 1", Color) = (0.2, 1, 0.2, 1)
-        [HDR] _Palette_2("Palette 2", Color) = (0.2, 0.5, 1, 1)
-        [HDR] _Palette_3("Palette 3", Color) = (1, 1, 1, 1)
+        // Labelled "Color N" for the operator; the property name stays _Palette_N, which is what the
+        // format bitfield's palette index selects and what SetDisplayEntry and the README call it.
+        [HDR] _Palette_0("Color 0", Color) = (1, 0.2, 0.2, 1)
+        [HDR] _Palette_1("Color 1", Color) = (0.2, 1, 0.2, 1)
+        [HDR] _Palette_2("Color 2", Color) = (0.2, 0.5, 1, 1)
+        [HDR] _Palette_3("Color 3", Color) = (1, 1, 1, 1)
 
         // Entries. Three properties each: a packed label vector, a hidden packed format bitfield, and the
         // visible float that IS the animation target -- a consumer's clip binds material._E0_Value.
@@ -53,7 +57,6 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         // Twelve is a shader constant, not a preference: the fragment stage selects an entry with a switch
         // over this many cases, and ShaderLab cannot declare a property array (SetVectorArray does not
         // survive a material save -- Material serializes only m_TexEnvs/m_Ints/m_Floats/m_Colors).
-        [Header(Entries)]
         _E0_Label("E0 label (packed)", Vector) = (262143, 262143, 262143, 262143)
         [HideInInspector] _E0_Format("E0 format (packed)", Float) = 0
         _E0_Value("E0 value", Float) = 0
@@ -91,7 +94,6 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         [HideInInspector] _E11_Format("E11 format (packed)", Float) = 0
         _E11_Value("E11 value", Float) = 0
 
-        [Header(Crystal shell)]
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
         [HDR] _Shell_Reflection_Color("Color / Mask", Color) = (1,1,1,1)
         [NoScaleOffset] _Shell_ReflectionCube("Reflection cubemap", Cube) = "" {}
@@ -102,7 +104,6 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         // already near-flat there, so the default IS lilToon's remap and the slider only trims blur.
         _Shell_Reflection_BlurMaxMip("Blur max mip (LOD steps)", Range(0, 6)) = 6
 
-        [Header(Rim light)]
         [HDR] _Shell_Rim_Color("Color / Alpha", Color) = (1,1,1,0.05)
         _Shell_Rim_Strength("Strength", Range(0, 4)) = 1
         _Shell_Rim_Border("Border", Range(0, 1)) = 0.6

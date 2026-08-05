@@ -23,8 +23,9 @@
       SIL Open Font License 1.1 -- "Copyright 2024 The Geist Project Authors", per the notice shipped
       in that release (the repo's own LICENSE.txt reads "(c) 2023 Vercel, in collaboration with
       basement.studio"; the release's wording governs the copy we actually bundled).
-      OFL requires the notice and licence to accompany a bundled copy, so assets/GeistMono-OFL.txt
-      ships beside the atlas. No Reserved Font Name is declared, so there is no naming restriction.
+      OFL requires the notice and licence to accompany a bundled copy, so assets/font/GeistMono-OFL.txt
+      ships beside the atlas -- the whole font-derived set lives in assets/font/, out of the entry
+      assets a consumer actually wires up. No Reserved Font Name is declared, so there is no naming restriction.
       The font must stay MONOSPACE: the fixed-cell grid and every advance in the layout arithmetic
       assume one advance width for all glyphs.
 
@@ -56,7 +57,7 @@ param(
   [string]$ToolsRoot = (Join-Path $PSScriptRoot "../../../vrc-unity-tools"),
   [Parameter(Mandatory=$true)][string]$MsdfAtlasGen,   # path to msdf-atlas-gen.exe
   [Parameter(Mandatory=$true)][string]$Font,           # path to GeistMono-Regular.ttf
-  [string]$OutDir = (Join-Path $PSScriptRoot "../assets"),
+  [string]$OutDir = (Join-Path $PSScriptRoot "../assets/font"),
   # Grid geometry. Cell size and pxrange are carried over from the ancestor's atlas unchanged so its
   # *_em metrics stay comparable; only the slot count and column count change (11x2 -> 8x8).
   [int]$Cols = 8,
