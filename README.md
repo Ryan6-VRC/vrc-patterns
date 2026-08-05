@@ -29,6 +29,7 @@ Each row: the entry, what a wearer gets from it, then the mechanism and its sync
 | [`hsv-rgb`](hsv-rgb/) | A real color picker — RGB computed from H/S/V sliders in pure blend trees | HSV→RGB DBT compute | Pattern, study |
 | [`blendtree-math`](blendtree-math/) | The arithmetic behind analog gimmicks: add, multiply, clamp, remap, smooth any animator float — no scripts | DBT math library, per-primitive measured | Pattern, study |
 | [`smooth-frametime`](smooth-frametime/) | Framerate-independent easing for jittery inputs (OSC hardware, remote grabs) — an exponential smoother plus a constant-velocity hybrid that still settles cleanly | frametime-aware AAP smoothers: two exponential α-flavours + a linear/hybrid constant-velocity smoother | Pattern, study |
+| [`osc-wardrobe`](osc-wardrobe/) | Change your worn avatar from a button on your own menu — pick the next one from a radial instead of the avatar list (needs an OSC host running vrc-bridge; inert without it) | menu int → OSC host → inbound `/avatar/change`, avatar picked by a marker parameter's default; 0 synced bits, no animator | Structural Module |
 | [`_template/`](_template/) | — reference mold — | | Module |
 
 ## Using an entry
