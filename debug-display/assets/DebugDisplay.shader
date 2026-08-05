@@ -9,7 +9,7 @@
 // Namespaced under Ryan6VRC/ rather than plain Overlay/ because upstream ships an Overlay/* family in a
 // VPM package a consumer could install alongside this one, and a name collision resolves arbitrarily.
 //
-// Bundled Geist Mono glyphs: SIL Open Font License 1.1, see GeistMono-OFL.txt beside this file.
+// Bundled Geist Mono glyphs: SIL Open Font License 1.1, see assets/font/GeistMono-OFL.txt.
 
 Shader "Ryan6VRC/Overlay/DebugDisplay"
 {
@@ -39,12 +39,13 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         _Text_Depth_Offset("Depth offset", Range(-0.5, 0.5)) = 0.0
         [NoScaleOffset] _MSDF_Glyph_Atlas("MSDF glyph atlas", 2D) = "" {}
 
-        // Labelled "Color N" for the operator; the property name stays _Palette_N, which is what the
-        // format bitfield's palette index selects and what SetDisplayEntry and the README call it.
-        [HDR] _Palette_0("Color 0", Color) = (1, 0.2, 0.2, 1)
-        [HDR] _Palette_1("Color 1", Color) = (0.2, 1, 0.2, 1)
-        [HDR] _Palette_2("Color 2", Color) = (0.2, 0.5, 1, 1)
-        [HDR] _Palette_3("Color 3", Color) = (1, 1, 1, 1)
+        // "Palette N" here, "Color N" in DebugDisplayShaderGUI. This name is what the FALLBACK GUI shows,
+        // where there are no section headings, so it has to say on its own that these are the text colours
+        // and not the shell's own Color / Mask and Color / Alpha further down.
+        [HDR] _Palette_0("Palette 0", Color) = (1, 0.2, 0.2, 1)
+        [HDR] _Palette_1("Palette 1", Color) = (0.2, 1, 0.2, 1)
+        [HDR] _Palette_2("Palette 2", Color) = (0.2, 0.5, 1, 1)
+        [HDR] _Palette_3("Palette 3", Color) = (1, 1, 1, 1)
 
         // Entries. Three properties each: a packed label vector, a hidden packed format bitfield, and the
         // visible float that IS the animation target -- a consumer's clip binds material._E0_Value.
