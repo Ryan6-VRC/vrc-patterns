@@ -1,10 +1,10 @@
 #ifndef DEBUG_DISPLAY_COMMON_INCLUDED
 #define DEBUG_DISPLAY_COMMON_INCLUDED
 
-// Shared substrate for Ryan6VRC/Overlay/DebugDisplay: font metrics, MSDF sampling, stereo-correct camera
-// helpers, the label/format unpack, value formatting, and the cell-grid layout. Both passes include this,
-// matching the ancestor's own overlay_common.hlsl idiom -- so splitting out a genuinely text-only shader
-// later is an added file rather than a refactor.
+// Shared substrate for Ryan6VRC/Overlay/DebugDisplay: font metrics, MSDF sampling, the label/format
+// unpack, value formatting, and the cell-grid layout -- everything the TEXT half needs, and nothing else.
+// The camera helpers it reads are stereo_camera.hlsl's, shared with the whole entry; the shell pass takes
+// crystal_shell.hlsl in place of this file rather than alongside it.
 //
 // Provenance: derived from lereldarion/unity-shaders (MIT, (c) 2025 Lereldarion), ancestor
 // Shaders/Overlay_HUD.shader. The Font metric ratios and median()/sdf_blend_with_aa() are upstream's; the
@@ -12,36 +12,7 @@
 // See the entry README for the line-by-line split.
 
 #include "UnityCG.cginc"
-
-// ── Camera, stereo-correct ──────────────────────────────────────────────────────────────────────────
-//
-// THE ANCESTOR'S GUARD IS DEAD CODE IN VRCHAT AND WE FIX IT HERE. Upstream tests
-// `#ifdef UNITY_SINGLE_PASS_STEREO`, which is the deprecated double-wide path. VRChat PC runs single-pass
-// INSTANCED: HLSLSupport.cginc:26-27 defines UNITY_STEREO_INSTANCING_ENABLED from STEREO_INSTANCING_ON,
-// and UnityShaderVariables.cginc:10-12 folds that into USING_STEREO_MATRICES -- under which line 24 has
-// already redefined _WorldSpaceCameraPos to unity_StereoWorldSpaceCameraPos[unity_StereoEyeIndex].
-//
-// So upstream's two helpers both fall through to a PER-EYE position. The eye one is right by accident;
-// the centre one is not, and the billboard plane's normal comes from it, which means the plane orients
-// differently per eye and the text's stereo disparity corresponds to no fixed plane at all. Poiyomi gets
-// this right the same way (CGI_PoiHelpers.cginc:68-74).
-float3 dd_camera_eye_ws()
-{
-    #if defined(USING_STEREO_MATRICES)
-        return unity_StereoWorldSpaceCameraPos[unity_StereoEyeIndex];
-    #else
-        return _WorldSpaceCameraPos.xyz;
-    #endif
-}
-
-float3 dd_camera_center_ws()
-{
-    #if defined(USING_STEREO_MATRICES)
-        return 0.5 * (unity_StereoWorldSpaceCameraPos[0] + unity_StereoWorldSpaceCameraPos[1]);
-    #else
-        return _WorldSpaceCameraPos.xyz;
-    #endif
-}
+#include "stereo_camera.hlsl"
 
 // VRChat-set globals. DECLARED HERE AND DELIBERATELY NOT IN Properties: a material property of the same
 // name makes Unity serialize a value into every material, leaving no unset state for SetGlobalFloat to
@@ -294,7 +265,7 @@ float dd_resolve_value(uint source, float entry_value, float4 obj_a, float4 obj_
         case 6u:  return obj_b.z;
         case 7u:  return obj_a.w;                // azimuth, degrees
         case 8u:  return obj_b.w;                // elevation, degrees
-        case 9u:  return distance(dd_camera_center_ws(), obj_a.xyz);
+        case 9u:  return distance(dbg_camera_center_ws(), obj_a.xyz);
         case 10u: return _ProjectionParams.z;    // far plane
         case 11u: return unity_DeltaTime.w;      // observer's smoothed fps
         case 12u: return _Time.y;
