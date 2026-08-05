@@ -38,7 +38,7 @@ There is no mechanism on the avatar, which is the point. A menu Button writes `O
 
 Three consequences worth knowing:
 
-- **VRChat only swaps to avatars in your favorites, recents, own uploads, or purchases**, and ignores anything else without complaint. A button that does nothing is far more likely this than a broken rig.
+- **VRChat only swaps to avatars in your favorites, recents, own uploads, or purchases.** A button that does nothing is far more likely an ineligible avatar than a broken rig.
 - **Buttons, not toggles.** The host swaps on the press and ignores the release. The SDK holds a Button active for a minimum 0.2 s however briefly you tap it, which is what guarantees the value reaches the wire.
 - **Nothing here is synced,** so remote players see none of it and it costs no sync bits. They just see you change avatar, the way they always do.
 
