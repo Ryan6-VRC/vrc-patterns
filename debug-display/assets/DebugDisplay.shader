@@ -97,7 +97,10 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         [NoScaleOffset] _Shell_ReflectionCube("Reflection cubemap", Cube) = "" {}
         _Shell_Reflection_Strength("Reflectance", Range(0, 4)) = 1
         _Shell_Reflection_Smoothness("Smoothness", Range(0, 1)) = 0.7
-        _Shell_Reflection_BlurMaxMip("Blur Max Mip", Range(0, 10)) = 7
+        // The LOD the perceptual-roughness curve reaches at roughness 1, i.e. what both vendors hardcode
+        // as UNITY_SPECCUBE_LOD_STEPS. Ranged to 6 rather than 10 because a Specular-convolved chain is
+        // already near-flat there, so the default IS lilToon's remap and the slider only trims blur.
+        _Shell_Reflection_BlurMaxMip("Blur max mip (LOD steps)", Range(0, 6)) = 6
 
         [Header(Rim light)]
         [HDR] _Shell_Rim_Color("Color / Alpha", Color) = (1,1,1,0.05)
@@ -475,7 +478,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 float3 V_reflect = normalize(cam_eye_ws - input.position_ws);
                 float3 R = normalize(reflect(-V_reflect, N));
 
-                float reflection_mip = (1.0 - saturate(_Shell_Reflection_Smoothness)) * _Shell_Reflection_BlurMaxMip;
+                // Perceptual-roughness -> mip through Unity's own remap for a convolved specular cube
+                // (perceptualRoughness * (1.7 - 0.7 * perceptualRoughness), UnityImageBasedLighting.cginc),
+                // scaled by the slider where both vendors hardcode UNITY_SPECCUBE_LOD_STEPS = 6. lilToon
+                // inlines the identical curve pre-multiplied: perceptualRoughness * (10.2 - 4.2 * pR).
+                // The prior bare linear ramp was NOT equivalent: it under-blurs the mid range and, against
+                // a chain that is already near-flat by mip 6, spent the slider's top third on dead travel.
+                float perceptual_roughness = 1.0 - saturate(_Shell_Reflection_Smoothness);
+                float reflection_mip = perceptual_roughness * (1.7 - 0.7 * perceptual_roughness)
+                                     * _Shell_Reflection_BlurMaxMip;
                 half3 reflection_sample = texCUBElod(_Shell_ReflectionCube, float4(R, reflection_mip)).rgb;
                 half3 reflection_rgb = reflection_sample
                                      * _Shell_Reflection_Color.rgb
