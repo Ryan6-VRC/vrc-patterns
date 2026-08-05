@@ -17,7 +17,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
     {
         [Header(Layout)]
         [KeywordEnum(Billboard, Object, UV)] _Display_Mode("Display mode", Float) = 0
-        _Font_Size("Font size (m per ascender)", Range(0.001, 0.05)) = 0.0225
+        _Font_Size("Font size (m per ascender)", Range(0.001, 0.25)) = 0.0225
+        // Billboard and object modes trace against a plane built from NORMALIZED basis vectors, which
+        // protects the monospace grid from a stretched mesh but also discards object scale -- leaving
+        // _Font_Size an absolute physical size. With Cull Back making the mesh a window, text that
+        // outgrows its mesh is not clipped at the edge, it is ABSENT: shrink the avatar and the readout
+        // vanishes rather than degrading. On makes _Font_Size relative to object scale so the text
+        // always fits its mesh, and makes all three modes agree (UV mode is already scale-relative,
+        // since _Font_Size cancels out of it). Off reproduces the ancestor's world-fixed behaviour.
+        [ToggleUI] _Font_Scale_Relative("Scale text with object", Float) = 1
         // In GLYPH ADVANCES, not metres. With _Font_Size in metres-per-ascender one advance is a derived
         // length, so a metre-valued width would silently rescale the layout every time the font size
         // moved. In advances the two knobs are independent and the GUI's preview is computable from
@@ -148,6 +156,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
             #include "debug_display_common.hlsl"
 
             uniform float _Font_Size;
+            uniform float _Font_Scale_Relative;
             uniform float _Total_Width;
             uniform float _Grid_Columns;
             uniform float _Grid_Rows;
@@ -207,8 +216,9 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 float3 right, up, normal;
                 #if defined(_DISPLAY_MODE_OBJECT)
                     // Axes fixed to the object: a display floating inside whatever mesh carries it.
-                    // Normalised, so the text stays in metres and a scaled object does not scale its
-                    // text -- _Font_Size is the size knob, consistently with billboard mode.
+                    // Normalised so a NON-UNIFORMLY scaled object cannot stretch the monospace grid.
+                    // That drops uniform scale too, which _Font_Scale_Relative puts back as a single
+                    // scalar in the fragment stage -- consistently with billboard mode.
                     right = normalize(float3(unity_ObjectToWorld._m00, unity_ObjectToWorld._m10, unity_ObjectToWorld._m20));
                     up = normalize(float3(unity_ObjectToWorld._m01, unity_ObjectToWorld._m11, unity_ObjectToWorld._m21));
                     normal = normalize(float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22));
@@ -238,7 +248,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
                 // ── One mode branch, producing frame_uv in metres. Everything after is mode-agnostic.
-                Font font = Font::init(_Font_Size);
+                //
+                // A SINGLE scalar -- the mean of the three axes, never per-axis. Per-axis would stretch
+                // the glyphs, which is the exact thing normalizing the plane basis was protecting. Only
+                // the font size moves: cell_h_px and grid_px are pure px and untouched, p_px picks it up
+                // through font.scale and sdf() through font.inverse_scale, and it cancels out of UV mode
+                // the same way _Font_Size itself does.
+                float mean_scale = dot(input.obj_b.xyz, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
+                float scale_factor = lerp(1.0, mean_scale, _Font_Scale_Relative);
+                Font font = Font::init(_Font_Size * scale_factor);
                 float cell_w_px = (_Total_Width / max(_Grid_Columns, 1.0)) * Font::advance_px;
                 float cell_h_px = Font::layout_bbox_px.y;
                 float2 grid_px = float2(cell_w_px * _Grid_Columns, cell_h_px * _Grid_Rows);
@@ -246,8 +264,9 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 float2 frame_uv;
             #if defined(_DISPLAY_MODE_UV)
                 // The mesh's 0-1 TEXCOORD0 span maps exactly onto the grid. _Font_Size cancels out of
-                // this mode (it scales grid_px and frame_uv alike), which is correct: in UV mode the
-                // quad's world size sets the apparent text size.
+                // this mode (it scales grid_px and frame_uv alike, via font.inverse_scale here and
+                // font.scale below), and so does _Font_Scale_Relative with it: UV mode is inherently
+                // scale-relative, because the quad's world size sets the apparent text size.
                 frame_uv = (input.uv0 - 0.5) * (grid_px * font.inverse_scale);
             #else
                 float3 camera_ws = dd_camera_eye_ws();
