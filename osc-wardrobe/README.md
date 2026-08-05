@@ -8,7 +8,7 @@ This entry is **half of a system and inert on its own.** It ships the avatar sid
 
 ## Interface
 
-- **Params:** `OscWardrobe/Manifest` (Int, unsynced, **not saved**, default = your manifest id) — the marker the host reads to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (Int, unsynced, **not saved**, default 0) — the button press. Both are declared for OSC's sake only: nothing on the avatar reads either one.
+- **Params:** `OscWardrobe/Manifest` (Int, unsynced, **not saved**, ships at 0 — set it to your manifest id) — the marker the host reads to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (Int, unsynced, **not saved**, default 0) — the button press. Both are declared for OSC's sake only: nothing on the avatar reads either one.
 - **Seam:** none. No merge, no anchor, no binding frame, no controller — an MA Parameters component and a menu, so the prefab drops anywhere under the avatar and no path can break.
 - **Dependencies:** Modular Avatar.
 - **Required assets:** an OSC host running `vrc-bridge`'s `osc_wardrobe`, with a manifest whose `id` matches this avatar's `OscWardrobe/Manifest` default. Without it the buttons do nothing at all.
@@ -19,7 +19,7 @@ This entry is **half of a system and inert on its own.** It ships the avatar sid
 
 Drop the prefab under your avatar, then make two edits on the instance:
 
-1. **Set `OscWardrobe/Manifest`'s default** on the MA Parameters component to your manifest's `id`.
+1. **Set `OscWardrobe/Manifest`'s default** on the MA Parameters component to your manifest's `id`. It ships at **0**, which no manifest can claim — so if you skip this step the bridge says so loudly instead of silently adopting whoever's manifest happens to be id 1.
 2. **Rename the eight `Slot N` objects** to whatever those avatars are. The GameObject name is the menu label — see **Rig** for why that, and not the control's own name field.
 
 Then write the matching manifest on the bridge side. Delete buttons you do not want; a slot with no manifest row warns in the bridge log and changes nothing, so leaving all eight is also fine.
@@ -36,7 +36,7 @@ Then write the matching manifest on the bridge side. Delete buttons you do not w
 
 There is no mechanism on the avatar, which is the point. A menu Button writes `OscWardrobe/Slot`, VRChat emits the change over OSC, and the host maps the value to an avatar id and sends `/avatar/change` back. `OscWardrobe/Manifest` is never written at runtime — only its *default* matters, because the host reads it over OSCQuery to decide which table applies. That indirection is what lets two avatars carry different wardrobes: give each its own manifest and its own marker default.
 
-Three consequences worth knowing:
+Four consequences worth knowing:
 
 - **VRChat only swaps to avatars in your favorites, recents, own uploads, or purchases.** A button that does nothing is far more likely an ineligible avatar than a broken rig — and nothing will tell you so, because the client acknowledges every request identically whether it can wear the avatar or not. Your profile page on vrchat.com shows what you are actually wearing.
 - **Pressing a button with the game menu open works** — measured, which matters because the menu is the only place you can press it from.
