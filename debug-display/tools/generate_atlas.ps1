@@ -33,13 +33,21 @@
   left-flush placement (see -yorigin below).
 
   EXPECTED WARNING: "Grid cell too constrained to fully fit all glyphs, some may be cut off!"
-  This is structural to -uniformcell, not a misconfiguration, and the ancestor's atlas has it too. The
-  tool fits the uniform glyph box to the cell minus a 1px margin (22x28 in a 23x29 cell), so the 2px SDF
-  range then wants 24x30 and the outer ~1px of FALLOFF is clipped -- the glyph outlines themselves are
-  intact, which is what the emitted image confirms. Enlarging the cell does not help: the tool re-fits
-  the box to whatever cell it is given, so the shortfall follows. What is lost is a little antialiasing
-  headroom at extreme on-screen magnification. Verified by eye on the emitted atlas and again at render
-  time; if glyph edges ever look chewed rather than soft, this is the first thing to revisit.
+  Structural to -uniformcell, not a misconfiguration, and the ancestor's atlas has it too. Given a fixed
+  cell the tool fits the glyph box to cell-minus-1px (22x28 in 23x29) and OVERRIDES -size to do it --
+  measured: 34.22 and 32.5 both produced the same 22x28 box. The 2px SDF range then wants 24x30, so the
+  outer ~1px of falloff is clipped. Outlines are intact; what is lost is antialiasing headroom, and it
+  shows only at extreme magnification (visible on a quad filling a 1024px frame, i.e. ~40x the intended
+  text size; invisible at a realistic 0.02 m).
+
+  MEASURED ALTERNATIVE, deliberately not taken. Dropping -uniformcell and letting the tool DERIVE the
+  cell from -size and -pxrange clears the warning outright (-size 26 -pxrange 4 gives a 32x32 cell with
+  no clipping, because the emitted planeBounds then INCLUDE the range). The cost is that those bounds
+  grow to 1.19 em, so the glyph box becomes 1.19 ascenders where it is currently 0.81 -- which changes
+  what line_pad means and would push the rows far apart until the whole line layout was retuned. Keeping
+  the ancestor's proportions is worth more than the headroom (CLAUDE.md rules 2 and 4). If glyph edges
+  ever need to be crisper at large sizes, this is the path, and retuning line_pad and layout_bbox_px
+  against the ascender rather than the glyph box is the work it implies.
 #>
 param(
   # Where vrc-unity-tools is checked out; DisplayGlyphs.cs under it holds the charset canon. Defaults to
