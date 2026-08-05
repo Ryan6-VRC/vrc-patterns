@@ -13,6 +13,8 @@ The general avatar-tooling doctrine an entry *embodies* — module seams and the
       assets/            # owned, self-contained assets the entry ships (meshes, reference prefabs, materials)
       <entry>.prefab     # the drop-in, referencing built/ by GUID via an MA/VRCFury merge component
 
+**Commit a prefab as an Editor saved it.** VRCFury caches each asset reference's resolved `id` beside its `objRef` and back-fills it the first time the prefab is inspected; since venues mount this repo `file:` (writable, not into `Library/PackageCache`), that write lands here as an uncommitted diff nobody made. Don't revert it as noise — `objRef` alone cannot recover a reference whose asset disappears and returns, so the filled `id` is the shipping state, and leaving it empty is what makes the diff recur.
+
 ## Tier is derived, not assigned
 
 One axis changes an entry's shape: **does it ship a GUID-consumer** (a prefab/asset referencing `built/`)? Read it off which files exist — the gate keys off the same signal (a `controller.yaml` entry that also ships a prefab/`assets`/`built` must ship its built controller per document). Three shapes exist:
