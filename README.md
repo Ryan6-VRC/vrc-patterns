@@ -29,6 +29,7 @@ Each row: the entry, what a wearer gets from it, then the mechanism and its sync
 | [`hsv-rgb`](hsv-rgb/) | A real color picker — RGB computed from H/S/V sliders in pure blend trees | HSV→RGB DBT compute | Pattern, study |
 | [`blendtree-math`](blendtree-math/) | The arithmetic behind analog gimmicks: add, multiply, clamp, remap, smooth any animator float — no scripts | DBT math library, per-primitive measured | Pattern, study |
 | [`smooth-frametime`](smooth-frametime/) | Framerate-independent easing for jittery inputs (OSC hardware, remote grabs) — an exponential smoother plus a constant-velocity hybrid that still settles cleanly | frametime-aware AAP smoothers: two exponential α-flavours + a linear/hybrid constant-velocity smoother | Pattern, study |
+| [`debug-display`](debug-display/) | A numeric readout floating in world space on any mesh you drop it on — up to twelve labelled values at once, mixing animator floats with render-side facts an animator cannot reach (world position, camera distance, observer frame rate) | fragment-stage MSDF text on a ray-traced virtual plane; labels packed 6-bit into material properties; 0 synced bits | Structural Module |
 | [`_template/`](_template/) | — reference mold — | | Module |
 
 ## Using an entry
