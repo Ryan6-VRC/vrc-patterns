@@ -157,13 +157,16 @@ Shader "Ryan6VRC/Overlay/DebugOverlay"
             #if defined(_PROBE_MODE_NORMAL)
                 // Reconstructed world normal as a normal-map-style colour.
                 //
-                // GammaToLinearSpace HERE WAS AN INHERITED BUG: upstream writes LinearToGammaSpace, and the
-                // hand copy this entry is built from had the conversion inverted, darkening every normal
-                // colour non-linearly. The encoding is a 0..1 remap meant to be READ as a colour, so it is
-                // the gamma direction that makes the displayed value match the normal it encodes.
+                // GammaToLinearSpace, DELIBERATELY THE OPPOSITE DIRECTION FROM UPSTREAM, which writes
+                // LinearToGammaSpace. VRChat runs Linear colour space, so the hardware converts this
+                // fragment's output linear->sRGB on the way to the framebuffer. Displaying the encoded
+                // value n * 0.5 + 0.5 therefore means EMITTING the linear value whose sRGB encoding is
+                // that number, which is this direction. Upstream's is correct only in a Gamma-space
+                // project, where nothing converts on write. Do not "restore" it to match upstream: the
+                // divergence is the fix, and reverting it washes every normal colour out non-linearly.
                 float3 normal_dir_vs = cross(vs_0_p - vs_0_0, vs_m_0 - vs_0_0);
                 float3 normal_ws = normalize(mul((float3x3) unity_MatrixInvV, normal_dir_vs));
-                return fixed4(LinearToGammaSpace(normal_ws * 0.5 + 0.5), 1);
+                return fixed4(GammaToLinearSpace(normal_ws * 0.5 + 0.5), 1);
             #else
                 // Triangle edges: three normals from the origin pixel over three quadrants, and the places
                 // where they disagree are the edges. Needs no world space at all.

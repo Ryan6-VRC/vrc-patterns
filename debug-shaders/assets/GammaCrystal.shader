@@ -41,7 +41,11 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         [ToggleUI] _AoE_Scale_Relative("Scale the distances below with the object", Float) = 1
         _AoE_MinDistance("Full strength distance (m at unit scale)", Float) = 1
         _AoE_MaxDistance("Zero strength distance (m at unit scale)", Float) = 2
-        _Core_Radius("Core radius (m at unit scale, match mesh)", Float) = 0.15
+        // Authored per material against whatever mesh this is on, NOT derived: the core is a smoothstep
+        // with a feathered inner edge, so the radius that reads as tracing the silhouette sits a little
+        // OUTSIDE the surface, and on a non-spherical mesh there is no single surface radius to derive
+        // from at all. See the entry README before retuning it toward the mesh.
+        _Core_Radius("Core radius (m at unit scale)", Float) = 0.15
         _Core_Intensity("Core extra intensity", Range(0, 0.5)) = 0.15
 
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
