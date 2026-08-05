@@ -42,8 +42,10 @@
   time; if glyph edges ever look chewed rather than soft, this is the first thing to revisit.
 #>
 param(
-  # Where vrc-unity-tools is checked out; DisplayGlyphs.cs under it holds the charset canon.
-  [string]$ToolsRoot = "C:/Users/Ryan/Documents/Atelier/vrc-unity-tools",
+  # Where vrc-unity-tools is checked out; DisplayGlyphs.cs under it holds the charset canon. Defaults to
+  # the Atelier sibling layout (vrc-patterns and vrc-unity-tools cloned side by side); pass it explicitly
+  # for any other arrangement, such as a worktree.
+  [string]$ToolsRoot = (Join-Path $PSScriptRoot "../../../vrc-unity-tools"),
   [Parameter(Mandatory=$true)][string]$MsdfAtlasGen,   # path to msdf-atlas-gen.exe
   [Parameter(Mandatory=$true)][string]$Font,           # path to GeistMono-Regular.ttf
   [string]$OutDir = (Join-Path $PSScriptRoot "../assets"),
