@@ -10,7 +10,9 @@ Derived from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-
 
 **Upstream's, kept:** the `Font` metric ratios and the monospace fixed-cell scheme, `median()`, `compute_screenspace_scale_of_uv` and `sdf_blend_with_aa`, and the central idea — a fragment-stage ray-trace against a virtual plane through the object origin, with `Cull Back` making the silhouette a window. The `*_em` metrics still describe Geist Mono.
 
-**Ours:** the 6-bit charset and its regenerated 64-slot atlas, the entry grid with per-entry decimals / right-pad / palette, the per-entry value sources, the object-fixed and UV modes, the crystal shell pass, the string→float label packing, and both procedural cubemaps.
+**Ours:** the 6-bit charset and its regenerated 64-slot atlas, the entry grid with per-entry decimals / right-pad / palette, the per-entry value sources, the object-fixed and UV modes, the crystal shell pass, the string→float label packing, and both reflection cubemaps.
+
+**The two cubemaps are shipped images, not generated at build time.** `Cube_Iridescent.png` is procedural output; `Cube_Glass.png` was produced with OpenAI `gpt-image-1`. Neither generator is committed — the cubemaps are set dressing for a shader whose actual substance is the text rendering, and carrying a reproducible pipeline for two decorative gradients was not worth its maintenance. Swap either for any 1:1 image, subject to §Import settings below. They replaced Poiyomi's `T_Shine_CM` and `T_iridescent_CM`, which the ancestor materials referenced out of `com.poiyomi.toon`: a dependency that failed **quietly**, since only the texture slot pointed into the package, so a consumer without Poiyomi got a null cubemap and a silently wrong reflection rather than a pink material. Owning them removed the dependency and the quiet failure together, and pointing a material back at `com.poiyomi.toon` reintroduces both.
 
 **Deliberately not inherited:** upstream's depth-texture rangefinder. Its own comment reads "Cannot detect presence of Depth texture, this may be garbage", and that texture is not reliably present on avatars — camera-to-object distance needs no depth texture and is always correct.
 
@@ -79,13 +81,33 @@ If the text is missing entirely but the mesh is visible, either the material's a
 
 **What cannot be checked outside the real client:** sources 13–15 (`VRChatCameraMode`, `VRChatMirrorMode`, `StereoEyeIndex`). They read 0 in the Editor whether or not the globals exist, so an Editor render cannot distinguish "correct, normal mode" from "never set". The stereo-centre billboard fix is likewise unobservable in a monoscopic render — it only manifests as per-eye disparity in a headset. `docs/verify.md` owns the general boundary.
 
-## Regenerating the generated assets
+## Regenerating the glyph atlas
 
-Both generated binaries ship with the script that made them, because a generated image is not reproducible and a script is.
+`tools/generate_atlas.ps1` — fetch the `msdf-atlas-gen` release binary named in its header, run, delete the binary. It parses the charset out of `DisplayGlyphs.cs` rather than carrying a copy, and prints the `Font` constants to paste into `debug_display_common.hlsl`. It expects a "cell too constrained" warning; the header explains why that is correct and what the alternative costs.
 
-- `tools/generate_atlas.ps1` — fetch the `msdf-atlas-gen` release binary named in its header, run, delete the binary. It parses the charset out of `DisplayGlyphs.cs` rather than carrying a copy, and prints the `Font` constants to paste into `debug_display_common.hlsl`. It expects a "cell too constrained" warning; the header explains why that is correct and what the alternative costs.
-- `tools/generate_cubemaps.py` — stdlib only, no PIL.
+This one ships because the atlas is not set dressing — it *is* the text rendering, its cell order is enforced by a test, and `debug_display_common.hlsl`'s `Font` constants have to be re-derived alongside it. The cubemaps have no equivalent script; see §Provenance.
 
-**Texture import settings are load-bearing, and Unity's defaults are wrong for all three.** The atlas must be uncompressed, non-sRGB, mip-free (it is distance data sampled at LOD 0, and sRGB would gamma-curve the distances); the cubemaps must import as `TextureCube` with mips on. A cubemap that imports as `Texture2D` leaves `samplerCUBE` with nothing and the shell renders flat grey without erroring.
+## Import settings
+
+**Load-bearing, and Unity's defaults are wrong for all three textures.** They are pinned only in the committed `.meta`s. Every one of these fails **silently** — no error, no pink material, just a wrong-looking or dead-looking shell — so verify them rather than trusting a fresh import, and re-check them after replacing either cubemap.
+
+The atlas must be uncompressed, non-sRGB and mip-free: it is distance data sampled at LOD 0, and sRGB would gamma-curve the distances.
+
+Both cubemaps need all four of:
+
+| Field | Value | What a wrong value does |
+|---|---|---|
+| `textureShape` | `TextureCube` | Imports as `Texture2D`, `samplerCUBE` receives nothing, the shell renders flat grey |
+| `cubemapConvolution` | `1` (Specular) | See below — the blur controls go inert |
+| `enableMipMap` | `1` | No chain to sample, so there is nothing for the blur controls to read |
+| `filterMode` | `2` (Trilinear) | The sampled mip is **fractional**, and a Bilinear sampler gives a point mip filter that snaps to one level, so the shell steps instead of blurring |
+
+**`cubemapConvolution` is the one that will waste your day.** At `1` (Specular / "Glossy Reflection") Unity bakes a prefiltered glossy-reflection chain, so mip *N* is a progressively wider convolved environment — exactly what a smoothness-driven `texCUBElod` is asking for. At `0` (None) the chain is plain minified copies, and `_Shell_Reflection_Smoothness` and `_Shell_Reflection_BlurMaxMip` both become **nearly inert with no other symptom**. Measured in texel space, one cubemap went from 97% of its mip-0 gradient retained at lod 3 to 10% on that single flip, with mip 0 bit-identical either way; face size, mip count, format and VRAM are all unchanged, so it costs nothing but import time. Use Specular, not Diffuse — Diffuse is an irradiance chain and over-convolves the first mip.
+
+It is worth knowing *why* this is the setting rather than an oddity: both Poiyomi and lilToon sample a custom reflection cubemap as a stand-in for `unity_SpecCube0`, i.e. a reflection probe, which Unity always convolves — Poiyomi with `texCUBElod(cube, float4(dir, roughness * UNITY_SPECCUBE_LOD_STEPS))`. All six cubemaps Poiyomi ships carry `cubemapConvolution: 1`. A convolved chain is the convention this kind of texture assumes, and an unconvolved one is the anomaly. Neither the sliders' range nor their curve currently matches that convention: ours is `Range(0, 10)` defaulting to 7 against the vendors' cap of `UNITY_SPECCUBE_LOD_STEPS` (6), so with convolution on the top of the slider is dead travel. **Bringing the shell's LOD range and curve into line with lilToon's is deferred work, not a settled choice** — lilToon's remap is `mip = r * (1.7 - 0.7 * r) * 6`, which is Unity's own perceptual roughness curve, and it is the intended destination.
+
+**Do not diagnose a dead blur slider by looking at the image.** Feature size, feature sharpness, image content, mip filter (Box vs Kaiser: no measurable effect) and face resolution (1024 vs 512 on identical content: 55% vs 53%) were each measured and each ruled out. Only the convolution flag moves it.
+
+**Replacing a cubemap:** overwrite the PNG bytes and keep the existing `.meta`. The `.meta` carries both the import settings above and the GUID `WorldCoords.mat` resolves, so replacing it instead breaks the material's texture reference. Any 1:1 image works — Unity reads a 1:1 source as a spheremap and generates faces at half the power-of-two source width, then clamps to `maxTextureSize`.
 
 **What the gate does and does not cover here.** It asserts the shaders compile (warming every declared keyword variant first, since variants compile lazily and a default-only check would be weaker than a one-time review), that each material's shader reference resolves, and that no material's texture slot carries a GUID from outside the entry — read as raw GUIDs out of the `.mat`, because a GUID into a package the venue lacks resolves to nothing and would otherwise vanish from a dependency walk. It does **not** assert the import settings themselves; those are pinned only in the committed `.meta`s, so a deliberate reimport can still change them and only this README will object.
