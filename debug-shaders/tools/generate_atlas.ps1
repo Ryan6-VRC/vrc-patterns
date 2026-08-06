@@ -1,14 +1,14 @@
 <#
-  Regenerates debug-display's 64-slot MSDF glyph atlas.
+  Regenerates debug-shaders' 64-slot MSDF glyph atlas.
 
   WHY REGENERATE. The Lereldarion ancestor's atlas is 256x64 at 23x29 cells = 11x2 = 22 slots, and it
   fills all 22 (IDs 0-21) with 31 reserved as the space sentinel -- nine free slots, nowhere near A-Z.
   Author-time labels need letters, so the charset goes to 6 bits / 64 slots. Regenerating also makes the
   Font constants ours rather than a silent verbatim copy.
 
-  THE CHARSET IS NOT COPIED HERE. It is parsed out of DisplayGlyphs.cs in vrc-unity-tools, which is its
-  canon -- the atlas is generated FROM the table, so there is no committed second copy to drift. If the
-  const moves or is renamed this script FAILS rather than falling back to a stale literal.
+  THE CHARSET IS NOT COPIED HERE. It is parsed out of ../Editor/DisplayGlyphs.cs, which is its canon --
+  the atlas is generated FROM the table, so there is no committed second copy to drift. If the const
+  moves or is renamed this script FAILS rather than falling back to a stale literal.
 
   TOOLCHAIN. msdf-atlas-gen is not installed on the authoring machine and is not vendored here: fetch the
   release binary, run this, commit the PNG, delete the binary. The version below is what the committed
@@ -51,10 +51,6 @@
   against the ascender rather than the glyph box is the work it implies.
 #>
 param(
-  # Where vrc-unity-tools is checked out; DisplayGlyphs.cs under it holds the charset canon. Defaults to
-  # the Atelier sibling layout (vrc-patterns and vrc-unity-tools cloned side by side); pass it explicitly
-  # for any other arrangement, such as a worktree.
-  [string]$ToolsRoot = (Join-Path $PSScriptRoot "../../../vrc-unity-tools"),
   [Parameter(Mandatory=$true)][string]$MsdfAtlasGen,   # path to msdf-atlas-gen.exe
   [Parameter(Mandatory=$true)][string]$Font,           # path to GeistMono-Regular.ttf
   [string]$OutDir = (Join-Path $PSScriptRoot "../assets/font"),
@@ -80,8 +76,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # ── Charset, parsed from its canon ─────────────────────────────────────────────────────────────────
-$glyphsCs = Join-Path $ToolsRoot "packages/com.ryan6vrc.avatar-tools/Editor/DisplayGlyphs.cs"
-if (-not (Test-Path $glyphsCs)) { throw "charset canon not found at $glyphsCs (pass -ToolsRoot)" }
+$glyphsCs = Join-Path $PSScriptRoot "../Editor/DisplayGlyphs.cs"
+if (-not (Test-Path $glyphsCs)) { throw "charset canon not found at $glyphsCs" }
 
 $src = Get-Content -Raw -Encoding UTF8 $glyphsCs
 # Take the declaration through its terminating semicolon, then keep only the quoted segments. Comments

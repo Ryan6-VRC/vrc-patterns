@@ -6,9 +6,8 @@ Thumbs.db
 # This is a VPM *package*, not a Unity project — no Library/, Temp/, etc.
 # Asset .meta files ARE tracked (they carry stable GUIDs).
 
-# Gate runner log (transient)
-tools/gate.log
-tools/gate.log.meta
+# The gate's log lives in the workspace's test-output/, never in this tree — anything on disk here is
+# an asset to a venue that mounts this package, and a file written during a run import-loops.
 
 # Python bytecode from the entry generators
 __pycache__/

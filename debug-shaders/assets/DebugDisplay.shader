@@ -215,7 +215,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 output.uv0 = input.uv0;
             #else
                 float3 pos_ws = mul(unity_ObjectToWorld, float4(input.position_os.xyz, 1)).xyz;
-                output.ray_ws = pos_ws - dd_camera_eye_ws();
+                output.ray_ws = pos_ws - dbg_camera_eye_ws();
 
                 float3 origin_ws = output.obj_a.xyz;
                 float3 right, up, normal;
@@ -229,9 +229,9 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                     normal = normalize(float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22));
                 #else
                     // Billboard: plane faces the STEREO-CENTRE camera, so both eyes ray-trace against one
-                    // plane and the disparity is coherent. dd_camera_center_ws fixes the ancestor's
+                    // plane and the disparity is coherent. dbg_camera_center_ws fixes the ancestor's
                     // dead-guard bug here.
-                    normal = normalize(dd_camera_center_ws() - origin_ws);
+                    normal = normalize(dbg_camera_center_ws() - origin_ws);
                     up = float3(0, 1, 0);
                     right = cross(normal, up);
                     if (length(right) < 0.001) right = float3(1, 0, 0);   // camera directly overhead
@@ -274,7 +274,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 // scale-relative, because the quad's world size sets the apparent text size.
                 frame_uv = (input.uv0 - 0.5) * (grid_px * font.inverse_scale);
             #else
-                float3 camera_ws = dd_camera_eye_ws();
+                float3 camera_ws = dbg_camera_eye_ws();
                 float3 ray_dir = normalize(input.ray_ws);
                 float denom = dot(ray_dir, input.plane_normal_ws);
                 if (abs(denom) < 0.0001) discard;                        // ray parallel to the plane
@@ -427,45 +427,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
             #pragma multi_compile_instancing
             #pragma shader_feature_local _SHELL_ON
 
-            #include "debug_display_common.hlsl"
-
-            uniform half4 _Shell_Reflection_Color;
-            uniform samplerCUBE _Shell_ReflectionCube;
-            uniform float _Shell_Reflection_Strength;
-            uniform float _Shell_Reflection_Smoothness;
-            uniform float _Shell_Reflection_BlurMaxMip;
-
-            uniform half4 _Shell_Rim_Color;
-            uniform float _Shell_Rim_Strength;
-            uniform float _Shell_Rim_Border;
-            uniform float _Shell_Rim_Blur;
-            uniform float _Shell_Rim_FresnelPower;
-            uniform float _Shell_Rim_VRParallaxStrength;
-
-            struct ShellVertexInput
-            {
-                float4 position_os : POSITION;
-                float3 normal_os : NORMAL;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-
-            struct ShellFragmentInput
-            {
-                float4 position : SV_POSITION;
-                float3 position_ws : TEXCOORD0;
-                float3 normal_ws : TEXCOORD1;
-                UNITY_VERTEX_OUTPUT_STEREO
-            };
-
-            void shell_vertex_stage(ShellVertexInput input, out ShellFragmentInput output)
-            {
-                UNITY_SETUP_INSTANCE_ID(input);
-                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
-
-                output.position = UnityObjectToClipPos(input.position_os);
-                output.position_ws = mul(unity_ObjectToWorld, input.position_os).xyz;
-                output.normal_ws = UnityObjectToWorldNormal(input.normal_os);
-            }
+            #include "crystal_shell.hlsl"
 
             half4 shell_fragment_stage(ShellFragmentInput input) : SV_Target
             {
@@ -474,47 +436,12 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
             #if !defined(_SHELL_ON)
                 return half4(0, 0, 0, 0);
             #else
-                float3 N = normalize(input.normal_ws);
-
-                float3 cam_eye_ws = dd_camera_eye_ws();
-                float3 V_reflect = normalize(cam_eye_ws - input.position_ws);
-                float3 R = normalize(reflect(-V_reflect, N));
-
-                // Perceptual-roughness -> mip through Unity's own remap for a convolved specular cube
-                // (perceptualRoughness * (1.7 - 0.7 * perceptualRoughness), UnityImageBasedLighting.cginc),
-                // scaled by the slider where both vendors hardcode UNITY_SPECCUBE_LOD_STEPS = 6. lilToon
-                // inlines the identical curve pre-multiplied: perceptualRoughness * (10.2 - 4.2 * pR).
-                // The prior bare linear ramp was NOT equivalent: it under-blurs the mid range and, against
-                // a chain that is already near-flat by mip 6, spent the slider's top third on dead travel.
-                float perceptual_roughness = 1.0 - saturate(_Shell_Reflection_Smoothness);
-                float reflection_mip = perceptual_roughness * (1.7 - 0.7 * perceptual_roughness)
-                                     * _Shell_Reflection_BlurMaxMip;
-                half3 reflection_sample = texCUBElod(_Shell_ReflectionCube, float4(R, reflection_mip)).rgb;
-                half3 reflection_rgb = reflection_sample
-                                     * _Shell_Reflection_Color.rgb
-                                     * (_Shell_Reflection_Color.a * _Shell_Reflection_Strength);
-
-                // The rim's viewpoint lerps between stereo centre and per-eye: at 0 both eyes see the
-                // same rim (flat but stable), at 1 it parallaxes properly.
-                float3 cam_rim_ws = lerp(dd_camera_center_ws(), cam_eye_ws, saturate(_Shell_Rim_VRParallaxStrength));
-                float3 V_rim = normalize(cam_rim_ws - input.position_ws);
-
-                float ndv = saturate(dot(N, V_rim));
-                float rim_base = pow(saturate(1.0 - ndv), max(_Shell_Rim_FresnelPower, 0.0001));
-
-                float rim_min = saturate(_Shell_Rim_Border - _Shell_Rim_Blur * 0.5);
-                float rim_max = saturate(_Shell_Rim_Border + _Shell_Rim_Blur * 0.5);
-                rim_max = max(rim_max, rim_min + 0.0001);
-
-                float rim_mask = smoothstep(rim_min, rim_max, rim_base);
-                half3 rim_rgb = _Shell_Rim_Color.rgb * (_Shell_Rim_Color.a * _Shell_Rim_Strength) * rim_mask;
-
-                return half4(reflection_rgb + rim_rgb, 0);
+                return half4(shell_rgb(input.normal_ws, input.position_ws), 0);
             #endif
             }
             ENDCG
         }
     }
 
-    CustomEditor "Ryan6Vrc.AvatarTools.Editor.DebugDisplayShaderGUI"
+    CustomEditor "Ryan6Vrc.Patterns.DebugShaders.Editor.DebugDisplayShaderGUI"
 }

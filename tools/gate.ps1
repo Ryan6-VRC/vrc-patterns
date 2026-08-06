@@ -14,7 +14,6 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$log  = Join-Path $PSScriptRoot 'gate.log'
 
 # Default AtelierRoot from the repo's MAIN checkout (git worktree list line 1), whose parent is the
 # Atelier workspace root — correct from the main checkout and from any git-worktree slice, where a
@@ -24,6 +23,15 @@ if (-not $AtelierRoot) {
   $AtelierRoot = (Resolve-Path (Join-Path $mainWt '..')).Path
 }
 $editor = Join-Path $AtelierRoot 'TestEditor'
+
+# The log goes to the workspace's disposable pile, NOT beside this script. Writing it into tools/ puts
+# a file Unity treats as an asset inside the package tree: any venue that mounts this repo re-imports
+# it on every write, and because the gate writes throughout its own run that becomes an infinite import
+# loop which fails every entry with a null reference. Gitignoring it does not help — Unity imports what
+# is on disk, not what git tracks.
+$logDir = Join-Path $AtelierRoot 'test-output'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$log = Join-Path $logDir 'patterns-gate.log'
 
 if (-not (Test-Path $editor)) {
   $setup = Join-Path $AtelierRoot 'tools/setup-test-editor.ps1'
