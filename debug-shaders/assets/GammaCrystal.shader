@@ -174,8 +174,12 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                // Unchanged from the ancestor: the bubble does not render in mirrors at all. DELIBERATELY
-                // asymmetric with DebugOverlay, which only suppresses its FULLSCREEN takeover there.
+                // Only the GRADING bails in a mirror. The shell pass carries no such check and still draws,
+                // and that pairing is the whole point: a mirror reflects a scene this bubble has ALREADY
+                // graded, so grading the reflection as well would compound it -- hold the bubble beside a
+                // mirror and the reflected region would darken twice. The shell must keep rendering, or the
+                // object disappears from its own reflection while you are holding it. DELIBERATELY
+                // asymmetric with DebugOverlay, which only suppresses its FULLSCREEN takeover in mirrors.
                 if (_VRChatMirrorMode != 0)
                 {
                     output.sphere_center_ws = float3(0, 0, 0);
