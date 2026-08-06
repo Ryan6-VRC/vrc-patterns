@@ -167,8 +167,16 @@ Shader "Ryan6VRC/Overlay/DebugOverlay"
                 // that number, which is this direction. Upstream's is correct only in a Gamma-space
                 // project, where nothing converts on write. Do not "restore" it to match upstream: the
                 // divergence is the fix, and reverting it washes every normal colour out non-linearly.
+                // Ours, and additive: the ancestor is identically unguarded and is well tested on PC VR, so
+                // this fixes no observed defect. Sky and far-plane pixels collapse all three samples onto one
+                // point, leaving a zero cross product that normalize() is undefined on. The wireframe branch
+                // absorbs that in its saturate; this one feeds GammaToLinearSpace, which has no such clamp,
+                // and saturate(NaN) is reliably benign on DX11 but not specified on the Android/GLES target.
+                // Only the already-undefined pixel changes, so it cannot regress one that was rendering.
                 float3 normal_dir_vs = cross(vs_0_p - vs_0_0, vs_m_0 - vs_0_0);
-                float3 normal_ws = normalize(mul((float3x3) unity_MatrixInvV, normal_dir_vs));
+                float3 normal_ws = dot(normal_dir_vs, normal_dir_vs) > 1e-10
+                                 ? normalize(mul((float3x3) unity_MatrixInvV, normal_dir_vs))
+                                 : float3(0, 0, 1);
                 return fixed4(GammaToLinearSpace(normal_ws * 0.5 + 0.5), 1);
             #else
                 // Triangle edges: three normals from the origin pixel over three quadrants, and the places

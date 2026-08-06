@@ -60,7 +60,7 @@ struct DepthReconstruction
     }
 
     // DELIBERATELY still guarded on UNITY_SINGLE_PASS_STEREO, unlike the camera helpers in
-    // crystal_shell.hlsl. That guard is dead code there and fixing it was the point; here it is dead code
+    // stereo_camera.hlsl. That guard is dead code there and fixing it was the point; here it is dead code
     // that is CORRECT to leave dead. The half-width offset only exists because the deprecated double-wide
     // path packs both eyes into one render target, so clip x must be un-shifted per eye. Single-pass
     // instanced has no such packing, and applying the offset under USING_STEREO_MATRICES would sample the

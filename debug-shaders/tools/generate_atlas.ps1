@@ -1,5 +1,5 @@
 <#
-  Regenerates debug-display's 64-slot MSDF glyph atlas.
+  Regenerates debug-shaders' 64-slot MSDF glyph atlas.
 
   WHY REGENERATE. The Lereldarion ancestor's atlas is 256x64 at 23x29 cells = 11x2 = 22 slots, and it
   fills all 22 (IDs 0-21) with 31 reserved as the space sentinel -- nine free slots, nowhere near A-Z.

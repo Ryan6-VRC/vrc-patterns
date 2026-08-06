@@ -49,13 +49,13 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 | Property | What it does |
 |---|---|
 | `_Gamma_Adjust_Value` | the grade itself, ±5. Negative brightens, positive darkens |
-| `_Transmit_Emission` | on, values above 1 pass through ungraded, so emissive surfaces stay emissive |
+| `_Transmit_Emission` | on, values above 1 bypass the **gamma** stage, so emissive surfaces stay emissive. Exposure is applied before the split and scotopic after it, so both still reach them |
 | `_Exposure_Enable` / `_Exposure_Value` | an optional linear exposure stage, ±5 EV stops |
 | `_Scotopic_Enable` / `_Scotopic_Strength` / `_Scotopic_Tint` | an optional desaturation toward a tint, modelling night vision |
+| `_AoE_Scale_Relative` | on (default), the three distances below are multiplied by the object's **mean axis scale**, so the effect tracks the mesh you can see; off restores the ancestor's absolute metres, and then scaling or animating the object slides the visible sphere out of the region it bounds. A single scalar: the area of effect is spherical by construction, so scale the host uniformly |
 | `_AoE_MinDistance` / `_AoE_MaxDistance` | metres from the sphere centre at which the grading is at full strength and at zero — the falloff band |
-| `_AoE_Scale_Relative` | on (default), all three distances below are multiplied by the object's **mean axis scale**, so the effect tracks the mesh you can see; off restores the ancestor's absolute metres, and then scaling or animating the object slides the visible sphere out of the region it bounds. A single scalar: the area of effect is spherical by construction, so scale the host uniformly |
 | `_Core_Radius` / `_Core_Intensity` | a denser inner region that reads as the bubble's core. **Authored per material against the mesh you are on, not derived** — the core is a feathered smoothstep, so the radius that reads as tracing the silhouette sits slightly outside the surface, and a non-spherical mesh has no single radius to derive from. Retune by eye; scale-relative handling then holds it at any object scale |
-| `_Shell_Grading_Resist` | how much the shell resists its own grading — 0 lets the shell go dark with the scene, 1 leaves it untouched and too bright |
+| `_Shell_Grading_Resist` | how much the shell resists **gamma and exposure** — 0 lets it go dark with the scene, 1 leaves it untouched and too bright. Scotopic tint is deliberately not resisted and always applies at full strength, because it is a hue shift rather than a brightness crush |
 
 ## Interface
 
@@ -85,7 +85,7 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Object display mode reads correctly from the object's −Z side.** The text runs along +X, so an observer on +Z sees the grid mirrored. Turn the object around, or use billboard mode, which has no side.
 
-**Camera and mirror behaviour deliberately differs across the three.** `DebugOverlay` suppresses only its fullscreen takeover in mirrors and the VRChat camera, still drawing on its mesh; `GammaCrystal` renders nothing in mirrors and does grade the VRChat camera, because a scene grade is what a photo should capture. Changing one to match the other is a design decision, not a cleanup.
+**Camera and mirror behaviour deliberately differs across the three.** `DebugOverlay` suppresses only its fullscreen takeover in mirrors and the VRChat camera, still drawing on its mesh; `GammaCrystal` suppresses its *grading* in mirrors while its crystal shell still draws — a mirror shows the bare sphere — and it does grade the VRChat camera, because a scene grade is what a photo should capture. Changing one to match the other is a design decision, not a cleanup.
 
 **Mesh merging can relocate any of this.** Optimizers key merge decisions off the avatar root, and these anchors are not it. Measured against `d4rkAvatarOptimizer` at defaults on a composed humanoid, both displays were left alone — one optimizer at one setting, not a guarantee. Use the per-GameObject opt-out where a readout is load-bearing.
 

@@ -109,9 +109,10 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
             #include "UnityCG.cginc"
             #include "depth_reconstruct.hlsl"
-            // For the stereo-correct camera helper. The shell's own uniforms come with it and go unused in
-            // this pass, which costs nothing -- an unreferenced uniform is not bound.
-            #include "crystal_shell.hlsl"
+            // Just the stereo-correct camera helper. stereo_camera.hlsl is its own file precisely so a pass
+            // can take it without the shell's uniforms; this pass is that case, and reaching it through
+            // crystal_shell.hlsl would defeat the split.
+            #include "stereo_camera.hlsl"
 
             uniform float _Gamma_Adjust_Value;
             uniform float _Transmit_Emission;
@@ -132,6 +133,11 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
             uniform float _VRChatMirrorMode;
 
+            // TEX2D, not the SCREENSPACE (Texture2DArray) pair, and that is not an oversight. A BiRP
+            // GrabPass target is not one of the textures Unity rebinds as an array under single-pass
+            // instanced, so the screenspace macros would declare an array for a Texture2D binding. The
+            // ancestor ships this exact declaration and sample and is well tested in VR; the mismatch would
+            // show only in a headset, so do not "fix" this from macro semantics without measuring there.
             UNITY_DECLARE_TEX2D(_GammaAdjustGrabTexture);
 
             struct VertexInput
@@ -237,7 +243,10 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
                 float aoe_min = _AoE_MinDistance * input.aoe_scale;
                 float aoe_max = max(_AoE_MaxDistance * input.aoe_scale, aoe_min + 0.001);
-                float core_radius = _Core_Radius * input.aoe_scale;
+                // Floored: _Core_Radius is a bare Float, so a negative is authorable, and it would put
+                // smoothstep's edge1 below edge0 at :298 -- inverting the ramp so the core reads as 1 across
+                // the whole bubble rather than vanishing. The sibling bands are clamped the same way.
+                float core_radius = max(_Core_Radius * input.aoe_scale, 1e-4);
 
                 // ─────────────────────────────────────────────────────────────────────────────────────
                 // Volumetric strength.
