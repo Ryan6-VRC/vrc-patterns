@@ -25,6 +25,9 @@ parameters:
   IsLocal: bool              # VRC built-in
   SyncProbe/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   SyncProbe/One: { type: float, default: 1.0, scratch: true }    # constant full-weight helper, never driven
+  SyncProbe/Alive: { type: bool, scratch: true }   # driver-set on every real copy; a mirror clone
+                                                #   runs no drivers, so it stays false there (the
+                                                #   mirror-detect race, vrc-patterns/mirror-detect)
   # Wire — the synced surface, 49 bits, all unsaved.
   SyncProbe/R05: { type: int, vrc: { synced: true, saved: false } }   # 0.05s rung, guard hop
   SyncProbe/R10B: { type: int, vrc: { synced: true, saved: false } }   # 0.1s rung, BARE — no guard hop
@@ -133,7 +136,11 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { SyncProbe/R05: 0, SyncProbe/Cnt/R05: 1 } }
         transitions:
-          - { to: Tick, when: [ SyncProbe/True is true ] }   # one extra frame per 256 ticks, declared
+          - { to: Hop, when: [], exitTime: 0.05 }   # the wrap IS a tick: 0 holds a full cadence
+          # (a conditional hop straight back to Tick held 0 for one render frame,
+          # under the ~0.1s tick, minting a phantom stride-2 every 256 ticks that
+          # the bare rung does not have — exactly the guarded-vs-bare delta this
+          # probe measures)
     default: Split
     layout:
       nodes:
@@ -224,7 +231,11 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { SyncProbe/R10G: 0, SyncProbe/Cnt/R10G: 1 } }
         transitions:
-          - { to: Tick, when: [ SyncProbe/True is true ] }   # one extra frame per 256 ticks, declared
+          - { to: Hop, when: [], exitTime: 0.1 }   # the wrap IS a tick: 0 holds a full cadence
+          # (a conditional hop straight back to Tick held 0 for one render frame,
+          # under the ~0.1s tick, minting a phantom stride-2 every 256 ticks that
+          # the bare rung does not have — exactly the guarded-vs-bare delta this
+          # probe measures)
     default: Split
     layout:
       nodes:
@@ -263,7 +274,11 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { SyncProbe/R20: 0, SyncProbe/Cnt/R20: 1 } }
         transitions:
-          - { to: Tick, when: [ SyncProbe/True is true ] }   # one extra frame per 256 ticks, declared
+          - { to: Hop, when: [], exitTime: 0.2 }   # the wrap IS a tick: 0 holds a full cadence
+          # (a conditional hop straight back to Tick held 0 for one render frame,
+          # under the ~0.1s tick, minting a phantom stride-2 every 256 ticks that
+          # the bare rung does not have — exactly the guarded-vs-bare delta this
+          # probe measures)
     default: Split
     layout:
       nodes:
@@ -306,7 +321,7 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { SyncProbe/TornA: 0, SyncProbe/TornB: 255, SyncProbe/Cnt/Torn: 1, SyncProbe/Cnt/TornB: 254 } }
         transitions:
-          - { to: Tick, when: [ SyncProbe/True is true ] }
+          - { to: Hop, when: [], exitTime: 0.1 }   # the wrap IS a tick — same dwell rule as the rungs
     default: Split
     layout:
       nodes:
@@ -465,7 +480,7 @@ layers:
             - { clip: relay_tornb_step, directWeight: SyncProbe/Dc/TnB }
             - { clip: relay_scanval_step, directWeight: SyncProbe/Sc/Val }
             - { clip: relay_scansel_step, directWeight: SyncProbe/Sc/SelIdx }
-            - { clip: relay_strobe_on, directWeight: SyncProbe/Sc/Strobe }
+            - { clip: relay_strobe_step, directWeight: SyncProbe/Sc/Strobe }
             - tree: direct
               name: "Delta R05 = Cur - Prev"
               directWeight: SyncProbe/One
@@ -838,10 +853,14 @@ layers:
         transitions:
           - { to: HbA, when: [], exitTime: 1.0 }
     default: HbA
-  # Scan bus: 21 registers round-robined at 1.5s per register onto three
-  # analog lines. Val saturates at 255 (the convertRange clamp — reset between
-  # segments keeps tallies under it); the strobe flips as each register latches,
-  # so a logger reads Val/Sel only between strobe edges.
+  # Scan bus: 22 registers round-robined at 1.5s per register onto three
+  # analog lines. Val carries tally/10 (convertRange 0..2550 -> 0..255): a raw
+  # 0..255 copy saturated inside ONE 33s sweep on every rung faster than 0.2s
+  # (R05's S1 fills 255 counts in 12.75s), unusable as the cross-check it exists
+  # to be; at /10 the fastest register lasts ~128s, two clean sweeps. The strobe
+  # flips as each register latches, so a logger reads Val/Sel only between edges;
+  # the SweepMark sentinel (Sel 21, Val 128) makes the count even — 21 registers
+  # left Reg20 and Reg0 both strobe-0, one edgeless interval per sweep.
   - name: SyncProbe/Scan
     states:
       Split:
@@ -859,7 +878,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 0
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S1, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S1, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg1, when: [], exitTime: 1.5 }
       Reg1:   # R05/S2
@@ -870,7 +889,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 1
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S2, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S2, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg2, when: [], exitTime: 1.5 }
       Reg2:   # R05/S3
@@ -881,7 +900,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 2
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S3, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S3, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg3, when: [], exitTime: 1.5 }
       Reg3:   # R05/S4
@@ -892,7 +911,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 3
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S4, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/S4, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg4, when: [], exitTime: 1.5 }
       Reg4:   # R05/Big
@@ -903,7 +922,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 4
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/Big, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R05/Big, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg5, when: [], exitTime: 1.5 }
       Reg5:   # R10B/S1
@@ -914,7 +933,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 5
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S1, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S1, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg6, when: [], exitTime: 1.5 }
       Reg6:   # R10B/S2
@@ -925,7 +944,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 6
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S2, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S2, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg7, when: [], exitTime: 1.5 }
       Reg7:   # R10B/S3
@@ -936,7 +955,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 7
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S3, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S3, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg8, when: [], exitTime: 1.5 }
       Reg8:   # R10B/S4
@@ -947,7 +966,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 8
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S4, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/S4, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg9, when: [], exitTime: 1.5 }
       Reg9:   # R10B/Big
@@ -958,7 +977,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 9
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/Big, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10B/Big, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg10, when: [], exitTime: 1.5 }
       Reg10:   # R10G/S1
@@ -969,7 +988,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 10
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S1, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S1, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg11, when: [], exitTime: 1.5 }
       Reg11:   # R10G/S2
@@ -980,7 +999,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 11
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S2, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S2, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg12, when: [], exitTime: 1.5 }
       Reg12:   # R10G/S3
@@ -991,7 +1010,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 12
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S3, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S3, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg13, when: [], exitTime: 1.5 }
       Reg13:   # R10G/S4
@@ -1002,7 +1021,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 13
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S4, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/S4, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg14, when: [], exitTime: 1.5 }
       Reg14:   # R10G/Big
@@ -1013,7 +1032,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 14
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/Big, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R10G/Big, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg15, when: [], exitTime: 1.5 }
       Reg15:   # R20/S1
@@ -1024,7 +1043,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 15
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S1, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S1, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg16, when: [], exitTime: 1.5 }
       Reg16:   # R20/S2
@@ -1035,7 +1054,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 16
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S2, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S2, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg17, when: [], exitTime: 1.5 }
       Reg17:   # R20/S3
@@ -1046,7 +1065,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 17
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S3, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S3, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg18, when: [], exitTime: 1.5 }
       Reg18:   # R20/S4
@@ -1057,7 +1076,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 18
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S4, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/S4, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg19, when: [], exitTime: 1.5 }
       Reg19:   # R20/Big
@@ -1068,7 +1087,7 @@ layers:
                 SyncProbe/Sc/SelIdx: 19
                 SyncProbe/Sc/Strobe: 1
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/Big, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/R20/Big, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
         transitions:
           - { to: Reg20, when: [], exitTime: 1.5 }
       Reg20:   # TornCount
@@ -1079,10 +1098,37 @@ layers:
                 SyncProbe/Sc/SelIdx: 20
                 SyncProbe/Sc/Strobe: 0
               copy:
-                SyncProbe/Sc/Val: { source: SyncProbe/Ty/TornCount, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }
+                SyncProbe/Sc/Val: { source: SyncProbe/Ty/TornCount, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }
+        transitions:
+          - { to: Reg21, when: [], exitTime: 1.5 }
+      Reg21:   # SweepMark
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                SyncProbe/Sc/SelIdx: 21
+                SyncProbe/Sc/Strobe: 1
+                SyncProbe/Sc/Val: 128
         transitions:
           - { to: Reg0, when: [], exitTime: 1.5 }
     default: Split
+  # MirrorGate: a mirror clone runs the clip layers (the heartbeat included) from
+  # Entry at its own phase but executes NO drivers, so its relay senders would
+  # broadcast garbage on the live tags — both heartbeat lines high at once reads
+  # as 'contact trouble, discard'. The gate holds the whole Rig inactive until a
+  # driver proves this copy is real (mirror-detect's race); real copies pass in
+  # ~2 frames, a mirror never does.
+  - name: SyncProbe/MirrorGate
+    states:
+      Probe:
+        motion: { clip: rig_off }
+        behaviours:
+          - driver: { set: { SyncProbe/Alive: 1 } }
+        transitions:
+          - { to: Live, when: [ SyncProbe/Alive is true ] }
+      Live:
+        motion: { clip: rig_on }
+    default: Probe
   # Reset: the wearer's menu button clears tallies on EVERY client (localOnly
   # false) and re-stages Prev from Cur so the first post-reset delivery is not a
   # spurious big-jump.
@@ -1172,6 +1218,12 @@ clips:
       "Rig/Scan/Sel/S/Transform.m_LocalPosition.x": 0
       "Rig/Scan/Sel/S/Transform.m_LocalPosition.y": 0
       "Rig/Scan/Sel/S/Transform.m_LocalPosition.z": 0.15
+      # strobe: position-encoded like everything else (rest 0.5 = outside its
+      # Constant box at z 2.5; +2.0 x Strobe puts it inside). A scale-0 sphere at
+      # a box's centre was the first design and is unproven as a gate.
+      "Rig/Scan/Strobe/S/Transform.m_LocalPosition.x": 0
+      "Rig/Scan/Strobe/S/Transform.m_LocalPosition.y": 0
+      "Rig/Scan/Strobe/S/Transform.m_LocalPosition.z": 0.5
   # Per-channel step endpoints: pos.z contribution = value * step.
   relay_r05_step: { set: { "Rig/R05/S/Transform.m_LocalPosition.z": 0.02 } }
   relay_r10b_step: { set: { "Rig/R10B/S/Transform.m_LocalPosition.z": 0.02 } }
@@ -1181,12 +1233,10 @@ clips:
   relay_tornb_step: { set: { "Rig/Torn/B/S/Transform.m_LocalPosition.z": 0.02 } }
   relay_scanval_step: { set: { "Rig/Scan/Val/S/Transform.m_LocalPosition.z": 0.02 } }
   relay_scansel_step: { set: { "Rig/Scan/Sel/S/Transform.m_LocalPosition.z": 0.24 } }
-  # Strobe rides sender scale (0 or 1 — driver-set), read by a Constant receiver.
-  relay_strobe_on:
-    set:
-      "Rig/Scan/SStrobe/Transform.m_LocalScale.x": 1
-      "Rig/Scan/SStrobe/Transform.m_LocalScale.y": 1
-      "Rig/Scan/SStrobe/Transform.m_LocalScale.z": 1
+  relay_strobe_step: { set: { "Rig/Scan/Strobe/S/Transform.m_LocalPosition.z": 2.0 } }
+  # Mirror gate endpoints.
+  rig_off: { set: { "Rig/GameObject.m_IsActive": 0 } }
+  rig_on:  { set: { "Rig/GameObject.m_IsActive": 1 } }
   # Heartbeat: complementary GO actives, half-period per clip.
   hb_a:
     seconds: 0.5
@@ -1200,5 +1250,8 @@ clips:
       "Rig/Hb/SB/GameObject.m_IsActive": 1
 
 menu:
-  - button: Reset
+  # A toggle, not a button: the clear runs on the REMOTE copies, and a synced
+  # set->clear pair needs ~0.2s of separation to be seen remotely at all
+  # (docs/runtime.md #Parameters) — a button click is under it. Hold ~2s.
+  - toggle: Reset
     param: SyncProbe/Reset

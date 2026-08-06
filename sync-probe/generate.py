@@ -50,16 +50,22 @@ own tree:
   counts once (a real torn tick persists ~a full tick; a render-frame
   boundary does not).
 - Scan bus: a register cycler round-robins the tallies onto three analog
-  lines (value, select index, strobe) as the post-hoc cross-check on the
-  live streams; the strobe flips as each register latches (a deliberate
-  swap from the plan's parity bit — an XOR chain of tree stages costs more
-  than the read-validity it buys).
+  lines (value = tally/10, select index, strobe) as the post-hoc cross-check
+  on the live streams; the strobe flips as each register latches (a
+  deliberate swap from the plan's parity bit — an XOR chain of tree stages
+  costs more than the read-validity it buys), and a SweepMark sentinel
+  register keeps the count even so the strobe has an edge at the sweep wrap.
+- MirrorGate: a mirror clone runs clip layers from Entry at its own phase
+  but executes no drivers (docs/runtime.md #Parameters), so ungated it
+  would broadcast garbage on the live relay tags; a driver-set Alive bool
+  (mirror-detect's race) holds the whole Rig inactive on mirror clones.
 - Heartbeat: a two-state flip-flop of complementary GO-active clips (local
   time, zero network dependence) — exactly one of two Constant senders
   active at any instant. Classifies every anomaly: heartbeat clean +
   counters skipping = sync loss; both frozen valid = animator pause; both
   zero = relay collapse; erratic = contact trouble, discard the interval.
-- Reset: one synced bool (menu button on the wearer); a localOnly:false
+- Reset: one synced bool (menu TOGGLE on the wearer, held ~2s: a set->clear
+  pair under ~0.2s is never seen remotely, docs/runtime.md); a localOnly:false
   driver clears tallies on every client and re-stages Prev from Cur so the
   first post-reset delivery does not count as a big-jump.
 
@@ -105,7 +111,7 @@ CONFIG = {
     # edge-guard rationale: 0 is then unambiguously "not acquired").
     "relayStep": 0.02,
     "relayRest": 0.15,
-    "scanSelStep": 0.24,      # 21 registers: 0.15 + 20*0.24 = 4.95 m
+    "scanSelStep": 0.24,      # 22 registers: 0.15 + 21*0.24 = 5.19 m, inside the guard
     # FpsBand edges, seconds of frametime (ascending). Band k = between edge
     # k-1 and edge k; band 0 is below the first edge, band len(edges) above
     # the last. Chosen at common client rate plateaus: 85/66/52/37/27/17.5/
@@ -167,6 +173,9 @@ def emit():
     o("  IsLocal: bool              # VRC built-in")
     o(f"  {p('True')}: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
     o(f"  {p('One')}: {{ type: float, default: 1.0, scratch: true }}    # constant full-weight helper, never driven")
+    o(f"  {p('Alive')}: {{ type: bool, scratch: true }}   # driver-set on every real copy; a mirror clone")
+    o("                                                #   runs no drivers, so it stays false there (the")
+    o("                                                #   mirror-detect race, vrc-patterns/mirror-detect)")
     o("  # Wire — the synced surface, 49 bits, all unsaved.")
     for r in rungs:
         guard = "guard hop" if r["guardHop"] else "BARE — no guard hop"
@@ -253,7 +262,11 @@ def emit():
             o("        behaviours:")
             o(f"          - driver: {{ localOnly: true, set: {{ {wire}: 0, {cnt}: 1 }} }}")
             o("        transitions:")
-            o(f"          - {{ to: Tick, when: [ {p('True')} is true ] }}   # one extra frame per 256 ticks, declared")
+            o(f"          - {{ to: Hop, when: [], exitTime: {secs} }}   # the wrap IS a tick: 0 holds a full cadence")
+            o("          # (a conditional hop straight back to Tick held 0 for one render frame,")
+            o("          # under the ~0.1s tick, minting a phantom stride-2 every 256 ticks that")
+            o("          # the bare rung does not have — exactly the guarded-vs-bare delta this")
+            o("          # probe measures)")
             o("    default: Split")
             o("    layout:")
             o("      nodes:")
@@ -327,7 +340,7 @@ def emit():
     o("        behaviours:")
     o(f"          - driver: {{ localOnly: true, set: {{ {p('TornA')}: 0, {p('TornB')}: 255, {p('Cnt/Torn')}: 1, {p('Cnt/TornB')}: 254 }} }}")
     o("        transitions:")
-    o(f"          - {{ to: Tick, when: [ {p('True')} is true ] }}")
+    o(f"          - {{ to: Hop, when: [], exitTime: {ts} }}   # the wrap IS a tick — same dwell rule as the rungs")
     o("    default: Split")
     o("    layout:")
     o("      nodes:")
@@ -431,7 +444,7 @@ def emit():
     o(f"            - {{ clip: relay_tornb_step, directWeight: {p('Dc/TnB')} }}")
     o(f"            - {{ clip: relay_scanval_step, directWeight: {p('Sc/Val')} }}")
     o(f"            - {{ clip: relay_scansel_step, directWeight: {p('Sc/SelIdx')} }}")
-    o(f"            - {{ clip: relay_strobe_on, directWeight: {p('Sc/Strobe')} }}")
+    o(f"            - {{ clip: relay_strobe_step, directWeight: {p('Sc/Strobe')} }}")
     for r in rungs:
         n = r["name"]
         o(f"            - tree: direct")
@@ -555,11 +568,17 @@ def emit():
         for b, _, _ in BUCKETS:
             registers.append((f"{r['name']}/{b}", p(f"Ty/{r['name']}/{b}")))
     registers.append(("TornCount", p("Ty/TornCount")))
+    registers.append(("SweepMark", None))  # sentinel: Sel 21, Val 128 — also keeps the
+    #   register count EVEN, so the k%2 strobe has an edge at the sweep wrap
     dwell = c["scanDwellSeconds"]
     o(f"  # Scan bus: {len(registers)} registers round-robined at {dwell}s per register onto three")
-    o("  # analog lines. Val saturates at 255 (the convertRange clamp — reset between")
-    o("  # segments keeps tallies under it); the strobe flips as each register latches,")
-    o("  # so a logger reads Val/Sel only between strobe edges.")
+    o("  # analog lines. Val carries tally/10 (convertRange 0..2550 -> 0..255): a raw")
+    o("  # 0..255 copy saturated inside ONE 33s sweep on every rung faster than 0.2s")
+    o("  # (R05's S1 fills 255 counts in 12.75s), unusable as the cross-check it exists")
+    o("  # to be; at /10 the fastest register lasts ~128s, two clean sweeps. The strobe")
+    o("  # flips as each register latches, so a logger reads Val/Sel only between edges;")
+    o("  # the SweepMark sentinel (Sel 21, Val 128) makes the count even — 21 registers")
+    o("  # left Reg20 and Reg0 both strobe-0, one edgeless interval per sweep.")
     o(f"  - name: {ch}/Scan")
     o("    states:")
     o("      Split:")
@@ -577,11 +596,33 @@ def emit():
         o("              set:")
         o(f"                {p('Sc/SelIdx')}: {k}")
         o(f"                {p('Sc/Strobe')}: {k % 2}")
-        o("              copy:")
-        o(f"                {p('Sc/Val')}: {{ source: {tally}, sourceMin: 0, sourceMax: 255, destMin: 0, destMax: 255 }}")
+        if tally is None:
+            o(f"                {p('Sc/Val')}: 128")
+        else:
+            o("              copy:")
+            o(f"                {p('Sc/Val')}: {{ source: {tally}, sourceMin: 0, sourceMax: 2550, destMin: 0, destMax: 255 }}")
         o("        transitions:")
         o(f"          - {{ to: Reg{(k + 1) % len(registers)}, when: [], exitTime: {dwell} }}")
     o("    default: Split")
+
+    # --- mirror gate ---
+    o("  # MirrorGate: a mirror clone runs the clip layers (the heartbeat included) from")
+    o("  # Entry at its own phase but executes NO drivers, so its relay senders would")
+    o("  # broadcast garbage on the live tags — both heartbeat lines high at once reads")
+    o("  # as 'contact trouble, discard'. The gate holds the whole Rig inactive until a")
+    o("  # driver proves this copy is real (mirror-detect's race); real copies pass in")
+    o("  # ~2 frames, a mirror never does.")
+    o(f"  - name: {ch}/MirrorGate")
+    o("    states:")
+    o("      Probe:")
+    o("        motion: { clip: rig_off }")
+    o("        behaviours:")
+    o(f"          - driver: {{ set: {{ {p('Alive')}: 1 }} }}")
+    o("        transitions:")
+    o(f"          - {{ to: Live, when: [ {p('Alive')} is true ] }}")
+    o("      Live:")
+    o("        motion: { clip: rig_on }")
+    o("    default: Probe")
 
     # --- reset ---
     o("  # Reset: the wearer's menu button clears tallies on EVERY client (localOnly")
@@ -641,6 +682,12 @@ def emit():
         o(f"      \"{path}/Transform.m_LocalPosition.x\": 0")
         o(f"      \"{path}/Transform.m_LocalPosition.y\": 0")
         o(f"      \"{path}/Transform.m_LocalPosition.z\": {rest}")
+    o("      # strobe: position-encoded like everything else (rest 0.5 = outside its")
+    o("      # Constant box at z 2.5; +2.0 x Strobe puts it inside). A scale-0 sphere at")
+    o("      # a box's centre was the first design and is unproven as a gate.")
+    o("      \"Rig/Scan/Strobe/S/Transform.m_LocalPosition.x\": 0")
+    o("      \"Rig/Scan/Strobe/S/Transform.m_LocalPosition.y\": 0")
+    o("      \"Rig/Scan/Strobe/S/Transform.m_LocalPosition.z\": 0.5")
     o("  # Per-channel step endpoints: pos.z contribution = value * step.")
     for r in rungs:
         o(f"  relay_{r['name'].lower()}_step: {{ set: {{ \"Rig/{r['name']}/S/Transform.m_LocalPosition.z\": {step} }} }}")
@@ -648,12 +695,10 @@ def emit():
     o(f"  relay_tornb_step: {{ set: {{ \"Rig/Torn/B/S/Transform.m_LocalPosition.z\": {step} }} }}")
     o(f"  relay_scanval_step: {{ set: {{ \"Rig/Scan/Val/S/Transform.m_LocalPosition.z\": {step} }} }}")
     o(f"  relay_scansel_step: {{ set: {{ \"Rig/Scan/Sel/S/Transform.m_LocalPosition.z\": {c['scanSelStep']} }} }}")
-    o("  # Strobe rides sender scale (0 or 1 — driver-set), read by a Constant receiver.")
-    o("  relay_strobe_on:")
-    o("    set:")
-    o("      \"Rig/Scan/SStrobe/Transform.m_LocalScale.x\": 1")
-    o("      \"Rig/Scan/SStrobe/Transform.m_LocalScale.y\": 1")
-    o("      \"Rig/Scan/SStrobe/Transform.m_LocalScale.z\": 1")
+    o("  relay_strobe_step: { set: { \"Rig/Scan/Strobe/S/Transform.m_LocalPosition.z\": 2.0 } }")
+    o("  # Mirror gate endpoints.")
+    o("  rig_off: { set: { \"Rig/GameObject.m_IsActive\": 0 } }")
+    o("  rig_on:  { set: { \"Rig/GameObject.m_IsActive\": 1 } }")
     o("  # Heartbeat: complementary GO actives, half-period per clip.")
     o("  hb_a:")
     o(f"    seconds: {hb}")
@@ -669,7 +714,10 @@ def emit():
 
     # ---------------- menu ----------------
     o("menu:")
-    o("  - button: Reset")
+    o("  # A toggle, not a button: the clear runs on the REMOTE copies, and a synced")
+    o("  # set->clear pair needs ~0.2s of separation to be seen remotely at all")
+    o("  # (docs/runtime.md #Parameters) — a button click is under it. Hold ~2s.")
+    o("  - toggle: Reset")
     o(f"    param: {p('Reset')}")
 
     return "\n".join(L) + "\n", registers
@@ -682,7 +730,7 @@ def main():
         fh.write(text)
     c = CONFIG
     synced = 8 * len(c["rungs"]) + 16 + 1
-    layers = len(c["rungs"]) * 2 + 9
+    layers = len(c["rungs"]) * 2 + 10
     print(f"wrote {out}: {synced} synced bits ({len(c['rungs'])} rungs + torn pair + reset), "
           f"{layers} layers, {len(registers)} scan registers, "
           f"relay span {c['relayRest']}..{c['relayRest'] + 255 * c['relayStep']:.2f} m")
