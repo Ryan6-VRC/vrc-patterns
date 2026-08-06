@@ -12,7 +12,7 @@ The glyph atlas rasterizes **Geist Mono**, SIL Open Font License 1.1 — `assets
 
 ## Configuring a material
 
-Every knob is a material property, grouped below the way `avatar-tools`' material inspectors group them. Copy a shipped material into `Assets/` before editing: the originals live under `Packages/`, which `LAYOUT.md` makes read-only to our tooling, and `SetDisplayEntry` refuses a `Packages/` target for that reason.
+Every knob is a material property, grouped below the way the entry's own material inspectors (`Editor/`) group them. Copy a shipped material into `Assets/` before editing: the originals live under `Packages/`, which `LAYOUT.md` makes read-only to our tooling, and `SetDisplayEntry` refuses a `Packages/` target for that reason.
 
 **Crystal shell — all three shaders, identical properties** (`Shell enabled` gates the whole pass; turning it off leaves only the probe/readout/grading):
 
@@ -40,7 +40,7 @@ Every knob is a material property, grouped below the way `avatar-tools`' materia
 | `_Text_Depth_Offset` | pushes the text plane fore/aft of the object origin, ±0.5 |
 | `_Palette_0..3` | the four HDR text colours each entry chooses between |
 
-Each of the twelve entries carries a **label**, a **value**, and a packed **format** — decimals, palette index, right-pad, and value source. The label is a string packed into a `Vector`; the format is a bitfield on a `[HideInInspector]` float. Both packings, the charset, and the enumerated value sources are a **managed echo of `DisplayGlyphs.cs`** in `com.ryan6vrc.avatar-tools`, which is canon — read it rather than deriving anything here. Two facts an author cannot get from that file: **right-pad is not an align-decimals flag** — the value right-aligns to `cell_width − rpad`, so `rpad = max_decimals − entry_decimals` is what lines decimal points up down a grid column (the inspector's *Auto-align* button writes exactly that); and **labels are author-time only, by construction** — ShaderLab has no string property and animation curves carry floats, so no clip can ever drive text.
+Each of the twelve entries carries a **label**, a **value**, and a packed **format** — decimals, palette index, right-pad, and value source. The label is a string packed into a `Vector`; the format is a bitfield on a `[HideInInspector]` float. Both packings, the charset, and the enumerated value sources are a **managed echo of `Editor/DisplayGlyphs.cs`**, which is canon — read it rather than deriving anything here. Two facts an author cannot get from that file: **right-pad is not an align-decimals flag** — the value right-aligns to `cell_width − rpad`, so `rpad = max_decimals − entry_decimals` is what lines decimal points up down a grid column (the inspector's *Auto-align* button writes exactly that); and **labels are author-time only, by construction** — ShaderLab has no string property and animation curves carry floats, so no clip can ever drive text.
 
 **`DebugOverlay`** — `_Probe_Mode` selects **Wireframe** (triangle edges) or **Normal** (reconstructed world normals). `_Overlay_Fullscreen` takes the probe over the whole frame instead of the mesh; `_Overlay_Screenspace_Vertex_Reorder` permutes which NDC corner each vertex id lands on, for a mesh whose winding puts them the wrong way round. Fullscreen has a mesh requirement — see §Traps.
 
@@ -65,7 +65,7 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Animation binding** — `DebugDisplay` only: `material._E{i}_Value`, `i` in 0..11, on the display's `MeshRenderer`. A plain clip curve; the shader is unlocked, so there is no Poiyomi `Animated`-tag step, and the material inspector has a copy button per path.
 
-**Dependencies** — none. `avatar-tools` is optional but nearly required for `DebugDisplay`: without it labels read as packed integers and `_E{i}_Format` is hidden, so decimals, right-pad, palette and value source are unreachable short of a debug-inspector edit.
+**Dependencies** — none, and that now includes the inspectors: the four `ShaderGUI` classes and the `DisplayGlyphs` canon they read ship in `Editor/`, so decimals, right-pad, palette and value source are editable on a bare install of this package alone. `avatar-tools` adds the agent doors (`SetDisplayEntry`, `ReportDisplay`) and nothing an operator needs by hand.
 
 **Required assets** — all shipped and self-contained: three shaders, four `.hlsl`, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx`, three template materials.
 
@@ -107,4 +107,4 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 Texture import settings are load-bearing and Unity's defaults are wrong for all three: the atlas must be uncompressed, non-sRGB and mip-free, and both cubemaps need `TextureCube` shape, Specular convolution, mips, and a trilinear filter. They are pinned only in the committed `.meta`s, every wrong value fails **silently** (a wrong reflection or a dead blur slider, never a pink material), and replacing a cubemap therefore means overwriting the PNG bytes and keeping the existing `.meta` — which also carries the GUID the materials resolve.
 
-`tools/generate_atlas.ps1` regenerates the glyph atlas, parsing the charset out of `DisplayGlyphs.cs` and printing the `Font` constants to paste into `debug_display_common.hlsl`; its header carries the procedure. The cubemaps are shipped images with no generator — swap either for any 1:1 image, subject to the settings above.
+`tools/generate_atlas.ps1` regenerates the glyph atlas, parsing the charset out of `Editor/DisplayGlyphs.cs` and printing the `Font` constants to paste into `debug_display_common.hlsl`; its header carries the procedure. The cubemaps are shipped images with no generator — swap either for any 1:1 image, subject to the settings above.

@@ -429,5 +429,5 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         }
     }
 
-    CustomEditor "Ryan6Vrc.AvatarTools.Editor.GammaCrystalShaderGUI"
+    CustomEditor "Ryan6Vrc.Patterns.DebugShaders.Editor.GammaCrystalShaderGUI"
 }

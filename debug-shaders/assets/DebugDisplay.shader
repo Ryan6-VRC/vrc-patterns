@@ -443,5 +443,5 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         }
     }
 
-    CustomEditor "Ryan6Vrc.AvatarTools.Editor.DebugDisplayShaderGUI"
+    CustomEditor "Ryan6Vrc.Patterns.DebugShaders.Editor.DebugDisplayShaderGUI"
 }

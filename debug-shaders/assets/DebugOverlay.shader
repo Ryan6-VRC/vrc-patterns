@@ -251,5 +251,5 @@ Shader "Ryan6VRC/Overlay/DebugOverlay"
         }
     }
 
-    CustomEditor "Ryan6Vrc.AvatarTools.Editor.DebugOverlayShaderGUI"
+    CustomEditor "Ryan6Vrc.Patterns.DebugShaders.Editor.DebugOverlayShaderGUI"
 }
