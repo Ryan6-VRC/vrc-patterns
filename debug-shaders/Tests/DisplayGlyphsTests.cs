@@ -40,8 +40,12 @@ public class DisplayGlyphsTests
     [Test]
     public void Label_Outside_The_Charset_Is_Refused_By_Name()
     {
+        // Lowercase is uppercased BEFORE the charset check (the charset is uppercase-only), so the
+        // refusal names the uppercased form: é goes in, É comes back. Asserting the lowercase form
+        // is the mistake to avoid here.
         Assert.IsFalse(DisplayGlyphs.TryEncodeLabel("héllo", out _, out var error, out _));
-        StringAssert.Contains("é", error, "the refusal names the offending character");
+        StringAssert.Contains("É", error, "the refusal names the offending character");
+        StringAssert.Contains("index 1", error, "and where it is");
     }
 
     [Test]
