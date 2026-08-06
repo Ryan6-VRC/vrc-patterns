@@ -6,13 +6,13 @@ Reach for `DebugDisplay` when you want to read a number in-world — an animator
 
 ## Provenance
 
-All three derive from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-shaders) (MIT, © 2025 Lereldarion): `DebugDisplay` from `Shaders/Overlay_HUD.shader`, `DebugOverlay` from `Overlay_Wireframe.shader` and `Overlay_Normals.shader` merged into one, `GammaCrystal` from `Overlay_Gamma_Adjust.shader`. Upstream's credit chain travels with the depth reconstruction and must not be dropped: the `unity_CameraInvProjection` patch that makes it work in BIRP VR is **d4rkpl4y3r's** ([gist](https://gist.github.com/d4rkc0d3r/886be3b6c233349ea6f8b4a7fcdacab3)), and the wireframe idea is **Neitri's** ([Neitri-Unity-Shaders](https://github.com/netri/Neitri-Unity-Shaders)). Ours are the crystal shell and rim, the merge of the two probes, `GammaCrystal`'s sphere-of-influence model and its exposure/scotopic/core stages, and `DebugDisplay`'s charset, atlas, entry grid and value sources.
+All three are generalized out of an existing private set of overlay shaders, which credit [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-shaders) (MIT, © 2025 Lereldarion) as their ancestor — `GammaCrystal`'s forebear names `Overlay_Gamma_Adjust.shader` outright, and the wireframe and HUD lines track `Overlay_Wireframe.shader` / `Overlay_Normals.shader` and `Shaders/Overlay_HUD.shader`. Upstream's credit chain travels with the depth reconstruction and must not be dropped: the `unity_CameraInvProjection` patch that makes it work in BIRP VR is **d4rkpl4y3r's** ([gist](https://gist.github.com/d4rkc0d3r/886be3b6c233349ea6f8b4a7fcdacab3)), and the wireframe idea is **Neitri's** ([Neitri-Unity-Shaders](https://github.com/netri/Neitri-Unity-Shaders)). Ours are the crystal shell and rim, the merge of the two probes, `GammaCrystal`'s sphere-of-influence model and its exposure/scotopic/core stages, and `DebugDisplay`'s charset, atlas, entry grid and value sources.
 
 The glyph atlas rasterizes **Geist Mono**, SIL Open Font License 1.1 — `assets/font/GeistMono-OFL.txt` ships because OFL requires the notice to accompany a bundled copy.
 
 ## Configuring a material
 
-Every knob is a material property, grouped below the way the entry's own material inspectors (`Editor/`) group them. Copy a shipped material into `Assets/` before editing: the originals live under `Packages/`, which `LAYOUT.md` makes read-only to our tooling, and `SetDisplayEntry` refuses a `Packages/` target for that reason.
+Every knob is a material property, grouped below the way the inspectors in `Editor/` group them. Copy a shipped material into `Assets/` before editing — the originals live under `Packages/`, which is read-only.
 
 **Crystal shell — all three shaders, identical properties** (`Shell enabled` gates the whole pass; turning it off leaves only the probe/readout/grading):
 
@@ -65,7 +65,7 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Animation binding** — `DebugDisplay` only: `material._E{i}_Value`, `i` in 0..11, on the display's `MeshRenderer`. A plain clip curve; the shader is unlocked, so there is no Poiyomi `Animated`-tag step, and the material inspector has a copy button per path.
 
-**Dependencies** — none, and that now includes the inspectors: the four `ShaderGUI` classes and the `DisplayGlyphs` canon they read ship in `Editor/`, so decimals, right-pad, palette and value source are editable on a bare install of this package alone. `avatar-tools` adds the agent doors (`SetDisplayEntry`, `ReportDisplay`) and nothing an operator needs by hand.
+**Dependencies** — none. The shaders, the `ShaderGUI` inspectors and the `DisplayGlyphs` format canon they read all ship in this entry, so everything is editable on a bare install of this package alone.
 
 **Required assets** — all shipped and self-contained: three shaders, four `.hlsl`, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx`, three template materials.
 
