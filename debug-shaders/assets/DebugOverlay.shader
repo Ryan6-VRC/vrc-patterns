@@ -22,12 +22,15 @@ Shader "Ryan6VRC/Overlay/DebugOverlay"
         // fullscreen / billboard sphere / trail), which this shader also has, as _Overlay_Fullscreen.
         [KeywordEnum(Wireframe, Normal)] _Probe_Mode("Probe mode", Float) = 0
 
-        [Header(Overlay)]
-        [ToggleUI] _Overlay_Fullscreen("Force screenspace fullscreen", Float) = 0
-        // Kept, not retired: the fullscreen path builds its quad from SV_VertexID, so which four vertices
-        // form it is a property of whatever mesh the material was dropped on. The entry ships a sample mesh
-        // but the shader is deliberately mesh-independent, so the workaround stays reachable.
-        [ToggleUI] _Overlay_Screenspace_Vertex_Reorder("Fix broken fullscreen (mesh vertex order)", Float) = 0
+        // No [Header] here or below: the material inspector draws its own sections, and Unity renders a
+        // property's header inside whichever section drew it, so a header would title the fold twice.
+        [ToggleUI] _Overlay_Fullscreen("Fullscreen", Float) = 0
+        // The fullscreen path builds its quad from SV_VertexID 0-3, so it needs a mesh whose first two
+        // triangles are drawn from those four vertices -- a cube or a quad. The entry's own DebugSphere is
+        // NOT one: its index buffer runs 0,1,2 / 3,4,5, so only the first triangle survives and fullscreen
+        // covers a diagonal half. This toggle permutes which corners ids 0-3 land on; it cannot conjure the
+        // missing second triangle, so on such a mesh neither setting is whole. See the entry README.
+        [ToggleUI] _Overlay_Screenspace_Vertex_Reorder("Flip vertex order", Float) = 0
 
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
         [HDR] _Shell_Reflection_Color("Color / Mask", Color) = (1,1,1,1)

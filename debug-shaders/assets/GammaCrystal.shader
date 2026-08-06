@@ -17,20 +17,19 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 {
     Properties
     {
-        [Header(Gamma)]
-        _Gamma_Adjust_Value("Gamma adjust value", Range(-5, 5)) = 0
-        [ToggleUI] _Transmit_Emission("Keep pixel values above 1 (emission / bloom)", Float) = 1
+        // No [Header] anywhere in this block: the material inspector draws its own sections, and Unity
+        // renders a property's header inside whichever section drew it, so a header would title the fold
+        // twice. The inspector owns the group names; these labels stay short enough not to clip.
+        _Gamma_Adjust_Value("Value", Range(-5, 5)) = 0
+        [ToggleUI] _Transmit_Emission("Keep values above 1", Float) = 1
 
-        [Header(Exposure)]
-        [Toggle(_EXPOSURE_ENABLED)] _Exposure_Enable("Enable linear exposure", Float) = 0
-        _Exposure_Value("Exposure value (EV stops)", Range(-5, 5)) = 0
+        [Toggle(_EXPOSURE_ENABLED)] _Exposure_Enable("Enable", Float) = 0
+        _Exposure_Value("Value (EV stops)", Range(-5, 5)) = 0
 
-        [Header(Scotopic Desaturation)]
-        [Toggle(_SCOTOPIC_ENABLED)] _Scotopic_Enable("Enable scotopic desaturation", Float) = 0
-        _Scotopic_Strength("Desaturation strength", Range(0, 1)) = 1
-        [HDR] _Scotopic_Tint("Scotopic tint color", Color) = (0.7, 0.8, 1.0, 1)
+        [Toggle(_SCOTOPIC_ENABLED)] _Scotopic_Enable("Enable", Float) = 0
+        _Scotopic_Strength("Strength", Range(0, 1)) = 1
+        [HDR] _Scotopic_Tint("Tint", Color) = (0.7, 0.8, 1.0, 1)
 
-        [Header(Area of Effect)]
         // The three distances below are metres AT UNIT SCALE, multiplied by the object's mean axis scale.
         // With this off they are absolute metres -- the ancestor's behaviour, and a trap: the shell pass
         // draws the mesh at its real size while the effect stays fixed, so scaling the object (or animating
@@ -38,15 +37,15 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         // it is supposed to bound, and the core silhouette stops tracing the mesh it is matched to.
         // Deliberately read off the OBJECT MATRIX, never a mesh radius: every shader in this entry works on
         // whatever mesh it is dropped on.
-        [ToggleUI] _AoE_Scale_Relative("Scale the distances below with the object", Float) = 1
-        _AoE_MinDistance("Full strength distance (m at unit scale)", Float) = 1
-        _AoE_MaxDistance("Zero strength distance (m at unit scale)", Float) = 2
+        [ToggleUI] _AoE_Scale_Relative("Scale with object", Float) = 1
+        _AoE_MinDistance("Full strength (m)", Float) = 1
+        _AoE_MaxDistance("Zero strength (m)", Float) = 2
         // Authored per material against whatever mesh this is on, NOT derived: the core is a smoothstep
         // with a feathered inner edge, so the radius that reads as tracing the silhouette sits a little
         // OUTSIDE the surface, and on a non-spherical mesh there is no single surface radius to derive
         // from at all. See the entry README before retuning it toward the mesh.
-        _Core_Radius("Core radius (m at unit scale)", Float) = 0.15
-        _Core_Intensity("Core extra intensity", Range(0, 0.5)) = 0.15
+        _Core_Radius("Core radius (m)", Float) = 0.15
+        _Core_Intensity("Core intensity", Range(0, 0.5)) = 0.15
 
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
         [HDR] _Shell_Reflection_Color("Color / Mask", Color) = (1,1,1,1)
@@ -64,7 +63,6 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         _Shell_Rim_FresnelPower("Fresnel Power", Range(0.05, 8)) = 4
         _Shell_Rim_VRParallaxStrength("VR Parallax Strength", Range(0, 1)) = 1
 
-        [Header(Shell Scene Grading)]
         // 0 = shell fully obeys scene grading (disappears in dark), 1 = shell ignores it (too bright)
         _Shell_Grading_Resist("Grading resistance", Range(0, 1)) = 0.5
     }
