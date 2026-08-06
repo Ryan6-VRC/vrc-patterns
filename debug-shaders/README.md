@@ -61,11 +61,11 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Params** — none, on any of the three. No animator, no synced parameters, no menu. Values arrive from the shader (render-side sources) or from a clip curve writing a material property.
 
-**Seam** — none; nothing merges into a controller. Each prefab's only framework component is an MA `BoneProxy` (Hips, `AsChildAtRoot`) with an `Offset` child carrying the renderer, per `CONVENTIONS.md` §Seam's rest-geometry rule. Re-anchor the proxy wherever you want the thing to ride.
+**Seam** — none, and no framework component of any kind: each prefab is a bare root with the renderer under it, plus the `DepthLight` on the two that read depth. **Parent it where you want it to ride** — no shader here depends on a rest position, so nothing anchors one for you.
 
 **Animation binding** — `DebugDisplay` only: `material._E{i}_Value`, `i` in 0..11, on the display's `MeshRenderer`. A plain clip curve; the shader is unlocked, so there is no Poiyomi `Animated`-tag step, and the material inspector has a copy button per path.
 
-**Dependencies** — Modular Avatar, for the `BoneProxy` only. Delete the anchor and the entry is dependency-free. `avatar-tools` is optional but nearly required for `DebugDisplay`: without it labels read as packed integers and `_E{i}_Format` is hidden, so decimals, right-pad, palette and value source are unreachable short of a debug-inspector edit.
+**Dependencies** — none. `avatar-tools` is optional but nearly required for `DebugDisplay`: without it labels read as packed integers and `_E{i}_Format` is hidden, so decimals, right-pad, palette and value source are unreachable short of a debug-inspector edit.
 
 **Required assets** — all shipped and self-contained: three shaders, four `.hlsl`, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx`, three template materials.
 
@@ -87,11 +87,11 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Camera and mirror behaviour deliberately differs across the three.** `DebugOverlay` suppresses only its fullscreen takeover in mirrors and the VRChat camera, still drawing on its mesh; `GammaCrystal` suppresses its *grading* in mirrors while its crystal shell keeps drawing, and the pair is deliberate: a mirror reflects a scene the bubble has already graded, so grading the reflection too would darken that region twice, while a shell that bailed would leave the object missing from its own reflection as you held it. It does grade the VRChat camera, because a scene grade is what a photo should capture. Changing one to match the other is a design decision, not a cleanup.
 
-**Mesh merging can relocate any of this.** Optimizers key merge decisions off the avatar root, and these anchors are not it. Measured against `d4rkAvatarOptimizer` at defaults on a composed humanoid, both displays were left alone — one optimizer at one setting, not a guarantee. Use the per-GameObject opt-out where a readout is load-bearing.
+**Mesh merging can relocate any of this.** Optimizers key merge decisions off the avatar root, and wherever you parented these is not it. Measured against `d4rkAvatarOptimizer` at defaults on a composed humanoid, both displays were left alone — one optimizer at one setting, not a guarantee. Use the per-GameObject opt-out where a readout is load-bearing.
 
 ## Verifying the install
 
-**`DebugDisplay`** — the readout's numbers should track the wearer moving. Stuck near `0.00` means the `BoneProxy` never resolved and the display is at the avatar-root origin. Mesh visible but text absent means an outgrown window (`Cull Back` makes the mesh a window, so oversized text is absent rather than clipped) — check `_Font_Scale_Relative` and `_Font_Size`; in UV mode check the mesh has `TEXCOORD0` first.
+**`DebugDisplay`** — the readout's numbers should track the wearer moving. Stuck near `0.00` means the prefab is still sitting at the avatar-root origin — it ships unparented, so that reading is "never placed", not a fault. Mesh visible but text absent means an outgrown window (`Cull Back` makes the mesh a window, so oversized text is absent rather than clipped) — check `_Font_Scale_Relative` and `_Font_Size`; in UV mode check the mesh has `TEXCOORD0` first.
 
 **`DebugOverlay`** — edges should move with the camera, not the mesh. A uniform flat fill responding to nothing is the depth texture missing, not a broken install.
 
