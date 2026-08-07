@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TabletReadout
+  m_Shader: {fileID: 4800000, guid: 897ee33b018940646aca20183e440610, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _DISPLAY_MODE_OBJECT
+  - _SHELL_ON
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MSDF_Glyph_Atlas:
+        m_Texture: {fileID: 2800000, guid: 0acc2e8ad0e94cd4cb1dab56f10009d6, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Shell_ReflectionCube:
+        m_Texture: {fileID: 8900000, guid: 28064a7d8410dbc469e8f4afe7375963, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Display_Face_Viewer: 1
+    - _Display_Mode: 1
+    - _E0_Format: 16408
+    - _E0_Value: 0
+    - _E10_Format: 16408
+    - _E10_Value: 0
+    - _E11_Format: 16408
+    - _E11_Value: 0
+    - _E1_Format: 16408
+    - _E1_Value: 0
+    - _E2_Format: 64
+    - _E2_Value: 0
+    - _E3_Format: 0
+    - _E3_Value: 0
+    - _E4_Format: 72
+    - _E4_Value: 0
+    - _E5_Format: 8
+    - _E5_Value: 0
+    - _E6_Format: 80
+    - _E6_Value: 0
+    - _E7_Format: 16
+    - _E7_Value: 0
+    - _E8_Format: 88
+    - _E8_Value: 0
+    - _E9_Format: 24
+    - _E9_Value: 0
+    - _Font_Scale_Relative: 1
+    - _Font_Size: 0.1
+    - _Grid_Columns: 2
+    - _Grid_Rows: 5
+    - _Shell_Enabled: 1
+    - _Shell_Reflection_BlurMaxMip: 6
+    - _Shell_Reflection_Smoothness: 0.65
+    - _Shell_Reflection_Strength: 1.5
+    - _Shell_Rim_Blur: 0.7
+    - _Shell_Rim_Border: 0.6
+    - _Shell_Rim_FresnelPower: 4
+    - _Shell_Rim_Strength: 1
+    - _Shell_Rim_VRParallaxStrength: 1
+    - _Text_Depth_Offset: 0
+    - _Total_Width: 32
+    m_Colors:
+    - _E0_Label: {r: 121567, g: 138222, b: 262143, a: 262143}
+    - _E10_Label: {r: 262143, g: 262143, b: 262143, a: 262143}
+    - _E11_Label: {r: 262143, g: 262143, b: 262143, a: 262143}
+    - _E1_Label: {r: 174434, g: 262113, b: 262143, a: 262143}
+    - _E2_Label: {r: 262132, g: 262143, b: 262143, a: 262143}
+    - _E3_Label: {r: 262132, g: 262143, b: 262143, a: 262143}
+    - _E4_Label: {r: 262133, g: 262143, b: 262143, a: 262143}
+    - _E5_Label: {r: 262133, g: 262143, b: 262143, a: 262143}
+    - _E6_Label: {r: 262134, g: 262143, b: 262143, a: 262143}
+    - _E7_Label: {r: 262134, g: 262143, b: 262143, a: 262143}
+    - _E8_Label: {r: 133797, g: 261409, b: 262143, a: 262143}
+    - _E9_Label: {r: 165746, g: 260133, b: 262143, a: 262143}
+    - _Palette_0: {r: 1, g: 0.2, b: 0.2, a: 1}
+    - _Palette_1: {r: 0.2, g: 1, b: 0.2, a: 1}
+    - _Palette_2: {r: 0.2, g: 0.5, b: 1, a: 1}
+    - _Palette_3: {r: 1, g: 1, b: 1, a: 1}
+    - _Shell_Reflection_Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Shell_Rim_Color: {r: 1, g: 1, b: 1, a: 0.05}
+  m_BuildTextureStacks: []
