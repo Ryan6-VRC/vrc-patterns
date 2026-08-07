@@ -840,8 +840,8 @@ def enable_subtree(doc, c):
     """The enable's reach into the measure rig, as a 1D tree rather than a layer.
 
     Only the measure subtrees: whether the wearer's rig is sensing. The
-    Anchor/Container pair is not in here — Container is `follow_layer`'s alone
-    (it needs IsLocal and so cannot be a tree at all), and Anchor is the
+    Sync_Target/Sync pair is not in here — Sync is `follow_layer`'s alone
+    (it needs IsLocal and so cannot be a tree at all), and Sync_Target is the
     consumer's write surface, which nothing in this document may bind.
 
     None with several objects, where the Slice layer owns `m_IsActive` outright
@@ -1168,7 +1168,7 @@ def tag_set(c, o):
     is a spec-vs-artifact lie waiting for a reviewer.
 
     Deterministic from the prefix and — when there is more than one object — the
-    object name, the same rule `Container` follows and for a sharper reason:
+    object name, the same rule the `Sync` pair follows and for a sharper reason:
     measured with two objects on one tag set, NEITHER converges, because every
     receiver reads whichever sender is strongest rather than its own."""
     base = c["prefix"].replace("/", "")
@@ -1944,10 +1944,13 @@ def check():
     readme = os.path.join(HERE, "README.md")
     if os.path.exists(readme):
         body = open(readme, encoding="utf-8").read()
-        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable`" in body,
-                "README specifies Enable as the one globalParams entry")
-        assert_("exactly one source, `Rig/<obj>/Display`" in body,
-                "README pins the single Container source the Follow layer indexes")
+        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable` and "
+                f"`{CONFIG['prefix']}/Sync_Valid`" in body,
+                "README specifies both globalParams entries — without the second "
+                "a consumer cannot bind the validity bool by name")
+        assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
+                "README pins the two Sync sources in the order the Follow layer "
+                "indexes them")
         assert_("Home" not in body,
                 "README carries no home/park concept either")
         # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
