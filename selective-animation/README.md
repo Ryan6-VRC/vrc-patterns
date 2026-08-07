@@ -80,6 +80,8 @@ What the emulator cannot show for this entry is **selectivity itself** — that 
 
 A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic.
 
+The `resultTransform` is **oriented as well as placed**: its `up` is the hit surface normal. This entry reads position only — `PlayerHit` and `WallHit` feed the beam's length, nothing reads their rotation — but an entry that wants to sit something flat against whatever it hits gets that from the same transform.
+
 ## Rebuilding
 
 `controller.yaml` → `CompileController` → `built/`.

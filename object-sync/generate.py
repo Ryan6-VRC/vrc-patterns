@@ -2,8 +2,13 @@
 """object-sync generator: emits the three committed controller.yaml documents
 (root = full, `y/`, `y_double/`) from CONFIG + PRESETS below.
 
-Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — every
-controller.yaml is generated output and never hand-edited. `python generate.py
+Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
+three controller.yaml documents committed here are generated output, pinned
+byte-for-byte by --check, so hand-editing one desynchronises it from this
+generator. That pin covers this repo's builds only: a consumer generating into
+their own project owns the emitted document, and deviating there is fine as a
+commented transform in their build script, never as a silent edit. `python
+generate.py
 --check` runs the self-test (byte-identical regeneration, the packing table for
 every build, the structural assertions on every emitted document, and the
 on-disk pin for all three).

@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """word-channel generator: emits controller.yaml from CONFIG below.
 
-Edit CONFIG, rerun (`python generate.py`), recompile built/ — controller.yaml is
-generated output and never hand-edited. The protocol is the VRCFury Parameter
+Edit CONFIG, rerun (`python generate.py`), recompile built/ — the controller.yaml
+committed here is generated output and the repo gate holds built/ to it, so hand-
+editing it desynchronises the document from both this generator and the compiled
+controller. That governs this repo's build only: a consumer calling build(config)
+into their own project owns the emitted document, and deviating there is fine as
+a commented transform in their build script, never as a silent edit.
+The protocol is the VRCFury Parameter
 Compressor's (studied from com.vrcfury.vrcfury source; batches advanced on a
 0.1 s exit-time plus one guaranteed extra frame, a synced batch index the
 receiver routes on, latch double-buffering so a word set applies atomically),
