@@ -23,6 +23,17 @@ One axis changes an entry's shape: **does it ship a GUID-consumer** (a prefab/as
 - **Module** — adds `<entry>.prefab` (one or more variants), and `assets/` when it ships owned meshes/materials. `built/` committed; the prefab references it by GUID.
 - **Structural Module** — a Module whose behaviour lives entirely in its prefab's components, **or in an owned non-animator asset the prefab references** (a constraint rig, or a shader; no animator either way): ships `<entry>.prefab` with **no `controller.yaml`** and no `built/`. The *non-animator* exclusion is load-bearing rather than decorative — `built/` is also an owned asset a prefab references by GUID, so a widening that omitted it would describe Module equally well and dissolve the one axis tier is derived from. The compile/round-trip pass skips the tier (nothing to compile), and the gate's prefab-integrity pass (§The gate) asserts missing scripts plus, for a shader-carried entry, that its shaders compile and its materials resolve — behavioural correctness still rests on the README install check.
 
+A folder under `compositions/` is Module-shaped but is not an entry — §compositions/ owns it.
+
+## `compositions/`
+
+A **composition** is a runnable arrangement of two or more entries, committed as a prefab rather than written up, because prose is lossy about arrangement specifically: a fact survives being stated, but a graph of nodes, weights and solve order re-derives at about what building it fresh cost. Its README records the entry commits it was built against, since a composition rots when anything it depends on changes shape.
+
+Two rules an entry's shape does not already give it:
+
+- **Never a vendor base.** An arrangement resting on a licensed avatar cannot be published, so a composition ships the rig and not the avatar — no vendor geometry, no scene reference reaching a base, and seams that resolve by humanoid bone rather than by name or object reference.
+- **It may carry its own generated build of an entry it composes**, at its own CONFIG. An entry's `check()` pins a `controller.yaml` on disk for every label `preset_configs()` returns, so a retune one arrangement wants would otherwise force a fourth build, prefab and README claim into a public entry serving a single consumer. Drive the entry's generator unmodified and deviate after; a forked copy is a second canon for the same rig.
+
 ## The README's two readers
 
 A README serves both a wide-skill-range human and an agent lifting the entry, in one document ordered by depth — not split into parallel human/agent halves (a split duplicates facts and rots). The **lead** is where a human stops; the **Interface stanza and body** are where the agent reads on. Each fact lives once and the reading order is the audience gradient: never restate the lead's "what" in agent terms below, and never pull mechanism up into the lead.
