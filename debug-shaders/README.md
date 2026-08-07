@@ -4,6 +4,8 @@ Three overlay shaders for looking at what an avatar is actually doing, sharing o
 
 Reach for `DebugDisplay` when you want to read a number in-world — an animator float, or a render-side fact an animator cannot measure (world position, camera distance, the observing client's frame rate). Reach for `DebugOverlay` to see surface shape a material is hiding. Reach for `GammaCrystal` to darken, brighten or desaturate what surrounds you, bounded to a radius.
 
+`compositions/object-sync-demo` is `DebugDisplay` in use on a real rig — a hand-held tablet whose rows are driven live from animator clips, reading a sync protocol as it runs.
+
 ## Provenance
 
 All three derive from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-shaders) (MIT, © 2025 Lereldarion): `DebugDisplay` from `Shaders/Overlay_HUD.shader`, `DebugOverlay` from `Overlay_Wireframe.shader` and `Overlay_Normals.shader` merged into one, `GammaCrystal` from `Overlay_Gamma_Adjust.shader`. Each was modified privately for one avatar first; this entry generalizes that set. Upstream's credit chain travels with the depth reconstruction and must not be dropped: the `unity_CameraInvProjection` patch that makes it work in BIRP VR is **d4rkpl4y3r's** ([gist](https://gist.github.com/d4rkc0d3r/886be3b6c233349ea6f8b4a7fcdacab3)), and the wireframe idea is **Neitri's** ([Neitri-Unity-Shaders](https://github.com/netri/Neitri-Unity-Shaders)). Ours are the crystal shell and rim, the merge of the two probes, `GammaCrystal`'s sphere-of-influence model and its exposure/scotopic/core stages, and `DebugDisplay`'s charset, atlas, entry grid and value sources.
