@@ -33,6 +33,14 @@ Each row: the entry, what a wearer gets from it, then the mechanism and its sync
 | [`debug-shaders`](debug-shaders/) | Three overlay shaders for seeing what an avatar is doing, on any mesh you drop them on: a twelve-value numeric readout mixing animator floats with render-side facts an animator cannot reach, a depth-derived wireframe/normals probe, and a localized grading bubble | fragment-stage MSDF text on a ray-traced virtual plane; depth-buffer reconstruction; grab-pass gamma over a volumetric sphere of influence; 0 synced bits | Structural Module |
 | [`_template/`](_template/) | — reference mold — | | Module |
 
+## Compositions
+
+Runnable arrangements of two or more entries, committed as prefabs because an arrangement is a graph and prose loses it. `CONVENTIONS.md` §compositions/ owns the rules.
+
+| Composition | Build this | Composes |
+|---|---|---|
+| [`object-sync-demo`](compositions/object-sync-demo/) | A world-synced prop with a hand-held tablet reading its own wire live — the coarse and fine words, the batch index, and whether this client's pose is trustworthy | `object-sync` · `word-channel` · `anti-cull` · `debug-shaders`; 52 wire bits, 3 batches, ~0.350 s |
+
 ## Using an entry
 
 - **Agent, in-workspace:** read the entry's `controller.yaml` + README Interface stanza; lift/adapt.

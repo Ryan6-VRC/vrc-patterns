@@ -1,0 +1,470 @@
+# The demo's whole authored behavior: placement modes, the reconstruction view, the damper, and the
+# tablet readout. One document because it is machine-authored — the many-small-orthogonal-families
+# style buys reviewability that nothing here consumes, and its cost (a FullController per family, a
+# globalParams list per family, four params assets to keep byte-identical) is real. object-sync's own
+# generated controller stays separate: it is the entry's, not ours.
+#
+# THE RIG THIS DRIVES. One GameObject, everything under it, the root itself world-pinned — the shape
+# the operator's own multi-source prop rig uses, where the rig root carries the World pin and the
+# damper hangs beneath it. Anchors are flat at the top so an installer can drag them onto a different
+# avatar's hands; their local transforms ARE the fitting, authored in avatar space and preserved by
+# ArmatureLink.
+#
+#   <mount>                  VRCParentConstraint + VRCScaleConstraint -> object-sync's World.prefab
+#   |- ObjectSync            the entry: Rig / Sync_Target / Sync
+#   |- AntiCull
+#   |- HandR_Anchor          VF ArmatureLink -> RightHand      [installer-adjustable]
+#   |  `- Raycast            VRCRaycast
+#   |- HandL_Anchor          VF ArmatureLink -> LeftHand       [installer-adjustable]
+#   |  `- Panel              the tablet; its material is what Tablet/* below writes
+#   |- Raycast_Transform     VRCAimConstraint <- HandR_Anchor/Raycast
+#   |  `- Raycast_Offset     half the cube's 0.15 m extent up the hit normal
+#   |- Display_Source        src0 = ObjectSync/Sync, src1 = ObjectSync/Rig/Prop/Display
+#   `- Prop_Damped           src0 = Display_Source, src1 = self
+#      `- Cube               mesh, Wireframe swap, WorldCoords.mat
+#
+# EVERYTHING IS VRCFURY AND THAT IS LOAD-BEARING, not a preference. An MA BoneProxy over either
+# anchor would break two ways that raise no message: a VRCFury-merged clip pathing through an
+# MA-moved node is DROPPED from the built FX (Panel's material curves), and a param-carrying
+# component MA moved out of VRCFury's subtree keeps the bare name while the controller reads the
+# prefixed one (the VRCRaycast) — nondestructive.md §Choosing a framework owns both. BoneProxy's
+# edit-time snap is the only thing given up, and it buys nothing here: both anchors are positions a
+# human chooses by eye anyway, so the snap would only discard the placement.
+#
+# WHY Display_Source STILL EXISTS after object-sync's surface collapsed to Sync_Target/Sync. `Sync`
+# is correct on both clients, so a plain consumer parents to it and multiplexes nothing — remotes
+# need no local/remote choice from us at all, and this layer's old Cycle gate and Delay state are
+# gone with it. What Sync cannot give is the WEARER a view of the reconstruction: the entry's Follow
+# layer engages it only when !IsLocal, so on the wearer Sync is always Sync_Target. View Remote is
+# the demo's point, so src1 reads ObjectSync/Rig/Prop/Display directly. Reading a transform is not
+# writing it, so the two-writer rule is untouched — but this IS a reach past the surface, and if the
+# entry ever exports the reconstruction, src1 should move to that export.
+#
+# DAMPING BRANCHES ON WHAT IS DISPLAYED, NOT ON WHICH STATE. It used to nest under the Remote state,
+# which made "never damped locally" structural. That shape does not survive the new surface: remotes
+# now sit in Local (src0 = Sync = the reconstruction), so a damper nested under Remote would leave
+# every remote undamped — the exact failure the design forbids. The condition is therefore explicit:
+# damp when the thing on screen is the reconstruction, which is (remote AND Sync_Valid) OR (wearer
+# AND View Remote). The wearer's true prop is still never damped, now by condition rather than by
+# nesting.
+#
+# THE DAMPER IS A ONE-POLE LAG AND ITS STRENGTH IS A RATE (docs/local/damping-experiment-result.md):
+# tau = 1/ln(1 + w_target/w_self) FRAMES, 20.50 measured onto 20.50 predicted at spring-damping's
+# shipped 1 : 0.05. Price it as tau x speed / framerate, never as a distance. Two rules from that
+# measurement the rig above already satisfies, restated so a later edit does not undo them: the
+# damper hangs UNDER a world-pinned frame and never ON one, and FreezeToWorld is NEVER set on the
+# damped node — they fight and the freeze wins totally (0.0 response for 150 frames, no error). The
+# freeze lives on ObjectSync/Sync_Target, two tiers above. Keep it there.
+
+schema: 1
+controller: Demo_Fx
+basis: mount-root          # every path below is relative to the rig root this mounts on
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # --- placement -------------------------------------------------------------------------------
+  # The synced outcome, written by the wearer's localOnly drivers on mode entry and by the menu.
+  Placement/Mode:    { type: int,  default: 0, vrc: { synced: true,  saved: false } }
+  # Sensing — the raycast's own output, never synced (every client runs its own ray) and never
+  # menu-exposed. KEEP IT OFF globalParams: VRCFury rewrites the VRCRaycast component's own
+  # `parameter` field with the same per-build token it gives the controller's params, so the two
+  # match only when BOTH are prefixed. Measured, an exempted name left the component writing
+  # `VF117_Placement/Ray_Hit` into a controller reading the bare one — miss gate dead, no warning,
+  # indistinguishable from an aim that never hits.
+  Placement/Ray_Hit: { type: bool, default: false, vrc: { synced: false, saved: false } }
+
+  # --- reconstruction view ---------------------------------------------------------------------
+  # The wearer's window onto what everyone else sees. Unsynced, and that is load-bearing rather than
+  # an economy: a remote reads an unsynced param's default forever, so the control is inert on every
+  # remote with no IsLocal condition needed on the menu side.
+  Reconstruction/ViewRemote: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  # Synced: the damper is a per-client constraint, so every client rendering the reconstruction has
+  # to be told to smooth it. One bit.
+  Reconstruction/Damping:    { type: float, default: 0, vrc: { type: bool, synced: true,  saved: false } }
+  # Constant 1 — each Direct child's blend weight. Never written by anything.
+  Reconstruction/One:        { type: float, default: 1, scratch: true }
+  # Shows the tablet. Synced, and default OFF: the tablet is a visible prop, so a remote has to be
+  # told it is out, and the demo's first read should be the cube alone rather than a wall of numbers.
+  Tablet/Show:               { type: float, default: 0, vrc: { type: bool, synced: true,  saved: false } }
+
+  # --- imported from the entry ------------------------------------------------------------------
+  # Both declared BYTE-IDENTICALLY to object-sync's own declarations so the two FullControllers'
+  # params assets merge to one entry each rather than colliding, and both on this FullController's
+  # globalParams so VRCFury does not prefix them out of reach.
+  # Enable carries the demo-local default of TRUE (Generators/object-sync-demo.py owns the reason);
+  # the menu toggle below must agree with it or the control lies at spawn.
+  ObjectSync/Enable:     { type: float, default: 1, vrc: { type: bool, synced: true,  saved: false } }
+  # "The pose Sync reports is correct for THIS client" — true on the wearer always, true on a remote
+  # once decoded, false otherwise. Gate on this, never on Ch/Cycle >= 2: that re-derives a gate the
+  # entry already evaluates and reads 0 on the wearer forever. A float in the animator (bool to VRC),
+  # which is what lets the tablet read it as a Direct weight instead of a decode ladder.
+  ObjectSync/Sync_Valid: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  IsLocal: bool              # VRC built-in
+
+  # --- tablet inputs ----------------------------------------------------------------------------
+  # The six committed word values — driven on EVERY client (by the receive layers on remotes, by the
+  # encode layers on the wearer), which is what makes the readout live for the person holding it.
+  # `scratch:` because object-sync's params asset already lists them; a second non-scratch
+  # declaration would re-declare them on the avatar.
+  Prop/PX/C: { type: float, scratch: true }
+  Prop/PX/F: { type: float, scratch: true }
+  Prop/PY/C: { type: float, scratch: true }
+  Prop/PY/F: { type: float, scratch: true }
+  Prop/PZ/C: { type: float, scratch: true }
+  Prop/PZ/F: { type: float, scratch: true }
+  # The synced batch id the SENDER stamps, MSB-first. Not `Cycle`, which the receive logic
+  # increments and so never leaves 0 on the wearer.
+  ObjectSync/Ch/Wire/Idx0: { type: bool, scratch: true }
+  ObjectSync/Ch/Wire/Idx1: { type: bool, scratch: true }
+
+layers:
+  # ===============================================================================================
+  - name: Placement/Mode
+    # The dispatch ladder — remotes re-enter here after every mode change; the last rung is the
+    # park, so an unstamped or invalid int poses Hand rather than nothing.
+    # Raycast mode enters at RayHold, not Raycast: the ladder cannot read this client's _Hit at the
+    # moment it dispatches, and a single frame in the tracking state while the ray is missing walks
+    # the cube 5% of the way toward a stale 20 m endpoint (measured: ~0.9 m of lurch). Entering at
+    # the hold costs one frame of standing still when the aim IS live, which is invisible.
+    # Mode values: 0 = unstamped (parks as Hand), 1 = Hand, 2 = Raycast, 3 = Freeze.
+    entry:
+      - { to: RayHold, when: [ Placement/Mode equals 2 ] }
+      - { to: Freeze,  when: [ Placement/Mode equals 3 ] }
+      - { to: Hand,    when: [] }
+    states:
+      # The cube rides the hand anchor rigidly — source0 (self) at 0, so no damping lag here.
+      # The last rung is the re-stamp: a self-transition re-enters the state, which re-fires the
+      # driver, which is the only way a driver reaches a param while its state is already current.
+      # It is what makes Mode 0 unreachable on the wearer for longer than a frame, and so what lets
+      # the Hand toggle exist at all (§menu). It is ordered last so a real mode change always wins.
+      # IsLocal gates it because Mode 0 IS reachable on a remote — the window between spawn and the
+      # wearer's first stamp arriving — where an ungated rung would re-enter every frame forever
+      # against a driver that, being localOnly, can never clear the condition.
+      Hand:
+        behaviours:
+          - driver: { localOnly: true, set: { Placement/Mode: 1 } }
+        motion: { clip: hand }
+        transitions:
+          - { to: RayHold, when: [ Placement/Mode equals 2 ] }
+          - { to: Freeze,  when: [ Placement/Mode equals 3 ] }
+          - { to: Hand,    when: [ Placement/Mode equals 0, IsLocal is true ] }
+      # Continuous aim: the cube rides the lift point live and RAW — source2 alone at weight 1.
+      # Aliasing under a fast sweep is this avatar's subject, not its defect; an exponential smoother
+      # changes the approach curve, never the sample rate, so it could not suppress it anyway.
+      Raycast:
+        behaviours:
+          - driver: { localOnly: true, set: { Placement/Mode: 2 } }
+        motion: { clip: ray_track }
+        transitions:
+          - { to: Hand,    when: [ Placement/Mode less 2 ] }
+          - { to: Freeze,  when: [ Placement/Mode equals 3 ] }
+          - { to: RayHold, when: [ Placement/Ray_Hit is false ] }
+      # The miss gate. Aiming at open sky drops the target weight to zero and raises FreezeToWorld,
+      # so the cube pins where the last hit put it instead of being flung to maximum range. The
+      # raycast is BehaviorOnMiss = DoNothing, so Ray_Hit stops being written too — but that alone
+      # is not a hold: the result transform is a child of the hand-mounted origin, so a frozen LOCAL
+      # result still rides the wearer. A self-source at weight 1 is not a hold either — measured, it
+      # damps its sources but does not resist its own parent, so the cube walked the full 1.5 m with
+      # the avatar. FreezeToWorld is what makes the hold true in world space (measured: 0.000004 m
+      # over a 2 m walk). Re-acquiring drops it back to 0 and raw tracking resumes from there.
+      # No driver: the mode has not changed, only the sensing.
+      RayHold:
+        motion: { clip: ray_hold }
+        transitions:
+          - { to: Hand,    when: [ Placement/Mode less 2 ] }
+          - { to: Freeze,  when: [ Placement/Mode equals 3 ] }
+          - { to: Raycast, when: [ Placement/Ray_Hit is true ] }
+      # Park at source0 and raise FreezeToWorld. Hand and the tracking half of Raycast both hold it
+      # at 0, so entering from either is a 0->1 edge that re-captures where the cube stands
+      # (runtime.md §Constraints: on a sourced constraint every edge re-captures; source-less it
+      # would capture once, permanently). Entering from RayHold is the one path with no edge, and
+      # needs none — RayHold is already frozen at that same pose.
+      Freeze:
+        behaviours:
+          - driver: { localOnly: true, set: { Placement/Mode: 3 } }
+        motion: { clip: freeze }
+        transitions:
+          - { to: Hand,    when: [ Placement/Mode less 2 ] }
+          - { to: RayHold, when: [ Placement/Mode equals 2 ] }
+    default: Hand
+    # Centre column is the mode lifecycle Hand -> Raycast -> Freeze; RayHold sits outboard of
+    # Raycast, being the sensing branch rather than a mode.
+    layout:
+      nodes:
+        Hand:    [30, 180]
+        Raycast: [30, 260]
+        RayHold: [270, 260]
+        Freeze:  [30, 340]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===============================================================================================
+  - name: Reconstruction/View
+    # Which pose Display_Source takes. Remotes never leave Local and that is correct: Sync already
+    # resolves local-vs-remote inside the module, so Local IS the reconstruction on a remote once
+    # the entry engages it, and Sync_Target before — including the cold-join case the old Delay
+    # state existed to cover. Only the wearer ever needs the other source.
+    states:
+      Local:
+        motion: { clip: display_local }
+        transitions:
+          - { to: Remote, when: [ IsLocal is true, Reconstruction/ViewRemote greater 0.5 ] }
+      Remote:
+        motion: { clip: display_remote }
+        transitions:
+          - { to: Local, when: [ Reconstruction/ViewRemote less 0.5 ] }
+    default: Local
+    layout:
+      nodes:
+        Local:  [30, 180]
+        Remote: [30, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===============================================================================================
+  - name: Reconstruction/Damp
+    # Engaged only while the cube is showing the RECONSTRUCTION and the wearer asked for smoothing.
+    # Two entry rungs because "showing the reconstruction" has two disjoint causes; three exit rungs
+    # because either cause can end independently of the toggle.
+    # State names avoid `On`/`Off`: YAML 1.1 reads those as booleans, and the compile fails on the
+    # transition target rather than on the state key, which reads as a schema fault a long way from
+    # its cause.
+    states:
+      Undamped:
+        motion: { clip: damp_off }
+        transitions:
+          - { to: Damped, when: [ Reconstruction/Damping greater 0.5, IsLocal is false, ObjectSync/Sync_Valid greater 0.5 ] }
+          - { to: Damped, when: [ Reconstruction/Damping greater 0.5, IsLocal is true,  Reconstruction/ViewRemote greater 0.5 ] }
+      Damped:
+        motion: { clip: damp_on }
+        transitions:
+          - { to: Undamped, when: [ Reconstruction/Damping less 0.5 ] }
+          - { to: Undamped, when: [ IsLocal is true,  Reconstruction/ViewRemote less 0.5 ] }
+          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Sync_Valid less 0.5 ] }
+    default: Undamped
+    layout:
+      nodes:
+        Undamped: [30, 180]
+        Damped:   [30, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===============================================================================================
+  - name: Tablet/Show
+    # The panel's GameObject, nothing else. The readout layers below keep evaluating while it is
+    # hidden — animating a material on an inactive object costs a write nobody sees and saves a gate
+    # on every entry, and it means the numbers are already correct on the frame it appears.
+    states:
+      Hidden:
+        motion: { clip: tablet_off }
+        transitions:
+          - { to: Shown, when: [ Tablet/Show greater 0.5 ] }
+      Shown:
+        motion: { clip: tablet_on }
+        transitions:
+          - { to: Hidden, when: [ Tablet/Show less 0.5 ] }
+    default: Hidden
+    layout:
+      nodes:
+        Hidden: [30, 180]
+        Shown:  [30, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===============================================================================================
+  - name: Tablet/Words
+    # Seven Floats, each riding object-sync's own display_layer idiom — a Direct tree with the
+    # parameter as directWeight over a clip writing its entry's value at 1. Output is weight x 1, so
+    # each entry reads its parameter verbatim. A static clip curve could not carry a live parameter.
+    # Sync_Valid joins them rather than taking a decode ladder because it is a FLOAT in the animator
+    # (bool only to VRC); the index bits below are real bools and cannot.
+    states:
+      Read:
+        motion:
+          tree: direct
+          name: Words
+          normalized: false        # raw additive; a normalized tree would divide the readout by its own sum
+          children:
+            - { clip: xc_one, directWeight: Prop/PX/C }
+            - { clip: xf_one, directWeight: Prop/PX/F }
+            - { clip: yc_one, directWeight: Prop/PY/C }
+            - { clip: yf_one, directWeight: Prop/PY/F }
+            - { clip: zc_one, directWeight: Prop/PZ/C }
+            - { clip: zf_one, directWeight: Prop/PZ/F }
+            - { clip: sv_one, directWeight: ObjectSync/Sync_Valid }
+    default: Read
+    layout:
+      nodes: { Read: [30, 180] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+  # ===============================================================================================
+  - name: Tablet/Index
+    # A pure decode of two bools into one displayed constant. `Wire/Idx0/Idx1` are synced BOOLS and a
+    # blend tree evaluates only Floats, so a bool named as a directWeight reads 0 forever — the
+    # weighted sum lands as a four-state AnyState ladder writing the summed constant directly.
+    # AnyState rather than a per-state ladder because every rung names both bits, so the four rungs
+    # are exhaustive and mutually exclusive and no state needs its own copy of them.
+    # MSB-first: Idx0 is the high bit, so the value is 2*Idx0 + Idx1, and 0 means "nothing sent yet"
+    # rather than batch zero — the ids run 1/2/3 at three batches.
+    states:
+      NotStarted: { motion: { clip: idx_0 } }
+      Batch1:     { motion: { clip: idx_1 } }
+      Batch2:     { motion: { clip: idx_2 } }
+      Batch3:     { motion: { clip: idx_3 } }
+    any:
+      - { to: NotStarted, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false ], canTransitionToSelf: false }
+      - { to: Batch1,     when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true  ], canTransitionToSelf: false }
+      - { to: Batch2,     when: [ ObjectSync/Ch/Wire/Idx0 is true,  ObjectSync/Ch/Wire/Idx1 is false ], canTransitionToSelf: false }
+      - { to: Batch3,     when: [ ObjectSync/Ch/Wire/Idx0 is true,  ObjectSync/Ch/Wire/Idx1 is true  ], canTransitionToSelf: false }
+    default: NotStarted
+    layout:
+      nodes:
+        NotStarted: [30, 180]
+        Batch1:     [30, 260]
+        Batch2:     [30, 340]
+        Batch3:     [30, 420]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Placement clips: every one writes all three weights AND FreezeToWorld. A partial clip strands a
+# stale weight under WD-ON layering, which is the failure the totality discipline exists to prevent.
+# source0 is the constraint's OWN transform — the park, not a damper: a self-source resolves to the
+# transform's current pose, so the mode switch and the FreezeToWorld capture cannot race.
+#   source0 = ObjectSync/Sync_Target       itself — the park
+#   source1 = HandR_Anchor                 the installer-adjustable hand anchor
+#   source2 = Raycast_Transform/Raycast_Offset
+# No empirical constants here: every weight is 0 or 1. The multiplexer selects, it does not blend.
+clips:
+  hand:
+    set:
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 1
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 0
+  ray_track:
+    set:
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 1
+      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 0
+  ray_hold:
+    set:
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 1
+  freeze:
+    set:
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 1
+
+  # Position and rotation are two constraints on each node and their weights move in lockstep — a
+  # clip that wrote one and not the other would show the reconstruction's position at the wearer's
+  # hand orientation. Every clip below writes all four weights of its own node, and no other node's.
+  display_local:
+    set:
+      "Display_Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Display_Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Display_Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Display_Source/VRCRotationConstraint.Sources.source1.Weight": 0
+  display_remote:
+    set:
+      "Display_Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Display_Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Display_Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Display_Source/VRCRotationConstraint.Sources.source1.Weight": 1
+  # source0 = Display_Source (the target), source1 = Prop_Damped itself (the memory).
+  # Off = follow the target exactly. On = 0.05 : 1, tau = 20.50 frames. Weights are normalized by
+  # their sum, so only the ratio matters; runtime.md's 90% rule governs the 0.05 — a measured,
+  # closed-form constant, not a taste.
+  damp_off:
+    set:
+      "Prop_Damped/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_Damped/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_Damped/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_Damped/VRCRotationConstraint.Sources.source1.Weight": 0
+  damp_on:
+    set:
+      "Prop_Damped/VRCPositionConstraint.Sources.source0.Weight": 0.05
+      "Prop_Damped/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_Damped/VRCRotationConstraint.Sources.source0.Weight": 0.05
+      "Prop_Damped/VRCRotationConstraint.Sources.source1.Weight": 1
+
+  # Unit clips for the Direct tree, one per entry, plus four index constants. Each writes ONE
+  # entry's value: the tree sums per property, so a clip that also zeroed its neighbours would zero
+  # them. _E0/_E1 are the label-only header row; _E8 is Index and _E9 is Sync_Valid, the bottom row.
+  xc_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E2_Value": 1 } }
+  xf_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E3_Value": 1 } }
+  yc_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E4_Value": 1 } }
+  yf_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E5_Value": 1 } }
+  zc_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E6_Value": 1 } }
+  zf_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E7_Value": 1 } }
+  sv_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E9_Value": 1 } }
+  tablet_off: { set: { "HandL_Anchor/Panel/GameObject.m_IsActive": 0 } }
+  tablet_on:  { set: { "HandL_Anchor/Panel/GameObject.m_IsActive": 1 } }
+  idx_0:  { set: { "HandL_Anchor/Panel/MeshRenderer.material._E8_Value": 0 } }
+  idx_1:  { set: { "HandL_Anchor/Panel/MeshRenderer.material._E8_Value": 1 } }
+  idx_2:  { set: { "HandL_Anchor/Panel/MeshRenderer.material._E8_Value": 2 } }
+  idx_3:  { set: { "HandL_Anchor/Panel/MeshRenderer.material._E8_Value": 3 } }
+
+# The module's own front travels inside it (gimmicks.md §Packaging). A menu ASSET rather than bare
+# Toggles, which is what lets every control and its parameter take the instance prefix together.
+#
+# THREE PLACEMENT CONTROLS ON ONE INT — menus.md's int-mode-param exclusive select. A VRC menu
+# Toggle writes `value` on, 0 on release, and lights only while `param == value`, so on this int
+# every toggle can write 0 and no toggle can write another's value: exclusivity is the state
+# machine's to enforce, and "released" has to mean something for each of the three. For Raycast and
+# Freeze the ladder supplies it — release either and `Mode less 2` fires into Hand, whose driver
+# stamps 1 within the frame. Hand is the mode that cannot be released that way, because releasing it
+# while already IN the Hand state changes nothing the ladder can see and a driver fires on entry
+# only; without the re-stamp rung Mode would rest at 0 with all three toggles dark. That is not a
+# behaviour fault (0 and 1 are the same mode by design) but the menu displaying a state the int does
+# not hold, and the rung fixes it at the source by making Mode 0 unreachable on the wearer.
+#
+# Object Sync's default MUST match the demo build's Enable default (true), or the control reads off
+# at spawn while sync is running — the same class of lie the Hand toggle told.
+#
+# Rejected: VRCFury exclusive tags with Hand as the exclusiveOffState. It builds the same radio
+# (measured in ToggleBuilder: the off-state member's param is DRIVEN true when the group goes
+# empty), but its members are bools, so the int would need three more toggles and a bridge layer to
+# drive it — and menus.md rules tags for independent toggles that merely exclude each other, int for
+# states that feed one state machine. This is the second.
+# ORDERED BY HOW OFTEN A VISITOR REACHES FOR IT, not by subsystem. The three placement modes are the
+# demo, so they are the first thing under the thumb with no submenu in the way; the diagnostics that
+# explain what just happened come next; the master gate is last, where it cannot be hit by accident.
+# Only `Debug View` earns a submenu — its two controls are meaningless until you have seen the cube
+# move, so burying them costs nothing and keeps the top level readable.
+#
+# `Wireframe` is NOT here. It is a VRCFury `Toggle` on the cube because it does two things this
+# schema cannot express in one control — a GameObject action on `DepthLight` (the wireframe shader
+# needs a depth texture, which nothing on an avatar otherwise provides) and a material swap, which is
+# an objectReference curve where every clip here is a float curve. It merges at the same root, so it
+# appears in this list on the built avatar; VRCFury owns where in the order.
+#
+# `AntiCull` is NOT here either, and its `Toggle` is deleted rather than hidden: the entry declares
+# `AntiCull/Enable` default TRUE, so with nothing driving it the module is simply always on. Its
+# `addMenuItem` is `[NonSerialized]`, so a shipped Toggle cannot be kept-but-hidden — deleting is the
+# only way to have the behaviour without the control.
+menu:
+  - { toggle: Hand,      param: Placement/Mode, value: 1 }
+  - { toggle: Raycast,   param: Placement/Mode, value: 2 }
+  - { toggle: Freeze,    param: Placement/Mode, value: 3 }
+  - { toggle: Sync Info, param: Tablet/Show,    value: 1 }
+  - submenu: Debug View
+    controls:
+      - { toggle: View Remote, param: Reconstruction/ViewRemote, value: 1 }
+      - { toggle: Damping,     param: Reconstruction/Damping,    value: 1 }
+  - { toggle: Enable ObjectSync, param: ObjectSync/Enable, value: 1 }
