@@ -8,7 +8,7 @@ Reach for `DebugDisplay` when you want to read a number in-world — an animator
 
 All three derive from [`lereldarion/unity-shaders`](https://github.com/lereldarion/unity-shaders) (MIT, © 2025 Lereldarion): `DebugDisplay` from `Shaders/Overlay_HUD.shader`, `DebugOverlay` from `Overlay_Wireframe.shader` and `Overlay_Normals.shader` merged into one, `GammaCrystal` from `Overlay_Gamma_Adjust.shader`. Each was modified privately for one avatar first; this entry generalizes that set. Upstream's credit chain travels with the depth reconstruction and must not be dropped: the `unity_CameraInvProjection` patch that makes it work in BIRP VR is **d4rkpl4y3r's** ([gist](https://gist.github.com/d4rkc0d3r/886be3b6c233349ea6f8b4a7fcdacab3)), and the wireframe idea is **Neitri's** ([Neitri-Unity-Shaders](https://github.com/netri/Neitri-Unity-Shaders)). Ours are the crystal shell and rim, the merge of the two probes, `GammaCrystal`'s sphere-of-influence model and its exposure/scotopic/core stages, and `DebugDisplay`'s charset, atlas, entry grid and value sources.
 
-The glyph atlas rasterizes **Geist Mono**, SIL Open Font License 1.1 — `assets/font/GeistMono-OFL.txt` ships because OFL requires the notice to accompany a bundled copy.
+The glyph atlas rasterizes **Geist Mono** (SIL Open Font License 1.1), credited as a courtesy: no font file ships here, only a raster we produced, so the OFL's conditions on copies of the Font Software do not attach to it and `assets/font/GeistMono-OFL.txt` ships for reference rather than obligation. The one clause that still bites is Reserved Font Name — credit Geist Mono in prose freely, but do not distribute the atlas *named* as Geist Mono.
 
 ## Configuring a material
 

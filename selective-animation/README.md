@@ -80,7 +80,7 @@ What the emulator cannot show for this entry is **selectivity itself** — that 
 
 A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic.
 
-The result is **oriented as well as placed**: its `up` lands exactly on the hit surface normal (measured). This entry reads it as a position only — `PlayerHit` and `WallHit` feed the beam's length and nothing reads their rotation — so take the silence here as this rig's choice, not the component's limit: an entry that wants to sit something flat against whatever it hits gets that from the same transform, for free.
+The `resultTransform` is **oriented as well as placed**: its `up` lands exactly on the hit surface normal (measured). This entry reads position only — `PlayerHit` and `WallHit` feed the beam's length, nothing reads their rotation — but an entry that wants to sit something flat against whatever it hits gets that from the same transform.
 
 ## Rebuilding
 
