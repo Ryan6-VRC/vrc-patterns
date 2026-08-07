@@ -36,6 +36,7 @@ The effect is defined **entirely by two transforms and their frames** — get th
 - **The `Target`'s frame is the rest pose.** `Container` chases the `Target`'s *world* position/rotation. Anchor the `Target` to the bone whose motion should drive the secondary motion: the head bone for a lagging hat, a hip bone for a swaying charm.
 - **The rig's parent is the reference frame the payload lags *within*.** `Container` lags **world-space** motion, so parent the rig under the same moving bone as the `Target` and the two move together — **no relative motion, no effect.** The payload must be free to fall behind: parent the rig higher up (a stiffer parent, or the avatar root) than the `Target`'s bone.
 - **Local-space breaks it.** Flipping `SolveInLocalSpace` to `1` makes the constraint chase the target in the parent's local frame, which cancels exactly the world drag the effect is built on. Leave it world.
+- **The self-source is not a world hold**, however much a self-weight of `1` looks like one. It damps the constraint's *other* sources and never resists the rig's own parent, so a payload rigged that way rides the avatar everywhere it walks (measured: the full 1.5 m of a walk test). Holding something in world space is `FreezeToWorld`'s job — `runtime.md` §Constraints is canon on both, and this line is a declared echo of it, sited here because the idiom that makes the mistake reachable is this entry's own.
 
 ## Framerate dependence
 
