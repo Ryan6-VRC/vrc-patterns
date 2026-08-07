@@ -207,10 +207,21 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
         // ── Format bitfield ─────────────────────────────────────────────────────────────────────────
 
-        /// <summary>Field widths and shifts for the per-entry format float, LSB-first. 14 bits total,
-        /// max 16383 — five digits, so G7-safe and float32-exact.</summary>
-        public const int DecimalsBits = 3, PaletteBits = 2, RpadBits = 4, SourceBits = 5;
-        public const int DecimalsShift = 0, PaletteShift = 3, RpadShift = 5, SourceShift = 9;
+        /// <summary>
+        /// Field widths and shifts for the per-entry format float, LSB-first. 15 bits total, max 32767 —
+        /// five digits, so the "G7" round-trip argument in the type remarks still holds verbatim (7
+        /// significant digits carries five exactly) and the word is far inside float32's 2^24
+        /// integer-exact ceiling.
+        ///
+        /// <para><b>Shifts are wire values, like the source IDs.</b> A new field takes the next free bit
+        /// and never moves an existing one: an authored material's format word must keep decoding to the
+        /// same decimals/palette/rpad/source after this file grows. <see cref="LabelOnlyShift"/> is bit 14
+        /// for that reason, and a material authored before it existed has that bit clear — which is the
+        /// default, draw the value.</para>
+        /// </summary>
+        public const int DecimalsBits = 3, PaletteBits = 2, RpadBits = 4, SourceBits = 5, LabelOnlyBits = 1;
+        public const int DecimalsShift = 0, PaletteShift = 3, RpadShift = 5, SourceShift = 9,
+                         LabelOnlyShift = 14;
 
         /// <summary>Maximum decimals. The 3-bit field reaches 7; 5 is the arithmetic limit the shader's
         /// fractional multiplier holds exactly, so values above it are refused rather than clamped.</summary>
@@ -387,9 +398,18 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         /// Packs the per-entry format config. Refuses out-of-range fields naming the offender rather
         /// than clamping — a clamped decimals count prints a different number than the author asked
         /// for, silently.
+        ///
+        /// <para><paramref name="labelOnly"/> draws the entry's label and no value at all, which is what
+        /// a column-header cell is. It is a flag rather than a reserved <see cref="ValueSource"/> ID
+        /// (16–31 are free, so either would have fit the word) because the two answer different
+        /// questions: a source says where a number comes from, and a header cell has no number for any
+        /// source to supply. As a flag the source survives being toggled off and back on, the enum keeps
+        /// its own contract that every member is a readable quantity, and no consumer switching over
+        /// <see cref="ValueSource"/> — the shader's resolve ladder, the inspector's sample values —
+        /// grows a case for a member that never reaches it.</para>
         /// </summary>
         public static bool TryPackFormat(int decimals, int palette, int rpad, ValueSource source,
-                                         out float packed, out string error)
+                                         bool labelOnly, out float packed, out string error)
         {
             packed = 0f;
             error = null;
@@ -406,19 +426,21 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             packed = (decimals << DecimalsShift)
                    | (palette << PaletteShift)
                    | (rpad << RpadShift)
-                   | ((int)source << SourceShift);
+                   | ((int)source << SourceShift)
+                   | ((labelOnly ? 1 : 0) << LabelOnlyShift);
             return true;
         }
 
         /// <summary>Unpacks the format float. Mirrors the shader's unpack exactly.</summary>
         public static void UnpackFormat(float packed, out int decimals, out int palette,
-                                        out int rpad, out ValueSource source)
+                                        out int rpad, out ValueSource source, out bool labelOnly)
         {
             int bits = (int)packed;
             decimals = (bits >> DecimalsShift) & ((1 << DecimalsBits) - 1);
             palette  = (bits >> PaletteShift)  & ((1 << PaletteBits) - 1);
             rpad     = (bits >> RpadShift)     & ((1 << RpadBits) - 1);
             source   = (ValueSource)((bits >> SourceShift) & ((1 << SourceBits) - 1));
+            labelOnly = ((bits >> LabelOnlyShift) & ((1 << LabelOnlyBits) - 1)) != 0;
         }
 
         // ── Shader surface ──────────────────────────────────────────────────────────────────────────

@@ -41,6 +41,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         // Every section's property list, declared once. DrawUnclaimed checks the shader against the union
         // of these rather than against what actually got drawn: a collapsed section draws nothing, and a
         // coverage check keyed on drawing would call all of its properties orphans.
+        // Drawn under the mode bar rather than in a section: it configures _Display_Mode's Object case
+        // and is inert in the other two.
+        static readonly string[] FaceViewerProps = { "_Display_Face_Viewer" };
         static readonly string[] LayoutProps = { "_Grid_Columns", "_Grid_Rows" };
         static readonly string[] TextMetricProps =
             { "_MSDF_Glyph_Atlas", "_Font_Size", "_Font_Scale_Relative", "_Text_Depth_Offset" };
@@ -61,8 +64,8 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             get
             {
                 return base.ClaimedProperties
-                    .Concat(LayoutProps).Concat(TextMetricProps).Concat(PaletteProps)
-                    .Concat(HandDrawnProps);
+                    .Concat(FaceViewerProps).Concat(LayoutProps).Concat(TextMetricProps)
+                    .Concat(PaletteProps).Concat(HandDrawnProps);
             }
         }
 
@@ -141,6 +144,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
             DrawSummary(scan, cols, rows, cellAdv);
             DrawModeBar(mat);
+            DrawFaceViewer(materialEditor, properties, mat);
 
             if (Section("Layout", "The grid the entries land in, and how wide a column is", ref _showLayout))
                 using (Body())
@@ -203,6 +207,24 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         }
 
         // ── Hand-drawn controls ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The two-sided readout toggle, immediately under the mode bar and drawn only in Object mode —
+        /// the one mode it does anything in. Billboard has no side and UV has no view-dependent basis,
+        /// so elsewhere it would be a switch with no effect; hiding it is the same call
+        /// <see cref="CrystalShellShaderGUI.DrawShellSection"/> makes for the rim under a disabled shell.
+        /// A material carrying it set into another mode is inert, not broken.
+        /// </summary>
+        void DrawFaceViewer(MaterialEditor editor, MaterialProperty[] properties, Material mat)
+        {
+            // The index into ModeNames, which is the shader's [KeywordEnum] order and so a wire
+            // contract — the material stores the mode as that index.
+            const int ObjectMode = 1;
+            if (Mathf.RoundToInt(GetFloat(mat, "_Display_Mode", 0f)) != ObjectMode) return;
+
+            DrawNamed(editor, properties, FaceViewerProps);
+            EditorGUILayout.Space();
+        }
 
         /// <summary>
         /// The entry's palette slot as four clickable swatches showing the palette's own colours. An
@@ -302,6 +324,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             public string Label;
             public int Decimals, Palette, Rpad;
             public DisplayGlyphs.ValueSource Source;
+            public bool LabelOnly;
             public bool Unreachable, Configured;
             /// <summary>The value disappears entirely. Non-null means an error box.</summary>
             public string Error;
@@ -324,13 +347,18 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
                 st.Label = DisplayGlyphs.DecodeLabel(mat.GetVector(labelProp));
                 DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)),
-                                           out st.Decimals, out st.Palette, out st.Rpad, out st.Source);
+                                           out st.Decimals, out st.Palette, out st.Rpad, out st.Source,
+                                           out st.LabelOnly);
 
                 st.Unreachable = i >= visible;
                 st.Configured = st.Label.Length > 0 || st.Source != DisplayGlyphs.ValueSource.Animator ||
-                                st.Decimals != 0 || st.Rpad != 0 || st.Palette != 0;
+                                st.Decimals != 0 || st.Rpad != 0 || st.Palette != 0 || st.LabelOnly;
 
-                if (st.Rpad > maxUsable)
+                // The rpad error and the collision warning are both about where the VALUE lands, and a
+                // label-only entry draws none — raising either would report a fault about a field the
+                // shader never touches. The unreachable-entry warning below is not value-side and still
+                // applies.
+                if (!st.LabelOnly && st.Rpad > maxUsable)
                     st.Error = "Right pad " + st.Rpad + " exceeds " + maxUsable + " for a " +
                                cellAdv.ToString("0.##") + "-advance cell. The value slides off the left " +
                                "of its cell and vanishes with no on-screen diagnostic.";
@@ -338,7 +366,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 // The real collision test: this label's actual length against where its value starts.
                 // rpad knows nothing about the label, so the shader draws the value over the label's tail
                 // and nothing objects — this is what objects.
-                if (!st.Unreachable && st.Error == null)
+                if (!st.LabelOnly && !st.Unreachable && st.Error == null)
                 {
                     int valueWidth = DisplayGlyphs
                         .FormatValue(SampleValue(st.Source, GetFloat(mat, DisplayGlyphs.ValueProperty(i), 0f)),
@@ -350,6 +378,14 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                                      "advance " + valueStart + ". The value wins its region, so the " +
                                      "label's tail is overdrawn.";
                 }
+
+                // Label-only suppresses the value and an empty label draws nothing, so the cell renders
+                // LITERALLY nothing — every fragment in it discards. Reported because it is a state only
+                // this flag can reach: before it, a blank label still drew its value. Both value-side
+                // diagnostics above are suppressed here, so without this the entry has no voice at all.
+                if (st.LabelOnly && st.Label.Length == 0 && !st.Unreachable)
+                    st.Warning = "Label only with an empty label. The value is suppressed and there is " +
+                                 "no label to draw, so this cell renders nothing at all.";
 
                 // An unreachable-but-configured entry is worth surfacing; an unreachable-and-empty one is
                 // just an unused slot and should stay quiet.
@@ -417,6 +453,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             string valueProp = DisplayGlyphs.ValueProperty(i);
             int decimals = st.Decimals, palette = st.Palette, rpad = st.Rpad;
             var source = st.Source;
+            bool labelOnly = st.LabelOnly;
 
             // The label rides in the title because it is the only way to tell twelve otherwise identical
             // folds apart; the fault mark rides there because a shut fold must not hide one.
@@ -455,14 +492,27 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 }
 
                 EditorGUI.BeginChangeCheck();
-                source = (DisplayGlyphs.ValueSource)EditorGUILayout.Popup("Source", (int)source, SourceNames);
-                decimals = EditorGUILayout.IntSlider("Decimals", decimals, 0, DisplayGlyphs.MaxDecimals);
-                rpad = EditorGUILayout.IntSlider("Right pad", rpad, 0, DisplayGlyphs.MaxRpad);
+                labelOnly = EditorGUILayout.Toggle(new GUIContent(
+                    "Label only",
+                    "Draw the label and no value — a column header. The value source, decimals and " +
+                    "right pad are kept but unused, so turning this back off restores them."), labelOnly);
+                // Everything below configures the value, so it is hidden while there is no value, the
+                // way the rim is hidden under a disabled shell. The stored fields survive untouched.
+                if (!labelOnly)
+                {
+                    source = (DisplayGlyphs.ValueSource)EditorGUILayout.Popup("Source", (int)source, SourceNames);
+                    decimals = EditorGUILayout.IntSlider("Decimals", decimals, 0, DisplayGlyphs.MaxDecimals);
+                    rpad = EditorGUILayout.IntSlider("Right pad", rpad, 0, DisplayGlyphs.MaxRpad);
+                }
                 palette = DrawColorSwatches(mat, palette);
                 if (EditorGUI.EndChangeCheck())
-                    WriteFormat(mat, i, decimals, palette, rpad, source);
+                    WriteFormat(mat, i, decimals, palette, rpad, source, labelOnly);
 
-                if (source == DisplayGlyphs.ValueSource.Animator)
+                if (labelOnly)
+                {
+                    EditorGUILayout.LabelField("Value", "none — label only");
+                }
+                else if (source == DisplayGlyphs.ValueSource.Animator)
                 {
                     EditorGUI.BeginChangeCheck();
                     float v = EditorGUILayout.FloatField("Value", mat.GetFloat(valueProp));
@@ -492,11 +542,11 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         }
 
         void WriteFormat(Material mat, int i, int decimals, int palette, int rpad,
-                         DisplayGlyphs.ValueSource source)
+                         DisplayGlyphs.ValueSource source, bool labelOnly)
         {
             float packed;
             string error;
-            if (DisplayGlyphs.TryPackFormat(decimals, palette, rpad, source, out packed, out error))
+            if (DisplayGlyphs.TryPackFormat(decimals, palette, rpad, source, labelOnly, out packed, out error))
             {
                 Undo.RecordObject(mat, "Edit display format");
                 mat.SetFloat(DisplayGlyphs.FormatProperty(i), packed);
@@ -511,6 +561,10 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         /// Sets <c>rpad = max(decimals) - decimals</c> computed PER GRID COLUMN, because columns are
         /// independent vertical stacks — aligning against a grid-wide maximum would over-pad every column
         /// whose own deepest entry is shallower.
+        ///
+        /// <para>A label-only entry is skipped on both passes, not merely left unwritten. Its stored
+        /// decimals belong to a value the shader does not draw, so counting it toward the column's
+        /// maximum would pad every real value in that column to align against a number nobody sees.</para>
         /// </summary>
         void AutoAlign(Material mat, int cols, int rows, float cellAdv)
         {
@@ -524,20 +578,22 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 {
                     int i = r * cols + c;
                     if (i >= visible) continue;
-                    int d, p, rp; DisplayGlyphs.ValueSource s;
-                    DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)), out d, out p, out rp, out s);
+                    int d, p, rp; DisplayGlyphs.ValueSource s; bool lo;
+                    DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)), out d, out p, out rp, out s, out lo);
+                    if (lo) continue;
                     maxDecimals = Mathf.Max(maxDecimals, d);
                 }
                 for (int r = 0; r < rows; r++)
                 {
                     int i = r * cols + c;
                     if (i >= visible) continue;
-                    int d, p, rp; DisplayGlyphs.ValueSource s;
-                    DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)), out d, out p, out rp, out s);
+                    int d, p, rp; DisplayGlyphs.ValueSource s; bool lo;
+                    DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)), out d, out p, out rp, out s, out lo);
+                    if (lo) continue;
                     int want = Mathf.Min(maxDecimals - d, DisplayGlyphs.MaxUsableRpad(cellAdv));
                     float packed;
                     string error;
-                    if (DisplayGlyphs.TryPackFormat(d, p, want, s, out packed, out error))
+                    if (DisplayGlyphs.TryPackFormat(d, p, want, s, lo, out packed, out error))
                         mat.SetFloat(DisplayGlyphs.FormatProperty(i), packed);
                 }
             }

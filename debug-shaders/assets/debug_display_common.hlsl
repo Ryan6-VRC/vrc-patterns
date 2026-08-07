@@ -144,14 +144,18 @@ uint dd_label_glyph_at(float4 packed, uint n)
 
 // ── Format bitfield unpack ──────────────────────────────────────────────────────────────────────────
 
-// Mirrors DisplayGlyphs.TryPackFormat, LSB-first: decimals(3) palette(2) rpad(4) source(5) = 14 bits.
-void dd_unpack_format(float packed, out uint decimals, out uint palette, out uint rpad, out uint source)
+// Mirrors DisplayGlyphs.TryPackFormat, LSB-first: decimals(3) palette(2) rpad(4) source(5)
+// label_only(1) = 15 bits. Shifts are wire values -- a new field takes the next free bit and never
+// moves one below it, so an authored material keeps decoding the same.
+void dd_unpack_format(float packed, out uint decimals, out uint palette, out uint rpad, out uint source,
+                      out uint label_only)
 {
     uint bits = (uint)packed;
     decimals = bits & 7u;
     palette = (bits >> 3u) & 3u;
     rpad = (bits >> 5u) & 15u;
     source = (bits >> 9u) & 31u;
+    label_only = (bits >> 14u) & 1u;
 }
 
 // ── Value formatting ────────────────────────────────────────────────────────────────────────────────
