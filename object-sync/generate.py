@@ -627,6 +627,16 @@ def build(c):
     # "on" at avatar load.
     doc.param(f"  {p}/Enable: {{ type: float, default: 0, "
               "vrc: { type: bool, synced: true, saved: false } }", f"{p}/Enable")
+    # The validity bool: the pose `Sync` reports is correct for THIS client —
+    # true on the wearer always, true on a remote once decoded, false on a
+    # remote otherwise. Per-client, so never synced. It is the whole answer to
+    # "should I show my prop", and it exists because the alternative leaks: a
+    # consumer testing Ch/Cycle >= 2 re-derives a gate this document already
+    # evaluates, and reads 0 on the wearer forever. Default 0 — Follow's default
+    # state is Release, and a clone must not claim validity before it has any.
+    doc.param(f"  {p}/Sync_Valid: {{ type: float, default: 0, "
+              "vrc: { type: bool, synced: false, saved: false } }",
+              f"{p}/Sync_Valid")
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, bools))
@@ -830,8 +840,8 @@ def enable_subtree(doc, c):
     """The enable's reach into the measure rig, as a 1D tree rather than a layer.
 
     Only the measure subtrees: whether the wearer's rig is sensing. The
-    Anchor/Container pair is not in here — Container is `follow_layer`'s alone
-    (it needs IsLocal and so cannot be a tree at all), and Anchor is the
+    Sync_Target/Sync pair is not in here — Sync is `follow_layer`'s alone
+    (it needs IsLocal and so cannot be a tree at all), and Sync_Target is the
     consumer's write surface, which nothing in this document may bind.
 
     None with several objects, where the Slice layer owns `m_IsActive` outright
@@ -856,56 +866,72 @@ def enable_subtree(doc, c):
 
 
 def follow_layer(doc, c):
-    """Whether the entry's hands are on the consumer's prop at all.
+    """Which source `Sync` rides, and whether that pose is worth trusting.
 
-    The driven property is `IsActive`, and that choice is a measurement, not a
-    preference. Only two configurations of a VRCParentConstraint write nothing
-    — `IsActive` false, and a source list of length ZERO. A weight of 0 (source
-    or GlobalWeight) is NOT that: measured in play, it writes the captured
-    *AtRest pose every frame, in the constrained object's parent frame — the
-    same ride as hands-off while the capture stays the authored zero, but a
-    live writer parked on a baked value, and a stomp on anything else composed
-    onto Container. So the gate is the component, not a weight; `Container`
-    ships its one source (the reconstruction) at a fixed Weight 1 and this
-    layer switches the whole component. Off, `Container` rides its parent — the consumer's `Anchor` — by
-    plain hierarchy, which locally is the whole point: the wearer's copy is
-    never touched, nothing of the entry sits between the consumer's carry
-    constraint and the prop, and only remotes reconstruct.
+    `Sync` is ALWAYS active and always driven; this layer only moves weight
+    between its two sources. One rule covers every state — `Sync` rides
+    `Sync_Target` unless the decoded pose is valid, and the reconstruction when
+    it is — so Enable-off, a pre-gate remote and a culled decode are the same
+    case rather than three, and the module hides nothing. What a remote shows
+    while the pose is undecoded is the consumer's call, made against a prop that
+    could be anywhere; `Sync_Valid` is what they make it on.
+
+    The weights are never both 0, which is what keeps the measured weight-0
+    write out of the driven path: at weight 0 a VRCParentConstraint does not
+    release, it writes the captured *AtRest pose every frame in the constrained
+    object's parent frame — a live writer parked on a baked value. Here one
+    source always holds weight 1.
+
+    THREE states over two clips, because the wearer and a pre-gate remote hold
+    the same pose and opposite validity, and one state cannot say both. `Local`
+    and `Release` share the target-riding clip; `Follow` carries the other.
+    `Sync_Valid` is set by each state's driver rather than by its clip: a clip
+    could only reach a param as an AAP, and no driver here may read or write an
+    AAP (`check` holds it; that defect cost y-mode its first design).
 
     A layer rather than a tree because the condition is `!IsLocal AND Enable`
     and IsLocal is a bool built-in: a blend tree reads 0 from it forever.
 
     Engaging additionally waits on the transport's own freshness counter. A
     fresh clone starts with every word at 0, 0 quantizes to cell 0, and cell 0 is
-    the far corner of the range — so a Container engaged before the first full
-    word table arrives parks the prop at the corner in front of a late joiner.
-    The threshold is TWO tails, not one: under `atomic: batch` a receiver
+    the far corner of the range — so engaging before the first full word table
+    arrives would put the prop at the corner in front of a late joiner. The
+    threshold is TWO tails, not one: under `atomic: batch` a receiver
     re-acquires from Lost at any counter value, so it can enter AT a tail and
     take its first increment after a single batch (word-channel's params block
     carries that caveat at `Cycle`). Releasing does not test Cycle — the counter
     only climbs, so a re-enable engages on the frame Enable returns rather than
     waiting out a fresh loop, which is what makes the toggle feel instant."""
     p = c["prefix"]
-    release, engage = {}, {}
+    rides_target, rides_recon = {}, {}
     for ob in c["objects"]:
-        b = f"{container_path(c, ob['name'])}/VRCParentConstraint.IsActive"
-        release[b], engage[b] = 0, 1
+        s = f"{sync_path(c, ob['name'])}/VRCParentConstraint.Sources"
+        rides_target[f"{s}.source0.Weight"] = 1
+        rides_target[f"{s}.source1.Weight"] = 0
+        rides_recon[f"{s}.source0.Weight"] = 0
+        rides_recon[f"{s}.source1.Weight"] = 1
+    target_clip = doc.clip("follow_target", rides_target)
+    recon_clip = doc.clip("follow_recon", rides_recon)
     out = [f"  - name: {p}/Follow", "    states:"]
-    out.extend(state("Release", None, None,
-                     motion=f"{{ clip: {doc.clip('follow_release', release)} }}"))
-    out.extend(state("Follow", None, None,
-                     motion=f"{{ clip: {doc.clip('follow_engage', engage)} }}"))
+    out.extend(state("Release", driver(sets={f"{p}/Sync_Valid": 0}), None,
+                     motion=f"{{ clip: {target_clip} }}"))
+    out.extend(state("Local", driver(sets={f"{p}/Sync_Valid": 1}), None,
+                     motion=f"{{ clip: {target_clip} }}"))
+    out.extend(state("Follow", driver(sets={f"{p}/Sync_Valid": 1}), None,
+                     motion=f"{{ clip: {recon_clip} }}"))
     out.extend([
         "    any:",
+        "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
+        "   # the wearer's pose is authoritative, so it is valid from frame 1",
         f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5, "
         f"{c['channel']}/Cycle greater 1.5 ], canTransitionToSelf: false }}"
         "   # Cycle >= 2 = a whole word table received (docstring)",
-        "      - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }",
-        f"      - {{ to: Release, when: [ {p}/Enable less 0.5 ], "
+        f"      - {{ to: Release, when: [ IsLocal is false, {p}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
     out.extend(["    layout:", "      nodes:",
-                "        Release: [30, 180]", "        Follow:  [270, 180]",
+                "        Release: [30, 180]", "        Local:   [270, 260]",
+                "        Follow:  [270, 100]",
                 "      entry: [50, 120]", "      any:   [50, 40]",
                 "      exit:  [50, 80]"])
     return out
@@ -1142,7 +1168,7 @@ def tag_set(c, o):
     is a spec-vs-artifact lie waiting for a reviewer.
 
     Deterministic from the prefix and — when there is more than one object — the
-    object name, the same rule `Container` follows and for a sharper reason:
+    object name, the same rule the `Sync` pair follows and for a sharper reason:
     measured with two objects on one tag set, NEITHER converges, because every
     receiver reads whichever sender is strongest rather than its own."""
     base = c["prefix"].replace("/", "")
@@ -1167,18 +1193,29 @@ def gate_bindings(c, live_object):
     return b
 
 
-def container_path(c, o):
-    """The prop holder — the one node the entry drives in the consumer's view.
+def sync_path(c, o):
+    """The output node — mount a prop under it, or list it as a constraint source.
 
-    It lives UNDER the consumer's `Anchor`, so with its constraint inactive it
-    rides whatever the consumer gives the anchor (a hand, a freeze, nothing) by
-    plain hierarchy, and the measured default (`Authority` -> `Anchor`) never
-    sits downstream of the entry's own output. One object owns the bare pair;
-    several take a suffixed anchor each (COS ships the same shape as
-    `SyncPositionA Target`/`SyncPositionA`), because one anchor is one
-    consumer-driven frame and one constraint follows one reconstruction."""
-    return ("Anchor/Container" if len(c["objects"]) == 1
-            else f"Anchor{o}/Container")
+    Half of the whole consumer surface: `Sync_Target` in, `Sync` out. `Sync`
+    carries ONE VRCParentConstraint whose two sources are the consumer's input
+    and the entry's reconstruction, and `follow_layer` picks between them, so a
+    consumer never multiplexes local against remote — the module owns that, once,
+    and `Sync` reports a pose correct for whichever client is reading it.
+
+    One object owns the bare pair; several take a suffixed pair each
+    (`SyncA`/`SyncA_Target`, the shape Custom-Object-Sync ships as
+    `SyncPositionA`/`SyncPositionA Target`), because one input is one
+    consumer-driven frame and one output follows one reconstruction."""
+    return "Sync" if len(c["objects"]) == 1 else f"Sync{o}"
+
+
+def sync_target_path(c, o):
+    """The input node — the consumer's, and the transform the senders measure.
+
+    The entry never binds it (`check` holds that): the consumer owns its source
+    list, a composed toggle may own its `FreezeToWorld`, and measuring it means
+    measuring the prop's authority on the only client that measures at all."""
+    return "Sync_Target" if len(c["objects"]) == 1 else f"Sync{o}_Target"
 
 
 def position_walk(doc, c, d, ob, a, multi):
@@ -1796,49 +1833,76 @@ def check():
                 assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
                             for s in ("Coarse", "Fine", "Rot")),
                         f"{ob['name']}: parking deactivates all three measure subtrees")
-        assert_(not any(k.startswith(("Container", "Anchor"))
+        assert_(not any(k.startswith(("Sync", "Sync_Target"))
                         for k in f["clips"].get("enable_park", ({},))[0]),
-                "the enable's tree reaches the measure rig only — Container is the "
-                "Follow layer's alone, and Anchor is the consumer's")
-        # The consumer's Anchor is a write surface this document must never
-        # bind: a binding may pass THROUGH it (Anchor.../Container/... is the
-        # Follow layer's), but none may land on the anchor node itself — that
-        # node belongs to the consumer's carry constraint and the composed
-        # Drop toggle's FreezeToWorld clip, and two systems animating one
-        # component is the defect this split exists to prevent.
-        on_anchor = [k for _, (bs, _s) in f["clips"].items() for k in bs
-                     if k.startswith("Anchor")
-                     and not k.split("/", 1)[1].startswith("Container")]
-        assert_(not on_anchor,
-                f"no clip binding lands on a consumer Anchor node ({on_anchor[:2]})")
+                "the enable's tree reaches the measure rig only — Sync is the "
+                "Follow layer's alone, and Sync_Target is the consumer's")
 
-        # The consumer surface: one layer switching Container's whole constraint,
-        # and the wearer's side never in the engaged branch. `IsActive` and NOT a
-        # source weight — measured, a weight of 0 (source or GlobalWeight) still
-        # writes the captured rest every frame in the parent frame: it rides
-        # Anchor only while the capture stays the authored zero. Only IsActive
-        # false (or a zero-length source list) writes nothing, which is the
-        # release this entry needs.
-        release = f["clips"]["follow_release"][0]
-        engage = f["clips"]["follow_engage"][0]
-        assert_(set(release) == set(engage) and release
-                and all(str(release[k]) == "0" and str(engage[k]) == "1"
-                        for k in release),
-                f"follow_release / follow_engage cover the same {len(release)} "
-                "Container binding(s), released 0 / engaged 1")
+        # THE FENCE, and it stays a pure negative because the correct answer
+        # here really is "nothing": Sync_Target is the consumer's node — their
+        # carry constraint owns its source list, a composed Drop toggle owns its
+        # FreezeToWorld — and anything UNDER Sync is the consumer's own subtree.
+        # Two systems animating one component is the defect the split prevents.
+        surface = [k for _, (bs, _s) in f["clips"].items() for k in bs
+                   if k.split("/")[0].startswith("Sync")]
+        targets = {sync_target_path(cfg, ob["name"]) for ob in cfg["objects"]}
+        syncs = {sync_path(cfg, ob["name"]) for ob in cfg["objects"]}
+        trespass = [k for k in surface
+                    if k.split("/")[0] in targets
+                    or (k.split("/")[0] in syncs and "/" in k
+                        and not k.split("/", 1)[1].startswith("VRCParentConstraint."))]
+        assert_(not trespass,
+                f"no clip binding touches Sync_Target or anything under Sync "
+                f"({trespass[:2]})")
+
+        # AN ALLOWLIST, not a blocklist. The old fence could be a pure negative
+        # because the entry drove nothing on the surface; now it drives Sync's
+        # two weights, so a blocklist cannot express the boundary and any
+        # binding a later edit adds would pass in silence. Pin the exact set.
+        want = {f"{sync_path(cfg, ob['name'])}/VRCParentConstraint.Sources."
+                f"source{i}.Weight"
+                for ob in cfg["objects"] for i in (0, 1)}
+        assert_(set(surface) == want,
+                f"the document binds EXACTLY Sync's two source weights "
+                f"({sorted(set(surface) ^ want)[:2]})")
+
+        # Totality and exclusivity over the weight pair, in one assertion: a
+        # partial clip lets WD-ON strand a stale weight, and a both-zero state
+        # reintroduces the measured weight-0 write (a VRCParentConstraint at
+        # weight 0 writes the captured rest every frame rather than releasing).
+        rides_t = f["clips"]["follow_target"][0]
+        rides_r = f["clips"]["follow_recon"][0]
+        assert_(set(rides_t) == set(rides_r) == want,
+                "both Follow clips are total over the weight vector")
         for ob in cfg["objects"]:
-            con = f"{container_path(cfg, ob['name'])}/VRCParentConstraint"
-            assert_(f"{con}.IsActive" in release,
-                    f"{ob['name']}: Follow switches Container's IsActive")
-            assert_(not any(k.startswith(f"{con}.Sources") for k in release)
-                    and not any(k.startswith(f"{con}.Sources") for k in engage)
-                    and f"{con}.GlobalWeight" not in text,
-                    f"{ob['name']}: neither a source weight nor GlobalWeight is "
-                    "animated — a zero weight keeps writing the captured rest "
-                    "instead of releasing")
-            assert_(f"{con}.Sources.source1" not in text,
-                    f"{ob['name']}: Container carries no second source anywhere "
-                    "in the document")
+            con = f"{sync_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
+            assert_(str(rides_t[f"{con}.source0.Weight"]) == "1"
+                    and str(rides_t[f"{con}.source1.Weight"]) == "0"
+                    and str(rides_r[f"{con}.source0.Weight"]) == "0"
+                    and str(rides_r[f"{con}.source1.Weight"]) == "1",
+                    f"{ob['name']}: exactly one source holds weight 1 in either "
+                    "clip — never both zero")
+            assert_(f"{con[:-8]}.GlobalWeight" not in text
+                    and f"{con[:-8]}.IsActive" not in text,
+                    f"{ob['name']}: Sync is never released by GlobalWeight or "
+                    "IsActive — it is always active and always driven")
+
+        # The validity bool agrees with the weights, state by state. This is
+        # what stops a consumer's hide logic — and M3's tablet readout — from
+        # disagreeing with the pose actually on screen.
+        fol = rung_block(text, f"{pf}/Follow")
+        for st, want_valid, clip in (("Release", "0", "follow_target"),
+                                     ("Local", "1", "follow_target"),
+                                     ("Follow", "1", "follow_recon")):
+            body = state_block(fol, st)
+            rides = "the reconstruction" if clip.endswith("recon") else "Sync_Target"
+            assert_(f"{pf}/Sync_Valid: {want_valid}" in body
+                    and f"motion: {{ clip: {clip} }}" in body,
+                    f"{st} sets Sync_Valid {want_valid} and rides {rides}")
+        assert_(f"{pf}/Sync_Valid" not in text.split("  - name:")[0]
+                or "synced: false" in text.split(f"{pf}/Sync_Valid:")[1][:120],
+                "Sync_Valid is per-client — never synced")
+
         rungs = any_rungs(text, f"{pf}/Follow")
         engaging = [r for r in rungs if r.startswith("- { to: Follow")]
         assert_(len(engaging) == 1
@@ -1846,17 +1910,18 @@ def check():
                 and f"{pf}/Enable greater 0.5" in engaging[0]
                 and f"{cfg['channel']}/Cycle greater 1.5" in engaging[0],
                 "the one rung into Follow requires !IsLocal AND Enable AND "
-                "Cycle >= 2 — so the wearer's own copy is never driven, and a "
-                "late joiner never sees the all-zero word table's range corner")
+                "Cycle >= 2 — so the wearer's own copy never rides the decode, "
+                "and a late joiner never sees the all-zero word table's corner")
         assert_(not any("Cycle" in r for r in rungs
                         if r.startswith("- { to: Release")),
                 "releasing does not test Cycle — the counter only climbs, so a "
                 "re-enable engages immediately instead of waiting out a loop")
-        assert_(any(r.startswith("- { to: Release") and "IsLocal is true" in r
+        assert_(any(r.startswith("- { to: Local") and "IsLocal is true" in r
                     for r in rungs)
                 and any(r.startswith("- { to: Release")
                         and f"{pf}/Enable less 0.5" in r for r in rungs),
-                "either IsLocal or Enable-off releases Container on its own")
+                "the wearer takes Local on IsLocal alone, and Enable-off takes "
+                "a remote to Release")
         assert_(f"    default: Release" in rung_block(text, f"{pf}/Follow"),
                 "Follow's default state is Release — hands off until proven remote")
         assert_("Home" not in text,
@@ -1879,10 +1944,13 @@ def check():
     readme = os.path.join(HERE, "README.md")
     if os.path.exists(readme):
         body = open(readme, encoding="utf-8").read()
-        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable`" in body,
-                "README specifies Enable as the one globalParams entry")
-        assert_("exactly one source, `Rig/<obj>/Display`" in body,
-                "README pins the single Container source the Follow layer indexes")
+        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable` and "
+                f"`{CONFIG['prefix']}/Sync_Valid`" in body,
+                "README specifies both globalParams entries — without the second "
+                "a consumer cannot bind the validity bool by name")
+        assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
+                "README pins the two Sync sources in the order the Follow layer "
+                "indexes them")
         assert_("Home" not in body,
                 "README carries no home/park concept either")
         # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
@@ -1995,6 +2063,20 @@ def rung_block(text, layer):
         return ""
     end = next((j for j in range(i + 1, len(lines))
                 if lines[j].startswith("  - name: ")), len(lines))
+    return "\n".join(lines[i:end])
+
+
+def state_block(layer_text, name):
+    """One state's own lines out of a layer block — its motion, driver and
+    transitions, and nothing of the state after it."""
+    lines = layer_text.splitlines()
+    try:
+        i = lines.index(f"      {name}:")
+    except ValueError:
+        return ""
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("      ") and not lines[j].startswith("       ")),
+               len(lines))
     return "\n".join(lines[i:end])
 
 

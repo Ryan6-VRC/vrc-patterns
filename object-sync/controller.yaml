@@ -126,6 +126,7 @@ parameters:
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
   ObjectSync/Enable: { type: float, default: 0, vrc: { type: bool, synced: true, saved: false } }
+  ObjectSync/Sync_Valid: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   ObjectSync/B/Prop/PX/C0: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C2: { type: float, scratch: true }
@@ -848,18 +849,33 @@ layers:
   - name: ObjectSync/Follow
     states:
       Release:
-        motion: { clip: follow_release }
+        motion: { clip: follow_target }
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/Sync_Valid: 0
+      Local:
+        motion: { clip: follow_target }
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/Sync_Valid: 1
       Follow:
-        motion: { clip: follow_engage }
+        motion: { clip: follow_recon }
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/Sync_Valid: 1
     any:
+      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative, so it is valid from frame 1
       - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Cycle greater 1.5 ], canTransitionToSelf: false }   # Cycle >= 2 = a whole word table received (docstring)
-      - { to: Release, when: [ IsLocal is true ], canTransitionToSelf: false }
-      - { to: Release, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
+      - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:
       nodes:
         Release: [30, 180]
-        Follow:  [270, 180]
+        Local:   [270, 260]
+        Follow:  [270, 100]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -4324,8 +4340,14 @@ clips:
       Rig/Prop/Coarse/GameObject.m_IsActive: 1
       Rig/Prop/Fine/GameObject.m_IsActive: 1
       Rig/Prop/Rot/GameObject.m_IsActive: 1
-  follow_release: { set: { Anchor/Container/VRCParentConstraint.IsActive: 0 } }
-  follow_engage: { set: { Anchor/Container/VRCParentConstraint.IsActive: 1 } }
+  follow_target:
+    set:
+      Sync/VRCParentConstraint.Sources.source0.Weight: 1
+      Sync/VRCParentConstraint.Sources.source1.Weight: 0
+  follow_recon:
+    set:
+      Sync/VRCParentConstraint.Sources.source0.Weight: 0
+      Sync/VRCParentConstraint.Sources.source1.Weight: 1
 
 # One control, so a bare Toggle rather than a menu asset — and the module is
 # single-instance per avatar anyway, since its collision tags are fixed strings
