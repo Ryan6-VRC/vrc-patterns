@@ -19,6 +19,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         // SECOND title inside the section that already carries the name. With avatar-tools absent Unity's
         // default ShaderGUI lists these in declaration order, which is the same grouping without the labels.
         [KeywordEnum(Billboard, Object, UV)] _Display_Mode("Display mode", Float) = 0
+        // OBJECT MODE ONLY, and off by default so every existing material renders exactly as before.
+        // Object mode fixes the plane to the object's basis and the text runs along +X, so an observer
+        // on the +Z side reads the grid mirrored. On, the plane yaws 180 degrees about the object's Y
+        // axis for any camera on that side -- a rotation, not a reflection, so glyphs are never mirrored
+        // and _Text_Depth_Offset keeps pointing at whoever is reading. A float rather than a keyword:
+        // the branch is one vertex-stage comparison, and a fourth variant axis would double the pass's
+        // compiled set to buy nothing. Billboard mode has no side and UV mode has no view-dependent
+        // basis, so neither reads this.
+        [ToggleUI] _Display_Face_Viewer("Object mode: face the viewer", Float) = 0
         _Font_Size("Font size (m per ascender)", Range(0.001, 0.25)) = 0.0225
         // Billboard and object modes trace against a plane built from NORMALIZED basis vectors, which
         // protects the monospace grid from a stretched mesh but also discards object scale -- leaving
@@ -160,6 +169,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
 
             #include "debug_display_common.hlsl"
 
+            uniform float _Display_Face_Viewer;
             uniform float _Font_Size;
             uniform float _Font_Scale_Relative;
             uniform float _Total_Width;
@@ -227,6 +237,33 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                     right = normalize(float3(unity_ObjectToWorld._m00, unity_ObjectToWorld._m10, unity_ObjectToWorld._m20));
                     up = normalize(float3(unity_ObjectToWorld._m01, unity_ObjectToWorld._m11, unity_ObjectToWorld._m21));
                     normal = normalize(float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22));
+
+                    // Two-sided readout: yaw the plane 180 degrees about `up` for a viewer behind it,
+                    // which is the turn-the-object-around fix applied per camera instead of per
+                    // object. Negating `normal` alongside `right` is what makes it a rotation rather
+                    // than a mirroring -- the ray-plane solve is sign-symmetric so the glyphs land the
+                    // same either way, but it keeps _Text_Depth_Offset pushing the plane toward the
+                    // reader on both sides.
+                    //
+                    // The test lives HERE, in the vertex stage, because it reads the object basis --
+                    // see dd_resolve_value's note on unity_InstanceID for why that is not optional. It
+                    // takes the STEREO-CENTRE camera: a per-eye test lets the two eyes disagree near
+                    // the crossing and tears the text between them.
+                    //
+                    // Crossing the plane POPS rather than easing, and that is accepted, not solved. A
+                    // shader holds no state between frames, so hysteresis is not available -- only a
+                    // deadband, which still has to pick a side at its centre and so only moves the
+                    // pop. What makes it cheap is WHERE it lands: at the crossing the readout plane is
+                    // edge-on, frame_uv blows up, and the grid-bounds discard in the fragment stage has
+                    // already blanked the cells: with _Text_Depth_Offset at its default 0 the camera is
+                    // IN the readout plane at the crossing and nothing legible survives it.
+                    // _Text_Depth_Offset is the exception, and the one case to expect a visible snap:
+                    // the flip reverses which way that offset points, so the readout plane jumps twice
+                    // it, from a camera far enough off-plane to still resolve the squashed grid.
+                    float facing = (_Display_Face_Viewer != 0.0 &&
+                                    dot(dbg_camera_center_ws() - origin_ws, normal) > 0.0) ? -1.0 : 1.0;
+                    right *= facing;
+                    normal *= facing;
                 #else
                     // Billboard: plane faces the STEREO-CENTRE camera, so both eyes ray-trace against one
                     // plane and the disparity is coherent. dbg_camera_center_ws fixes the ancestor's
@@ -345,9 +382,8 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                     default: break;
                 }
 
-                uint decimals, palette, rpad, source;
-                dd_unpack_format(fmt, decimals, palette, rpad, source);
-                float value = dd_resolve_value(source, entry_value, input.obj_a, input.obj_b);
+                uint decimals, palette, rpad, source, label_only;
+                dd_unpack_format(fmt, decimals, palette, rpad, source, label_only);
 
                 // ── Glyph ───────────────────────────────────────────────────────────────────────────
                 // The value region wins and a SPACE in it falls through to the label. That ordering picks
@@ -361,8 +397,12 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                 uint glyph = Font::space;
                 float x_in_advance = 0.0;
 
-                if (cell_px.x >= value_left_px && cell_px.x < value_right_px)
+                // label_only draws no value at all, which is what a column-header cell is. The label
+                // region below then covers the whole 12 advances unopposed. dd_resolve_value moved in
+                // here with it: it is read nowhere else, so a header cell now costs no source switch.
+                if (label_only == 0u && cell_px.x >= value_left_px && cell_px.x < value_right_px)
                 {
+                    float value = dd_resolve_value(source, entry_value, input.obj_a, input.obj_b);
                     int n = (int)floor((value_right_px - cell_px.x) / Font::advance_px);   // 0 = rightmost
                     // The left bound is inclusive, so exactly on it the division yields n ==
                     // DD_VALUE_GLYPHS -- one column past the field, which is the column the minus sign
