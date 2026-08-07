@@ -379,6 +379,14 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                                      "label's tail is overdrawn.";
                 }
 
+                // Label-only suppresses the value and an empty label draws nothing, so the cell renders
+                // LITERALLY nothing — every fragment in it discards. Reported because it is a state only
+                // this flag can reach: before it, a blank label still drew its value. Both value-side
+                // diagnostics above are suppressed here, so without this the entry has no voice at all.
+                if (st.LabelOnly && st.Label.Length == 0 && !st.Unreachable)
+                    st.Warning = "Label only with an empty label. The value is suppressed and there is " +
+                                 "no label to draw, so this cell renders nothing at all.";
+
                 // An unreachable-but-configured entry is worth surfacing; an unreachable-and-empty one is
                 // just an unused slot and should stay quiet.
                 if (st.Unreachable && st.Configured && st.Warning == null)
