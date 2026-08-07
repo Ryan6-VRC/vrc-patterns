@@ -164,7 +164,7 @@ Write-Host "[atlas] --- also VERIFY glyph 0 sits in the TOP-left cell (Font::sdf
 # The codepoint-ascending invariant is tested on both sides, but nothing tied the ATLAS to the table --
 # the PNG is itself a second copy of the charset, in image form, in another repo. Slots pinned only by
 # ordinal rank could therefore be swapped for another character of the same rank ('~' U+007E -> '}'
-# U+007D) with every test still green, the shader still compiling, and SetDisplayEntry encoding an ID the
+# U+007D) with every test still green, the shader still compiling, and TryEncodeLabel encoding an ID the
 # atlas draws as something else. This digest is what the gate compares against, closing the last echo in
 # the format that had only discipline behind it.
 $sha = [System.Security.Cryptography.SHA256]::Create()

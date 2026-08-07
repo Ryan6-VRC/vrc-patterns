@@ -18,8 +18,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
     /// the very top of the inspector, which is outside every section and names the entry. Collapsing a
     /// section can hide a control, never a fault.</para>
     ///
-    /// <para><b>This is the operator's door, not the agent's.</b> <see cref="SetDisplayEntry"/> and
-    /// <see cref="ReportDisplay"/> are the scriptable path and neither depends on this class. If
+    /// <para><b>This is the operator's door, not the agent's.</b> The scriptable path is
+    /// <see cref="DisplayGlyphs"/> used directly — encode the label, compose the format word from its
+    /// shift constants, write the material properties — and it does not depend on this class. If
     /// <c>avatar-tools</c> is absent the material falls back to Unity's default ShaderGUI: every property
     /// stays visible and editable (the label vectors are deliberately not <c>[HideInInspector]</c>), a
     /// label is merely unreadable as a packed integer, and Unity logs one "Could not create a custom UI"
@@ -232,7 +233,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         /// has here is "which colour", and four numbers cannot answer it.
         ///
         /// <para>Labelled <b>Color</b> for the operator; the underlying field is the format bitfield's
-        /// <c>palette</c>, which is what <see cref="SetDisplayEntry"/>, the README and the shader all call
+        /// <c>palette</c>, which is what <see cref="DisplayGlyphs"/>, the README and the shader all call
         /// it. The tooltip carries that name so the two vocabularies stay connected.</para>
         /// </summary>
         static int DrawColorSwatches(Material mat, int palette)
@@ -241,7 +242,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             var field = EditorGUI.PrefixLabel(rect, new GUIContent(
                 "Color",
                 "Which of the four text palettes this entry draws in — the format bitfield's palette " +
-                "index, 0-3, as SetDisplayEntry and the README name it."));
+                "index, 0-3, as DisplayGlyphs and the README name it."));
 
             const float Gap = 3f;
             float w = Mathf.Min(46f, (field.width - Gap * 3f) / 4f);

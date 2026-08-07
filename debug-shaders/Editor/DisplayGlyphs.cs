@@ -10,8 +10,11 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
     /// CANON for all three — the MSDF atlas is generated from <see cref="Charset"/> (never from a
     /// committed copy of it), the shader's HLSL unpack mirrors <see cref="TryEncodeLabel"/>, and the
     /// <c>vrc-patterns/debug-shaders</c> README quotes the arithmetic. Pure math, no Unity asset access,
-    /// so it is the NUnit-tested core the two doors (<see cref="SetDisplayEntry"/>,
-    /// <see cref="ReportDisplay"/>) and the material inspector all sit on.
+    /// so it is the NUnit-tested core the material inspector sits on — and it is also the whole
+    /// scriptable door. There is no configure-an-entry helper: a script authoring a display calls
+    /// <see cref="TryEncodeLabel"/> for the label, composes the format word from the shift constants
+    /// below, and sets the <c>_E{i}_Label</c> / <c>_E{i}_Format</c> / <c>_E{i}_Value</c> properties
+    /// itself. <see cref="DecodeLabel"/> is how it reads an existing material back first.
     ///
     /// <para><b>Why a shader carries strings at all.</b> There is no runtime mechanism for a clip to
     /// drive text: ShaderLab has no string property type, <c>Material</c> has no string setter, animator
