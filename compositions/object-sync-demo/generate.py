@@ -219,7 +219,7 @@ def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
-    print(f"wrote {os.path.relpath(OUT, ROOT)}: {len(f['layers'])} layers, "
+    print(f"wrote {os.path.relpath(OUT, HERE)}: {len(f['layers'])} layers, "
           f"{len(f['clips'])} clips, {facts['wireBits']} wire bits, "
           f"{facts['payloadBits']} payload bits, {facts['batchCount']} batches, "
           f"~{facts['cycleSeconds']:.3f}s refresh @60fps")

@@ -14,7 +14,9 @@
 # Local measure cycle: 2 slices x 47 frames = ~1.57s — each slice deactivates every other object's
 #   rig, clears, settles, and only then unblocks its walks.
 # Rig park (deterministic from rigSeed 'object-sync/g3'): (73, 932, 233) m — the README's Rig section
-#   is the spec the prefab is kept against.
+#   is the spec the prefab is kept against. The park is the object node's transform
+#   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,
+#   because the client scales a source's offset by the avatar's per-client scale factor.
 #
 # Per axis the coarse and fine words share one group, so word-channel pins them into one
 # batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary
@@ -5882,9 +5884,9 @@ clips:
   asm_objectsync_d_propb_ra_z_1: { set: { ObjectSync/D/PropB/RA/Z: 1 } }
   anch_propa_base:
     set:
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8191
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -8191
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -8191
+      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8118
+      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -7259
+      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -7958
   anch_propa_x_cell:
     set:
       Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
@@ -5902,9 +5904,9 @@ clips:
       Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propa_base:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: -8193.2
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: -8193.2
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: -8193.2
+      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: -8120.2
+      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: -7261.2
+      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: -7960.2
   disp_propa_x_cell:
     set:
       Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 2
@@ -5952,9 +5954,9 @@ clips:
       Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
   anch_propb_base:
     set:
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8191
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -8191
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -8191
+      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8118
+      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -7259
+      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -7958
   anch_propb_x_cell:
     set:
       Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
@@ -5972,9 +5974,9 @@ clips:
       Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propb_base:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: -8193.2
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: -8193.2
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: -8193.2
+      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: -8120.2
+      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: -7261.2
+      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: -7960.2
   disp_propb_x_cell:
     set:
       Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 2
