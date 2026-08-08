@@ -104,7 +104,7 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **To check whether a clip is driving a display entry, read the renderer's `MaterialPropertyBlock`, not the material.** `sharedMaterial.GetFloat("_E0_Value")` keeps returning the authored value while the display visibly animates; use `renderer.GetPropertyBlock(mpb)`. Never touch `renderer.material` on a live avatar — that instantiates it and changes what `sharedMaterial` compares equal to.
 
-**What the Editor cannot show:** `VRChatCameraMode`, `VRChatMirrorMode` and `StereoEyeIndex` read 0 whether or not the globals exist, so the camera and mirror behaviours above are Editor-invisible, and the stereo-centre handling only manifests as per-eye disparity in a headset. `docs/verify.md` owns the general boundary.
+**What the Editor cannot show:** `VRChatCameraMode`, `VRChatMirrorMode` and `StereoEyeIndex` read 0 whether or not the globals exist, so the camera and mirror behaviours above are Editor-invisible, and the stereo-centre handling only manifests as per-eye disparity in a headset. `docs/emulator.md` owns the general boundary.
 
 ## Shipped assets
 

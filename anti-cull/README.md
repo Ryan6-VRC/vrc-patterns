@@ -47,7 +47,7 @@ Editing-the-rig trap: a freshly script-added VRC constraint starts with `IsActiv
 
 Nothing to drive — the default path inflates with zero input. In play, the `Culling` object should sit at kilometre scale and the renderer's bounds with it; toggled off, the renderer deactivates and contributes no bounds at all, since the GameObject-active write is the effective gate rather than the constraint (which just holds its last transform). Serialized rest state must stay inactive and zero-scale.
 
-That inflated bounds actually defeat a remote client's view culling is in-game-only: the emulator cannot reproduce another client's culling decision (`docs/verify.md`).
+That inflated bounds actually defeat a remote client's view culling is in-game-only: the emulator cannot reproduce another client's culling decision (`docs/emulator.md`).
 
 ## Rebuilding
 

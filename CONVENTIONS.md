@@ -74,7 +74,7 @@ The menu is authored as a `menu:` block in `controller.yaml` and lands in `built
 An entry in this library is **assumed working** — it passed the gate to get in, and git holds how it got there. So this slot is not a record of what was proven; it is written for the agent who has just composed the entry onto an unfamiliar avatar and needs to know it landed. Two things only:
 
 - The cheapest observable that distinguishes a correct install from a plausible-looking broken one, and what a wrong reading means (a cage at the avatar-root origin means the BoneProxy never resolved; a zero self-receiver means the descriptor has no collider slots).
-- What the emulator structurally cannot show **for this entry**, so nobody burns a session on it. `docs/verify.md` owns the general boundary — name only what is specific here.
+- What the emulator structurally cannot show **for this entry**, so nobody burns a session on it. `docs/emulator.md` owns the general boundary — name only what is specific here.
 
 Never append a run to this slot. A session that re-verifies an entry and finds it sound leaves the README alone; one that finds it broken fixes the entry, and edits the line that was wrong.
 

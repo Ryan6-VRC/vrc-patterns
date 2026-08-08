@@ -39,9 +39,9 @@ Empirical constants (90% rule — test before changing):
 
 ## Verifying the install
 
-At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender. **Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads zero (`docs/verify.md`) — and every release then arbitrates as a world drop, silently losing the anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage below it at head-contact level; both offsets are per-avatar constants (see the Anchor offsets row).
+At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standard `Head` sender. **Zero means the descriptor carries no head collider slots** — a module-scale minimal rig reads zero (`docs/emulator.md`) — and every release then arbitrates as a world drop, silently losing the anchored branch. `Container` sits at `HeadMount/AnchorOffset` with the cage below it at head-contact level; both offsets are per-avatar constants (see the Anchor offsets row).
 
-For the tracker: with the prop grabbed, put a scripted `Head` sender (`docs/verify.md`) into the catch column and release — the four `X+/X-/Y+/Z+` floats leave zero together, filters shut, and `Output` lands on the sender (the cage then eases `TrackedPoint` onto it). A partial box set that never all-fire means the column doesn't suit this avatar's head placement. Because loss is **ANY-box** (`box-tracker`), a target leaving even one box's ±1.5 m core drops the prop.
+For the tracker: with the prop grabbed, put a scripted `Head` sender (`docs/emulator.md`) into the catch column and release — the four `X+/X-/Y+/Z+` floats leave zero together, filters shut, and `Output` lands on the sender (the cage then eases `TrackedPoint` onto it). A partial box set that never all-fire means the column doesn't suit this avatar's head placement. Because loss is **ANY-box** (`box-tracker`), a target leaving even one box's ±1.5 m core drops the prop.
 
 Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed` does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and culling against a genuinely distant or occluded player.
 

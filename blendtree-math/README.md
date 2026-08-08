@@ -45,7 +45,7 @@ The linear smoother ramps toward the target at a fixed step, then oscillates by 
 
 ## Behavior
 
-Each idiom's output at `dt = 1/60`. Single-hop idioms are exact the frame their inputs change. To re-measure after an edit, host the built controller on a bare `Animator` and tick it in edit mode — `docs/verify.md` §"Pure controller math skips play mode entirely" owns the recipe.
+Each idiom's output at `dt = 1/60`. Single-hop idioms are exact the frame their inputs change. To re-measure after an edit, host the built controller on a bare `Animator` and tick it in edit mode — `docs/emulator.md` §"Pure controller math skips play mode entirely" owns the recipe.
 
 | Idiom | Input(s) | Output |
 |---|---|---|

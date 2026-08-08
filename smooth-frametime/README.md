@@ -19,7 +19,7 @@ The rate the smoothers consume is `RateSelected = IsLocal·rateLocal + (1−IsLo
 
 ## Behavior
 
-The rig reads `dt` exactly (`FrameTime = 0.016667` at `dt = 1/60`). Every blend param / directWeight is read at frame start, so the feed-forward pipeline (`Time`→`FrameTime`→`RateStep`→`Alpha*`→`Smoothed*`) takes a few frames to fill after an input change. To re-measure after an edit, host the built controller on a bare `Animator` and tick `Animator.Update(dt)` in edit mode — `docs/verify.md` §"Pure controller math skips play mode entirely" owns the recipe.
+The rig reads `dt` exactly (`FrameTime = 0.016667` at `dt = 1/60`). Every blend param / directWeight is read at frame start, so the feed-forward pipeline (`Time`→`FrameTime`→`RateStep`→`Alpha*`→`Smoothed*`) takes a few frames to fill after an input change. To re-measure after an edit, host the built controller on a bare `Animator` and tick `Animator.Update(dt)` in edit mode — `docs/emulator.md` §"Pure controller math skips play mode entirely" owns the recipe.
 
 **`remap` is frametime-independent; `clamp01` is not.** `remap`'s steady-state decay ratio over a matched elapsed window holds constant across framerates; `clamp01`'s does not, because it linearizes `1−e^(−x)` and so converges faster the larger the per-frame step (i.e. the lower the fps). `remap` trades tree nodes for this precision — its independence holds only as far as its 1D keys sample the operating `RateStep` band densely, so keep them dense where you drive it. `clamp01` is the cheaper, honestly framerate-dependent flavour when exact independence isn't needed.
 

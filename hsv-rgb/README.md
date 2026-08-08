@@ -22,7 +22,7 @@ Two adjacent facts the naive author gets wrong:
 
 ## Behavior
 
-`_Color` after an 8-frame settle, against a Unity Standard default of white. To re-measure after an edit, host the built controller on a bare `Animator` and tick it in edit mode (`docs/verify.md` §"Pure controller math skips play mode entirely"), reading `_Color` from the renderer's **`MaterialPropertyBlock`** — `sharedMaterial` stays at the authored default and reads as a false negative.
+`_Color` after an 8-frame settle, against a Unity Standard default of white. To re-measure after an edit, host the built controller on a bare `Animator` and tick it in edit mode (`docs/emulator.md` §"Pure controller math skips play mode entirely"), reading `_Color` from the renderer's **`MaterialPropertyBlock`** — `sharedMaterial` stays at the authored default and reads as a false negative.
 
 | row | `H` | `S` | `V` | `_Color` `(.r, .g, .b, .a)` |
 |---|---|---|---|---|

@@ -27,7 +27,7 @@ One prefab, one controller: `BoxTracker.prefab`.
 
 ## Verifying the install
 
-With Enable off, walk: cage and `Container` must ride the wearer at `HomeAnchor/Offset` — finding them at the avatar-root origin means the BoneProxy never resolved. Enable on, then put a scripted `Hand` sender (`docs/verify.md`) inside the acquisition cube: the four floats leave zero together, filters shut, the slabs expand, and `Output` sits on the sender exactly while the cage eases onto it. Drag the sender away at walking speed: the cage must follow, with the latch held.
+With Enable off, walk: cage and `Container` must ride the wearer at `HomeAnchor/Offset` — finding them at the avatar-root origin means the BoneProxy never resolved. Enable on, then put a scripted `Hand` sender (`docs/emulator.md`) inside the acquisition cube: the four floats leave zero together, filters shut, the slabs expand, and `Output` sits on the sender exactly while the cage eases onto it. Drag the sender away at walking speed: the cage must follow, with the latch held.
 
 Two clients in-game, not the emulator: remote-side receiver firing, chase feel under real IK, and the **capsule-sender bias** — real hand senders are capsules, which read a constant offset toward the near surface (a few cm; constant, not jitter).
 
