@@ -34,7 +34,7 @@
 # and Erase being unsynced is what parks every remote in the Flip layer's Idle structurally. The raycast's
 # own params are never synced (a natively driven param is re-driven every frame locally, so a synced copy
 # is a wasted bit AND reads the wearer's replicated value on a clone rather than that clone's own ray --
-# docs/verify.md).
+# docs/emulator.md).
 
 schema: 1
 controller: SelectiveAnimation_Fx

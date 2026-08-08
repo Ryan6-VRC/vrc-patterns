@@ -35,7 +35,7 @@ Play mode with Av3Emulator, avatar at the world origin, `EnableHeadScaling` flip
 - A cheek chain that collapses with the head means the self-exemption didn't apply — chop component budget exceeded, or the consumer rig's head never chops.
 - Wrong variant tells: the **local** copy's head scaling on the conventional prefab means the mirror-detect row is missing — you installed the proxy behavior on a conventional rig.
 
-Mirror-side visuals are in-game checks — the emulator's mirror clone copies transforms instead of stripping VRCHeadChop (runtime.md §VRCHeadChop; `docs/verify.md`).
+Mirror-side visuals are in-game checks — the emulator's mirror clone copies transforms instead of stripping VRCHeadChop (runtime.md §VRCHeadChop; `docs/emulator.md`).
 
 ## Rig
 
