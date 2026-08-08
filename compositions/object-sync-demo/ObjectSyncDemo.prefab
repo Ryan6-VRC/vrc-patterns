@@ -297,13 +297,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 850899284306731172}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7071068, y: -0, z: 0.7071068, w: 0}
-  m_LocalPosition: {x: 0.065, y: -0, z: -0.15}
-  m_LocalScale: {x: 0.3, y: 0.0975, z: 0.015}
+  m_LocalRotation: {x: 0.57357645, y: -0, z: 0.8191521, w: 0}
+  m_LocalPosition: {x: 0.01, y: -0.135, z: -0.095}
+  m_LocalScale: {x: 0.2, y: 0.0975, z: 0.015}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7663240048558454124}
-  m_LocalEulerAnglesHint: {x: 180, y: -90, z: 0}
+  m_LocalEulerAnglesHint: {x: 180, y: -110, z: 0}
 --- !u!33 &2192227721642013078
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -3501,12 +3501,12 @@ MonoBehaviour:
         globalParams:
         - ObjectSync/Enable
         - ObjectSync/Sync_Valid
-        - Prop/PX/C
-        - Prop/PX/F
-        - Prop/PY/C
-        - Prop/PY/F
-        - Prop/PZ/C
-        - Prop/PZ/F
+        - ObjectSync/D/Prop/PX/C
+        - ObjectSync/D/Prop/PX/F
+        - ObjectSync/D/Prop/PY/C
+        - ObjectSync/D/Prop/PY/F
+        - ObjectSync/D/Prop/PZ/C
+        - ObjectSync/D/Prop/PZ/F
         - ObjectSync/Ch/Wire/Idx0
         - ObjectSync/Ch/Wire/Idx1
         allNonsyncedAreGlobal: 0
@@ -4726,12 +4726,12 @@ MonoBehaviour:
         globalParams:
         - ObjectSync/Enable
         - ObjectSync/Sync_Valid
-        - Prop/PX/C
-        - Prop/PX/F
-        - Prop/PY/C
-        - Prop/PY/F
-        - Prop/PZ/C
-        - Prop/PZ/F
+        - ObjectSync/D/Prop/PX/C
+        - ObjectSync/D/Prop/PX/F
+        - ObjectSync/D/Prop/PY/C
+        - ObjectSync/D/Prop/PY/F
+        - ObjectSync/D/Prop/PZ/C
+        - ObjectSync/D/Prop/PZ/F
         - ObjectSync/Ch/Wire/Idx0
         - ObjectSync/Ch/Wire/Idx1
         allNonsyncedAreGlobal: 0
