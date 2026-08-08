@@ -153,7 +153,7 @@ CONFIG = {
     # prefab implements it as the object node's transform localPosition under
     # the origin-pinned Rig, and this generator folds it into the world-frame
     # display/anchor bases — NEVER as a constraint source offset, which the
-    # shipping client scales by the avatar's per-client scale factor (G8).
+    # shipping client scales by the avatar's per-client scale factor.
     "rigSeed": "object-sync/g3",
 
     # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
@@ -783,8 +783,8 @@ def display_layer(doc, c, d):
         # anywhere carries the park as a standing ~900 m constant. The park may
         # never ride a constraint SOURCE offset: the shipping client multiplies
         # a source's offset by the avatar's per-client scale factor (asset
-        # sources included; G8, measured in-client), which turned the park into
-        # a cross-client displacement of (s_local - s_remote) x park.
+        # sources included; measured in-client), making such a park a
+        # cross-client displacement of (s_local - s_remote) x park.
         anch = f"Rig/{o}/Fine/Anchor/VRCPositionConstraint.PositionOffset"
         abase = {f"{anch}.{LOWER[a]}": num(-c["range"] + c["cellSize"] / 2
                                            + d["rigOffset"][i])
@@ -1682,7 +1682,7 @@ def check():
 
         assert_("ObjectUp" not in text,
                 "no bare ObjectUp anywhere (it degenerates to world-up)")
-        # The G8 defect class: the shipping client multiplies a constraint
+        # The scaled-source-offset defect class: the shipping client multiplies a constraint
         # SOURCE's offset by the avatar's per-client scale factor (asset-source
         # pins included), so a park on one becomes a cross-client displacement.
         # The document must never animate a source-space offset, and the two
@@ -1690,7 +1690,7 @@ def check():
         # zero source offset.
         assert_("ParentPositionOffset" not in text,
                 "no source-space offset is animated anywhere — the client "
-                "scales those by per-client avatar scale (G8)")
+                "scales those by per-client avatar scale")
         for ob in cfg["objects"]:
             bases = f["clips"][f"disp_{safe(ob['name'])}_base"][0]
             anchb = f["clips"][f"anch_{safe(ob['name'])}_base"][0]
