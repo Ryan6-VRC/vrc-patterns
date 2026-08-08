@@ -144,7 +144,8 @@ def global_params(mod, cfg, facts):
     moves this list rather than silently leaving a consumer bound to a name
     VRCFury prefixed away. Three consumers, three reasons:
 
-    - the six position words are what the tablet displays;
+    - the six decoded AAPs are the full-resolution coarse cell index and fine
+      index per axis, which is what the tablet displays;
     - the index bools are what its Counter slot reconstructs a batch number
       from. They are synced **Bools**, and a blend tree evaluates only Floats —
       word-channel floatifies its *word* bools into `ObjectSync/B/…` but never
@@ -160,7 +161,7 @@ def global_params(mod, cfg, facts):
       in one line if a readout wants it."""
     o = cfg["objects"][0]["name"]
     return ([f"{cfg['prefix']}/Enable", f"{cfg['prefix']}/Sync_Valid"]
-            + [f"{o}/P{a}/{stage}" for a in mod.AXES for stage in ("C", "F")]
+            + [f"{cfg['prefix']}/D/{o}/P{a}/{stage}" for a in mod.AXES for stage in ("C", "F")]
             + [f"{cfg['channel']}/Wire/Idx{i}" for i in range(facts["indexBits"])])
 
 

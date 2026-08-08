@@ -106,16 +106,17 @@ parameters:
   IsLocal: bool              # VRC built-in
 
   # --- tablet inputs ----------------------------------------------------------------------------
-  # The six committed word values — driven on EVERY client (by the receive layers on remotes, by the
-  # encode layers on the wearer), which is what makes the readout live for the person holding it.
-  # `scratch:` because object-sync's params asset already lists them; a second non-scratch
-  # declaration would re-declare them on the avatar.
-  Prop/PX/C: { type: float, scratch: true }
-  Prop/PX/F: { type: float, scratch: true }
-  Prop/PY/C: { type: float, scratch: true }
-  Prop/PY/F: { type: float, scratch: true }
-  Prop/PZ/C: { type: float, scratch: true }
-  Prop/PZ/F: { type: float, scratch: true }
+  # The six decoded AAPs — the full-resolution assembled cell index (0..8191, 2 m steps) and fine
+  # index (0..4095, ~1.07 mm steps) per axis, computed every frame on every client by the entry's
+  # Decode layer. A Direct-tree weight reads an AAP (the entry's own Display layer does exactly
+  # this); only parameter DRIVERS read 0 from AAPs — no driver touches these.
+  # `scratch:` because object-sync's params asset already lists them as aap.
+  ObjectSync/D/Prop/PX/C: { type: float, scratch: true }
+  ObjectSync/D/Prop/PX/F: { type: float, scratch: true }
+  ObjectSync/D/Prop/PY/C: { type: float, scratch: true }
+  ObjectSync/D/Prop/PY/F: { type: float, scratch: true }
+  ObjectSync/D/Prop/PZ/C: { type: float, scratch: true }
+  ObjectSync/D/Prop/PZ/F: { type: float, scratch: true }
   # The synced batch id the SENDER stamps, MSB-first. Not `Cycle`, which the receive logic
   # increments and so never leaves 0 on the wearer.
   ObjectSync/Ch/Wire/Idx0: { type: bool, scratch: true }
@@ -284,6 +285,8 @@ layers:
     # Seven Floats, each riding object-sync's own display_layer idiom — a Direct tree with the
     # parameter as directWeight over a clip writing its entry's value at 1. Output is weight x 1, so
     # each entry reads its parameter verbatim. A static clip curve could not carry a live parameter.
+    # The six position params are the DECODED AAPs — full-resolution cell index (0..8191) and fine
+    # index (0..4095) — not the truncated word bytes the tablet originally showed.
     # Sync_Valid joins them rather than taking a decode ladder because it is a FLOAT in the animator
     # (bool only to VRC); the index bits below are real bools and cannot.
     states:
@@ -293,12 +296,12 @@ layers:
           name: Words
           normalized: false        # raw additive; a normalized tree would divide the readout by its own sum
           children:
-            - { clip: xc_one, directWeight: Prop/PX/C }
-            - { clip: xf_one, directWeight: Prop/PX/F }
-            - { clip: yc_one, directWeight: Prop/PY/C }
-            - { clip: yf_one, directWeight: Prop/PY/F }
-            - { clip: zc_one, directWeight: Prop/PZ/C }
-            - { clip: zf_one, directWeight: Prop/PZ/F }
+            - { clip: xc_one, directWeight: ObjectSync/D/Prop/PX/C }
+            - { clip: xf_one, directWeight: ObjectSync/D/Prop/PX/F }
+            - { clip: yc_one, directWeight: ObjectSync/D/Prop/PY/C }
+            - { clip: yf_one, directWeight: ObjectSync/D/Prop/PY/F }
+            - { clip: zc_one, directWeight: ObjectSync/D/Prop/PZ/C }
+            - { clip: zf_one, directWeight: ObjectSync/D/Prop/PZ/F }
             - { clip: sv_one, directWeight: ObjectSync/Sync_Valid }
     default: Read
     layout:
