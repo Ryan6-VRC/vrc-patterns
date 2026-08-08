@@ -149,8 +149,11 @@ CONFIG = {
     "fineEscapeFrames": 30,
 
     # Parks the contact cluster away from spawn-dense space. Any string; the
-    # offset it derives is a rig fact the README's Rig section declares and the
-    # prefab implements.
+    # offset it derives is a rig fact the README's Rig section declares. The
+    # prefab implements it as the object node's transform localPosition under
+    # the origin-pinned Rig, and this generator folds it into the world-frame
+    # display/anchor bases — NEVER as a constraint source offset, which the
+    # shipping client scales by the avatar's per-client scale factor (G8).
     "rigSeed": "object-sync/g3",
 
     # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
@@ -775,9 +778,17 @@ def display_layer(doc, c, d):
         # same arithmetic on two different sources, and they cannot be one node:
         # committing coarse early enough to share it would let the wire latch an
         # axis whose fine half is still a cycle old.
+        # Both bases fold the rig park in, so every animated offset is a WORLD
+        # coordinate against the origin-pinned Rig and no constraint offset
+        # anywhere carries the park as a standing ~900 m constant. The park may
+        # never ride a constraint SOURCE offset: the shipping client multiplies
+        # a source's offset by the avatar's per-client scale factor (asset
+        # sources included; G8, measured in-client), which turned the park into
+        # a cross-client displacement of (s_local - s_remote) x park.
         anch = f"Rig/{o}/Fine/Anchor/VRCPositionConstraint.PositionOffset"
-        abase = {f"{anch}.{LOWER[a]}": num(-c["range"] + c["cellSize"] / 2)
-                 for a in AXES}
+        abase = {f"{anch}.{LOWER[a]}": num(-c["range"] + c["cellSize"] / 2
+                                           + d["rigOffset"][i])
+                 for i, a in enumerate(AXES)}
         kids.append("{ clip: " + doc.clip(f"anch_{safe(o)}_base", abase) +
                     f", directWeight: {p}/One }}")
         for a in AXES:
@@ -787,7 +798,8 @@ def display_layer(doc, c, d):
                         f", directWeight: {p}/K/{o}/P{a} }}")
 
         disp = f"Rig/{o}/Display/VRCPositionConstraint.PositionOffset"
-        base = {f"{disp}.{LOWER[a]}": num(d["posBase"]) for a in AXES}
+        base = {f"{disp}.{LOWER[a]}": num(d["posBase"] + d["rigOffset"][i])
+                for i, a in enumerate(AXES)}
         kids.append("{ clip: " + doc.clip(f"disp_{safe(o)}_base", base) +
                     f", directWeight: {p}/One }}")
         for a in AXES:
@@ -1485,7 +1497,9 @@ def header(c, d, facts, numbers, bools):
         o("#   rig, clears, settles, and only then unblocks its walks.")
     o(f"# Rig park (deterministic from rigSeed '{c['rigSeed']}'): "
       f"({d['rigOffset'][0]}, {d['rigOffset'][1]}, {d['rigOffset'][2]}) m — the README's Rig section")
-    o("#   is the spec the prefab is kept against.")
+    o("#   is the spec the prefab is kept against. The park is the object node's transform")
+    o("#   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,")
+    o("#   because the client scales a source's offset by the avatar's per-client scale factor.")
     o("#")
     o("# Per axis the coarse and fine words share one group, so word-channel pins them into one")
     o("# batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary")
@@ -1668,6 +1682,25 @@ def check():
 
         assert_("ObjectUp" not in text,
                 "no bare ObjectUp anywhere (it degenerates to world-up)")
+        # The G8 defect class: the shipping client multiplies a constraint
+        # SOURCE's offset by the avatar's per-client scale factor (asset-source
+        # pins included), so a park on one becomes a cross-client displacement.
+        # The document must never animate a source-space offset, and the two
+        # world-frame bases must fold the park so the prefab's pin can stay at
+        # zero source offset.
+        assert_("ParentPositionOffset" not in text,
+                "no source-space offset is animated anywhere — the client "
+                "scales those by per-client avatar scale (G8)")
+        for ob in cfg["objects"]:
+            bases = f["clips"][f"disp_{safe(ob['name'])}_base"][0]
+            anchb = f["clips"][f"anch_{safe(ob['name'])}_base"][0]
+            assert_(all(str(v) == num(d0["posBase"] + d0["rigOffset"][i])
+                        for i, v in enumerate(bases.values()))
+                    and all(str(v) == num(-cfg["range"] + cfg["cellSize"] / 2
+                                          + d0["rigOffset"][i])
+                            for i, v in enumerate(anchb.values())),
+                    f"{ob['name']}: display and anchor bases fold the rig park "
+                    "(world-frame offsets against the origin-pinned Rig)")
         assert_("freeformDirectional" not in text,
                 "no freeform-directional tree anywhere (the angle lookup is gone)")
         assert_(text.count("motion: ~") > 0 and "tree: direct" in text,
@@ -1966,6 +1999,26 @@ def check():
                 f"(wire {wire_bits} + {CONFIG['prefix']}/Enable)")
     else:
         assert_(False, "README.md is missing")
+
+    # The prefabs are hand-maintained, so the document pin cannot see a park
+    # creeping back onto a constraint source offset — and the emulator cannot
+    # either, because its SDK does not apply the shipping client's per-client
+    # scaling of source offsets. Scan the committed prefabs directly: every
+    # source-space offset must be exactly zero.
+    print("[prefab source offsets]")
+    import re as _re
+    for label in preset_configs():
+        pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+        if not os.path.exists(pf_path):
+            assert_(False, f"{label}: ObjectSync.prefab is missing")
+            continue
+        body = open(pf_path, encoding="utf-8").read()
+        offs = _re.findall(r"Parent(?:Position|Rotation)Offset: \{x: (\S+?), "
+                           r"y: (\S+?), z: (\S+?)\}", body)
+        bad = [o for o in offs if any(float(v) != 0 for v in o)]
+        assert_(offs and not bad,
+                f"{label}: all {len(offs)} source-space offsets in the prefab "
+                f"are zero ({bad[:2]})")
 
     # Each committed build is the one artifact its `built/` was compiled from,
     # so a generator change that moves any of the three documents is a defect

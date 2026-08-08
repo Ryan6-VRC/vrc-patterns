@@ -15,7 +15,9 @@
 #   before the first sample, so the wire holds its last committed pose rather than
 #   publishing a cleared one.
 # Rig park (deterministic from rigSeed 'object-sync/g3'): (73, 932, 233) m — the README's Rig section
-#   is the spec the prefab is kept against.
+#   is the spec the prefab is kept against. The park is the object node's transform
+#   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,
+#   because the client scales a source's offset by the avatar's per-client scale factor.
 #
 # Per axis the coarse and fine words share one group, so word-channel pins them into one
 # batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary
@@ -4145,9 +4147,9 @@ clips:
   asm_objectsync_d_prop_rb_z_1: { set: { ObjectSync/D/Prop/RB/Z: 1 } }
   anch_prop_base:
     set:
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8191
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -8191
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -8191
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8118
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -7259
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -7958
   anch_prop_x_cell:
     set:
       Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
@@ -4165,9 +4167,9 @@ clips:
       Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_prop_base:
     set:
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: -8193.2
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: -8193.2
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: -8193.2
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: -8120.2
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: -7261.2
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: -7960.2
   disp_prop_x_cell:
     set:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 2
