@@ -66,7 +66,7 @@ One post-generation deviation, applied in `demo_document()` which owns the reaso
 
 ## Verifying it
 
-`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window. `_E9` on the wearer's own tablet is 0 whatever the wire is doing, so the shortcut is a clone-side one.
+`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window.
 
 Measured on this arrangement against a spawned remote clone, with the clone's reconstruction engaged and its decode certified: reconstruction converges **1.74 mm / 0.00°**, and Freeze drifts 0.06 mm under a 2 m shove.
 
