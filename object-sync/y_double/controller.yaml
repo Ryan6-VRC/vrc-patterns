@@ -38,8 +38,7 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
-  # VRC built-in; scratch only to keep a built-in name out of the params asset.
-  IsAnimatorEnabled: { type: bool, default: true, scratch: true }
+  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in
   ObjectSync/Ch/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   # Interface — the word table. Producers write these on the wearer; consumers read
   # them on every client. Unsynced (the wire below carries them); in the params asset

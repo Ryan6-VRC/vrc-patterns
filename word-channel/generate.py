@@ -395,13 +395,13 @@ def build(config):
     o("  IsLocal: bool              # VRC built-in")
     # A VRC built-in as well, and VRCFury's FullController leaves it unprefixed
     # (its own built-in list carries it), so the reset layer really is driven by
-    # the client. `scratch:` only keeps it out of the emitted params asset —
-    # our compiler's reserved-name list has not caught up, and a built-in name
-    # declared in a VRCExpressionParameters asset is a collision waiting to
-    # happen. Default true is the SDK's, so a fresh load takes no spurious trip
+    # the client. Declared plainly, exactly like `IsLocal` above: CompileController's
+    # reserved-name list carries the name, so the emitter keeps it out of the
+    # VRCExpressionParameters asset on its own. It was `scratch: true` until that
+    # list caught up, which said "internal working param" about a client-driven
+    # built-in. Default true is the SDK's, so a fresh load takes no spurious trip
     # through the reset state.
-    o("  # VRC built-in; scratch only to keep a built-in name out of the params asset.")
-    o("  IsAnimatorEnabled: { type: bool, default: true, scratch: true }")
+    o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in")
     o(f"  {p}/True: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
     o("  # Interface — the word table. Producers write these on the wearer; consumers read")
     o("  # them on every client. Unsynced (the wire below carries them); in the params asset")
