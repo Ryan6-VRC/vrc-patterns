@@ -39,7 +39,7 @@ Runnable arrangements of two or more entries, committed as prefabs because an ar
 
 | Composition | Build this | Composes |
 |---|---|---|
-| [`object-sync-demo`](compositions/object-sync-demo/) | A world-synced prop you hold, **point a raycast at a surface to place**, or freeze — with a hand-held **debug-shader tablet** reading its own wire live: the coarse and fine words, the batch index, and whether this client's pose is trustworthy. Also the worked example for a hand-mounted `VRCRaycast` with a surface-aligned result, and for driving a debug readout from animator clips | `object-sync` · `word-channel` · `anti-cull` · `debug-shaders`; 52 wire bits, 3 batches, ~0.350 s |
+| [`object-sync-demo`](compositions/object-sync-demo/) | A world-synced prop you hold, **point a raycast at a surface to place**, or freeze — with a hand-held **debug-shader tablet** reading its own wire live: the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Also the worked example for a hand-mounted `VRCRaycast` with a surface-aligned result, and for driving a debug readout from animator clips | `object-sync` · `word-channel` · `anti-cull` · `debug-shaders`; 52 wire bits, 3 batches, ~0.350 s |
 
 ## Using an entry
 

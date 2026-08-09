@@ -14,11 +14,16 @@
 # states; an exit-time alone can fire early and outrun the sync tick, losing a
 # snapshot). Receiver (!IsLocal): routes purely on the wire counter — enters only at
 # a loop head from Lost, advances only on the exact successor value, falls to Lost on
-# any other, and applies the buffered set atomically at each loop tail (Cycle
-# increments there: the freshness signal). A receiver resumed from a culling pause
-# re-derives its position from the counter; only a pause spanning exactly the counter
-# period (P ~ 1/4 per resume) can slip one mixed apply through, whole words only,
-# corrected at the next apply.
+# any other, and applies the buffered set atomically at each loop tail. A receiver
+# resumed from a culling pause re-derives its position from the counter; only a pause
+# spanning exactly the counter period (P ~ 1/4 per resume) can slip one mixed apply
+# through, whole words only, corrected at the next apply.
+#
+# Each loop tail also adds 1 to Cycle (liveness — a per-client rate, running vs wedged)
+# and copies SawHead into Acquired (correctness — a complete table has landed on this
+# client since the last reset). Heads set SawHead, Lost copies Acquired back into it, and
+# the Reset layer zeroes both when IsAnimatorEnabled goes false; generate.py's docstring
+# carries why Lost copies rather than clears.
 
 schema: 1
 controller: WordChannel_Fx
@@ -31,6 +36,8 @@ defaults:
 
 parameters:
   IsLocal: bool              # VRC built-in
+  # VRC built-in; scratch only to keep a built-in name out of the params asset.
+  IsAnimatorEnabled: { type: bool, default: true, scratch: true }
   WordChannel/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   # Interface — the word table. Producers write these on the wearer; consumers read
   # them on every client. Unsynced (the wire below carries them); in the params asset
@@ -42,7 +49,16 @@ parameters:
   Flag/B: bool
   Flag/C: bool
   Flag/D: bool
-  WordChannel/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)
+  # Correctness: false on load, false after a distance-cull pause, true once THIS
+  # client's receiver has applied a complete word table since then. The interface
+  # output a consumer gates on; false on the wearer forever (sender layers only).
+  WordChannel/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  WordChannel/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
+  WordChannel/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
+  # receiver, so a rate distinguishes running from wedged where Acquired cannot. Off
+  # globalParams (a host avatar declaring the name would capture it). Float because a
+  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that
+  # reaches synced Ints only and this is unsynced.
   # Wire — the only synced params.
   WordChannel/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   WordChannel/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
@@ -161,13 +177,23 @@ layers:
           - { to: Send0, when: [ WordChannel/True is true ] }   # conditional hop = the guaranteed +1 frame
       Lost:
         motion: ~
+        behaviours:
+          # Copy, never clear: cold this writes 0 and the next certification needs a
+          # contiguous head->tail walk; already certified it writes 1 back, so a dropped
+          # counter value cannot knock a real table's flag down. Only the Reset layer
+          # zeroes the pair (docstring).
+          - driver:
+              copy:
+                WordChannel/SawHead: WordChannel/Acquired
         transitions:
-          - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }   # re-acquire only at a loop head
-          - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }   # re-acquire only at a loop head
+          - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }   # re-lock only at a loop head
+          - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }   # re-lock only at a loop head
       Recv0:
         motion: ~
         behaviours:
           - driver:
+              set:
+                WordChannel/SawHead: 1   # head of a batch walk
               copy:
                 WordChannel/Latch/Pos/Hi: WordChannel/Wire/Num0
                 WordChannel/Latch/Pos/Lo: WordChannel/Wire/Num1
@@ -193,6 +219,8 @@ layers:
                 Flag/B: WordChannel/Latch/Flag/B
           - driver:
               add: { WordChannel/Cycle: 1 }
+              copy:
+                WordChannel/Acquired: WordChannel/SawHead   # tail of a walk that began at a head
         transitions:
           - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }
           - { to: Lost, when: [ WordChannel/Wire/Idx0 is true ] }
@@ -201,6 +229,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                WordChannel/SawHead: 1   # head of a batch walk
               copy:
                 WordChannel/Latch/Pos/Hi: WordChannel/Wire/Num0
                 WordChannel/Latch/Pos/Lo: WordChannel/Wire/Num1
@@ -229,6 +259,8 @@ layers:
                 Flag/B: WordChannel/Latch/Flag/B
           - driver:
               add: { WordChannel/Cycle: 1 }
+              copy:
+                WordChannel/Acquired: WordChannel/SawHead   # tail of a walk that began at a head
         transitions:
           - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }
           - { to: Lost, when: [ WordChannel/Wire/Idx1 is true ] }
@@ -251,6 +283,35 @@ layers:
         Send3: [-330, 530]
         Extra3: [-570, 530]
         Recv3: [270, 530]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+  - name: WordChannel/Reset
+    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
+    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
+    # the animator instead, restarting Sync at Split -> Lost with both params at their
+    # defaults, so it is covered without a signal. View cull does neither and is the
+    # consumer's to close by composing anti-cull. Partial coverage, declared (see the
+    # coverage table in docs/runtime.md).
+    states:
+      Enabled:
+        motion: ~
+        transitions:
+          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
+      Disabling:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                WordChannel/Acquired: 0
+                WordChannel/SawHead: 0
+        transitions:
+          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
+    default: Enabled
+    layout:
+      nodes:
+        Enabled:   [30, 180]
+        Disabling: [270, 180]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]

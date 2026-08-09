@@ -1,6 +1,6 @@
 # object-sync-demo — a world-synced prop with a live readout of its own wire (Composition)
 
-A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether the pose this client is showing is trustworthy. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. Widened to **52 synced bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur.
+A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. Widened to **52 synced bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur.
 
 Worth reading as a worked example of three things beyond world sync: a **hand-mounted `VRCRaycast`** with a surface-aligned result driving placement, a **`debug-shaders` numeric readout** driven live from animator clips, and a constraint **placement multiplexer** with a miss-tolerant hold state.
 
@@ -8,8 +8,8 @@ Worth reading as a worked example of three things beyond world sync: a **hand-mo
 
 | entry | built against | what it contributes |
 |---|---|---|
-| `object-sync` | `5a13330` | absolute world position + rotation over an animator channel |
-| `word-channel` | `3657e95` | the wire underneath it (reached through `object-sync`) |
+| `object-sync` | `14ab278` | absolute world position + rotation over an animator channel |
+| `word-channel` | `14ab278` | the wire underneath it (reached through `object-sync`) |
 | `anti-cull` | `cecaecc` | keeps a view-culled wearer's decode running |
 | `debug-shaders` | `2bd92bd` | the hand tablet's numeric readout and the world-coordinate cube |
 
@@ -56,7 +56,7 @@ Tracking is deliberately **raw** — no smoothing on the aim. Aliasing under a f
 
 ## The tablet, as a debug-shaders example
 
-`Panel` is a `debug-shaders` numeric display driven entirely from animator clips: each row's value is a material property (`_E2_Value` … `_E9_Value`) written by a Direct blend tree, so the readout is live with no script and no update loop. `_E0`/`_E1` are the label-only header; `_E2..E7` show the full-resolution decoded cell index (0–8191, 2 m steps) and fine index (0–4095, ~1.07 mm steps) per axis — the assembled AAPs, not the truncated word bytes — `_E8` is the batch index, `_E9` is `Sync_Valid`. Coarse ticks over in cell-sized steps and fine tracks continuously within the cell, so the two-stage measurement system is visible at a glance. It costs zero synced bits — every value it shows is already local.
+`Panel` is a `debug-shaders` numeric display driven entirely from animator clips: each row's value is a material property (`_E2_Value` … `_E9_Value`) written by a Direct blend tree, so the readout is live with no script and no update loop. `_E0`/`_E1` are the label-only header; `_E2..E7` show the full-resolution decoded cell index (0–8191, 2 m steps) and fine index (0–4095, ~1.07 mm steps) per axis — the assembled AAPs, not the truncated word bytes — `_E8` is the batch index, `_E9` is `ObjectSync/Ch/Acquired` — *this client's receiver has applied a complete word table*. Read `_E9` on a **remote clone**: it is a receiver reading, so the wearer's own tablet sits at 0 there all session, correctly. Coarse ticks over in cell-sized steps and fine tracks continuously within the cell, so the two-stage measurement system is visible at a glance. It costs zero synced bits — every value it shows is already local.
 
 ## Its own object-sync build
 
@@ -66,9 +66,9 @@ One post-generation deviation, applied in `demo_document()` which owns the reaso
 
 ## Verifying it
 
-`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` tracking `ObjectSync/Sync_Valid` is a whole-wire check you can read off the avatar's own hand instead of from a param window.
+`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window.
 
-Measured on this arrangement against a spawned remote clone: reconstruction converges **1.74 mm / 0.00°** with `Sync_Valid` true on the clone, and Freeze drifts 0.06 mm under a 2 m shove.
+Measured on this arrangement against a spawned remote clone, with the clone's reconstruction engaged and its decode certified: reconstruction converges **1.74 mm / 0.00°**, and Freeze drifts 0.06 mm under a 2 m shove.
 
 ## Provenance
 

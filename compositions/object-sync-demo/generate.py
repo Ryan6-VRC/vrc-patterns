@@ -43,11 +43,11 @@ place on a prefab: remove it and add a modified copy.**
    entry to the enumerated list `--check` prints. Enumerated, not
    `allNonsyncedAreGlobal`: without it VRCFury prefixes every param with a
    per-build token and the tablet's blendtrees bind to names that do not exist.
-   The list is the durable record and grows with its consumers — `Ch/Cycle`
-   was added for a reconstruction-side consumer after the tablet's nine, and
-   the rationale for each entry is in `global_params()` below. **Verify an
-   extension on the BUILT avatar, not the source asset**: a name that failed to
-   land reads as prefixed post-bake and as fine everywhere else.
+   The list is the durable record and grows with its consumers; the rationale
+   for each of the ten entries is in `global_params()` below, and the prefab
+   lists exactly those ten. **Verify an extension on the BUILT avatar, not the
+   source asset**: a name that failed to land reads as prefixed post-bake and as
+   fine everywhere else.
 2. Delete the shipped `Drop` VRCFury `Toggle`. Stage 4 builds Freeze as a mode
    on `Sync_Target`'s own constraint animating the same `FreezeToWorld`, and two
    writers on one property is what the entry's two-writer rule forbids.
@@ -151,16 +151,23 @@ def global_params(mod, cfg, facts):
       word-channel floatifies its *word* bools into `ObjectSync/B/…` but never
       its own index bits, so a consumer reads them through a state ladder, not
       a `blendtree-math` sum (stage 5 measured this the hard way);
-    - `Sync_Valid` is the entry's own answer to "is the pose `Sync` reports
-      correct on this client" — true on the wearer always, true on a remote
-      once decoded, false on a remote otherwise. Gate the reconstruction view
-      and any stand-in on THIS, not on `Ch/Cycle >= 2`: that re-derives a gate
-      the entry already evaluates, and `Cycle` never leaves 0 on the wearer,
-      which runs encode/send layers and no receive layers. `Cycle` is still
-      exported by the entry as a freshness counter; add it back to this list
-      in one line if a readout wants it."""
+    - `<channel>/Acquired` is the transport's correctness output, "this client's
+      receiver has applied a complete word table". Gate the reconstruction view,
+      the damper and any stand-in on THIS, never on a `Ch/Cycle` threshold: the
+      counter is liveness, its thresholds are apply-discipline-dependent, and it
+      never leaves 0 on the wearer, which runs encode/send layers and no receive
+      layers. `Acquired` reads 0 on the wearer and stays 1 through an
+      Enable-off, so the consumer predicate is
+      `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what
+      the damper's rungs carry. `Cycle` stays off this list and is therefore
+      instance-prefixed; add it back in one line if a readout ever wants it.
+
+    The name is built from `cfg['channel']` rather than the prefix: it is
+    word-channel's param, emitted inside the entry's document, not the entry's
+    own. Nothing diffs this return value — `--check` only prints it for a human
+    — so a wrong name here is caught by nobody."""
     o = cfg["objects"][0]["name"]
-    return ([f"{cfg['prefix']}/Enable", f"{cfg['prefix']}/Sync_Valid"]
+    return ([f"{cfg['prefix']}/Enable", f"{cfg['channel']}/Acquired"]
             + [f"{cfg['prefix']}/D/{o}/P{a}/{stage}" for a in mod.AXES for stage in ("C", "F")]
             + [f"{cfg['channel']}/Wire/Idx{i}" for i in range(facts["indexBits"])])
 
@@ -210,9 +217,42 @@ def main():
                         "controller.yaml on disk matches this config")
         else:
             assert_(False, f"controller.yaml is missing ({OUT})")
+        # Printing the list left the prefab unpinned, and the prefab is the
+        # hand-edited half — a wrong name there lands silently (VRCFury exposes
+        # nothing and says nothing) and no compile or gate reads globalParams.
+        # word-channel's generator carries the same assert for the same reason.
+        want_gp = global_params(mod, cfg, facts)
         print("  globalParams for the demo prefab:")
-        for n in global_params(mod, cfg, facts):
+        for n in want_gp:
             print(f"    {n}")
+        pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
+        if os.path.exists(pf_path):
+            body = open(pf_path, encoding="utf-8").read()
+            blocks, cur, inside = [], [], False
+            for ln in body.splitlines():
+                if ln.strip() == "globalParams:":
+                    inside, cur = True, []
+                elif inside:
+                    if ln.startswith("        - "):
+                        cur.append(ln.split("- ", 1)[1].strip())
+                    else:
+                        blocks.append(cur)
+                        inside = False
+            if inside:
+                blocks.append(cur)
+            entry_blocks = [b for b in blocks if f"{cfg['prefix']}/Enable" in b]
+            assert_(len(entry_blocks) == 2 and all(b == want_gp for b in entry_blocks),
+                    f"both of the prefab's object-sync globalParams blocks list "
+                    f"exactly the {len(want_gp)} names above, in order "
+                    f"({[b for b in entry_blocks if b != want_gp][:1]})")
+            assert_(f"{cfg['channel']}/Cycle" not in body,
+                    "Cycle is nowhere in the prefab — it is liveness, off every "
+                    "globalParams list, and instance-prefixed at build")
+            assert_("Assets/Avatars/" not in body,
+                    "no venue path in any cached VRCFury asset `id` — the GUIDs "
+                    "resolve in-package and the path string must say so")
+        else:
+            assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
         sys.exit(0 if ok else 1)

@@ -3479,7 +3479,7 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: f5562a48014bfaa46b18d01c10178cf3|Assets/Avatars/Felis/Demo/built/Demo_Fx.controller
+            id: f5562a48014bfaa46b18d01c10178cf3|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/built/Demo_Fx.controller
             objRef: {fileID: 9100000, guid: f5562a48014bfaa46b18d01c10178cf3, type: 2}
           type: 5
         menus:
@@ -3487,7 +3487,7 @@ MonoBehaviour:
             version: 0
             fileID: 0
             guid: 
-            id: ac9dc8e1711631e44aace9e4b2829525|Assets/Avatars/Felis/Demo/built/Demo_Fx_Menu.asset
+            id: ac9dc8e1711631e44aace9e4b2829525|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/built/Demo_Fx_Menu.asset
             objRef: {fileID: 11400000, guid: ac9dc8e1711631e44aace9e4b2829525, type: 2}
           prefix: 
         prms:
@@ -3495,12 +3495,12 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: 98217d83a415e044d8ad1b5495b724bb|Assets/Avatars/Felis/Demo/built/Demo_Fx_Parameters.asset
+            id: 98217d83a415e044d8ad1b5495b724bb|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/built/Demo_Fx_Parameters.asset
             objRef: {fileID: 11400000, guid: 98217d83a415e044d8ad1b5495b724bb, type: 2}
         smoothedPrms: []
         globalParams:
         - ObjectSync/Enable
-        - ObjectSync/Sync_Valid
+        - ObjectSync/Ch/Acquired
         - ObjectSync/D/Prop/PX/C
         - ObjectSync/D/Prop/PX/F
         - ObjectSync/D/Prop/PY/C
@@ -4454,7 +4454,7 @@ MonoBehaviour:
           version: 1
           fileID: 0
           guid: 
-          id: cfcacc0774f1f024b895b43f83df790c|Assets/Avatars/Felis/Materials/Wireframe.mat
+          id: cfcacc0774f1f024b895b43f83df790c|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/assets/Wireframe.mat
           objRef: {fileID: 2100000, guid: cfcacc0774f1f024b895b43f83df790c, type: 2}
 --- !u!1 &8308224952028609829
 GameObject:
@@ -4711,7 +4711,7 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: 895bb1606a195bb4e97d7ed090fec9a1|Assets/Avatars/Felis/ObjectSync/built/ObjectSync_Fx.controller
+            id: 895bb1606a195bb4e97d7ed090fec9a1|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/object-sync/built/ObjectSync_Fx.controller
             objRef: {fileID: 9100000, guid: 895bb1606a195bb4e97d7ed090fec9a1, type: 2}
           type: 5
         menus: []
@@ -4720,12 +4720,12 @@ MonoBehaviour:
             version: 1
             fileID: 0
             guid: 
-            id: 4d911ce6dc482eb46a701ef3d8bd047d|Assets/Avatars/Felis/ObjectSync/built/ObjectSync_Fx_Parameters.asset
+            id: 4d911ce6dc482eb46a701ef3d8bd047d|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/object-sync/built/ObjectSync_Fx_Parameters.asset
             objRef: {fileID: 11400000, guid: 4d911ce6dc482eb46a701ef3d8bd047d, type: 2}
         smoothedPrms: []
         globalParams:
         - ObjectSync/Enable
-        - ObjectSync/Sync_Valid
+        - ObjectSync/Ch/Acquired
         - ObjectSync/D/Prop/PX/C
         - ObjectSync/D/Prop/PX/F
         - ObjectSync/D/Prop/PY/C
