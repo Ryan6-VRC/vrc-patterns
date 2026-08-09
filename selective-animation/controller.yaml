@@ -257,7 +257,7 @@ layers:
 # Rig: Aim (VRCFury ArmatureLink -> Right Hand) / Origin carries both raycasts and the beam; Payload is
 # the placeholder output. The anchor is VRCFury's and not MA's because this document animates through it:
 # these clips are merged by a VRCFury FullController, and a binding pathing through a node MA moved out of
-# the module subtree vanishes from the merged FX silently (nondestructive.md owns the build-order
+# the module subtree vanishes from the merged FX unannounced (nondestructive.md owns the build-order
 # mechanism, and its rule -- one framework for both moving and animating -- is what picks the seam here).
 # Every clip owns its full property set explicitly (no reliance on WD revert; survives WD-OFF conversion),
 # and every transform-vector clip writes all three components -- the animator drives an unbound component

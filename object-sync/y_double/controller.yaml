@@ -38,6 +38,8 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
+  # VRC built-in; scratch only to keep a built-in name out of the params asset.
+  IsAnimatorEnabled: { type: bool, default: true, scratch: true }
   ObjectSync/Ch/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   # Interface — the word table. Producers write these on the wearer; consumers read
   # them on every client. Unsynced (the wire below carries them); in the params asset
@@ -128,10 +130,16 @@ parameters:
   PropB/RA/Z/B1: bool
   PropB/RA/Z/B2: bool
   PropB/RA/Z/B3: bool
-  ObjectSync/Ch/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)
-  # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and
-  # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole
-  # word table has been received, Cycle >= 1 only proves the wire is moving.
+  # Correctness: false on load, false after a distance-cull pause, true once THIS
+  # client's receiver has applied a complete word table since then. The interface
+  # output a consumer gates on; false on the wearer forever (sender layers only).
+  ObjectSync/Ch/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  ObjectSync/Ch/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
+  ObjectSync/Ch/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
+  # receiver, so a rate distinguishes running from wedged where Acquired cannot. Off
+  # globalParams (a host avatar declaring the name would capture it). Float because a
+  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that
+  # reaches synced Ints only and this is unsynced.
   # Wire — the only synced params.
   ObjectSync/Ch/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
@@ -152,7 +160,6 @@ parameters:
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
   ObjectSync/Enable: { type: float, default: 0, vrc: { type: bool, synced: true, saved: false } }
-  ObjectSync/Sync_Valid: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   ObjectSync/B/PropA/PX/C0: { type: float, scratch: true }
   ObjectSync/B/PropA/PX/C1: { type: float, scratch: true }
   ObjectSync/B/PropA/PX/C2: { type: float, scratch: true }
@@ -608,8 +615,16 @@ layers:
           - { to: Send0, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
       Lost:
         motion: ~
+        behaviours:
+          # Copy, never clear: cold this writes 0 and the next certification needs a
+          # contiguous head->tail walk; already certified it writes 1 back, so a dropped
+          # counter value cannot knock a real table's flag down. Only the Reset layer
+          # zeroes the pair (docstring).
+          - driver:
+              copy:
+                ObjectSync/Ch/SawHead: ObjectSync/Ch/Acquired
         transitions:
-          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }   # re-acquire at any exact counter value (batch applies need no coherent loop)
+          - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }   # re-lock at any exact counter value (batch applies need no coherent loop)
           - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is false ] }
           - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is true, ObjectSync/Ch/Wire/Idx3 is true ] }
           - { to: Recv3, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is true, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is false ] }
@@ -621,6 +636,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Ch/SawHead: 1   # head of a batch walk
               copy:
                 PropA/PX/C: ObjectSync/Ch/Wire/Num0
                 PropA/PX/F: ObjectSync/Ch/Wire/Num1
@@ -795,6 +812,8 @@ layers:
                 PropB/RA/Z/B3: ObjectSync/Ch/Wire/Bool7
           - driver:
               add: { ObjectSync/Ch/Cycle: 1 }
+              copy:
+                ObjectSync/Ch/Acquired: ObjectSync/Ch/SawHead   # tail of a walk that began at a head
         transitions:
           - { to: Recv0, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false, ObjectSync/Ch/Wire/Idx2 is false, ObjectSync/Ch/Wire/Idx3 is true ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx1 is true ] }
@@ -830,6 +849,35 @@ layers:
         Send7: [-330, 890]
         Extra7: [-570, 890]
         Recv7: [270, 890]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+  - name: ObjectSync/Ch/Reset
+    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
+    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
+    # the animator instead, restarting Sync at Split -> Lost with both params at their
+    # defaults, so it is covered without a signal. View cull does neither and is the
+    # consumer's to close by composing anti-cull. Partial coverage, declared (see the
+    # coverage table in docs/runtime.md).
+    states:
+      Enabled:
+        motion: ~
+        transitions:
+          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
+      Disabling:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                ObjectSync/Ch/Acquired: 0
+                ObjectSync/Ch/SawHead: 0
+        transitions:
+          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
+    default: Enabled
+    layout:
+      nodes:
+        Enabled:   [30, 180]
+        Disabling: [270, 180]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -1131,25 +1179,13 @@ layers:
     states:
       Release:
         motion: { clip: follow_target }
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Sync_Valid: 0
       Local:
         motion: { clip: follow_target }
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Sync_Valid: 1
       Follow:
         motion: { clip: follow_recon }
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/Sync_Valid: 1
     any:
-      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative, so it is valid from frame 1
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Cycle greater 1.5 ], canTransitionToSelf: false }   # Cycle >= 2 = a whole word table received (docstring)
+      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative from frame 1
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Acquired greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client (docstring)
       - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:

@@ -43,11 +43,11 @@ place on a prefab: remove it and add a modified copy.**
    entry to the enumerated list `--check` prints. Enumerated, not
    `allNonsyncedAreGlobal`: without it VRCFury prefixes every param with a
    per-build token and the tablet's blendtrees bind to names that do not exist.
-   The list is the durable record and grows with its consumers — `Ch/Cycle`
-   was added for a reconstruction-side consumer after the tablet's nine, and
-   the rationale for each entry is in `global_params()` below. **Verify an
-   extension on the BUILT avatar, not the source asset**: a name that failed to
-   land reads as prefixed post-bake and as fine everywhere else.
+   The list is the durable record and grows with its consumers; the rationale
+   for each of the ten entries is in `global_params()` below, and the prefab
+   lists exactly those ten. **Verify an extension on the BUILT avatar, not the
+   source asset**: a name that failed to land reads as prefixed post-bake and as
+   fine everywhere else.
 2. Delete the shipped `Drop` VRCFury `Toggle`. Stage 4 builds Freeze as a mode
    on `Sync_Target`'s own constraint animating the same `FreezeToWorld`, and two
    writers on one property is what the entry's two-writer rule forbids.
@@ -151,16 +151,21 @@ def global_params(mod, cfg, facts):
       word-channel floatifies its *word* bools into `ObjectSync/B/…` but never
       its own index bits, so a consumer reads them through a state ladder, not
       a `blendtree-math` sum (stage 5 measured this the hard way);
-    - `Sync_Valid` is the entry's own answer to "is the pose `Sync` reports
-      correct on this client" — true on the wearer always, true on a remote
-      once decoded, false on a remote otherwise. Gate the reconstruction view
-      and any stand-in on THIS, not on `Ch/Cycle >= 2`: that re-derives a gate
-      the entry already evaluates, and `Cycle` never leaves 0 on the wearer,
-      which runs encode/send layers and no receive layers. `Cycle` is still
-      exported by the entry as a freshness counter; add it back to this list
-      in one line if a readout wants it."""
+    - `<channel>/Acquired` is the transport's correctness output, "this client's
+      receiver has applied a complete word table". Gate the reconstruction view,
+      the damper and any stand-in on THIS, never on a `Ch/Cycle` threshold: the
+      counter is liveness, its thresholds are apply-discipline-dependent, and it
+      never leaves 0 on the wearer, which runs encode/send layers and no receive
+      layers. `Acquired` reads 0 on the wearer too — pair it with `IsLocal`, as
+      the damper's rungs do. `Cycle` stays off this list and is therefore
+      instance-prefixed; add it back in one line if a readout ever wants it.
+
+    The name is built from `cfg['channel']` rather than the prefix: it is
+    word-channel's param, emitted inside the entry's document, not the entry's
+    own. Nothing diffs this return value — `--check` only prints it for a human
+    — so a wrong name here is caught by nobody."""
     o = cfg["objects"][0]["name"]
-    return ([f"{cfg['prefix']}/Enable", f"{cfg['prefix']}/Sync_Valid"]
+    return ([f"{cfg['prefix']}/Enable", f"{cfg['channel']}/Acquired"]
             + [f"{cfg['prefix']}/D/{o}/P{a}/{stage}" for a in mod.AXES for stage in ("C", "F")]
             + [f"{cfg['channel']}/Wire/Idx{i}" for i in range(facts["indexBits"])])
 

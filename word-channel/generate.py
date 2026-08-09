@@ -30,27 +30,62 @@ fixture):
    params exist every tick regardless), and refuses when declaration order
    makes alignment impossible.
 
-Under `atomic: batch` the receiver re-acquires from Lost at ANY exact counter
+Under `atomic: batch` the receiver re-locks from Lost at ANY exact counter
 value, not only a loop head: applies are per-batch and the counter alone names
 the batch, so a missed sync tick costs ~one batch of staleness instead of a
-full loop. `set` keeps loop-head-only re-acquisition — a whole-table apply
-needs one coherent loop.
+full loop. `set` keeps loop-head-only re-locking — a whole-table apply needs
+one coherent loop. Re-lock/re-sync is the internal sense throughout this file:
+it names the receiver leaving Lost, which is not proof any table landed. The
+emitted `<channel>/Acquired` is the public name and means something stronger.
 
 VRLabs Custom-Object-Sync (MIT) is the studied ancestor for the receive side's
 other trap: its multi-frame receiver decode walks are what a culling pause
 interrupts. Here every receive state decodes in one frame; the only multi-frame
 structure is the batch loop itself, re-derived from the wire counter alone.
 
+`<channel>/Acquired` is the emitted correctness output and the one name a
+consumer outside this module is meant to read: false on animator load, false
+after a distance-cull pause, true once the receiver has applied a COMPLETE word
+table since then. Four drivers carry it — every head state (batch 0) sets
+`SawHead`, every tail (last batch) does `Acquired := SawHead`, `Lost` does
+`SawHead := Acquired`, and a two-state reset layer zeroes both when
+`IsAnimatorEnabled` goes false. `Lost` copying rather than clearing is what
+stops a dropped counter value from knocking a real table's flag down: cold,
+`Acquired` is 0 so `Lost` writes 0 and certification then demands a genuinely
+contiguous head->tail walk; once certified, `Lost` writes 1 back and the next
+tail restores it. It cannot lie — the only write of true into `Acquired` is a
+tail copying `SawHead`; `SawHead` is true at a tail only via a head, or via a
+`Lost` that read an already-true `Acquired`; and every reset zeroes both at
+once, so no path from a reset to true skips a full walk.
+
+Three load-bearing assumptions behind that emit:
+
+1. At most one transition per layer per frame (`docs/runtime.md` §Animator
+   evaluation) — this is what guarantees `Lost`'s driver gets a frame before
+   the receiver re-locks.
+2. The `Lost` DNF is complete: every non-{cur,next} code routes to `Lost`,
+   including unused codes and the reserved 0. `lost_fallback_rungs` emits it.
+3. `Acquired` and `SawHead` are never clip-bound anywhere in the merged
+   document — a driver on a clip-bound param is refused at compile
+   (`animator-schema.md`). A Direct-tree *weight* is a read, not a binding.
+
+`Acquired` is receiver-scoped: false on the wearer forever, because the wearer
+runs sender layers only. That is correct rather than a gap — the wearer's own
+words ride their source frame for frame and never touch the decode, so a
+wearer-side mux on a decode-validity signal would say nothing.
+
 Wire cost = indexBits + 8*numberSlots + boolSlots synced bits.
-State count = 3*batchCount*indexLoops + 2, independent of word widths.
+State count = 3*batchCount*indexLoops + 4 — +2 for Split and Lost, +2 more for
+the fixed reset layer — independent of word widths.
 
 Fragment mode, for a generator composing this channel into its own controller
 (import via importlib.util.spec_from_file_location — the folder name is not an
 identifier): `build(config)` returns the emitted pieces without writing a file:
 
     {"header":  [comment lines describing the wire],
-     "params":  [lines for a `parameters:` block; includes `IsLocal` — the
-                 importer dedupes it against its own],
+     "params":  [lines for a `parameters:` block; includes the built-ins
+                 `IsLocal` and `IsAnimatorEnabled` — the importer dedupes them
+                 against its own],
      "layers":  [blocks, one per layer, each a list of lines indented for a
                  `layers:` block],
      "clips":   [clip lines indented for a `clips:` block — the block's own key
@@ -65,10 +100,13 @@ consumer and the committed config's byte-identity check.
 """
 
 import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG = {
     # Param prefix. All params live under this; the FullController's
-    # globalParams exposes only the interface set (words + Cycle).
+    # globalParams exposes only the interface set (words + Acquired).
     "channel": "WordChannel",
     # Wire slots per batch: each number slot is one synced 8-bit int, each
     # bool slot one synced bit. More slots = fewer batches = lower latency,
@@ -78,12 +116,14 @@ CONFIG = {
     # How many loops one counter period spans (>=1). Each extra loop divides
     # the pause-alias probability and usually costs one index bit + a state
     # row per batch. Buys nothing under `atomic: batch` — no pause-alias
-    # artifact exists there and Lost re-acquires at any counter value, so a
+    # artifact exists there and Lost re-locks at any counter value, so a
     # wider counter only costs bits and states. Leave it 1 there.
     "indexLoops": 2,
     # Seconds each batch holds before the guaranteed extra frame. 0.1 is
-    # VRChat's measured network tick; 0.2 is the community-safe fallback if
-    # in-game Cycle rate shows the tick intermittently outrun (README).
+    # VRChat's measured network tick and dropped nothing in-game (empty
+    # instance and 42-player); 0.2 is the community-safe fallback. No in-game
+    # meter decides this — `Cycle` is not readable in-game at all (README
+    # §Verifying) — so the trigger is observed staleness on remote copies.
     "batchSeconds": 0.1,
     # Apply discipline on the receiver:
     #   set   — latch double-buffer; the whole word table applies atomically at
@@ -94,7 +134,7 @@ CONFIG = {
     #   batch — each batch applies directly on receipt; no latches. Coherence
     #           unit is the batch (= any group), always; cross-batch values
     #           may lag each other up to one loop, pause or no pause, and no
-    #           pause-specific artifact exists. Lost re-acquires at any
+    #           pause-specific artifact exists. Lost re-locks at any
     #           counter value (docstring), so a missed tick costs ~one batch.
     # Toggle-bus payloads want set (partial outfits flicker otherwise);
     # grouped measurement payloads usually want batch.
@@ -321,25 +361,38 @@ def build(config):
     o(f"# VRCFury's trick), then each batch holds {batch_seconds}s plus one guaranteed frame (the Extra")
     o("# states; an exit-time alone can fire early and outrun the sync tick, losing a")
     if atomic == "batch":
-        o("# snapshot). Receiver (!IsLocal): routes purely on the wire counter — re-acquires")
+        o("# snapshot). Receiver (!IsLocal): routes purely on the wire counter — re-locks")
         o("# from Lost at ANY exact counter value (applies are per-batch and the counter alone")
         o("# names the batch, so a missed tick costs ~one batch of staleness, not a loop),")
         o("# advances only on the exact successor value, falls to Lost on any other, and")
-        o("# applies each batch directly on receipt (Cycle increments at each loop tail: the")
-        o("# freshness signal). No latches exist; the coherence unit is the batch, so a pause")
-        o("# can never mix or split a group.")
+        o("# applies each batch directly on receipt. No latches exist; the coherence unit is")
+        o("# the batch, so a pause can never mix or split a group.")
     else:
         o("# snapshot). Receiver (!IsLocal): routes purely on the wire counter — enters only at")
         o("# a loop head from Lost, advances only on the exact successor value, falls to Lost on")
-        o("# any other, and applies the buffered set atomically at each loop tail (Cycle")
-        o("# increments there: the freshness signal). A receiver resumed from a culling pause")
-        o("# re-derives its position from the counter; only a pause spanning exactly the counter")
-        o(f"# period (P ~ 1/{period} per resume) can slip one mixed apply through, whole words only,")
-        o("# corrected at the next apply.")
+        o("# any other, and applies the buffered set atomically at each loop tail. A receiver")
+        o("# resumed from a culling pause re-derives its position from the counter; only a pause")
+        o(f"# spanning exactly the counter period (P ~ 1/{period} per resume) can slip one mixed apply")
+        o("# through, whole words only, corrected at the next apply.")
+    o("#")
+    o("# Each loop tail also adds 1 to Cycle (liveness — a per-client rate, running vs wedged)")
+    o("# and copies SawHead into Acquired (correctness — a complete table has landed on this")
+    o("# client since the last reset). Heads set SawHead, Lost copies Acquired back into it, and")
+    o("# the Reset layer zeroes both when IsAnimatorEnabled goes false; generate.py's docstring")
+    o("# carries why Lost copies rather than clears.")
 
     params = []
     o = params.append
     o("  IsLocal: bool              # VRC built-in")
+    # A VRC built-in as well, and VRCFury's FullController leaves it unprefixed
+    # (its own built-in list carries it), so the reset layer really is driven by
+    # the client. `scratch:` only keeps it out of the emitted params asset —
+    # our compiler's reserved-name list has not caught up, and a built-in name
+    # declared in a VRCExpressionParameters asset is a collision waiting to
+    # happen. Default true is the SDK's, so a fresh load takes no spurious trip
+    # through the reset state.
+    o("  # VRC built-in; scratch only to keep a built-in name out of the params asset.")
+    o("  IsAnimatorEnabled: { type: bool, default: true, scratch: true }")
     o(f"  {p}/True: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
     o("  # Interface — the word table. Producers write these on the wearer; consumers read")
     o("  # them on every client. Unsynced (the wire below carries them); in the params asset")
@@ -351,11 +404,16 @@ def build(config):
             o(f"  {w['name']}: float            # float word: [{w['min']},{w['max']}], 255 wire steps")
     for b in bools:
         o(f"  {b['name']}: bool")
-    o(f"  {p}/Cycle: float           # remote freshness: +1 per loop tail (float: driver Add clips an Int at 255)")
-    if atomic == "batch":
-        o("  # Lost re-acquires at any counter value here, so a receiver can enter AT a tail and")
-        o("  # take its first increment one batch later: Cycle >= 2 is the earliest proof a whole")
-        o("  # word table has been received, Cycle >= 1 only proves the wire is moving.")
+    o("  # Correctness: false on load, false after a distance-cull pause, true once THIS")
+    o("  # client's receiver has applied a complete word table since then. The interface")
+    o("  # output a consumer gates on; false on the wearer forever (sender layers only).")
+    o(f"  {p}/Acquired: {{ type: float, default: 0, vrc: {{ type: bool, synced: false, saved: false }} }}")
+    o(f"  {p}/SawHead: {{ type: bool, scratch: true }}   # internal: a head has been walked since the last reset")
+    o(f"  {p}/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own")
+    o("  # receiver, so a rate distinguishes running from wedged where Acquired cannot. Off")
+    o("  # globalParams (a host avatar declaring the name would capture it). Float because a")
+    o("  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that")
+    o("  # reaches synced Ints only and this is unsynced.")
     o("  # Wire — the only synced params.")
     for i in idx:
         o(f"  {i}: {{ type: bool, vrc: {{ synced: true, saved: false }} }}")
@@ -426,19 +484,27 @@ def build(config):
     # Receiver states: one per counter value
     o("      Lost:")
     o("        motion: ~")
+    o("        behaviours:")
+    o("          # Copy, never clear: cold this writes 0 and the next certification needs a")
+    o("          # contiguous head->tail walk; already certified it writes 1 back, so a dropped")
+    o("          # counter value cannot knock a real table's flag down. Only the Reset layer")
+    o("          # zeroes the pair (docstring).")
+    o("          - driver:")
+    o("              copy:")
+    o(f"                {p}/SawHead: {p}/Acquired")
     o("        transitions:")
     if atomic == "batch":
         for s in range(period):
             pat = id_pattern(s + 1, bits)
             conds = ", ".join(cond(idx[k], pat[k]) for k in range(bits))
-            note = "   # re-acquire at any exact counter value (batch applies need no coherent loop)" if s == 0 else ""
+            note = "   # re-lock at any exact counter value (batch applies need no coherent loop)" if s == 0 else ""
             o(f"          - {{ to: Recv{s}, when: [ {conds} ] }}{note}")
     else:
         for lp in range(loops):
             head_id = lp * batch_count + 1
             pat = id_pattern(head_id, bits)
             conds = ", ".join(cond(idx[k], pat[k]) for k in range(bits))
-            o(f"          - {{ to: Recv{lp * batch_count}, when: [ {conds} ] }}   # re-acquire only at a loop head")
+            o(f"          - {{ to: Recv{lp * batch_count}, when: [ {conds} ] }}   # re-lock only at a loop head")
     for s in range(period):
         b = s % batch_count
         ns, bs = batch_words(b)
@@ -450,6 +516,9 @@ def build(config):
         o("        motion: ~")
         o("        behaviours:")
         o("          - driver:")
+        if b == 0:
+            o("              set:")
+            o(f"                {p}/SawHead: 1   # head of a batch walk")
         o("              copy:")
         for k, w in enumerate(ns):
             dst = w["name"] if (last or atomic == "batch") else latch(w["name"])
@@ -471,6 +540,8 @@ def build(config):
                         o(f"                {x}: {latch(x)}")
             o("          - driver:")
             o(f"              add: {{ {p}/Cycle: 1 }}")
+            o("              copy:")
+            o(f"                {p}/Acquired: {p}/SawHead   # tail of a walk that began at a head")
         o("        transitions:")
         adv = ", ".join(cond(idx[k], nxt[k]) for k in range(bits))
         o(f"          - {{ to: Recv{nxt_s}, when: [ {adv} ] }}")
@@ -490,7 +561,42 @@ def build(config):
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
 
-    layers = [sync]
+    # Emitted immediately after Sync and INSIDE the fragment, because ordering
+    # within the fragment is the only ordering this generator owns — an importer
+    # decides where the fragment lands in its own document.
+    reset = []
+    o = reset.append
+    o(f"  - name: {p}/Reset")
+    o("    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the")
+    o("    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds")
+    o("    # the animator instead, restarting Sync at Split -> Lost with both params at their")
+    o("    # defaults, so it is covered without a signal. View cull does neither and is the")
+    o("    # consumer's to close by composing anti-cull. Partial coverage, declared (see the")
+    o("    # coverage table in docs/runtime.md).")
+    o("    states:")
+    o("      Enabled:")
+    o("        motion: ~")
+    o("        transitions:")
+    o("          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }")
+    o("      Disabling:")
+    o("        motion: ~")
+    o("        behaviours:")
+    o("          - driver:")
+    o("              set:")
+    o(f"                {p}/Acquired: 0")
+    o(f"                {p}/SawHead: 0")
+    o("        transitions:")
+    o("          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }")
+    o("    default: Enabled")
+    o("    layout:")
+    o("      nodes:")
+    o("        Enabled:   [30, 180]")
+    o("        Disabling: [270, 180]")
+    o("      entry: [50, 120]")
+    o("      any:   [50, 40]")
+    o("      exit:  [50, 80]")
+
+    layers = [sync, reset]
     if c["assemble"]:
         asm = []
         o = asm.append
@@ -535,8 +641,9 @@ def build(config):
     }
 
 
-def main():
-    c = CONFIG
+def document(c):
+    """The committed controller.yaml as text, plus the build's facts. `main()`
+    writes it; `--check` re-derives it and compares against disk."""
     p = c["channel"]
     f = build(c)
     L = []
@@ -563,8 +670,149 @@ def main():
         L.append("# weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.")
         L.append("clips:")
         L.extend(f["clips"])
-    text = "\n".join(L) + "\n"
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "controller.yaml")
+    return "\n".join(L) + "\n", f
+
+
+def layer_block(text, name):
+    """One emitted layer's lines, `- name:` through the next layer."""
+    lines = text.splitlines()
+    try:
+        i = lines.index(f"  - name: {name}")
+    except ValueError:
+        return []
+    end = next((j for j in range(i + 1, len(lines))
+                if lines[j].startswith("  - name: ")), len(lines))
+    return lines[i:end]
+
+
+def state_block(block, st):
+    """One state's body inside a layer block."""
+    try:
+        s = block.index(f"      {st}:")
+    except ValueError:
+        return ""
+    out = []
+    for ln in block[s + 1:]:
+        if ln.startswith("      ") and not ln.startswith("       "):
+            break
+        out.append(ln)
+    return "\n".join(out)
+
+
+def prefab_global_params(body):
+    """The `globalParams:` list off the committed prefab, in order."""
+    out, inside = [], False
+    for ln in body.splitlines():
+        if ln.strip() == "globalParams:":
+            inside = True
+        elif inside:
+            if ln.startswith("        - "):
+                out.append(ln.split("- ", 1)[1].strip())
+            else:
+                break
+    return out
+
+
+def check():
+    """Everything the repo gate cannot see: byte-identity against disk, the
+    Acquired mechanism §3.1 rests on, and the prefab's globalParams list —
+    which no compile and no gate check reads."""
+    c = CONFIG
+    p = c["channel"]
+    text, f = document(c)
+    facts = f["facts"]
+    ok = True
+
+    def assert_(cond, msg):
+        nonlocal ok
+        print(("  ok   " if cond else "  FAIL ") + msg)
+        ok = ok and cond
+
+    print("[document]")
+    assert_(document(c)[0] == text, "regeneration is byte-identical")
+    out = os.path.join(HERE, "controller.yaml")
+    if os.path.exists(out):
+        with open(out, encoding="utf-8", newline="") as fh:
+            assert_(fh.read().replace("\r\n", "\n") == text,
+                    "controller.yaml on disk matches CONFIG")
+    else:
+        assert_(False, f"controller.yaml is missing ({out})")
+
+    # The four drivers, asserted as the proof in the docstring states them: the
+    # only write of true into Acquired is a tail copying SawHead, and the only
+    # write of false is the reset. Miscounting heads/tails is false-negative
+    # only, so nothing downstream would catch it.
+    print("[Acquired]")
+    bc, per = facts["batchCount"], facts["period"]
+    sync_b = layer_block(text, f"{p}/Sync")
+    heads = [s for s in range(per) if s % bc == 0]
+    tails = [s for s in range(per) if s % bc == bc - 1]
+    saw = [s for s in range(per) if f"{p}/SawHead: 1" in state_block(sync_b, f"Recv{s}")]
+    got = [s for s in range(per)
+           if f"{p}/Acquired: {p}/SawHead" in state_block(sync_b, f"Recv{s}")]
+    assert_(saw == heads,
+            f"SawHead is set at exactly the {len(heads)} head state(s) {heads} "
+            f"(b == 0, not s == 0 — {len(heads)} heads at indexLoops {c['indexLoops']})")
+    assert_(got == tails and text.count(f"{p}/Acquired: {p}/SawHead") == len(tails),
+            f"Acquired is copied from SawHead at exactly the {len(tails)} tail "
+            f"state(s) {tails}, and nowhere else")
+    lost = state_block(sync_b, "Lost")
+    assert_(f"{p}/SawHead: {p}/Acquired" in lost,
+            "Lost copies Acquired into SawHead — a dropped counter value cannot "
+            "knock a certified table's flag down")
+    assert_(text.count(f"{p}/Acquired: 0") == 1
+            and f"{p}/Acquired: 0" in "\n".join(layer_block(text, f"{p}/Reset")),
+            "the reset layer holds the only write of false into Acquired, so "
+            "every zeroing takes SawHead with it")
+    names = [ln.split("- name: ", 1)[1].strip()
+             for ln in text.splitlines() if ln.startswith("  - name: ")]
+    assert_(names[:2] == [f"{p}/Sync", f"{p}/Reset"],
+            "the reset layer is emitted directly after Sync, inside the fragment "
+            "— an importer owns document order and can silently not have it")
+    assert_(f"  {p}/Acquired: {{ type: float, default: 0, "
+            "vrc: { type: bool, synced: false, saved: false } }" in text,
+            "Acquired is declared float-with-bool-wire, unsynced, default false")
+
+    # `globalParams` is a VRCFury field with no CompileController spelling, so
+    # nothing in the compile or the gate reads it. Pin the prefab's list here or
+    # it drifts silently.
+    print("[prefab globalParams]")
+    pf_path = os.path.join(HERE, "WordChannel.prefab")
+    if os.path.exists(pf_path):
+        want = ([w["name"] for w in c["numbers"]]
+                + [norm_bool(b)["name"] for b in c["bools"]]
+                + [f"{p}/Acquired"]
+                + [a["name"] for a in c["assemble"]])
+        got_gp = prefab_global_params(open(pf_path, encoding="utf-8").read())
+        assert_(got_gp == want,
+                f"the prefab exposes exactly the interface set — the word table, "
+                f"{p}/Acquired, and the assembled reads ({got_gp})")
+        assert_(f"{p}/Cycle" not in got_gp,
+                f"{p}/Cycle stays OFF globalParams — a host avatar declaring the "
+                "name would capture it, its own synced flag winning silently")
+    else:
+        assert_(False, f"WordChannel.prefab is missing ({pf_path})")
+
+    print("[README]")
+    rd_path = os.path.join(HERE, "README.md")
+    if os.path.exists(rd_path):
+        body = open(rd_path, encoding="utf-8").read()
+        assert_(f"3·batchCount·indexLoops + 4" in body,
+                "README's state-count formula counts the reset layer's two states")
+        assert_(f"`{p}/Acquired`" in body,
+                "README's Interface stanza names the emitted correctness output")
+    else:
+        assert_(False, "README.md is missing")
+
+    return 0 if ok else 1
+
+
+def main():
+    if "--check" in sys.argv:
+        sys.exit(check())
+    c = CONFIG
+    text, f = document(c)
+    out = os.path.join(HERE, "controller.yaml")
     with open(out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     facts = f["facts"]

@@ -44,9 +44,12 @@
 # which made "never damped locally" structural. That shape does not survive the new surface: remotes
 # now sit in Local (src0 = Sync = the reconstruction), so a damper nested under Remote would leave
 # every remote undamped — the exact failure the design forbids. The condition is therefore explicit:
-# damp when the thing on screen is the reconstruction, which is (remote AND Sync_Valid) OR (wearer
-# AND View Remote). The wearer's true prop is still never damped, now by condition rather than by
-# nesting.
+# damp when the thing on screen is the reconstruction, which is (remote AND Enable AND Ch/Acquired)
+# OR (wearer AND View Remote). The wearer's true prop is still never damped, now by condition rather
+# than by nesting. The remote half must name BOTH entry terms because it is mirroring the entry's own
+# Follow engage rung, and Ch/Acquired alone is not that rung: Enable never gated the wire, so a
+# remote with Enable off still reads Ch/Acquired true while Sync rides Sync_Target — damping there
+# would put ~20 frames of lag on a directly-carried prop that was never jumpy.
 #
 # THE DAMPER IS A ONE-POLE LAG AND ITS STRENGTH IS A RATE (docs/local/damping-experiment-result.md):
 # tau = 1/ln(1 + w_target/w_self) FRAMES, 20.50 measured onto 20.50 predicted at spring-damping's
@@ -97,12 +100,14 @@ parameters:
   # globalParams so VRCFury does not prefix them out of reach.
   # Enable carries the demo-local default of TRUE (Generators/object-sync-demo.py owns the reason);
   # the menu toggle below must agree with it or the control lies at spawn.
-  ObjectSync/Enable:     { type: float, default: 1, vrc: { type: bool, synced: true,  saved: false } }
-  # "The pose Sync reports is correct for THIS client" — true on the wearer always, true on a remote
-  # once decoded, false otherwise. Gate on this, never on Ch/Cycle >= 2: that re-derives a gate the
-  # entry already evaluates and reads 0 on the wearer forever. A float in the animator (bool to VRC),
-  # which is what lets the tablet read it as a Direct weight instead of a decode ladder.
-  ObjectSync/Sync_Valid: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  ObjectSync/Enable:      { type: float, default: 1, vrc: { type: bool, synced: true,  saved: false } }
+  # "This client's receiver has applied a complete word table" — the transport's own correctness
+  # output, emitted by word-channel inside the entry's document. FALSE ON THE WEARER FOREVER, which
+  # is why every consumer of it below pairs it with IsLocal. Gate on this, never on a Ch/Cycle
+  # threshold: the counter is liveness and its thresholds are apply-discipline-dependent. A float in
+  # the animator (bool to VRC), which is what lets the tablet read it as a Direct weight instead of
+  # a decode ladder — a weight is a read, not a binding, so no driver is displaced.
+  ObjectSync/Ch/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal: bool              # VRC built-in
 
   # --- tablet inputs ----------------------------------------------------------------------------
@@ -240,14 +245,15 @@ layers:
       Undamped:
         motion: { clip: damp_off }
         transitions:
-          - { to: Damped, when: [ Reconstruction/Damping greater 0.5, IsLocal is false, ObjectSync/Sync_Valid greater 0.5 ] }
+          - { to: Damped, when: [ Reconstruction/Damping greater 0.5, IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Acquired greater 0.5 ] }
           - { to: Damped, when: [ Reconstruction/Damping greater 0.5, IsLocal is true,  Reconstruction/ViewRemote greater 0.5 ] }
       Damped:
         motion: { clip: damp_on }
         transitions:
           - { to: Undamped, when: [ Reconstruction/Damping less 0.5 ] }
           - { to: Undamped, when: [ IsLocal is true,  Reconstruction/ViewRemote less 0.5 ] }
-          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Sync_Valid less 0.5 ] }
+          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Ch/Acquired less 0.5 ] }
+          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ] }
     default: Undamped
     layout:
       nodes:
@@ -287,7 +293,7 @@ layers:
     # each entry reads its parameter verbatim. A static clip curve could not carry a live parameter.
     # The six position params are the DECODED AAPs — full-resolution cell index (0..8191) and fine
     # index (0..4095) — not the truncated word bytes the tablet originally showed.
-    # Sync_Valid joins them rather than taking a decode ladder because it is a FLOAT in the animator
+    # Ch/Acquired joins them rather than taking a decode ladder because it is a FLOAT in the animator
     # (bool only to VRC); the index bits below are real bools and cannot.
     states:
       Read:
@@ -302,7 +308,7 @@ layers:
             - { clip: yf_one, directWeight: ObjectSync/D/Prop/PY/F }
             - { clip: zc_one, directWeight: ObjectSync/D/Prop/PZ/C }
             - { clip: zf_one, directWeight: ObjectSync/D/Prop/PZ/F }
-            - { clip: sv_one, directWeight: ObjectSync/Sync_Valid }
+            - { clip: sv_one, directWeight: ObjectSync/Ch/Acquired }
     default: Read
     layout:
       nodes: { Read: [30, 180] }
@@ -408,7 +414,7 @@ clips:
 
   # Unit clips for the Direct tree, one per entry, plus four index constants. Each writes ONE
   # entry's value: the tree sums per property, so a clip that also zeroed its neighbours would zero
-  # them. _E0/_E1 are the label-only header row; _E8 is Index and _E9 is Sync_Valid, the bottom row.
+  # them. _E0/_E1 are the label-only header row; _E8 is Index and _E9 is Ch/Acquired, the bottom row.
   xc_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E2_Value": 1 } }
   xf_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E3_Value": 1 } }
   yc_one: { set: { "HandL_Anchor/Panel/MeshRenderer.material._E4_Value": 1 } }

@@ -630,16 +630,15 @@ def build(c):
     # "on" at avatar load.
     doc.param(f"  {p}/Enable: {{ type: float, default: 0, "
               "vrc: { type: bool, synced: true, saved: false } }", f"{p}/Enable")
-    # The validity bool: the pose `Sync` reports is correct for THIS client —
-    # true on the wearer always, true on a remote once decoded, false on a
-    # remote otherwise. Per-client, so never synced. It is the whole answer to
-    # "should I show my prop", and it exists because the alternative leaks: a
-    # consumer testing Ch/Cycle >= 2 re-derives a gate this document already
-    # evaluates, and reads 0 on the wearer forever. Default 0 — Follow's default
-    # state is Release, and a clone must not claim validity before it has any.
-    doc.param(f"  {p}/Sync_Valid: {{ type: float, default: 0, "
-              "vrc: { type: bool, synced: false, saved: false } }",
-              f"{p}/Sync_Valid")
+    # This entry declares NO validity param of its own. The transport already
+    # emits one — `<channel>/Acquired`, false until this client's receiver has
+    # applied a complete word table — and it is on word-channel's globalParams,
+    # so a consumer binds it by name without help from here. A second name
+    # restating it would be a second thing to keep true. The trap worth naming
+    # here: Acquired reads 0 on the WEARER forever, because the wearer runs
+    # sender layers only and its own pose never touches the decode. "Is the
+    # pose on screen trustworthy" is therefore `IsLocal OR Ch/Acquired`, which
+    # is what Follow's own rungs evaluate.
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, bools))
@@ -878,7 +877,7 @@ def enable_subtree(doc, c):
 
 
 def follow_layer(doc, c):
-    """Which source `Sync` rides, and whether that pose is worth trusting.
+    """Which source `Sync` rides.
 
     `Sync` is ALWAYS active and always driven; this layer only moves weight
     between its two sources. One rule covers every state — `Sync` rides
@@ -886,7 +885,7 @@ def follow_layer(doc, c):
     it is — so Enable-off, a pre-gate remote and a culled decode are the same
     case rather than three, and the module hides nothing. What a remote shows
     while the pose is undecoded is the consumer's call, made against a prop that
-    could be anywhere; `Sync_Valid` is what they make it on.
+    could be anywhere; `<channel>/Acquired` is what they make it on.
 
     The weights are never both 0, which is what keeps the measured weight-0
     write out of the driven path: at weight 0 a VRCParentConstraint does not
@@ -896,24 +895,33 @@ def follow_layer(doc, c):
 
     THREE states over two clips, because the wearer and a pre-gate remote hold
     the same pose and opposite validity, and one state cannot say both. `Local`
-    and `Release` share the target-riding clip; `Follow` carries the other.
-    `Sync_Valid` is set by each state's driver rather than by its clip: a clip
-    could only reach a param as an AAP, and no driver here may read or write an
-    AAP (`check` holds it; that defect cost y-mode its first design).
+    and `Release` share the target-riding clip; `Follow` carries the other. No
+    state drives a validity param: the transport certifies `<channel>/Acquired`
+    itself, and this layer only reads it.
 
     A layer rather than a tree because the condition is `!IsLocal AND Enable`
     and IsLocal is a bool built-in: a blend tree reads 0 from it forever.
 
-    Engaging additionally waits on the transport's own freshness counter. A
+    Engaging additionally waits on the transport's own correctness output. A
     fresh clone starts with every word at 0, 0 quantizes to cell 0, and cell 0 is
     the far corner of the range — so engaging before the first full word table
-    arrives would put the prop at the corner in front of a late joiner. The
-    threshold is TWO tails, not one: under `atomic: batch` a receiver
-    re-acquires from Lost at any counter value, so it can enter AT a tail and
-    take its first increment after a single batch (word-channel's params block
-    carries that caveat at `Cycle`). Releasing does not test Cycle — the counter
-    only climbs, so a re-enable engages on the frame Enable returns rather than
-    waiting out a fresh loop, which is what makes the toggle feel instant."""
+    arrives would put the prop at the corner in front of a late joiner.
+    `<channel>/Acquired` is exactly that proposition and carries no mode
+    dependence: a `Cycle` threshold would, because under `atomic: batch` a
+    receiver re-locks from Lost at any counter value and can enter AT a tail,
+    taking its first increment after one batch. A cold walk certifies at its
+    first tail, so a late joiner engages one full loop sooner than any two-tail
+    counter test would allow — the demo's snap timing is quoted against that.
+
+    Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
+    the engage rung is an AnyState rung with `canTransitionToSelf: false`, which
+    together are what make `Follow` LATCH: once engaged it stays engaged until
+    Enable goes off, so a receiver falling to `Lost` mid-session does not drop
+    the prop back to its target. Do not add a rung here without deciding what
+    that does to the latch. The same latching is why flipping `Enable` on with a
+    table already acquired snaps immediately instead of waiting a cycle —
+    `Enable` never gated the wire, so the receiver keeps decoding through the
+    toggle and `Acquired` stays true across it. Intended."""
     p = c["prefix"]
     rides_target, rides_recon = {}, {}
     for ob in c["objects"]:
@@ -925,19 +933,16 @@ def follow_layer(doc, c):
     target_clip = doc.clip("follow_target", rides_target)
     recon_clip = doc.clip("follow_recon", rides_recon)
     out = [f"  - name: {p}/Follow", "    states:"]
-    out.extend(state("Release", driver(sets={f"{p}/Sync_Valid": 0}), None,
-                     motion=f"{{ clip: {target_clip} }}"))
-    out.extend(state("Local", driver(sets={f"{p}/Sync_Valid": 1}), None,
-                     motion=f"{{ clip: {target_clip} }}"))
-    out.extend(state("Follow", driver(sets={f"{p}/Sync_Valid": 1}), None,
-                     motion=f"{{ clip: {recon_clip} }}"))
+    out.extend(state("Release", None, None, motion=f"{{ clip: {target_clip} }}"))
+    out.extend(state("Local", None, None, motion=f"{{ clip: {target_clip} }}"))
+    out.extend(state("Follow", None, None, motion=f"{{ clip: {recon_clip} }}"))
     out.extend([
         "    any:",
         "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
-        "   # the wearer's pose is authoritative, so it is valid from frame 1",
+        "   # the wearer's pose is authoritative from frame 1",
         f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5, "
-        f"{c['channel']}/Cycle greater 1.5 ], canTransitionToSelf: false }}"
-        "   # Cycle >= 2 = a whole word table received (docstring)",
+        f"{c['channel']}/Acquired greater 0.5 ], canTransitionToSelf: false }}"
+        "   # a complete word table has landed on THIS client (docstring)",
         f"      - {{ to: Release, when: [ IsLocal is false, {p}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
@@ -1606,13 +1611,13 @@ def check():
         # describes it: a header comment survives any regression it names. The
         # two structural signatures are that no latch double-buffer exists (set
         # mode is the only thing that emits `<channel>/Latch/…`) and that Lost
-        # re-acquires at any counter value rather than only at a loop head.
+        # re-locks at any counter value rather than only at a loop head.
         assert_(f"{cfg['channel']}/Latch/" not in text,
                 "no latch params anywhere — a latch is set-atomic's double "
                 "buffer and cannot exist under batch")
-        assert_("re-acquire at any exact counter value" in text,
+        assert_("re-lock at any exact counter value" in text,
                 "the receiver's Lost rungs carry batch mode's any-counter "
-                "re-acquisition, not a loop-head-only entry")
+                "re-locking, not a loop-head-only entry")
 
         # Every axis commits its whole word in one driver — probed inside the
         # ENCODE layer's own block, because word-channel's receiver copies the
@@ -1920,35 +1925,42 @@ def check():
                     f"{ob['name']}: Sync is never released by GlobalWeight or "
                     "IsActive — it is always active and always driven")
 
-        # The validity bool agrees with the weights, state by state. This is
-        # what stops a consumer's hide logic — and M3's tablet readout — from
-        # disagreeing with the pose actually on screen.
+        # Each state rides the clip its name claims, and none of them drives a
+        # validity param: the transport certifies `<channel>/Acquired` itself,
+        # and a second writer here would be a second thing to keep true.
         fol = rung_block(text, f"{pf}/Follow")
-        for st, want_valid, clip in (("Release", "0", "follow_target"),
-                                     ("Local", "1", "follow_target"),
-                                     ("Follow", "1", "follow_recon")):
+        for st, clip in (("Release", "follow_target"),
+                         ("Local", "follow_target"),
+                         ("Follow", "follow_recon")):
             body = state_block(fol, st)
             rides = "the reconstruction" if clip.endswith("recon") else "Sync_Target"
-            assert_(f"{pf}/Sync_Valid: {want_valid}" in body
-                    and f"motion: {{ clip: {clip} }}" in body,
-                    f"{st} sets Sync_Valid {want_valid} and rides {rides}")
-        assert_(f"{pf}/Sync_Valid" not in text.split("  - name:")[0]
-                or "synced: false" in text.split(f"{pf}/Sync_Valid:")[1][:120],
-                "Sync_Valid is per-client — never synced")
+            assert_(f"motion: {{ clip: {clip} }}" in body
+                    and "behaviours:" not in body,
+                    f"{st} rides {rides} and drives nothing")
+        assert_("Sync_Valid" not in text,
+                "no Sync_Valid anywhere: the retired name is not re-declared "
+                "beside the transport's Acquired")
+        acq = f"{cfg['channel']}/Acquired"
+        assert_(f"  {acq}: {{ type: float, default: 0, "
+                "vrc: { type: bool, synced: false, saved: false } }" in text,
+                f"{acq} is declared unsynced and default false — a synced copy "
+                "would carry the wearer's decode state to every client")
 
         rungs = any_rungs(text, f"{pf}/Follow")
         engaging = [r for r in rungs if r.startswith("- { to: Follow")]
         assert_(len(engaging) == 1
                 and "IsLocal is false" in engaging[0]
                 and f"{pf}/Enable greater 0.5" in engaging[0]
-                and f"{cfg['channel']}/Cycle greater 1.5" in engaging[0],
+                and f"{acq} greater 0.5" in engaging[0],
                 "the one rung into Follow requires !IsLocal AND Enable AND "
-                "Cycle >= 2 — so the wearer's own copy never rides the decode, "
+                "Ch/Acquired — so the wearer's own copy never rides the decode, "
                 "and a late joiner never sees the all-zero word table's corner")
-        assert_(not any("Cycle" in r for r in rungs
-                        if r.startswith("- { to: Release")),
-                "releasing does not test Cycle — the counter only climbs, so a "
-                "re-enable engages immediately instead of waiting out a loop")
+        exits = [r for r in rungs if r.startswith("- { to: Release")]
+        assert_(len(exits) == 1 and "Acquired" not in exits[0]
+                and "Cycle" not in exits[0],
+                "the one rung out of Follow tests Enable alone — with the "
+                "engage rung's canTransitionToSelf: false, that is what makes "
+                "Follow latch rather than drop the prop on a receiver hiccup")
         assert_(any(r.startswith("- { to: Local") and "IsLocal is true" in r
                     for r in rungs)
                 and any(r.startswith("- { to: Release")
@@ -1978,9 +1990,9 @@ def check():
     if os.path.exists(readme):
         body = open(readme, encoding="utf-8").read()
         assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable` and "
-                f"`{CONFIG['prefix']}/Sync_Valid`" in body,
+                f"`{CONFIG['channel']}/Acquired`" in body,
                 "README specifies both globalParams entries — without the second "
-                "a consumer cannot bind the validity bool by name")
+                "a consumer cannot bind the transport's validity bool by name")
         assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
                 "README pins the two Sync sources in the order the Follow layer "
                 "indexes them")
