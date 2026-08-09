@@ -156,8 +156,10 @@ def global_params(mod, cfg, facts):
       the damper and any stand-in on THIS, never on a `Ch/Cycle` threshold: the
       counter is liveness, its thresholds are apply-discipline-dependent, and it
       never leaves 0 on the wearer, which runs encode/send layers and no receive
-      layers. `Acquired` reads 0 on the wearer too — pair it with `IsLocal`, as
-      the damper's rungs do. `Cycle` stays off this list and is therefore
+      layers. `Acquired` reads 0 on the wearer and stays 1 through an
+      Enable-off, so the consumer predicate is
+      `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what
+      the damper's rungs carry. `Cycle` stays off this list and is therefore
       instance-prefixed; add it back in one line if a readout ever wants it.
 
     The name is built from `cfg['channel']` rather than the prefix: it is
@@ -215,9 +217,42 @@ def main():
                         "controller.yaml on disk matches this config")
         else:
             assert_(False, f"controller.yaml is missing ({OUT})")
+        # Printing the list left the prefab unpinned, and the prefab is the
+        # hand-edited half — a wrong name there lands silently (VRCFury exposes
+        # nothing and says nothing) and no compile or gate reads globalParams.
+        # word-channel's generator carries the same assert for the same reason.
+        want_gp = global_params(mod, cfg, facts)
         print("  globalParams for the demo prefab:")
-        for n in global_params(mod, cfg, facts):
+        for n in want_gp:
             print(f"    {n}")
+        pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
+        if os.path.exists(pf_path):
+            body = open(pf_path, encoding="utf-8").read()
+            blocks, cur, inside = [], [], False
+            for ln in body.splitlines():
+                if ln.strip() == "globalParams:":
+                    inside, cur = True, []
+                elif inside:
+                    if ln.startswith("        - "):
+                        cur.append(ln.split("- ", 1)[1].strip())
+                    else:
+                        blocks.append(cur)
+                        inside = False
+            if inside:
+                blocks.append(cur)
+            entry_blocks = [b for b in blocks if f"{cfg['prefix']}/Enable" in b]
+            assert_(len(entry_blocks) == 2 and all(b == want_gp for b in entry_blocks),
+                    f"both of the prefab's object-sync globalParams blocks list "
+                    f"exactly the {len(want_gp)} names above, in order "
+                    f"({[b for b in entry_blocks if b != want_gp][:1]})")
+            assert_(f"{cfg['channel']}/Cycle" not in body,
+                    "Cycle is nowhere in the prefab — it is liveness, off every "
+                    "globalParams list, and instance-prefixed at build")
+            assert_("Assets/Avatars/" not in body,
+                    "no venue path in any cached VRCFury asset `id` — the GUIDs "
+                    "resolve in-package and the path string must say so")
+        else:
+            assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
         sys.exit(0 if ok else 1)

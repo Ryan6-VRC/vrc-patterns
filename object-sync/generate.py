@@ -159,7 +159,7 @@ CONFIG = {
     # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
     # knob here: the discipline is batch (module docstring), and indexLoops is
     # inert under batch — there is no pause-alias probability to divide and Lost
-    # re-acquires at any counter value, so a wider counter would buy nothing and
+    # re-locks at any counter value, so a wider counter would buy nothing and
     # cost an index bit plus three Sync states per batch (word-channel's CONFIG
     # carries the same note at the knob).
     "wire": {
@@ -909,9 +909,14 @@ def follow_layer(doc, c):
     `<channel>/Acquired` is exactly that proposition and carries no mode
     dependence: a `Cycle` threshold would, because under `atomic: batch` a
     receiver re-locks from Lost at any counter value and can enter AT a tail,
-    taking its first increment after one batch. A cold walk certifies at its
-    first tail, so a late joiner engages one full loop sooner than any two-tail
-    counter test would allow — the demo's snap timing is quoted against that.
+    taking its first increment after one batch. What a cold join costs depends
+    on where in the loop it re-locks, and under `batch` that is any counter
+    value: land on a head (1 of batchCount phases) and the first tail certifies;
+    land anywhere else and `Lost` handed the walk a false SawHead, so the first
+    tail copies false and certification waits for the SECOND — the same tail a
+    two-tail counter test would have engaged on. So `Acquired` is never slower
+    than that test and is one loop faster on the head phase; it is the mode
+    independence that is the reason to prefer it, not a latency win.
 
     Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
     the engage rung is an AnyState rung with `canTransitionToSelf: false`, which

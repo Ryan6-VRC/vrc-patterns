@@ -68,6 +68,15 @@ Three load-bearing assumptions behind that emit:
 3. `Acquired` and `SawHead` are never clip-bound anywhere in the merged
    document — a driver on a clip-bound param is refused at compile
    (`animator-schema.md`). A Direct-tree *weight* is a read, not a binding.
+4. UNMEASURED, and the weakest link: that `IsAnimatorEnabled` goes false at
+   least one frame BEFORE the client halts the Animator, so the
+   `Enabled`->`Disabling` rung gets a frame to evaluate and its driver a frame
+   to run. `docs/runtime.md`'s coverage table records that distance-hide fires
+   the flag, not the ordering, and av3emu drives the flag by hand so it cannot
+   falsify this. If the client instead clears it on the same frame it halts,
+   the reset never runs and `Acquired` survives a distance-hide TRUE over a
+   stale table — the one path by which it can lie. Everything above rests on
+   this holding; a two-client in-game session is what would settle it.
 
 `Acquired` is receiver-scoped: false on the wearer forever, because the wearer
 runs sender layers only. That is correct rather than a gap — the wearer's own
@@ -729,7 +738,11 @@ def check():
         ok = ok and cond
 
     print("[document]")
-    assert_(document(c)[0] == text, "regeneration is byte-identical")
+    # NOT a byte-identity check against anything committed — `document()` is a pure
+    # function of CONFIG, so comparing two calls only shows the emit is deterministic
+    # (no set iteration order, no clock, no dict-address leakage reaching the text).
+    # The check that can actually fail is the disk comparison below it.
+    assert_(document(c)[0] == text, "emission is deterministic across two calls")
     out = os.path.join(HERE, "controller.yaml")
     if os.path.exists(out):
         with open(out, encoding="utf-8", newline="") as fh:
@@ -739,9 +752,12 @@ def check():
         assert_(False, f"controller.yaml is missing ({out})")
 
     # The four drivers, asserted as the proof in the docstring states them: the
-    # only write of true into Acquired is a tail copying SawHead, and the only
-    # write of false is the reset. Miscounting heads/tails is false-negative
-    # only, so nothing downstream would catch it.
+    # only write of TRUE into Acquired is a tail copying SawHead. False reaches it
+    # two ways and both are wanted — the reset's literal `set`, and a tail copying
+    # a SawHead that is still false — so what is pinned below is that no SECOND
+    # literal zeroing exists outside the reset, not that the reset is the only
+    # write of false at all. Miscounting heads/tails is false-negative only, so
+    # nothing downstream would catch it.
     print("[Acquired]")
     bc, per = facts["batchCount"], facts["period"]
     sync_b = layer_block(text, f"{p}/Sync")
@@ -762,13 +778,17 @@ def check():
             "knock a certified table's flag down")
     assert_(text.count(f"{p}/Acquired: 0") == 1
             and f"{p}/Acquired: 0" in "\n".join(layer_block(text, f"{p}/Reset")),
-            "the reset layer holds the only write of false into Acquired, so "
-            "every zeroing takes SawHead with it")
+            "the reset layer holds the only literal zeroing of Acquired, so every "
+            "one takes SawHead with it (a tail copying a false SawHead also writes "
+            "false, and is meant to)")
     names = [ln.split("- name: ", 1)[1].strip()
              for ln in text.splitlines() if ln.startswith("  - name: ")]
     assert_(names[:2] == [f"{p}/Sync", f"{p}/Reset"],
-            "the reset layer is emitted directly after Sync, inside the fragment "
-            "— an importer owns document order and can silently not have it")
+            "Reset is emitted directly after Sync, inside the fragment. TWO reasons, "
+            "and the second is the safety-critical one: an importer owns document "
+            "order and can silently not have it, AND on the pause frame a tail may "
+            "fire `Acquired := SawHead` while Reset fires `Acquired: 0` — Sync "
+            "first means the reset wins that frame, so do not reorder these")
     assert_(f"  {p}/Acquired: {{ type: float, default: 0, "
             "vrc: { type: bool, synced: false, saved: false } }" in text,
             "Acquired is declared float-with-bool-wire, unsynced, default false")

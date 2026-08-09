@@ -51,6 +51,21 @@
 # remote with Enable off still reads Ch/Acquired true while Sync rides Sync_Target — damping there
 # would put ~20 frames of lag on a directly-carried prop that was never jumpy.
 #
+# THE DAMPER MUST BE OFF ACROSS A CULL RESUME, AND THAT IS THE POINT — do not "fix" it. A distance-
+# cull pauses this client's animator while the wire keeps moving, so an unhide can resume with the
+# prop hundreds of metres from where it was. The damper is a lag, not a filter: damped across that
+# resume it would LERP the prop the whole way, a smooth glide across the map that reads as the prop
+# flying to its new home. Undamped, the reconstruction lands on one frame and the cull looks like
+# what it is — the prop vanishing with the avatar and reappearing where it now is. `Ch/Acquired` is
+# what makes the resume visible to this layer at all: the Reset layer zeroes it on the pause, so the
+# `Acquired less 0.5` exit below drops the damper before the jump and re-arms it once the table
+# re-certifies. Reviewers keep reading that exit as a bug because `Follow` LATCHES through the same
+# resume and so the two layers disagree during it. They are answering different questions — Follow
+# picks which source Sync rides, the damper picks whether motion is smoothed — and this is exactly
+# the window where the right answers differ. Making them agree in either direction is a regression:
+# damping the resume brings back the glide, and un-latching Follow snaps a world-dropped prop onto a
+# remote's hand for a loop.
+#
 # THE DAMPER IS A ONE-POLE LAG AND ITS STRENGTH IS A RATE (docs/local/damping-experiment-result.md):
 # tau = 1/ln(1 + w_target/w_self) FRAMES, 20.50 measured onto 20.50 predicted at spring-damping's
 # shipped 1 : 0.05. Price it as tau x speed / framerate, never as a distance. Two rules from that
@@ -252,7 +267,7 @@ layers:
         transitions:
           - { to: Undamped, when: [ Reconstruction/Damping less 0.5 ] }
           - { to: Undamped, when: [ IsLocal is true,  Reconstruction/ViewRemote less 0.5 ] }
-          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Ch/Acquired less 0.5 ] }
+          - { to: Undamped, when: [ IsLocal is false, ObjectSync/Ch/Acquired less 0.5 ] }   # cull resume: drop the lag BEFORE the jump (header)
           - { to: Undamped, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ] }
     default: Undamped
     layout:
