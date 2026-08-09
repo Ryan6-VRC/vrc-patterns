@@ -1,6 +1,6 @@
 # object-sync-demo — a world-synced prop with a live readout of its own wire (Composition)
 
-A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether the pose this client is showing is trustworthy. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. Widened to **52 synced bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur.
+A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. Widened to **52 synced bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur.
 
 Worth reading as a worked example of three things beyond world sync: a **hand-mounted `VRCRaycast`** with a surface-aligned result driving placement, a **`debug-shaders` numeric readout** driven live from animator clips, and a constraint **placement multiplexer** with a miss-tolerant hold state.
 
@@ -8,8 +8,8 @@ Worth reading as a worked example of three things beyond world sync: a **hand-mo
 
 | entry | built against | what it contributes |
 |---|---|---|
-| `object-sync` | `5a13330` | absolute world position + rotation over an animator channel |
-| `word-channel` | `3657e95` | the wire underneath it (reached through `object-sync`) |
+| `object-sync` | `14ab278` | absolute world position + rotation over an animator channel |
+| `word-channel` | `14ab278` | the wire underneath it (reached through `object-sync`) |
 | `anti-cull` | `cecaecc` | keeps a view-culled wearer's decode running |
 | `debug-shaders` | `2bd92bd` | the hand tablet's numeric readout and the world-coordinate cube |
 
