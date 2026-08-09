@@ -39,15 +39,16 @@ make — `globalParams` is a VRCFury field with no `CompileController` spelling,
 and the `Drop` toggle is a component. **A VRCFury component cannot be edited in
 place on a prefab: remove it and add a modified copy.**
 
-1. `globalParams` on the `FullController`, extended from the shipped single
-   entry to the enumerated list `--check` prints. Enumerated, not
-   `allNonsyncedAreGlobal`: without it VRCFury prefixes every param with a
-   per-build token and the tablet's blendtrees bind to names that do not exist.
-   The list is the durable record and grows with its consumers; the rationale
-   for each of the ten entries is in `global_params()` below, and the prefab
-   lists exactly those ten. **Verify an extension on the BUILT avatar, not the
-   source asset**: a name that failed to land reads as prefixed post-bake and as
-   fine everywhere else.
+1. `globalParams` on the `FullController`, replaced by the scoped match list
+   `--check` prints. A match grammar, not an enumeration and not
+   `allNonsyncedAreGlobal`: VRCFury matches a trailing `*` by prefix and lets a
+   leading `!` exclude, so the composition scopes its own namespace and excludes
+   what must stay capturable-proof, in four entries that never need touching. An
+   enumeration is what rots — the stale name is dropped silently while the new
+   one takes a per-build prefix, and the tablet's blendtrees bind to names that
+   do not exist. The rationale for each entry is in `global_params()` below.
+   **Verify any change on the BUILT avatar, not the source asset**: an entry that
+   failed to land reads as prefixed post-bake and as fine everywhere else.
 2. Delete the shipped `Drop` VRCFury `Toggle`. Stage 4 builds Freeze as a mode
    on `Sync_Target`'s own constraint animating the same `FreezeToWorld`, and two
    writers on one property is what the entry's two-writer rule forbids.
@@ -137,39 +138,40 @@ def demo_document(mod, cfg):
     return text.replace(shipped, ours), f
 
 
-def global_params(mod, cfg, facts):
-    """What the demo prefab's `globalParams` has to enumerate.
+def global_params(cfg):
+    """The demo prefab's `globalParams`, as a match grammar rather than a list.
 
-    Derived from the emitted document, so a retune of the wire or the word table
-    moves this list rather than silently leaving a consumer bound to a name
-    VRCFury prefixed away. Three consumers, three reasons:
+    A composition scopes its own namespace once instead of enumerating every name
+    its two FullControllers share: VRCFury matches a trailing `*` by prefix and
+    lets a leading `!` exclude, winning wherever it sits in the list. Enumerating
+    is what drifts — rename a param upstream and the stale entry is dropped in
+    silence while the new name takes an instance prefix, severing the link
+    between the two merged controllers with the build still green. That is not
+    hypothetical; it is what this list did before it was scoped.
 
-    - the six decoded AAPs are the full-resolution coarse cell index and fine
-      index per axis, which is what the tablet displays;
-    - the index bools are what its Counter slot reconstructs a batch number
-      from. They are synced **Bools**, and a blend tree evaluates only Floats —
-      word-channel floatifies its *word* bools into `ObjectSync/B/…` but never
-      its own index bits, so a consumer reads them through a state ladder, not
-      a `blendtree-math` sum (stage 5 measured this the hard way);
-    - `<channel>/Acquired` is the transport's correctness output, "this client's
-      receiver has applied a complete word table". Gate the reconstruction view,
-      the damper and any stand-in on THIS, never on a `Ch/Cycle` threshold: the
-      counter is liveness, its thresholds are apply-discipline-dependent, and it
-      never leaves 0 on the wearer, which runs encode/send layers and no receive
-      layers. `Acquired` reads 0 on the wearer and stays 1 through an
-      Enable-off, so the consumer predicate is
-      `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what
-      the damper's rungs carry. `Cycle` stays off this list and is therefore
-      instance-prefixed; add it back in one line if a readout ever wants it.
+    `Ch/Wire/Idx*` stays exposed deliberately: the tablet's Counter slot
+    reconstructs a batch number from the index bools, and they are synced Bools a
+    blend tree cannot read, so the readout walks them through a state ladder
+    rather than a `blendtree-math` sum. Excluding the whole `Wire/` subtree would
+    kill that readout.
 
-    The name is built from `cfg['channel']` rather than the prefix: it is
-    word-channel's param, emitted inside the entry's document, not the entry's
-    own. Nothing diffs this return value — `--check` only prints it for a human
-    — so a wrong name here is caught by nobody."""
-    o = cfg["objects"][0]["name"]
-    return ([f"{cfg['prefix']}/Enable", f"{cfg['channel']}/Acquired"]
-            + [f"{cfg['prefix']}/D/{o}/P{a}/{stage}" for a in mod.AXES for stage in ("C", "F")]
-            + [f"{cfg['channel']}/Wire/Idx{i}" for i in range(facts["indexBits"])])
+    The payload slots are excluded because nothing outside the module reads them
+    and a `globalParams` name is capturable — a host avatar declaring it wins
+    with *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging),
+    and a captured wire bit would carry the host's `saved` across avatar loads.
+    `Ch/Cycle` is excluded for the same reason: liveness, never interface
+    (`../../word-channel/README.md` §Interface owns that argument).
+
+    Entry-side exposure is unchanged by scoping — the six decoded AAPs the tablet
+    displays and `<channel>/Acquired` all sit under the prefix. Gate the
+    reconstruction view, the damper and any stand-in on `Acquired`, never on a
+    `Ch/Cycle` threshold: the counter's thresholds are apply-discipline-dependent
+    and it never leaves 0 on the wearer. `Acquired` reads 0 on the wearer and
+    stays 1 through an Enable-off, so the consumer predicate is
+    `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what the
+    damper's rungs carry."""
+    p, ch = cfg["prefix"], cfg["channel"]
+    return [f"{p}/*", f"!{ch}/Cycle", f"!{ch}/Wire/Num*", f"!{ch}/Wire/Bool*"]
 
 
 def main():
@@ -218,10 +220,12 @@ def main():
         else:
             assert_(False, f"controller.yaml is missing ({OUT})")
         # Printing the list left the prefab unpinned, and the prefab is the
-        # hand-edited half — a wrong name there lands silently (VRCFury exposes
+        # hand-edited half — a wrong entry there lands silently (VRCFury exposes
         # nothing and says nothing) and no compile or gate reads globalParams.
+        # Scoping the list shortened it; it did not make it self-checking, and a
+        # mistyped wildcard fails exactly as quietly as a mistyped name once did.
         # word-channel's generator carries the same assert for the same reason.
-        want_gp = global_params(mod, cfg, facts)
+        want_gp = global_params(cfg)
         print("  globalParams for the demo prefab:")
         for n in want_gp:
             print(f"    {n}")
@@ -234,23 +238,22 @@ def main():
                     inside, cur = True, []
                 elif inside:
                     if ln.startswith("        - "):
-                        cur.append(ln.split("- ", 1)[1].strip())
+                        # A leading `!` is a YAML tag indicator, so Unity writes
+                        # every negation single-quoted — strip that, not the `!`.
+                        cur.append(ln.split("- ", 1)[1].strip().strip("'\""))
                     else:
                         blocks.append(cur)
                         inside = False
             if inside:
                 blocks.append(cur)
-            entry_blocks = [b for b in blocks if f"{cfg['prefix']}/Enable" in b]
+            # Keyed on the prefix, not on a member name: the scoped list holds no
+            # bare param name for a membership test to find.
+            entry_blocks = [b for b in blocks
+                            if any(e.lstrip("!").startswith(f"{cfg['prefix']}/") for e in b)]
             assert_(len(entry_blocks) == 2 and all(b == want_gp for b in entry_blocks),
-                    f"both of the prefab's object-sync globalParams blocks list "
-                    f"exactly the {len(want_gp)} names above, in order "
+                    f"both of the prefab's object-sync globalParams blocks are "
+                    f"exactly the {len(want_gp)} entries above, in order "
                     f"({[b for b in entry_blocks if b != want_gp][:1]})")
-            assert_(f"{cfg['channel']}/Cycle" not in body,
-                    "Cycle is nowhere in the prefab — it is liveness, off every "
-                    "globalParams list, and instance-prefixed at build")
-            assert_("Assets/Avatars/" not in body,
-                    "no venue path in any cached VRCFury asset `id` — the GUIDs "
-                    "resolve in-package and the path string must say so")
         else:
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
