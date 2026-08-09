@@ -28,9 +28,9 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 
 ## Verifying the install
 
-Play mode with Av3Emulator, avatar at the world origin, `EnableHeadScaling` flipped on only after the runtimes have run a few frames (`head-proxy` §Verifying the install owns this exempt-bone baseline cache trap). Then:
+Play mode with Av3Emulator, avatar at the world origin, `EnableHeadScaling` flipped on only after the runtimes have run a few frames (`head-proxy` §Verifying the install owns this exempt-bone baseline cache trap). In the built hierarchy, `Cheek_Root` is ArmatureLink-renamed: the functional node is `Original Object` under `[VF###] Cheek_Root` beneath the humanoid Head (`nondestructive.md` §Merge behaviours). Then:
 
-- Pull the chain with a real grab — the physbone re-asserts `CheekBone_Stretch` every frame, so a param write silently reverts, and a scripted `AttemptGrab` must target a mid-chain bone since the leaf end bone moves nothing. The **local** copy's `ScaleConstraint.IsActive` reads **0** — that zero is the mirror race proving `IsMirror = −1`, the same observable `mirror-detect` names.
+- Pull the chain with a real grab — the physbone re-asserts `CheekBone_Stretch` every frame, so a param write silently reverts, and a scripted `AttemptGrab` must target a mid-chain bone since the leaf end bone moves nothing. For squish, grab with `globalPosition` at the chain root to compress inward. The **local** copy's `ScaleConstraint.IsActive` reads **0** — that zero is the mirror race proving `IsMirror = −1`, the same observable `mirror-detect` names. `IsMirror` itself reads 0 in the emulator's parameter view (AAP-class, not the driven −1) — `ScaleConstraint.IsActive` is the settlement, not the param.
 - The emulator's **non-local clone** is the remote leg; grab the *clone's* chain to see its humanoid head visibly scale (the pull itself does not transport — the emulator networks no grabs).
 - A cheek chain that collapses with the head means the self-exemption didn't apply — chop component budget exceeded, or the consumer rig's head never chops.
 - Wrong variant tells: the **local** copy's head scaling on the conventional prefab means the mirror-detect row is missing — you installed the proxy behavior on a conventional rig.
