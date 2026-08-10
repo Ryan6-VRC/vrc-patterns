@@ -1433,7 +1433,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -2049,7 +2049,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -3461,7 +3461,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -3499,16 +3499,10 @@ MonoBehaviour:
             objRef: {fileID: 11400000, guid: 98217d83a415e044d8ad1b5495b724bb, type: 2}
         smoothedPrms: []
         globalParams:
-        - ObjectSync/Enable
-        - ObjectSync/Ch/Acquired
-        - ObjectSync/D/Prop/PX/C
-        - ObjectSync/D/Prop/PX/F
-        - ObjectSync/D/Prop/PY/C
-        - ObjectSync/D/Prop/PY/F
-        - ObjectSync/D/Prop/PZ/C
-        - ObjectSync/D/Prop/PZ/F
-        - ObjectSync/Ch/Wire/Idx0
-        - ObjectSync/Ch/Wire/Idx1
+        - ObjectSync/*
+        - '!ObjectSync/Ch/Cycle'
+        - '!ObjectSync/Ch/Wire/Num*'
+        - '!ObjectSync/Ch/Wire/Bool*'
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -4368,7 +4362,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -4504,7 +4498,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -4693,7 +4687,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -4724,16 +4718,10 @@ MonoBehaviour:
             objRef: {fileID: 11400000, guid: 4d911ce6dc482eb46a701ef3d8bd047d, type: 2}
         smoothedPrms: []
         globalParams:
-        - ObjectSync/Enable
-        - ObjectSync/Ch/Acquired
-        - ObjectSync/D/Prop/PX/C
-        - ObjectSync/D/Prop/PX/F
-        - ObjectSync/D/Prop/PY/C
-        - ObjectSync/D/Prop/PY/F
-        - ObjectSync/D/Prop/PZ/C
-        - ObjectSync/D/Prop/PZ/F
-        - ObjectSync/Ch/Wire/Idx0
-        - ObjectSync/Ch/Wire/Idx1
+        - ObjectSync/*
+        - '!ObjectSync/Ch/Cycle'
+        - '!ObjectSync/Ch/Wire/Num*'
+        - '!ObjectSync/Ch/Wire/Bool*'
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
