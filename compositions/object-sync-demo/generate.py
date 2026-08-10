@@ -155,12 +155,22 @@ def global_params(cfg):
     rather than a `blendtree-math` sum. Excluding the whole `Wire/` subtree would
     kill that readout.
 
-    The payload slots are excluded because nothing outside the module reads them
-    and a `globalParams` name is capturable — a host avatar declaring it wins
-    with *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging),
-    and a captured wire bit would carry the host's `saved` across avatar loads.
-    `Ch/Cycle` is excluded for the same reason: liveness, never interface
-    (`../../word-channel/README.md` §Interface owns that argument).
+    What the two exclusions have in common is **carried state**, not syncedness:
+    a `globalParams` name is capturable, and a host avatar declaring it wins with
+    *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging). The
+    wire slots cross the network, so a captured one carries the host's `saved`
+    across avatar loads; `Ch/Cycle` accumulates (+1 per loop tail), so a host
+    capturing it as *synced* would put the wearer's count on every client — the
+    argument `../../word-channel/README.md` §Interface makes for keeping it off
+    every list. Note `Ch/Cycle` is itself unsynced, which is why "exclude the
+    synced ones" is the wrong reading of this list.
+
+    Everything else under the prefix goes bare and is meant to: the decoded AAPs
+    and `Acquired` because consumers read them, and the per-client scratch
+    (`Ch/SawHead`, `Ch/True`, `One`, the `B/…` floats) because it is recomputed
+    from the wire every frame — capture cannot corrupt what nothing accumulates.
+    That is the boundary to reason from when adding a param, not "is it
+    interface".
 
     Entry-side exposure is unchanged by scoping — the six decoded AAPs the tablet
     displays and `<channel>/Acquired` all sit under the prefix. Gate the
@@ -229,6 +239,18 @@ def main():
         print("  globalParams for the demo prefab:")
         for n in want_gp:
             print(f"    {n}")
+        # A stale exclusion fails the OPPOSITE way to a stale enumeration, so it
+        # needs its own assert. An enumeration going stale under-exposes and the
+        # break is loud in behaviour; a `!` whose stem no longer names anything
+        # silently WIDENS the list, handing the wire slots to the first host
+        # avatar that declares them. Zero matches is the whole failure mode.
+        for entry in [e for e in want_gp if e.startswith("!")]:
+            stem = entry[1:].rstrip("*")
+            assert_(stem in text,
+                    f"exclusion `{entry}` still names a declared param — the stem "
+                    f"`{stem}` appears in the emitted document (a rename upstream "
+                    f"leaves this matching nothing, and the exclusion widens to "
+                    f"expose what it was written to withhold)")
         pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
         if os.path.exists(pf_path):
             body = open(pf_path, encoding="utf-8").read()
