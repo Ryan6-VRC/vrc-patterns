@@ -2037,6 +2037,68 @@ def check():
                 f"{label}: all {len(offs)} source-space offsets in the prefab "
                 f"are zero ({bad[:2]})")
 
+    # A zero offset is only half the pin: the other half is that the pin still
+    # RESOLVES. Both of Rig's constraints source a transform inside this entry's
+    # own never-instantiated `assets/World.prefab`, and that reference is what
+    # makes the frame world-absolute on every client — but nothing else in this
+    # repo watches it. Break the reference and both sources resolve to null,
+    # which writes nothing, so `Rig` quietly becomes avatar-relative — the one
+    # failure the README calls indistinguishable from a correct rig at the
+    # origin, invisible to the gate (which reads missing scripts, not missing
+    # asset refs) and to any check taken at the origin.
+    #
+    # A reference is a `(fileID, guid)` PAIR and both halves have to be checked
+    # against the asset, because a dangling reference is byte-identical to a live
+    # one — nothing rewrites the referring prefab when its target breaks, so the
+    # text alone can never show it. Hence three reads, not one:
+    #   - the asset itself must exist (a surviving `.meta` beside a deleted
+    #     `World.prefab` yields a perfectly good GUID for a dead pin),
+    #   - the referenced fileID must still name a Transform inside it (overwrite
+    #     the asset in place and Unity keeps the path, and so the `.meta` GUID,
+    #     while assigning fresh fileIDs),
+    #   - the GUID must match the `.meta`, read from there rather than written as
+    #     a literal so an inconsistent churn — an Editor rewriting the package's
+    #     meta without re-saving these prefabs — surfaces as a mismatch.
+    # A churn that consistently rewrites meta and prefabs together passes, and
+    # should: the reference still resolves.
+    print("[prefab world pin resolves]")
+    world_pf = os.path.join(HERE, "assets", "World.prefab")
+    meta = world_pf + ".meta"
+    world_guid, world_tf = None, set()
+    assert_(os.path.exists(world_pf),
+            "assets/World.prefab exists — a GUID outliving its asset reads "
+            "exactly like a live reference")
+    if os.path.exists(world_pf):
+        world_tf = set(_re.findall(r"^--- !u!4 &(-?\d+)$",
+                                   open(world_pf, encoding="utf-8").read(), _re.M))
+    if os.path.exists(meta):
+        m = _re.search(r"^guid: ([0-9a-f]{32})$", open(meta, encoding="utf-8").read(),
+                       _re.M)
+        world_guid = m.group(1) if m else None
+    assert_(world_guid is not None,
+            f"assets/World.prefab.meta carries a GUID ({world_guid})")
+    assert_(bool(world_tf), f"assets/World.prefab carries a Transform ({world_tf})")
+    if world_guid is not None and world_tf:
+        for label in preset_configs():
+            pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+            if not os.path.exists(pf_path):
+                continue      # the missing-prefab FAIL is already reported above
+            body = open(pf_path, encoding="utf-8").read()
+            # `-?` because a cross-asset fileID is signed — the form an imported
+            # model's transform takes. A reference shape this misses drops out of
+            # the count, so an unmatched form fails loud rather than passing.
+            refs = _re.findall(
+                r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})", body)
+            # Exactly two, whatever the object count: Rig is one node carrying one
+            # VRCParentConstraint and one VRCScaleConstraint, and it is the
+            # entry's only cross-asset source. Fewer means a reference went null.
+            bad = [r for r in refs if r[1] != world_guid or r[0] not in world_tf]
+            assert_(len(refs) == 2 and not bad,
+                    f"{label}: Rig's 2 world-pin sources both resolve to a "
+                    f"Transform in this entry's World.prefab — expected 2 of "
+                    f"(fileID in {sorted(world_tf)}, {world_guid}), "
+                    f"found {len(refs)}: {sorted(set(refs))}")
+
     # Each committed build is the one artifact its `built/` was compiled from,
     # so a generator change that moves any of the three documents is a defect
     # until that variant's built/ is recompiled.

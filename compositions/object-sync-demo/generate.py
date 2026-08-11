@@ -55,11 +55,16 @@ place on a prefab: remove it and add a modified copy.**
    Deleting it also reclaims its synced bit.
 """
 
+import glob
 import importlib.util
 import os
+import re as _re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# The repo root — `compositions/<name>/` is always two levels down, the same
+# arithmetic ENTRY below uses to reach the entry it composes.
+REPO = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir))
 # The entry is a sibling in this same checkout, which is what makes the wrong
 # source unreachable rather than something a reader has to remember: whichever
 # branch is checked out supplies both the composition and the entry it builds.
@@ -276,6 +281,35 @@ def main():
                     f"both of the prefab's object-sync globalParams blocks are "
                     f"exactly the {len(want_gp)} entries above, in order "
                     f"({[b for b in entry_blocks if b != want_gp][:1]})")
+            # This arrangement pins two rigs to world through the composed
+            # entries' own never-instantiated `World.prefab` assets, and a broken
+            # reference there resolves to null — the rig silently rides the avatar
+            # instead of the world, which reads correct at the origin. The entry's
+            # own `--check` guards its three prefabs; this prefab is a fourth
+            # consumer of the same assets, and a composition is exactly what rots
+            # when something it composes changes shape. Resolve each reference
+            # against whichever entry owns its GUID rather than naming the two
+            # entries here, so composing a third pinned entry needs no edit.
+            world = {}
+            for meta in glob.glob(os.path.join(REPO, "*", "assets",
+                                               "World.prefab.meta")):
+                asset = meta[:-len(".meta")]
+                g = _re.search(r"^guid: ([0-9a-f]{32})$",
+                               open(meta, encoding="utf-8").read(), _re.M)
+                if g and os.path.exists(asset):
+                    world[g.group(1)] = (
+                        os.path.basename(os.path.dirname(os.path.dirname(meta))),
+                        set(_re.findall(r"^--- !u!4 &(-?\d+)$",
+                                        open(asset, encoding="utf-8").read(), _re.M)))
+            refs = _re.findall(
+                r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})", body)
+            dangling = [r for r in refs
+                        if r[1] not in world or r[0] not in world[r[1]][1]]
+            assert_(bool(refs) and not dangling,
+                    f"all {len(refs)} of the prefab's cross-asset pin sources "
+                    f"resolve to a Transform in a composed entry's World.prefab "
+                    f"({sorted({world[g][0] for _, g in refs if g in world})}) "
+                    f"— dangling: {sorted(set(dangling))}")
         else:
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
