@@ -48,4 +48,4 @@ Runnable arrangements of two or more entries, committed as prefabs because an ar
 
 ## Gate
 
-`tools/gate.ps1` compiles + validates every entry and checks controller decompile-equality for entries with `built/`. Run it before merging.
+`tools/gate.ps1` compiles every entry at any nesting depth and checks controller decompile-equality plus prefab integrity/provenance for entries with `built/` — it confirms freshness, not runtime correctness; the install steps in each entry's README are what that rests on. Run it before merging.
