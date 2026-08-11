@@ -54,7 +54,7 @@ Read the **baked** parameters, not the authored ones — MA rewrites flags at bu
 
 and the generated menu for a `Wardrobe` submenu holding your buttons, each `Button` type with parameter `OscWardrobe/Slot` and its own value. A submenu that is missing entirely means the Menu Installer is not above the Menu Item; buttons whose values are not what you authored mean Auto value got left on somewhere.
 
-Then, with the bridge running: press a button and watch its log. It names the slot and the avatar id it sent, so a press that logs nothing is an avatar-side problem and a press that logs a send but does not swap is an eligibility or id problem.
+Then, with the bridge running: press a button and watch its log. It names the slot and the avatar id it sent, so a press that logs nothing is an avatar-side problem and a press that logs a send but does not swap is an eligibility or id problem. A press that reports the marker was read from something that does not identify itself as VRChat is neither — another OSCQuery app holds the bridge's target slot, and VRCFaceTracking and VRCOSC both advertise themselves — and it starts working once a VRChat client is discovered and takes the slot.
 
 ## Rig
 
