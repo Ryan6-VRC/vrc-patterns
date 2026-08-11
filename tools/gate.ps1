@@ -1,6 +1,8 @@
 #requires -Version 7
 <#
-  vrc-patterns gate: compile + round-trip + decompile-equality over every entry.
+  vrc-patterns gate: compile + decompile-equality over every entry, at any depth. It does NOT round-trip
+  the schema — that a decompile recompiles identically is a property of avatar-tools, proven in that
+  package's own fixpoint suites, and a break there is a tool bug that must not fail an entry's admission.
 
   Boots Unity batchmode against the workspace TestEditor (which loads the avatar-tools package by
   file: ref, so it always has the current CompileController/ControllerFixpoint) and runs
