@@ -2037,6 +2037,41 @@ def check():
                 f"{label}: all {len(offs)} source-space offsets in the prefab "
                 f"are zero ({bad[:2]})")
 
+    # A zero offset is only half the pin: the other half is that the pin still
+    # RESOLVES. Both of Rig's constraints source a transform inside this entry's
+    # own never-instantiated `assets/World.prefab`, and that reference is what
+    # makes the frame world-absolute on every client — but nothing else in this
+    # repo watches it. Delete the asset or churn its `.meta` GUID and both
+    # sources fall to `{fileID: 0}`, which writes nothing, so `Rig` quietly
+    # becomes avatar-relative — the one failure the README calls
+    # indistinguishable from a correct rig at the origin, invisible to the gate
+    # (which reads missing scripts, not missing asset refs) and to any check at
+    # the origin. Take the expected GUID from the `.meta` rather than a literal,
+    # so a churn shows up as a mismatch and a deletion as a missing file.
+    print("[prefab world pin resolves]")
+    meta = os.path.join(HERE, "assets", "World.prefab.meta")
+    world_guid = None
+    if os.path.exists(meta):
+        m = _re.search(r"^guid: ([0-9a-f]{32})$", open(meta, encoding="utf-8").read(),
+                       _re.M)
+        world_guid = m.group(1) if m else None
+    assert_(world_guid is not None,
+            f"assets/World.prefab.meta carries a GUID ({world_guid})")
+    for label in preset_configs():
+        pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+        if not os.path.exists(pf_path):
+            continue          # the missing-prefab FAIL is already reported above
+        body = open(pf_path, encoding="utf-8").read()
+        guids = _re.findall(r"SourceTransform: \{fileID: \d+, guid: ([0-9a-f]{32})",
+                            body)
+        # Exactly two, whatever the object count: Rig is one node carrying one
+        # VRCParentConstraint and one VRCScaleConstraint, and it is the entry's
+        # only cross-asset source. Fewer means a reference went null.
+        assert_(len(guids) == 2 and set(guids) == {world_guid},
+                f"{label}: Rig's 2 world-pin sources both resolve to this "
+                f"entry's World.prefab — expected 2×{world_guid}, "
+                f"found {len(guids)}×{sorted(set(guids))}")
+
     # Each committed build is the one artifact its `built/` was compiled from,
     # so a generator change that moves any of the three documents is a defect
     # until that variant's built/ is recompiled.
