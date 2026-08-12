@@ -45,6 +45,14 @@ if (-not (Test-Path $editor)) {
   }
   Write-Host "TestEditor missing — provisioning."
   & pwsh $setup -Sync
+  # $ErrorActionPreference='Stop' does NOT catch a failed native call here: measured,
+  # $PSNativeCommandUseErrorActionPreference is False on pwsh 7.6.4, so a provisioner that refused
+  # would fall straight through and the resolver below would blame a missing ProjectVersion.txt --
+  # carrying the run toward batchmode against a venue that does not exist. Assert the outcome.
+  if (-not (Test-Path -LiteralPath $editor)) {
+    Write-Error "provisioning did not produce '$editor' — re-run $setup -Sync and read its refusal."
+    exit 1
+  }
 }
 
 # Resolved AFTER the provisioning above, which is what guarantees TestEditor has the
@@ -55,13 +63,19 @@ if (-not (Test-Path $editor)) {
 # in the same vocabulary as the block above rather than guessing a path.
 if (-not $Unity) {
   $resolver = Join-Path $AtelierRoot 'tools/unity-editor.ps1'
-  if (-not (Test-Path $resolver)) {
+  if (-not (Test-Path -LiteralPath $resolver)) {
     Write-Error "AtelierRoot '$AtelierRoot' has no tools/unity-editor.ps1 — pass -AtelierRoot <path to the Atelier workspace root>, or -Unity <path to Unity.exe>."
     exit 1
   }
   . $resolver
   try { $Unity = Resolve-UnityEditor $editor }
   catch { Write-Error "$($_.Exception.Message) — or pass -Unity <path to Unity.exe>."; exit 1 }
+} elseif (-not (Test-Path -LiteralPath $Unity)) {
+  # The sibling consumer (Atelier's run-editmode-tests.ps1) validates its override; taking one on
+  # trust here would surface a typo as a raw Start-Process exception below, AFTER Remove-Item has
+  # already destroyed the previous run's log.
+  Write-Error "-Unity '$Unity' does not exist — pass a path to Unity.exe, or omit -Unity to resolve it from TestEditor's pinned version."
+  exit 1
 }
 
 if (Test-Path $log) { Remove-Item $log }
