@@ -12,7 +12,9 @@
 [CmdletBinding()]
 param(
   [string]$AtelierRoot = '',
-  [string]$Unity = 'C:/Program Files/Unity/Hub/Editor/2022.3.22f1/Editor/Unity.exe'
+  # Unity.exe for the batchmode run. Empty resolves it from TestEditor's own pinned version via the
+  # workspace's tools/unity-editor.ps1. Pass one to override.
+  [string]$Unity = ''
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -43,6 +45,23 @@ if (-not (Test-Path $editor)) {
   }
   Write-Host "TestEditor missing — provisioning."
   & pwsh $setup -Sync
+}
+
+# Resolved AFTER the provisioning above, which is what guarantees TestEditor has the
+# ProjectVersion.txt the resolver reads. The ladder (Unity Hub registry, then Hub's default install
+# dir) lives in the Atelier workspace because this gate and Atelier's EditMode runner are its two
+# consumers, and both had independently hardcoded the same "…/2022.3.22f1/Editor/Unity.exe". A
+# checkout that cannot reach it cannot reach TestEditor or the provisioner either, so this refuses
+# in the same vocabulary as the block above rather than guessing a path.
+if (-not $Unity) {
+  $resolver = Join-Path $AtelierRoot 'tools/unity-editor.ps1'
+  if (-not (Test-Path $resolver)) {
+    Write-Error "AtelierRoot '$AtelierRoot' has no tools/unity-editor.ps1 — pass -AtelierRoot <path to the Atelier workspace root>, or -Unity <path to Unity.exe>."
+    exit 1
+  }
+  . $resolver
+  try { $Unity = Resolve-UnityEditor $editor }
+  catch { Write-Error "$($_.Exception.Message) — or pass -Unity <path to Unity.exe>."; exit 1 }
 }
 
 if (Test-Path $log) { Remove-Item $log }
