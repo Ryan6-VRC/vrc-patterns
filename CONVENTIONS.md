@@ -31,7 +31,7 @@ A folder under `compositions/` is Module-shaped and is gated as an entry, but is
 
 ## `compositions/`
 
-A **composition** is a runnable arrangement of two or more entries, committed as a prefab rather than written up, because prose is lossy about arrangement specifically: a fact survives being stated, but a graph of nodes, weights and solve order re-derives at about what building it fresh cost. Its README records the entry commits it was built against, since a composition rots when anything it depends on changes shape.
+A **composition** is a runnable arrangement of two or more entries, committed as a prefab rather than written up, because prose is lossy about arrangement specifically: a fact survives being stated, but a graph of nodes, weights and solve order re-derives at about what building it fresh cost. It does **not** stamp the entry commits it was built against. The entries live in this repo beside it and are only ever checked out with it, so git already holds that state exactly and `git bisect` answers "when did this stop loading" better than a hand-copied hash — which, being narration no gate reads, goes stale or points at an off-main commit with nothing to catch it.
 
 Two rules an entry's shape does not already give it:
 
