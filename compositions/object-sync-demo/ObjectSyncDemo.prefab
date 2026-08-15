@@ -3196,6 +3196,7 @@ GameObject:
   - component: {fileID: 2647038140519094071}
   - component: {fileID: 3521799777454415681}
   - component: {fileID: 4942913033623851580}
+  - component: {fileID: 8107826600357367685}
   m_Layer: 0
   m_Name: ObjectSyncDemo
   m_TagString: Untagged
@@ -3231,7 +3232,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7558452407470148927}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 575728033, guid: 58e2f01a24261a14cb82e6d3399e8b16, type: 3}
   m_Name: 
@@ -3344,7 +3345,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7558452407470148927}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 41250163, guid: 58e2f01a24261a14cb82e6d3399e8b16, type: 3}
   m_Name: 
@@ -3484,7 +3485,7 @@ MonoBehaviour:
           type: 5
         menus:
         - menu:
-            version: 0
+            version: 1
             fileID: 0
             guid: 
             id: ac9dc8e1711631e44aace9e4b2829525|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/built/Demo_Fx_Menu.asset
@@ -3535,6 +3536,50 @@ MonoBehaviour:
         removePrefixes: []
         addPrefix: 
         useSecurityForToggle: 0
+--- !u!114 &8107826600357367685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7558452407470148927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 3
+  unityVersion: 2022.3.22f1
+  vrcfuryVersion: 1.1414.0
+  somethingIsBroken: 0
+  config:
+    features: []
+  content:
+    rid: 6799781568546865154
+  references:
+    version: 2
+    RefIds:
+    - rid: 6799781568546865154
+      type: {class: ApplyDuringUpload, ns: VF.Model.Feature, asm: VRCFury}
+      data:
+        version: 0
+        action:
+          actions:
+          - rid: 6799781568546865155
+    - rid: 6799781568546865155
+      type: {class: AnimationClipAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 0
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        clip:
+          version: 1
+          fileID: 0
+          guid: 
+          id: 47cb234dadfab214e8d7adffc703bb82|Packages/com.ryan6vrc.patterns/compositions/object-sync-demo/assets/PinEnable.anim
+          objRef: {fileID: 7400000, guid: 47cb234dadfab214e8d7adffc703bb82, type: 2}
 --- !u!1 &7767867692484958957
 GameObject:
   m_ObjectHideFlags: 0

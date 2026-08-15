@@ -6,24 +6,25 @@ Worth reading as a worked example of three things beyond world sync: a **hand-mo
 
 ## What it composes
 
-| entry | built against | what it contributes |
-|---|---|---|
-| `object-sync` | `14ab278` | absolute world position + rotation over an animator channel |
-| `word-channel` | `14ab278` | the wire underneath it (reached through `object-sync`) |
-| `anti-cull` | `cecaecc` | keeps a view-culled wearer's decode running |
-| `debug-shaders` | `2bd92bd` | the hand tablet's numeric readout and the world-coordinate cube |
+| entry | what it contributes |
+|---|---|
+| `object-sync` | absolute world position + rotation over an animator channel |
+| `word-channel` | the wire underneath it (reached through `object-sync`) |
+| `anti-cull` | keeps a view-culled wearer's decode running |
+| `debug-shaders` | the hand tablet's numeric readout and the world-coordinate cube |
 
 Its own contribution, belonging to no entry: the raycast placement mode, the three-mode placement multiplexer, and the clips that drive the tablet.
 
-**The stamp is those four commits.** A composition depends on N entries and rots when any of them changes shape, so the commits are what make "this stopped loading" bisectable rather than archaeological. Re-stamp when you rebuild against newer entries.
-
 ## Install
 
-Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anchor` and `HandL_Anchor` are VRCFury `ArmatureLink`s targeting the humanoid **RightHand** and **LeftHand** bones, so they resolve on any humanoid rig without naming a bone or pointing at an object. The rig is world-pinned by construction, so at edit time the anchors line up with the hand bones only while the avatar sits at the origin; off-origin it visually detaches from the body. That is correct, not breakage.
+Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anchor` and `HandL_Anchor` are VRCFury `ArmatureLink`s targeting the humanoid **RightHand** and **LeftHand** bones, so they resolve on any humanoid rig without naming a bone or pointing at an object. It builds correctly from any scene position and at any avatar scale, and the rig rides the body while you author rather than snapping to the origin: the root's two pinning constraints ship **disabled**, and a VRCFury `ApplyDuringUpload` re-enables them during the build, so the hand seams capture the poses authored on the avatar instead of the origin-parked ones an edit-time constraint solve would yank them to.
+
+**Do not enable those two constraints** to make the editor view look world-pinned. An enabled pin at edit time is what makes a keep-offsets seam bake the wrong offsets, and a re-baked pin is the failure the swap exists to prevent — `../../../docs/gimmicks.md` §Constraint patterns owns the rule and the trap it replaces.
 
 ## The arrangement, which is the point
 
-    ObjectSyncDemo         VRCParentConstraint + VRCScaleConstraint -> World   [VF FullController = Demo_Fx]
+    ObjectSyncDemo         VRCParentConstraint + VRCScaleConstraint -> World, both disabled in the editor
+                           [VF FullController = Demo_Fx] [VF ApplyDuringUpload = assets/PinEnable.anim]
     |- Display_Source      src0 = ObjectSync/Sync, src1 = ObjectSync/Rig/Prop/Display
     |- Prop_Damped         src0 = Display_Source, src1 = self
     |  `- Cube             the carried prop (+ DepthLight)   [VF Toggle = Wireframe]
@@ -36,7 +37,9 @@ Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anc
     |- ObjectSync          the entry: Rig / Sync_Target / Sync
     `- AntiCull
 
-This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law): `ObjectSyncDemo` is the world pin, `Display_Source` the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. The damper sits under a pinned parent because a damper whose parent moves is dragged by its parent's motion.
+This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law): `ObjectSyncDemo` is the world pin, `Display_Source` the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. The damper sits under a pinned parent because a damper whose parent moves is dragged by its parent's motion. Read the two subtrees by role: `ObjectSync` is the measurement rig, self-pinned inside its own `Rig`; the `Display_Source → Prop_Damped → Cube` chain is the content the measurement drives.
+
+**`PinEnable.anim` is hand-maintained and ungated, so its content is specified here.** Two float curves, both `attribute: m_Enabled` at `path: ""` (an `ApplyDuringUpload` clip resolves against its own GameObject, which is the prefab root) with value `1` — one targeting the root's `VRCParentConstraint`, one its `VRCScaleConstraint`. The gate holds `built/` against `controller.yaml` and never opens `assets/`, so a curve dropped or retargeted here leaves every check green and surfaces only as a mislinked hand on someone else's avatar.
 
 **The tuned numbers, and why they are what they are.** `Prop_Damped` runs `1 : 0` on the wearer and `0.05 : 1` on a remote — undamped locally so a grab has nothing to fight, damped remotely because that is the only side with a stepping reconstruction to smooth. Rotation is left undamped: position wants lag where rotation reads as sluggishness. `Panel` and `HandOffset` carry hand-placement offsets set by eye against a real head-height view; they are taste, they are why this composition exists as a prefab rather than a description, and there is no derivation to recover them from.
 
@@ -69,6 +72,8 @@ One post-generation deviation, applied in `demo_document()` which owns the reaso
 `object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window.
 
 Measured on this arrangement against a spawned remote clone, with the clone's reconstruction engaged and its decode certified: reconstruction converges **1.74 mm / 0.00°**, and Freeze drifts 0.06 mm under a 2 m shove.
+
+The hand seams capture independently of where the avatar sits and how it is scaled: built anchor-to-bone error is **≤ 1 µm** at the origin, at (3, 0, −2), and at avatar root scale 1.7 — against **3.61 m** and **0.72 m** for the latter two with the pins left enabled at edit time. Scale is the case position alone cannot expose, and the one the shipped reference never exercised.
 
 ## Provenance
 
