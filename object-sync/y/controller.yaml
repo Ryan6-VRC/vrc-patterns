@@ -158,6 +158,7 @@ parameters:
   ObjectSync/B/Prop/RA/Z/B1: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B2: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B3: { type: float, scratch: true }
+  ObjectSync/B/Acquired: { type: float, scratch: true }
   ObjectSync/D/Prop/PX/C: { type: float, aap: true }
   ObjectSync/D/Prop/PX/F: { type: float, aap: true }
   ObjectSync/D/Prop/PY/C: { type: float, aap: true }
@@ -554,6 +555,7 @@ layers:
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
+                ObjectSync/B/Acquired: ObjectSync/Ch/Acquired
         transitions:
           - { to: Odd, when: [ ObjectSync/True is true ] }
       Odd:
@@ -604,6 +606,7 @@ layers:
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
+                ObjectSync/B/Acquired: ObjectSync/Ch/Acquired
         transitions:
           - { to: Even, when: [ ObjectSync/True is true ] }
     default: Even
@@ -704,7 +707,7 @@ layers:
         motion: { clip: follow_recon }
     any:
       - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative from frame 1
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Acquired greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client (docstring)
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/B/Acquired greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the Floatify copy so the gate and the decode inputs share one latency path
       - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:

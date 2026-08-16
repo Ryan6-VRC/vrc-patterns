@@ -689,7 +689,9 @@ def load_word_channel():
 
 # ------------------------------------------------------------- the layers ---
 
-def bool_float(p, name):
+def word_float(p, name):
+    """`/B/` is the decode's copy namespace — every word limb's one-frame-old
+    float mirror, bytes and bools alike — not a bool namespace."""
     return f"{p}/B/{name}"
 
 
@@ -707,13 +709,23 @@ def floatify_layer(doc, c, numbers, bools):
     the byte moves and the bool tail compensates). One driver snapshots a
     committed axis whole — commit and receive both land a word's limbs in a
     single driver frame — so every limb reaches the decode one frame later
-    TOGETHER and the assembled pair can never mix old and new."""
+    TOGETHER and the assembled pair can never mix old and new.
+
+    `<channel>/Acquired` rides the same copy for the same reason: the receiver
+    certifies it in the very driver that applies the final batch's words, so a
+    gate reading it raw fires one frame before the copies of those words land —
+    and on a head-landing cold join the Follow engage would render the last
+    group fully stale for that frame. Engaging on the copy keeps the gate and
+    the decode's inputs on one latency path."""
     p = c["prefix"]
     copies = {}
     for w in numbers + bools:
-        f = bool_float(p, w["name"])
+        f = word_float(p, w["name"])
         doc.param(f"  {f}: {{ type: float, scratch: true }}", f)
         copies[f] = w["name"]
+    acq_copy = f"{p}/B/Acquired"
+    doc.param(f"  {acq_copy}: {{ type: float, scratch: true }}", acq_copy)
+    copies[acq_copy] = f"{c['channel']}/Acquired"
     out = [f"  - name: {p}/Floatify", "    states:"]
     for cur, nxt in (("Even", "Odd"), ("Odd", "Even")):
         out.extend(state(cur, driver(copies=copies),
@@ -736,10 +748,10 @@ def assemble_children(doc, c, dest, byte_word, bool_words, nbits):
     kids = []
     base = safe(dest)
     kids.append("{ clip: " + doc.clip(f"asm_{base}_{bw}", {dest: bw}) +
-                f", directWeight: {bool_float(p, byte_word)} }}")
+                f", directWeight: {word_float(p, byte_word)} }}")
     for k, w in enumerate(bws):
         kids.append("{ clip: " + doc.clip(f"asm_{base}_{w}", {dest: w}) +
-                    f", directWeight: {bool_float(p, bool_words[k])} }}")
+                    f", directWeight: {word_float(p, bool_words[k])} }}")
     return kids
 
 
@@ -929,6 +941,13 @@ def follow_layer(doc, c):
     than that test and is one loop faster on the head phase; it is the mode
     independence that is the reason to prefer it, not a latency win.
 
+    The engage rung reads `Acquired` through its Floatify copy (`B/Acquired`),
+    never raw. The receiver certifies `Acquired` in the same driver that applies
+    the final batch's words, so the raw param leads the decode's `B/` inputs by
+    one frame — engaging on it renders the last group stale for the certifying
+    frame of a head-landing cold join. The copy puts the gate on the decode's
+    own latency path; `floatify_layer`'s docstring carries the mechanism.
+
     Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
     the engage rung is an AnyState rung with `canTransitionToSelf: false`, which
     together are what make `Follow` LATCH: once engaged it stays engaged until
@@ -957,8 +976,9 @@ def follow_layer(doc, c):
         "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
         "   # the wearer's pose is authoritative from frame 1",
         f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5, "
-        f"{c['channel']}/Acquired greater 0.5 ], canTransitionToSelf: false }}"
-        "   # a complete word table has landed on THIS client (docstring)",
+        f"{p}/B/Acquired greater 0.5 ], canTransitionToSelf: false }}"
+        "   # a complete word table has landed on THIS client, read through the"
+        " Floatify copy so the gate and the decode inputs share one latency path",
         f"      - {{ to: Release, when: [ IsLocal is false, {p}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
@@ -1691,21 +1711,31 @@ def check():
         # fast path the copy does not delay, and that mixed-latency assembly
         # was a measured one-frame display excursion: 2 m per cell crossing,
         # ±62 m across a coarse byte boundary (emulator + shipping client).
+        # The copy line is asserted VERBATIM (`B/<word>: <word>`) in BOTH
+        # Floatify states, so neither a wrong source nor an Even/Odd divergence
+        # can pass; and the raw-weight negative sweeps the WHOLE document, so a
+        # future layer cannot reopen the fast path outside Decode.
         word_names = [w["name"] for w in facts["numberWords"]] + \
                      [w["name"] for w in facts["boolWords"]]
         flo = rung_block(text, f"{pf}/Floatify")
-        assert_(one_driver_has(flo, [f"{pf}/B/{n}" for n in word_names]),
-                f"Floatify copies all {len(word_names)} word params "
-                "(bytes and bools) in one driver")
+        for st in ("Even", "Odd"):
+            blk = state_block(flo, st)
+            assert_(all(f"{pf}/B/{n}: {n}" in blk for n in word_names),
+                    f"Floatify {st} copies all {len(word_names)} word params "
+                    "(bytes and bools), each from its own word")
+            assert_(f"{pf}/B/Acquired: {cfg['channel']}/Acquired" in blk,
+                    f"Floatify {st} copies {cfg['channel']}/Acquired — the "
+                    "engage gate rides the decode's own latency path")
         dec = rung_block(text, f"{pf}/Decode")
         assert_(all(f"directWeight: {pf}/B/{n} }}" in dec
                     for n in (w["name"] for w in facts["numberWords"])),
                 "every decode byte weight reads the Floatify copy")
-        assert_(not any(f"directWeight: {n} }}" in dec for n in word_names),
-                "no decode weight reads a raw word param (the fast path "
-                "that skews the assembly)")
+        assert_(not any(f"directWeight: {n} }}" in text for n in word_names),
+                "no tree weight anywhere reads a raw word param (the fast "
+                "path that skews the assembly)")
 
-        # Negative control: the assertion above must be able to fail.
+        # Negative control for every one_driver_has probe (the commit-driver
+        # assertions above): it must be able to fail.
         assert_(not one_driver_has(text, [cfg["objects"][0]["name"] + "/PX/C",
                                           "NoSuchWord/Never"]),
                 "commit-driver probe rejects a word that is not there")
@@ -1987,10 +2017,13 @@ def check():
         assert_(len(engaging) == 1
                 and "IsLocal is false" in engaging[0]
                 and f"{pf}/Enable greater 0.5" in engaging[0]
-                and f"{acq} greater 0.5" in engaging[0],
-                "the one rung into Follow requires !IsLocal AND Enable AND "
-                "Ch/Acquired — so the wearer's own copy never rides the decode, "
-                "and a late joiner never sees the all-zero word table's corner")
+                and f"{pf}/B/Acquired greater 0.5" in engaging[0]
+                and f"{acq} greater" not in engaging[0],
+                "the one rung into Follow requires !IsLocal AND Enable AND the "
+                "FLOATIFY COPY of Ch/Acquired — raw Acquired certifies in the "
+                "same driver frame that writes the final batch's words, one "
+                "frame ahead of their copies, so engaging on it would render "
+                "the last group stale on a head-landing cold join")
         exits = [r for r in rungs if r.startswith("- { to: Release")]
         assert_(len(exits) == 1 and "Acquired" not in exits[0]
                 and "Cycle" not in exits[0],
