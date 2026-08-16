@@ -115,6 +115,14 @@ parameters:
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
   ObjectSync/Enable: { type: float, default: 0, vrc: { type: bool, synced: true, saved: false } }
+  ObjectSync/B/Prop/PX/C: { type: float, scratch: true }
+  ObjectSync/B/Prop/PX/F: { type: float, scratch: true }
+  ObjectSync/B/Prop/PY/C: { type: float, scratch: true }
+  ObjectSync/B/Prop/PY/F: { type: float, scratch: true }
+  ObjectSync/B/Prop/PZ/C: { type: float, scratch: true }
+  ObjectSync/B/Prop/PZ/F: { type: float, scratch: true }
+  ObjectSync/B/Prop/RA/X: { type: float, scratch: true }
+  ObjectSync/B/Prop/RA/Z: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C0: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C2: { type: float, scratch: true }
@@ -150,6 +158,7 @@ parameters:
   ObjectSync/B/Prop/RA/Z/B1: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B2: { type: float, scratch: true }
   ObjectSync/B/Prop/RA/Z/B3: { type: float, scratch: true }
+  ObjectSync/B/Acquired: { type: float, scratch: true }
   ObjectSync/D/Prop/PX/C: { type: float, aap: true }
   ObjectSync/D/Prop/PX/F: { type: float, aap: true }
   ObjectSync/D/Prop/PY/C: { type: float, aap: true }
@@ -503,6 +512,14 @@ layers:
         behaviours:
           - driver:
               copy:
+                ObjectSync/B/Prop/PX/C: Prop/PX/C
+                ObjectSync/B/Prop/PX/F: Prop/PX/F
+                ObjectSync/B/Prop/PY/C: Prop/PY/C
+                ObjectSync/B/Prop/PY/F: Prop/PY/F
+                ObjectSync/B/Prop/PZ/C: Prop/PZ/C
+                ObjectSync/B/Prop/PZ/F: Prop/PZ/F
+                ObjectSync/B/Prop/RA/X: Prop/RA/X
+                ObjectSync/B/Prop/RA/Z: Prop/RA/Z
                 ObjectSync/B/Prop/PX/C0: Prop/PX/C0
                 ObjectSync/B/Prop/PX/C1: Prop/PX/C1
                 ObjectSync/B/Prop/PX/C2: Prop/PX/C2
@@ -538,6 +555,7 @@ layers:
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
+                ObjectSync/B/Acquired: ObjectSync/Ch/Acquired
         transitions:
           - { to: Odd, when: [ ObjectSync/True is true ] }
       Odd:
@@ -545,6 +563,14 @@ layers:
         behaviours:
           - driver:
               copy:
+                ObjectSync/B/Prop/PX/C: Prop/PX/C
+                ObjectSync/B/Prop/PX/F: Prop/PX/F
+                ObjectSync/B/Prop/PY/C: Prop/PY/C
+                ObjectSync/B/Prop/PY/F: Prop/PY/F
+                ObjectSync/B/Prop/PZ/C: Prop/PZ/C
+                ObjectSync/B/Prop/PZ/F: Prop/PZ/F
+                ObjectSync/B/Prop/RA/X: Prop/RA/X
+                ObjectSync/B/Prop/RA/Z: Prop/RA/Z
                 ObjectSync/B/Prop/PX/C0: Prop/PX/C0
                 ObjectSync/B/Prop/PX/C1: Prop/PX/C1
                 ObjectSync/B/Prop/PX/C2: Prop/PX/C2
@@ -580,6 +606,7 @@ layers:
                 ObjectSync/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 ObjectSync/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 ObjectSync/B/Prop/RA/Z/B3: Prop/RA/Z/B3
+                ObjectSync/B/Acquired: ObjectSync/Ch/Acquired
         transitions:
           - { to: Even, when: [ ObjectSync/True is true ] }
     default: Even
@@ -597,45 +624,45 @@ layers:
           tree: direct
           name: DecodeSum
           children:
-            - { clip: asm_objectsync_d_prop_px_c_32, directWeight: Prop/PX/C }
+            - { clip: asm_objectsync_d_prop_px_c_32, directWeight: ObjectSync/B/Prop/PX/C }
             - { clip: asm_objectsync_d_prop_px_c_16, directWeight: ObjectSync/B/Prop/PX/C0 }
             - { clip: asm_objectsync_d_prop_px_c_8, directWeight: ObjectSync/B/Prop/PX/C1 }
             - { clip: asm_objectsync_d_prop_px_c_4, directWeight: ObjectSync/B/Prop/PX/C2 }
             - { clip: asm_objectsync_d_prop_px_c_2, directWeight: ObjectSync/B/Prop/PX/C3 }
             - { clip: asm_objectsync_d_prop_px_c_1, directWeight: ObjectSync/B/Prop/PX/C4 }
-            - { clip: asm_objectsync_d_prop_px_f_16, directWeight: Prop/PX/F }
+            - { clip: asm_objectsync_d_prop_px_f_16, directWeight: ObjectSync/B/Prop/PX/F }
             - { clip: asm_objectsync_d_prop_px_f_8, directWeight: ObjectSync/B/Prop/PX/F0 }
             - { clip: asm_objectsync_d_prop_px_f_4, directWeight: ObjectSync/B/Prop/PX/F1 }
             - { clip: asm_objectsync_d_prop_px_f_2, directWeight: ObjectSync/B/Prop/PX/F2 }
             - { clip: asm_objectsync_d_prop_px_f_1, directWeight: ObjectSync/B/Prop/PX/F3 }
-            - { clip: asm_objectsync_d_prop_py_c_32, directWeight: Prop/PY/C }
+            - { clip: asm_objectsync_d_prop_py_c_32, directWeight: ObjectSync/B/Prop/PY/C }
             - { clip: asm_objectsync_d_prop_py_c_16, directWeight: ObjectSync/B/Prop/PY/C0 }
             - { clip: asm_objectsync_d_prop_py_c_8, directWeight: ObjectSync/B/Prop/PY/C1 }
             - { clip: asm_objectsync_d_prop_py_c_4, directWeight: ObjectSync/B/Prop/PY/C2 }
             - { clip: asm_objectsync_d_prop_py_c_2, directWeight: ObjectSync/B/Prop/PY/C3 }
             - { clip: asm_objectsync_d_prop_py_c_1, directWeight: ObjectSync/B/Prop/PY/C4 }
-            - { clip: asm_objectsync_d_prop_py_f_16, directWeight: Prop/PY/F }
+            - { clip: asm_objectsync_d_prop_py_f_16, directWeight: ObjectSync/B/Prop/PY/F }
             - { clip: asm_objectsync_d_prop_py_f_8, directWeight: ObjectSync/B/Prop/PY/F0 }
             - { clip: asm_objectsync_d_prop_py_f_4, directWeight: ObjectSync/B/Prop/PY/F1 }
             - { clip: asm_objectsync_d_prop_py_f_2, directWeight: ObjectSync/B/Prop/PY/F2 }
             - { clip: asm_objectsync_d_prop_py_f_1, directWeight: ObjectSync/B/Prop/PY/F3 }
-            - { clip: asm_objectsync_d_prop_pz_c_32, directWeight: Prop/PZ/C }
+            - { clip: asm_objectsync_d_prop_pz_c_32, directWeight: ObjectSync/B/Prop/PZ/C }
             - { clip: asm_objectsync_d_prop_pz_c_16, directWeight: ObjectSync/B/Prop/PZ/C0 }
             - { clip: asm_objectsync_d_prop_pz_c_8, directWeight: ObjectSync/B/Prop/PZ/C1 }
             - { clip: asm_objectsync_d_prop_pz_c_4, directWeight: ObjectSync/B/Prop/PZ/C2 }
             - { clip: asm_objectsync_d_prop_pz_c_2, directWeight: ObjectSync/B/Prop/PZ/C3 }
             - { clip: asm_objectsync_d_prop_pz_c_1, directWeight: ObjectSync/B/Prop/PZ/C4 }
-            - { clip: asm_objectsync_d_prop_pz_f_16, directWeight: Prop/PZ/F }
+            - { clip: asm_objectsync_d_prop_pz_f_16, directWeight: ObjectSync/B/Prop/PZ/F }
             - { clip: asm_objectsync_d_prop_pz_f_8, directWeight: ObjectSync/B/Prop/PZ/F0 }
             - { clip: asm_objectsync_d_prop_pz_f_4, directWeight: ObjectSync/B/Prop/PZ/F1 }
             - { clip: asm_objectsync_d_prop_pz_f_2, directWeight: ObjectSync/B/Prop/PZ/F2 }
             - { clip: asm_objectsync_d_prop_pz_f_1, directWeight: ObjectSync/B/Prop/PZ/F3 }
-            - { clip: asm_objectsync_d_prop_ra_x_16, directWeight: Prop/RA/X }
+            - { clip: asm_objectsync_d_prop_ra_x_16, directWeight: ObjectSync/B/Prop/RA/X }
             - { clip: asm_objectsync_d_prop_ra_x_8, directWeight: ObjectSync/B/Prop/RA/X/B0 }
             - { clip: asm_objectsync_d_prop_ra_x_4, directWeight: ObjectSync/B/Prop/RA/X/B1 }
             - { clip: asm_objectsync_d_prop_ra_x_2, directWeight: ObjectSync/B/Prop/RA/X/B2 }
             - { clip: asm_objectsync_d_prop_ra_x_1, directWeight: ObjectSync/B/Prop/RA/X/B3 }
-            - { clip: asm_objectsync_d_prop_ra_z_16, directWeight: Prop/RA/Z }
+            - { clip: asm_objectsync_d_prop_ra_z_16, directWeight: ObjectSync/B/Prop/RA/Z }
             - { clip: asm_objectsync_d_prop_ra_z_8, directWeight: ObjectSync/B/Prop/RA/Z/B0 }
             - { clip: asm_objectsync_d_prop_ra_z_4, directWeight: ObjectSync/B/Prop/RA/Z/B1 }
             - { clip: asm_objectsync_d_prop_ra_z_2, directWeight: ObjectSync/B/Prop/RA/Z/B2 }
@@ -680,7 +707,7 @@ layers:
         motion: { clip: follow_recon }
     any:
       - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative from frame 1
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ch/Acquired greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client (docstring)
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/B/Acquired greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the Floatify copy so the gate and the decode inputs share one latency path
       - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:
