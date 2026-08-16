@@ -641,7 +641,7 @@ def build(c):
     # is what Follow's own rungs evaluate.
 
     layers = list(wc["layers"])
-    layers.append(floatify_layer(doc, c, bools))
+    layers.append(floatify_layer(doc, c, numbers, bools))
     layers.append(decode_layer(doc, c, d))
     layers.append(display_layer(doc, c, d))
     layers.append(follow_layer(doc, c))
@@ -693,19 +693,27 @@ def bool_float(p, name):
     return f"{p}/B/{name}"
 
 
-def floatify_layer(doc, c, bools):
-    """Word bools -> float scratch, every frame.
+def floatify_layer(doc, c, numbers, bools):
+    """Word bools AND byte words -> float scratch, every frame.
 
     A blend tree evaluates only Float parameters — a bool named as a weight
     reads 0 forever — and a parameter driver runs on state ENTER, so the copy
     needs a state the layer re-enters every frame. Two states alternating is
-    that; the decode reads the floats one frame behind the words."""
+    that; the decode reads the floats one frame behind the words.
+
+    The bytes ride the same copy for coherence, not for type: a tree could
+    read them raw, and that fast path was a measured one-frame 2 m display
+    excursion per cell crossing (±62 m across a coarse byte boundary, where
+    the byte moves and the bool tail compensates). One driver snapshots a
+    committed axis whole — commit and receive both land a word's limbs in a
+    single driver frame — so every limb reaches the decode one frame later
+    TOGETHER and the assembled pair can never mix old and new."""
     p = c["prefix"]
     copies = {}
-    for b in bools:
-        f = bool_float(p, b["name"])
+    for w in numbers + bools:
+        f = bool_float(p, w["name"])
         doc.param(f"  {f}: {{ type: float, scratch: true }}", f)
-        copies[f] = b["name"]
+        copies[f] = w["name"]
     out = [f"  - name: {p}/Floatify", "    states:"]
     for cur, nxt in (("Even", "Odd"), ("Odd", "Even")):
         out.extend(state(cur, driver(copies=copies),
@@ -728,7 +736,7 @@ def assemble_children(doc, c, dest, byte_word, bool_words, nbits):
     kids = []
     base = safe(dest)
     kids.append("{ clip: " + doc.clip(f"asm_{base}_{bw}", {dest: bw}) +
-                f", directWeight: {byte_word} }}")
+                f", directWeight: {bool_float(p, byte_word)} }}")
     for k, w in enumerate(bws):
         kids.append("{ clip: " + doc.clip(f"asm_{base}_{w}", {dest: w}) +
                     f", directWeight: {bool_float(p, bool_words[k])} }}")
@@ -736,9 +744,12 @@ def assemble_children(doc, c, dest, byte_word, bool_words, nbits):
 
 
 def decode_layer(doc, c, d):
-    """Side-agnostic: every client (the wearer included) reads the same word
-    params and assembles the same AAPs. No state is carried across frames, so a
-    culling pause costs staleness and never a corrupt decode."""
+    """Side-agnostic: every client (the wearer included) reads the same
+    Floatify copies of the word params and assembles the same AAPs. No state
+    is carried across frames, so a culling pause costs staleness and never a
+    corrupt decode. Weights name only `B/` copies, never a word param —
+    `--check`'s decode-coherence probe holds that, and why it matters is
+    `floatify_layer`'s docstring."""
     p = c["prefix"]
     kids = []
     for ob in c["objects"]:
@@ -1673,6 +1684,26 @@ def check():
                 assert_(all(f"{done_flag(cfg, ob, x)}: 0" in rung_block(text, lay)
                             for x in comps),
                         f"{lay}: Commit lowers every flag, releasing the walks")
+
+        # Decode coherence: every word limb — bytes included — reaches the
+        # decode through the SAME Floatify copy, so an axis's assembled pair
+        # flips in one frame. A tree weight read straight off a byte word is a
+        # fast path the copy does not delay, and that mixed-latency assembly
+        # was a measured one-frame display excursion: 2 m per cell crossing,
+        # ±62 m across a coarse byte boundary (emulator + shipping client).
+        word_names = [w["name"] for w in facts["numberWords"]] + \
+                     [w["name"] for w in facts["boolWords"]]
+        flo = rung_block(text, f"{pf}/Floatify")
+        assert_(one_driver_has(flo, [f"{pf}/B/{n}" for n in word_names]),
+                f"Floatify copies all {len(word_names)} word params "
+                "(bytes and bools) in one driver")
+        dec = rung_block(text, f"{pf}/Decode")
+        assert_(all(f"directWeight: {pf}/B/{n} }}" in dec
+                    for n in (w["name"] for w in facts["numberWords"])),
+                "every decode byte weight reads the Floatify copy")
+        assert_(not any(f"directWeight: {n} }}" in dec for n in word_names),
+                "no decode weight reads a raw word param (the fast path "
+                "that skews the assembly)")
 
         # Negative control: the assertion above must be able to fail.
         assert_(not one_driver_has(text, [cfg["objects"][0]["name"] + "/PX/C",

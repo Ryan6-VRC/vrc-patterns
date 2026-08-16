@@ -159,6 +159,22 @@ parameters:
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
   ObjectSync/Enable: { type: float, default: 0, vrc: { type: bool, synced: true, saved: false } }
+  ObjectSync/B/PropA/PX/C: { type: float, scratch: true }
+  ObjectSync/B/PropA/PX/F: { type: float, scratch: true }
+  ObjectSync/B/PropA/PY/C: { type: float, scratch: true }
+  ObjectSync/B/PropA/PY/F: { type: float, scratch: true }
+  ObjectSync/B/PropA/PZ/C: { type: float, scratch: true }
+  ObjectSync/B/PropA/PZ/F: { type: float, scratch: true }
+  ObjectSync/B/PropA/RA/X: { type: float, scratch: true }
+  ObjectSync/B/PropA/RA/Z: { type: float, scratch: true }
+  ObjectSync/B/PropB/PX/C: { type: float, scratch: true }
+  ObjectSync/B/PropB/PX/F: { type: float, scratch: true }
+  ObjectSync/B/PropB/PY/C: { type: float, scratch: true }
+  ObjectSync/B/PropB/PY/F: { type: float, scratch: true }
+  ObjectSync/B/PropB/PZ/C: { type: float, scratch: true }
+  ObjectSync/B/PropB/PZ/F: { type: float, scratch: true }
+  ObjectSync/B/PropB/RA/X: { type: float, scratch: true }
+  ObjectSync/B/PropB/RA/Z: { type: float, scratch: true }
   ObjectSync/B/PropA/PX/C0: { type: float, scratch: true }
   ObjectSync/B/PropA/PX/C1: { type: float, scratch: true }
   ObjectSync/B/PropA/PX/C2: { type: float, scratch: true }
@@ -887,6 +903,22 @@ layers:
         behaviours:
           - driver:
               copy:
+                ObjectSync/B/PropA/PX/C: PropA/PX/C
+                ObjectSync/B/PropA/PX/F: PropA/PX/F
+                ObjectSync/B/PropA/PY/C: PropA/PY/C
+                ObjectSync/B/PropA/PY/F: PropA/PY/F
+                ObjectSync/B/PropA/PZ/C: PropA/PZ/C
+                ObjectSync/B/PropA/PZ/F: PropA/PZ/F
+                ObjectSync/B/PropA/RA/X: PropA/RA/X
+                ObjectSync/B/PropA/RA/Z: PropA/RA/Z
+                ObjectSync/B/PropB/PX/C: PropB/PX/C
+                ObjectSync/B/PropB/PX/F: PropB/PX/F
+                ObjectSync/B/PropB/PY/C: PropB/PY/C
+                ObjectSync/B/PropB/PY/F: PropB/PY/F
+                ObjectSync/B/PropB/PZ/C: PropB/PZ/C
+                ObjectSync/B/PropB/PZ/F: PropB/PZ/F
+                ObjectSync/B/PropB/RA/X: PropB/RA/X
+                ObjectSync/B/PropB/RA/Z: PropB/RA/Z
                 ObjectSync/B/PropA/PX/C0: PropA/PX/C0
                 ObjectSync/B/PropA/PX/C1: PropA/PX/C1
                 ObjectSync/B/PropA/PX/C2: PropA/PX/C2
@@ -964,6 +996,22 @@ layers:
         behaviours:
           - driver:
               copy:
+                ObjectSync/B/PropA/PX/C: PropA/PX/C
+                ObjectSync/B/PropA/PX/F: PropA/PX/F
+                ObjectSync/B/PropA/PY/C: PropA/PY/C
+                ObjectSync/B/PropA/PY/F: PropA/PY/F
+                ObjectSync/B/PropA/PZ/C: PropA/PZ/C
+                ObjectSync/B/PropA/PZ/F: PropA/PZ/F
+                ObjectSync/B/PropA/RA/X: PropA/RA/X
+                ObjectSync/B/PropA/RA/Z: PropA/RA/Z
+                ObjectSync/B/PropB/PX/C: PropB/PX/C
+                ObjectSync/B/PropB/PX/F: PropB/PX/F
+                ObjectSync/B/PropB/PY/C: PropB/PY/C
+                ObjectSync/B/PropB/PY/F: PropB/PY/F
+                ObjectSync/B/PropB/PZ/C: PropB/PZ/C
+                ObjectSync/B/PropB/PZ/F: PropB/PZ/F
+                ObjectSync/B/PropB/RA/X: PropB/RA/X
+                ObjectSync/B/PropB/RA/Z: PropB/RA/Z
                 ObjectSync/B/PropA/PX/C0: PropA/PX/C0
                 ObjectSync/B/PropA/PX/C1: PropA/PX/C1
                 ObjectSync/B/PropA/PX/C2: PropA/PX/C2
@@ -1051,88 +1099,88 @@ layers:
           tree: direct
           name: DecodeSum
           children:
-            - { clip: asm_objectsync_d_propa_px_c_32, directWeight: PropA/PX/C }
+            - { clip: asm_objectsync_d_propa_px_c_32, directWeight: ObjectSync/B/PropA/PX/C }
             - { clip: asm_objectsync_d_propa_px_c_16, directWeight: ObjectSync/B/PropA/PX/C0 }
             - { clip: asm_objectsync_d_propa_px_c_8, directWeight: ObjectSync/B/PropA/PX/C1 }
             - { clip: asm_objectsync_d_propa_px_c_4, directWeight: ObjectSync/B/PropA/PX/C2 }
             - { clip: asm_objectsync_d_propa_px_c_2, directWeight: ObjectSync/B/PropA/PX/C3 }
             - { clip: asm_objectsync_d_propa_px_c_1, directWeight: ObjectSync/B/PropA/PX/C4 }
-            - { clip: asm_objectsync_d_propa_px_f_16, directWeight: PropA/PX/F }
+            - { clip: asm_objectsync_d_propa_px_f_16, directWeight: ObjectSync/B/PropA/PX/F }
             - { clip: asm_objectsync_d_propa_px_f_8, directWeight: ObjectSync/B/PropA/PX/F0 }
             - { clip: asm_objectsync_d_propa_px_f_4, directWeight: ObjectSync/B/PropA/PX/F1 }
             - { clip: asm_objectsync_d_propa_px_f_2, directWeight: ObjectSync/B/PropA/PX/F2 }
             - { clip: asm_objectsync_d_propa_px_f_1, directWeight: ObjectSync/B/PropA/PX/F3 }
-            - { clip: asm_objectsync_d_propa_py_c_32, directWeight: PropA/PY/C }
+            - { clip: asm_objectsync_d_propa_py_c_32, directWeight: ObjectSync/B/PropA/PY/C }
             - { clip: asm_objectsync_d_propa_py_c_16, directWeight: ObjectSync/B/PropA/PY/C0 }
             - { clip: asm_objectsync_d_propa_py_c_8, directWeight: ObjectSync/B/PropA/PY/C1 }
             - { clip: asm_objectsync_d_propa_py_c_4, directWeight: ObjectSync/B/PropA/PY/C2 }
             - { clip: asm_objectsync_d_propa_py_c_2, directWeight: ObjectSync/B/PropA/PY/C3 }
             - { clip: asm_objectsync_d_propa_py_c_1, directWeight: ObjectSync/B/PropA/PY/C4 }
-            - { clip: asm_objectsync_d_propa_py_f_16, directWeight: PropA/PY/F }
+            - { clip: asm_objectsync_d_propa_py_f_16, directWeight: ObjectSync/B/PropA/PY/F }
             - { clip: asm_objectsync_d_propa_py_f_8, directWeight: ObjectSync/B/PropA/PY/F0 }
             - { clip: asm_objectsync_d_propa_py_f_4, directWeight: ObjectSync/B/PropA/PY/F1 }
             - { clip: asm_objectsync_d_propa_py_f_2, directWeight: ObjectSync/B/PropA/PY/F2 }
             - { clip: asm_objectsync_d_propa_py_f_1, directWeight: ObjectSync/B/PropA/PY/F3 }
-            - { clip: asm_objectsync_d_propa_pz_c_32, directWeight: PropA/PZ/C }
+            - { clip: asm_objectsync_d_propa_pz_c_32, directWeight: ObjectSync/B/PropA/PZ/C }
             - { clip: asm_objectsync_d_propa_pz_c_16, directWeight: ObjectSync/B/PropA/PZ/C0 }
             - { clip: asm_objectsync_d_propa_pz_c_8, directWeight: ObjectSync/B/PropA/PZ/C1 }
             - { clip: asm_objectsync_d_propa_pz_c_4, directWeight: ObjectSync/B/PropA/PZ/C2 }
             - { clip: asm_objectsync_d_propa_pz_c_2, directWeight: ObjectSync/B/PropA/PZ/C3 }
             - { clip: asm_objectsync_d_propa_pz_c_1, directWeight: ObjectSync/B/PropA/PZ/C4 }
-            - { clip: asm_objectsync_d_propa_pz_f_16, directWeight: PropA/PZ/F }
+            - { clip: asm_objectsync_d_propa_pz_f_16, directWeight: ObjectSync/B/PropA/PZ/F }
             - { clip: asm_objectsync_d_propa_pz_f_8, directWeight: ObjectSync/B/PropA/PZ/F0 }
             - { clip: asm_objectsync_d_propa_pz_f_4, directWeight: ObjectSync/B/PropA/PZ/F1 }
             - { clip: asm_objectsync_d_propa_pz_f_2, directWeight: ObjectSync/B/PropA/PZ/F2 }
             - { clip: asm_objectsync_d_propa_pz_f_1, directWeight: ObjectSync/B/PropA/PZ/F3 }
-            - { clip: asm_objectsync_d_propa_ra_x_16, directWeight: PropA/RA/X }
+            - { clip: asm_objectsync_d_propa_ra_x_16, directWeight: ObjectSync/B/PropA/RA/X }
             - { clip: asm_objectsync_d_propa_ra_x_8, directWeight: ObjectSync/B/PropA/RA/X/B0 }
             - { clip: asm_objectsync_d_propa_ra_x_4, directWeight: ObjectSync/B/PropA/RA/X/B1 }
             - { clip: asm_objectsync_d_propa_ra_x_2, directWeight: ObjectSync/B/PropA/RA/X/B2 }
             - { clip: asm_objectsync_d_propa_ra_x_1, directWeight: ObjectSync/B/PropA/RA/X/B3 }
-            - { clip: asm_objectsync_d_propa_ra_z_16, directWeight: PropA/RA/Z }
+            - { clip: asm_objectsync_d_propa_ra_z_16, directWeight: ObjectSync/B/PropA/RA/Z }
             - { clip: asm_objectsync_d_propa_ra_z_8, directWeight: ObjectSync/B/PropA/RA/Z/B0 }
             - { clip: asm_objectsync_d_propa_ra_z_4, directWeight: ObjectSync/B/PropA/RA/Z/B1 }
             - { clip: asm_objectsync_d_propa_ra_z_2, directWeight: ObjectSync/B/PropA/RA/Z/B2 }
             - { clip: asm_objectsync_d_propa_ra_z_1, directWeight: ObjectSync/B/PropA/RA/Z/B3 }
-            - { clip: asm_objectsync_d_propb_px_c_32, directWeight: PropB/PX/C }
+            - { clip: asm_objectsync_d_propb_px_c_32, directWeight: ObjectSync/B/PropB/PX/C }
             - { clip: asm_objectsync_d_propb_px_c_16, directWeight: ObjectSync/B/PropB/PX/C0 }
             - { clip: asm_objectsync_d_propb_px_c_8, directWeight: ObjectSync/B/PropB/PX/C1 }
             - { clip: asm_objectsync_d_propb_px_c_4, directWeight: ObjectSync/B/PropB/PX/C2 }
             - { clip: asm_objectsync_d_propb_px_c_2, directWeight: ObjectSync/B/PropB/PX/C3 }
             - { clip: asm_objectsync_d_propb_px_c_1, directWeight: ObjectSync/B/PropB/PX/C4 }
-            - { clip: asm_objectsync_d_propb_px_f_16, directWeight: PropB/PX/F }
+            - { clip: asm_objectsync_d_propb_px_f_16, directWeight: ObjectSync/B/PropB/PX/F }
             - { clip: asm_objectsync_d_propb_px_f_8, directWeight: ObjectSync/B/PropB/PX/F0 }
             - { clip: asm_objectsync_d_propb_px_f_4, directWeight: ObjectSync/B/PropB/PX/F1 }
             - { clip: asm_objectsync_d_propb_px_f_2, directWeight: ObjectSync/B/PropB/PX/F2 }
             - { clip: asm_objectsync_d_propb_px_f_1, directWeight: ObjectSync/B/PropB/PX/F3 }
-            - { clip: asm_objectsync_d_propb_py_c_32, directWeight: PropB/PY/C }
+            - { clip: asm_objectsync_d_propb_py_c_32, directWeight: ObjectSync/B/PropB/PY/C }
             - { clip: asm_objectsync_d_propb_py_c_16, directWeight: ObjectSync/B/PropB/PY/C0 }
             - { clip: asm_objectsync_d_propb_py_c_8, directWeight: ObjectSync/B/PropB/PY/C1 }
             - { clip: asm_objectsync_d_propb_py_c_4, directWeight: ObjectSync/B/PropB/PY/C2 }
             - { clip: asm_objectsync_d_propb_py_c_2, directWeight: ObjectSync/B/PropB/PY/C3 }
             - { clip: asm_objectsync_d_propb_py_c_1, directWeight: ObjectSync/B/PropB/PY/C4 }
-            - { clip: asm_objectsync_d_propb_py_f_16, directWeight: PropB/PY/F }
+            - { clip: asm_objectsync_d_propb_py_f_16, directWeight: ObjectSync/B/PropB/PY/F }
             - { clip: asm_objectsync_d_propb_py_f_8, directWeight: ObjectSync/B/PropB/PY/F0 }
             - { clip: asm_objectsync_d_propb_py_f_4, directWeight: ObjectSync/B/PropB/PY/F1 }
             - { clip: asm_objectsync_d_propb_py_f_2, directWeight: ObjectSync/B/PropB/PY/F2 }
             - { clip: asm_objectsync_d_propb_py_f_1, directWeight: ObjectSync/B/PropB/PY/F3 }
-            - { clip: asm_objectsync_d_propb_pz_c_32, directWeight: PropB/PZ/C }
+            - { clip: asm_objectsync_d_propb_pz_c_32, directWeight: ObjectSync/B/PropB/PZ/C }
             - { clip: asm_objectsync_d_propb_pz_c_16, directWeight: ObjectSync/B/PropB/PZ/C0 }
             - { clip: asm_objectsync_d_propb_pz_c_8, directWeight: ObjectSync/B/PropB/PZ/C1 }
             - { clip: asm_objectsync_d_propb_pz_c_4, directWeight: ObjectSync/B/PropB/PZ/C2 }
             - { clip: asm_objectsync_d_propb_pz_c_2, directWeight: ObjectSync/B/PropB/PZ/C3 }
             - { clip: asm_objectsync_d_propb_pz_c_1, directWeight: ObjectSync/B/PropB/PZ/C4 }
-            - { clip: asm_objectsync_d_propb_pz_f_16, directWeight: PropB/PZ/F }
+            - { clip: asm_objectsync_d_propb_pz_f_16, directWeight: ObjectSync/B/PropB/PZ/F }
             - { clip: asm_objectsync_d_propb_pz_f_8, directWeight: ObjectSync/B/PropB/PZ/F0 }
             - { clip: asm_objectsync_d_propb_pz_f_4, directWeight: ObjectSync/B/PropB/PZ/F1 }
             - { clip: asm_objectsync_d_propb_pz_f_2, directWeight: ObjectSync/B/PropB/PZ/F2 }
             - { clip: asm_objectsync_d_propb_pz_f_1, directWeight: ObjectSync/B/PropB/PZ/F3 }
-            - { clip: asm_objectsync_d_propb_ra_x_16, directWeight: PropB/RA/X }
+            - { clip: asm_objectsync_d_propb_ra_x_16, directWeight: ObjectSync/B/PropB/RA/X }
             - { clip: asm_objectsync_d_propb_ra_x_8, directWeight: ObjectSync/B/PropB/RA/X/B0 }
             - { clip: asm_objectsync_d_propb_ra_x_4, directWeight: ObjectSync/B/PropB/RA/X/B1 }
             - { clip: asm_objectsync_d_propb_ra_x_2, directWeight: ObjectSync/B/PropB/RA/X/B2 }
             - { clip: asm_objectsync_d_propb_ra_x_1, directWeight: ObjectSync/B/PropB/RA/X/B3 }
-            - { clip: asm_objectsync_d_propb_ra_z_16, directWeight: PropB/RA/Z }
+            - { clip: asm_objectsync_d_propb_ra_z_16, directWeight: ObjectSync/B/PropB/RA/Z }
             - { clip: asm_objectsync_d_propb_ra_z_8, directWeight: ObjectSync/B/PropB/RA/Z/B0 }
             - { clip: asm_objectsync_d_propb_ra_z_4, directWeight: ObjectSync/B/PropB/RA/Z/B1 }
             - { clip: asm_objectsync_d_propb_ra_z_2, directWeight: ObjectSync/B/PropB/RA/Z/B2 }
