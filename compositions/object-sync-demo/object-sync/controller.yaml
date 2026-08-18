@@ -9,7 +9,7 @@
 #   fine LSB 0.7812 mm, 1.4 m of face left on each side of the field.
 # Rotation: 12 bits per component, 1 m arms in a 2.5 m face (0.25 m guard),
 #   component LSB 0.4883 mm.
-# Wire: 52 synced bits carrying 144 payload bits in 3 batches, atomic=batch,
+# Wire: 50 synced bits carrying 144 payload bits in 3 batches, atomic=batch,
 #   ~0.35s full refresh @60fps.
 # Local measure cycle: 33 frames (~0.55s); an unpark costs 4 more, waiting out contact re-acquisition
 #   before the first sample, so the wire holds its last committed pose rather than
@@ -136,8 +136,6 @@ parameters:
   ObjectSync/Ch/Wire/Bool13: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Bool14: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Bool15: { type: bool, vrc: { synced: true, saved: false } }
-  ObjectSync/Ch/Wire/Bool16: { type: bool, vrc: { synced: true, saved: false } }
-  ObjectSync/Ch/Wire/Bool17: { type: bool, vrc: { synced: true, saved: false } }
   IsLocal: bool              # VRC built-in
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight

@@ -24,9 +24,12 @@ reason. Every emission path goes through it, `--check` included.
 
 THE WIRE
 --------
-`numberSlots` 4 / `boolSlots` 18 against the shipped 144-bit word table — 3
-batches, 52 wire bits, 0.350 s full refresh, 11 sync states. Settled in
-`docs/local/m3-brief.md` §The wire; the 28-bit shipped default stays for
+`numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — 3
+batches, 50 wire bits, 0.350 s full refresh, 11 sync states. Settled in
+`docs/local/m3-brief.md` §The wire at 18 slots / 52 bits for the 147-bit
+table, retuned with the 12+12 geometry (operator-ruled 2026-08-17): at 144
+bits the worst batch pins 16 bool words, so the two extra slots rode every
+batch idle; the 28-bit shipped default stays for
 composed avatars that cannot afford more, and this avatar carries no other
 synced system. `batchSeconds` 0.1 and `indexLoops` 1 are the shipped defaults
 and are deliberately not overridden. Three batches rather than two is what keeps
@@ -76,7 +79,7 @@ ENTRY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "object-sync", "generate.py"))
 OUT = os.path.join(HERE, "object-sync", "controller.yaml")
 
-WIRE = {"numberSlots": 4, "boolSlots": 18}
+WIRE = {"numberSlots": 4, "boolSlots": 16}
 
 
 def entry_module():
@@ -195,11 +198,11 @@ def main():
     text, f = demo_document(mod, cfg)
     facts = f["facts"]
 
-    if facts["batchCount"] != 3 or facts["wireBits"] != 52:
+    if facts["batchCount"] != 3 or facts["wireBits"] != 50:
         raise SystemExit(
             f"REFUSE: this build emits {facts['batchCount']} batches / "
             f"{facts['wireBits']} wire bits, but the settled configuration is 3 "
-            "/ 52 (m3-brief.md §The wire). Either the slot widths above or the "
+            "/ 50 (THE WIRE above). Either the slot widths above or the "
             "entry's word table moved; re-derive the table before accepting it.")
 
     if "--check" in sys.argv:
