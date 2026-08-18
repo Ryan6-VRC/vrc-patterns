@@ -468,6 +468,45 @@ def main():
                     f"all {len(refs)} cross-asset pin sources resolve to a "
                     f"Transform in a composed entry's World.prefab — dangling: "
                     f"{sorted(set(dangling))}")
+            # The consumer seam the entry deliberately ships empty: each
+            # Sync{Obj}_Target must carry OUR two sources (Offset, Carry), or
+            # every Sync-mediated path collapses to the world origin with the
+            # state machines reading healthy — shipped exactly once before this
+            # assert existed. The entry cannot hold this (its prefab is not
+            # ours); this one is.
+            docs = {}
+            for block in body.split("--- !u!"):
+                m = _re.match(r"\d+ &(-?\d+)", block)
+                if m:
+                    docs[m.group(1)] = block
+            go_of, name_of = {}, {}
+            for fid, block in docs.items():
+                g = _re.search(r"^GameObject:", block, _re.M)
+                if g:
+                    name_of[fid] = _re.search(
+                        r"^  m_Name: (.*)$", block, _re.M).group(1)
+            for fid, block in docs.items():
+                g = _re.search(r"m_GameObject: \{fileID: (-?\d+)\}", block)
+                if g:
+                    go_of[fid] = g.group(1)
+            targets = {}
+            for fid, block in docs.items():
+                if "VRCParentConstraint" not in block.split("\n", 2)[-1][:400] \
+                        and not _re.search(r"^MonoBehaviour:", block, _re.M):
+                    continue
+                go = go_of.get(fid)
+                nm = name_of.get(go, "")
+                if _re.fullmatch(r"Sync\w+_Target", nm) and "Sources" in block:
+                    n = int(_re.search(r"totalLength: (\d+)", block).group(1))
+                    live = len([x for x in _re.findall(
+                        r"SourceTransform: \{fileID: (-?\d+)", block)[:n]
+                        if x != "0"])
+                    targets[nm] = (n, live)
+            bad = {k: v for k, v in targets.items() if v != (2, 2)}
+            assert_(len(targets) == len(cfg["objects"]) and not bad,
+                    f"every Sync_Target carries exactly 2 live consumer "
+                    f"sources ({len(targets)}/{len(cfg['objects'])} found; "
+                    f"bad: {bad})")
         else:
             assert_(False, f"GrabMuxSync.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload "
