@@ -615,7 +615,16 @@ def check_files(document_fn, c, here, prefabs, extra=()):
                 f"manifest address for {ch['name']} is the checked echo of its name")
 
     print("[prefab globalParams]")
-    want = f["facts"]["interface"]
+    # The prefabs carry VRCFury prefix wildcards (`<Set>/*`), not the enumerated
+    # interface — adding a channel must not require a prefab edit. Expected list =
+    # the interface's name-set prefixes in order of first appearance; `QC/*` is
+    # deliberately never among them, so internals stay instance-prefixed.
+    want, seen = [], set()
+    for n in f["facts"]["interface"]:
+        p = n.split("/")[0] + "/*"
+        if p not in seen:
+            seen.add(p)
+            want.append(p)
     for prefab in prefabs:
         path = os.path.join(here, prefab)
         if not os.path.exists(path):
@@ -633,7 +642,7 @@ def check_files(document_fn, c, here, prefabs, extra=()):
                 else:
                     break
         assert_(got == want,
-                f"{prefab} globalParams == the interface set ({len(want)} names)")
+                f"{prefab} globalParams == the interface prefix wildcards ({', '.join(want)})")
 
     for cond, msg in extra:
         assert_(cond, msg)
