@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """object-sync generator: emits the three committed controller.yaml documents
-(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below.
+(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below; DEMOS configs are
+check-only (probed and packable on every change, nothing on disk).
 
 Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
 three controller.yaml documents committed here are generated output, pinned
@@ -35,11 +36,11 @@ Per axis the measure is two-stage, both stages reading a face-mode box receiver
 
 The fine stage is bias-cancelling: anchor, receiver and sender ride one
 hierarchy, so the avatar's own float32 displacement cancels bit-exactly
-(measured — see the README). The coarse stage is not: at range 8192 m with the
-avatar kilometres from the world origin its world-space error runs past a metre,
-which is why the fine field is REDUNDANT — it spans the cell plus twice that
-error, not one cell, so a cell chosen one boundary out is still reconstructed
-exactly. That redundancy is what buys 13+12 bits per axis rather than 13+11.
+(measured — see the README). The coarse stage is not: at range its world-space
+error runs to over a quarter-cell, which is why the fine field is REDUNDANT —
+it spans the cell plus twice the guarded error, not one cell, so a cell chosen
+one boundary out is still reconstructed exactly. That redundancy is what buys
+12+12 bits per axis rather than 12+11.
 
 Rotation `full` needs no trig: a rotation-only holder carries two markers
 on orthogonal arms, each marker's three components measured by the same face
@@ -109,9 +110,13 @@ CONFIG = {
     # Position measure. range is the half-extent about the rig anchor, so the
     # working volume is +/-range metres on each axis. coarseBits must span it at
     # cellSize resolution: 2*range/cellSize == 2**coarseBits.
-    "range": 8192.0,
+    # 4096/12/12 is the ruled uniform geometry (operator, 2026-08-16): every
+    # word is byte+4 bools, every position group 2 bytes + 8 bools, at a finer
+    # LSB (~0.78 mm) for a +/-4096 m working volume — accepted, not a bit
+    # harvest.
+    "range": 4096.0,
     "cellSize": 2.0,
-    "coarseBits": 13,
+    "coarseBits": 12,
     "fineBits": 12,
     # Worst-case coarse readout error IN CONTACT SPACE, measured. The squeeze
     # amplifies it by range/coarseHalfSpan, and the fine field is widened by
@@ -164,7 +169,10 @@ CONFIG = {
     # carries the same note at the knob).
     "wire": {
         "numberSlots": 2,
-        "boolSlots": 9,
+        # 8, not 9: at 12+12 bits a position group's bool tail is exactly 4+4,
+        # so the ninth slot the 13-bit geometry needed would ride every batch
+        # idle — one synced bit for nothing. Batch counts are unchanged.
+        "boolSlots": 8,
         "indexLoops": 1,
         "batchSeconds": 0.1,
     },
@@ -182,6 +190,27 @@ PRESETS = {
                              {"name": "PropB", "rotation": "y"}]},
 }
 
+# Check-only DEMO configs (operator-ruled 2026-08-17): the full `--check`
+# structural suite runs over each, but nothing lands on disk — no
+# controller.yaml, no prefab, no built/. At this scale every consumer writes
+# their own CONFIG; these exist so the multi-object emission the committed
+# builds cannot reach (mixed rotation modes, slice weighting, widened slots)
+# is emitted, probed and packable on every change. A DEMO may override the
+# `wire` block — merged SHALLOWLY onto CONFIG's, because a dict replacement
+# would silently drop `indexLoops: 1` back to word-channel's default of 2,
+# costing an index bit and three Sync states per batch with no diagnostic.
+DEMOS = {
+    "six": {
+        "objects": [{"name": "Prop0", "rotation": "full", "slices": 3},
+                    {"name": "Prop1", "rotation": "y"},
+                    {"name": "Prop2", "rotation": "y"},
+                    {"name": "Prop3", "rotation": "y"},
+                    {"name": "Prop4", "rotation": "y"},
+                    {"name": "Prop5", "rotation": "y"}],
+        "wire": {"numberSlots": 4, "boolSlots": 16},
+    },
+}
+
 
 # ------------------------------------------------------- derived geometry ----
 
@@ -190,6 +219,40 @@ def derive(c):
 
     Refusals here are the entry's own fail-loud edge: a config that would emit a
     silently-saturating readout is rejected by name, never generated."""
+    names = [ob["name"] for ob in c["objects"]]
+    reserved = {"Sh", "Live", "FullLive"} & set(names)
+    if reserved or len(set(names)) != len(names):
+        raise SystemExit(
+            f"REFUSE: object names {sorted(reserved) or names} — names must be "
+            "unique, and Sh/Live/FullLive are the shared-walk scratch namespace: "
+            "an object named one of them declares params byte-identical to the "
+            "shared set, which Doc.param's duplicate guard cannot distinguish.")
+    for ob in c["objects"]:
+        k = ob.get("slices", 1)
+        if not (isinstance(k, int) and k >= 1):
+            raise SystemExit(
+                f"REFUSE: {ob['name']} slices {k!r} — a slice weight is a "
+                "positive integer count of turns in the ring")
+        if k != 1 and len(c["objects"]) == 1:
+            raise SystemExit(
+                f"REFUSE: {ob['name']} slices {k} — a slice weight is a share "
+                "of the multi-object ring, and a single-object build emits no "
+                "Slice layer, so the key would change nothing while the header "
+                "claimed it did. Drop it.")
+    # Per-slice contact budget: one object's rig live at a time, so the active
+    # cluster is that object's own receivers — coarse 3 + fine 3 + one per
+    # rotation component (6/2/0 by mode). The ceiling guards FUTURE modes, not
+    # today's constants — every current mode passes by arithmetic — because
+    # ~24 receivers clustered in one spot read wrong values under the client's
+    # cross-player summing bug (runtime.md §Contacts), and the whole rig parks
+    # at one point.
+    worst = max((6 + len(rot_comps(ob["rotation"])) for ob in c["objects"]),
+                default=0)
+    if worst > 16:
+        raise SystemExit(
+            f"REFUSE: a slice would run {worst} live receivers in one cluster — "
+            "the ceiling is 16, margin under the ~24-receiver summing bug "
+            "(runtime.md §Contacts). Trim the mode's component count.")
     cells = 2 ** c["coarseBits"]
     if abs(2 * c["range"] / c["cellSize"] - cells) > 1e-9:
         raise SystemExit(
@@ -249,8 +312,8 @@ def derive(c):
         # The y-mode branch test: which half-turn the marker is in.
         "rotMid": 0.5 + r / c["rotSpan"],
         # Display base offset, summed FIRST so the running total never exceeds
-        # the range (float32 ulp at 8192 m is ~0.98 mm — the precision floor
-        # this design is built to, not a defect it introduces).
+        # the range (the float32 ulp at range is the precision floor this
+        # design is built to, not a defect it introduces).
         "posBase": -c["range"] + c["cellSize"] / 2 - fine_span / 2,
         "rigOffset": rig_offset(c["rigSeed"]),
     }
@@ -316,13 +379,12 @@ def rot_groups(c, ob):
     """(group label, [components]) for one object's rotation words.
 
     `full`'s six components belong to two different markers and are independent
-    readings, so each takes its own group — and for the same reason its own walk
-    layer and its own commit (`rot_walk_plan`): a torn set of six independent
+    readings, so each takes its own group — a torn set of six independent
     readings is a stale orientation, never one no marker ever held. `y`'s two
     components are ONE value — a heading — and want the same adjacent-cell
     coherence a position axis wants, so they share a group when the slots can
-    hold it, and a commit barrier publishes both limbs in one frame whatever the
-    slots do."""
+    hold it, and the pair layer's single commit publishes both limbs in one
+    frame whatever the slots do (`pair_layer`)."""
     o, mode = ob["name"], ob["rotation"]
     comps = rot_comps(mode)
     if mode == "y":
@@ -552,12 +614,14 @@ def walk_rungs(resid, b, accept, reject):
             f"{{ to: {reject}, when: [ {resid} less {num(t * (1 + EPS))} ] }}"]
 
 
-def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_to, true_param):
+def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_rungs):
     """The SAR ladder: one state pair per bit, accept above, reject below.
 
     `extra_add` is an additional param to accumulate the bit's place value into
     (the running cell index the local anchor rides) — None for a stage that has
-    no anchor. Returns the list of layout rows."""
+    no anchor. `exit_rungs` are the final pair's outgoing transitions verbatim —
+    a single exit, a per-object commit fan-out, or the first rungs of a second
+    ladder walked back-to-back in the same layer. Returns the layout rows."""
     layout = []
     for b in range(nbits):
         kind, target, place = plan[b]
@@ -571,12 +635,15 @@ def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_to, true_param):
         if extra_add is not None:
             adds[extra_add] = num(2 ** (nbits - 1 - b))
         nxt = (walk_rungs(resid, b + 1, f"{tag}{b + 1}A", f"{tag}{b + 1}R")
-               if b + 1 < nbits
-               else [f"{{ to: {exit_to}, when: [ {true_param} is true ] }}"])
+               if b + 1 < nbits else exit_rungs)
         out.extend(state(acc, driver(sets=sets or None, adds=adds), nxt))
         out.extend(state(rej, None, nxt))
         layout.append((acc, rej))
     return layout
+
+
+def exit_when_true(c, exit_to):
+    return [f"{{ to: {exit_to}, when: [ {c['prefix']}/True is true ] }}"]
 
 
 # ------------------------------------------------------------- the build ----
@@ -642,20 +709,31 @@ def build(c):
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, numbers, bools))
-    layers.append(decode_layer(doc, c, d))
-    layers.append(display_layer(doc, c, d))
+    layers.append(decode_display_layer(doc, c, d))
     layers.append(follow_layer(doc, c))
     if multi:
+        # The shared walk set: the slice serializes measurement, so the walks
+        # walk ONCE per slice against shared staging and fan the commit out to
+        # the live object's words — layers and walk states flat in N.
         layers.append(slice_layer(doc, c))
-    for ob in c["objects"]:
         for a in AXES:
-            layers.append(position_walk(doc, c, d, ob, a, multi))
-        for comps, lay in rot_walk_plan(c, ob):
-            for comp in comps:
-                layers.append(component_walk(doc, c, d, ob, comp, multi,
-                                             barrier=lay is not None))
-            if lay is not None:
-                layers.append(barrier_layer(doc, c, ob, comps, lay, multi))
+            layers.append(position_walk(doc, c, d, a))
+        modes = {ob["rotation"] for ob in c["objects"]}
+        if modes - {"none"}:
+            layers.append(pair_layer(doc, c, d, shared=True))
+        if "full" in modes:
+            for comp in full_only_comps(c):
+                layers.append(component_walk(doc, c, d, comp))
+    else:
+        ob = c["objects"][0]
+        for a in AXES:
+            layers.append(position_walk(doc, c, d, a, ob=ob))
+        if ob["rotation"] == "y":
+            layers.append(pair_layer(doc, c, d, shared=False))
+        elif ob["rotation"] == "full":
+            for comp in FULL_COMPS:
+                layers.append(component_walk(doc, c, d, comp, ob=ob))
+    state_count = refuse_duplicate_states(layers)
 
     return {
         "header": header(c, d, facts, numbers, bools),
@@ -670,8 +748,45 @@ def build(c):
             "boolWords": bools,
             "axisBits": c["coarseBits"] + c["fineBits"],
             "payloadBitsTotal": facts["payloadBits"],
+            # The per-client per-frame decode-side cost: every word limb plus
+            # Acquired through the one Floatify driver. Quoted in the README's
+            # cost accounting from here, never hand-counted.
+            "floatifyLimbs": len(numbers) + len(bools) + 1,
+            "sliceSchedule": slice_schedule(c) if multi else None,
+            "stateCount": state_count,
+            "layerCount": len(layers),
         }),
     }
+
+
+def refuse_duplicate_states(layers):
+    """Two ladders now share layers (the serial pair; per-object commit
+    fan-outs), which makes a silently-duplicated state name reachable for the
+    first time — the exact generator-bug class `Doc` refuses for params and
+    clips, closed here for states. A duplicate key in the emitted YAML would
+    compile to whichever state the loader keeps, with every probe reading the
+    first. Returns the total state count — the document's own figure for the
+    README's cost accounting."""
+    total = 0
+    for block in layers:
+        name, seen, in_states = None, set(), False
+        for ln in block:
+            if ln.startswith("  - name: "):
+                name = ln.split("- name: ", 1)[1].strip()
+            elif ln.startswith("    ") and not ln.startswith("     ") \
+                    and ln.rstrip().endswith(":"):
+                in_states = ln.strip() == "states:"
+            elif in_states and ln.startswith("      ") \
+                    and not ln.startswith("       ") and ln.rstrip().endswith(":"):
+                s = ln.strip()[:-1]
+                if s in seen:
+                    raise SystemExit(
+                        f"REFUSE: layer {name} declares state '{s}' twice — "
+                        "the second silently shadows the first in every "
+                        "name-keyed reader, this self-test included.")
+                seen.add(s)
+                total += 1
+    return total
 
 
 def load_word_channel():
@@ -755,14 +870,29 @@ def assemble_children(doc, c, dest, byte_word, bool_words, nbits):
     return kids
 
 
-def decode_layer(doc, c, d):
-    """Side-agnostic: every client (the wearer included) reads the same
-    Floatify copies of the word params and assembles the same AAPs. No state
-    is carried across frames, so a culling pause costs staleness and never a
-    corrupt decode. Weights name only `B/` copies, never a word param —
+def decode_display_layer(doc, c, d):
+    """ONE single-state Direct layer carrying both the decode (Floatify copies
+    -> assembled `D/` AAPs) and the display (D/ AAPs -> the display rig's
+    constraint offsets and proxy positions) — merged because two single-state
+    DBT layers were paying a layer for an ordering the runtime does not sell
+    anyway: an AAP read is one frame behind its write for same-layer and
+    cross-layer trees alike (runtime.md §Animator evaluation), so the display
+    children read `D/` at exactly the latency the separate-layer shape had,
+    and every `D/` value a display child reads is stale TOGETHER — uniform
+    age, not the OS2b mixed-age class.
+
+    Side-agnostic: every client (the wearer included) reads the same Floatify
+    copies of the word params and assembles the same AAPs. No state is carried
+    across frames, so a culling pause costs staleness and never a corrupt
+    decode. Decode weights name only `B/` copies, never a word param —
     `--check`'s decode-coherence probe holds that, and why it matters is
-    `floatify_layer`'s docstring."""
+    `floatify_layer`'s docstring.
+
+    Display: the base clip is the FIRST child of each axis's run so the
+    running sum never leaves the working range — float32's ulp at range is
+    this design's precision floor already."""
     p = c["prefix"]
+    multi = len(c["objects"]) > 1
     kids = []
     for ob in c["objects"]:
         o = ob["name"]
@@ -780,19 +910,6 @@ def decode_layer(doc, c, d):
                 doc, c, dest, f"{o}/R{comp}",
                 [f"{o}/R{comp}/B{j}" for j in range(c["rotBits"] - 8)],
                 c["rotBits"])
-    out = [f"  - name: {p}/Decode", "    states:"]
-    out.extend(tree_state("Decode", "DecodeSum", kids))
-    out.append("    default: Decode")
-    return out
-
-
-def display_layer(doc, c, d):
-    """Decoded AAPs -> the display rig's constraint offsets and proxy
-    positions. The base clip is the FIRST child of each axis's run so the
-    running sum never leaves the working range: float32's ulp at 8192 m is
-    ~0.98 mm and this design's precision floor sits there already."""
-    p = c["prefix"]
-    kids = []
     for ob in c["objects"]:
         o = ob["name"]
         # The MEASURE anchor rides the walk's running cell index (staged, local,
@@ -816,8 +933,14 @@ def display_layer(doc, c, d):
         for a in AXES:
             z = {f"{anch}.{LOWER[x]}": 0 for x in AXES}
             cell = dict(z, **{f"{anch}.{LOWER[a]}": num(c["cellSize"])})
+            # Multi-object: the SHARED cell index weights every object's anchor
+            # cell clip. Inactive objects' anchors ride it harmlessly — their
+            # receivers are deactivated, and an incoming object's own CoarseEnd
+            # rewrites K before its fine stage samples anything (settle +
+            # liveness + escape are all still in that path).
+            kacc_w = f"{p}/K/Sh/P{a}" if multi else f"{p}/K/{o}/P{a}"
             kids.append("{ clip: " + doc.clip(f"anch_{safe(o)}_{LOWER[a]}_cell", cell) +
-                        f", directWeight: {p}/K/{o}/P{a} }}")
+                        f", directWeight: {kacc_w} }}")
 
         disp = f"Rig/{o}/Display/VRCPositionConstraint.PositionOffset"
         base = {f"{disp}.{LOWER[a]}": num(d["posBase"] + d["rigOffset"][i])
@@ -864,9 +987,9 @@ def display_layer(doc, c, d):
     sub = enable_subtree(doc, c)
     if sub:
         kids.append(sub)
-    out = [f"  - name: {p}/Display", "    states:"]
-    out.extend(tree_state("Display", "DisplaySum", kids))
-    out.append("    default: Display")
+    out = [f"  - name: {p}/Decode", "    states:"]
+    out.extend(tree_state("Decode", "DecodeDisplay", kids))
+    out.append("    default: Decode")
     return out
 
 
@@ -990,35 +1113,76 @@ def follow_layer(doc, c):
     return out
 
 
-def all_sense(c):
+def sense_union(c):
+    """Every shared sense param a multi-object build declares, in FULL_COMPS
+    order: the position stages plus the union of rotation components any
+    object's mode reads. Receivers on EVERY object's rig name these — one
+    param set, at most one live writer, because the slice gate clip flips the
+    outgoing and incoming rigs in one evaluation (no co-active frame). The
+    slice's Enter clear must cover this whole union or a y slice's untouched
+    full-only component would hand the next full slice a frozen reading."""
     p = c["prefix"]
     out = {}
+    for a in AXES:
+        out[f"{p}/Sense/Sh/C{a}"] = 0
+        out[f"{p}/Sense/Sh/F{a}"] = 0
+    comps = set()
     for ob in c["objects"]:
-        x = ob["name"]
-        for a in AXES:
-            out[f"{p}/Sense/{x}/C{a}"] = 0
-            out[f"{p}/Sense/{x}/F{a}"] = 0
-        for comp in rot_comps(ob["rotation"]):
-            out[f"{p}/Sense/{x}/R{comp}"] = 0
+        comps |= set(rot_comps(ob["rotation"]))
+    for comp in FULL_COMPS:
+        if comp in comps:
+            out[f"{p}/Sense/Sh/R{comp}"] = 0
     return out
 
 
 def slice_wake_params(c, o):
     """What a slice waits to see live before unblocking its object's walks.
 
-    Coarse and rotation receivers only. The fine receiver rides the anchor,
+    Coarse and rotation receivers only, and MODE-SCOPED to the object: a y rig
+    never writes the full-only components, so waiting on those would burn the
+    whole skip window on every y slice. The fine receiver rides the anchor,
     which is parked at cell 0 until that object's coarse walk has run, so it
     legitimately reads 0 here — its liveness is checked later, inside the walk,
     where the anchor is already placed."""
     p = c["prefix"]
     ob = next(x for x in c["objects"] if x["name"] == o)
-    return ([f"{p}/Sense/{o}/C{a}" for a in AXES] +
-            [f"{p}/Sense/{o}/R{comp}" for comp in rot_comps(ob["rotation"])])
+    return ([f"{p}/Sense/Sh/C{a}" for a in AXES] +
+            [f"{p}/Sense/Sh/R{comp}" for comp in rot_comps(ob["rotation"])])
+
+
+def slice_schedule(c):
+    """The ring of slices, weighted and INTERLEAVED: an object with `slices: k`
+    appears k times, never in two consecutive slots (ring-wise). Adjacency is not a style point: an adjacent
+    repeat's own Enter drops `Live`, which drives every shared walk through the
+    abandon rung and clears staging mid-ladder — the second slot would tear
+    down the very walk it was bought to extend, discarding up to a full ladder
+    and repaying the settle."""
+    total = sum(ob.get("slices", 1) for ob in c["objects"])
+    # Deal heaviest-first into the even indices, then the odd: on a ring this
+    # is adjacency-free for every weighting with max <= total//2 — a quotient
+    # placement with linear probing refused feasible rings (2,2,3 among them)
+    # while its message blamed the weight — so the refusal below fires exactly
+    # when the bound it states is actually violated.
+    flat = []
+    for ob in sorted(c["objects"], key=lambda x: -x.get("slices", 1)):
+        flat += [ob["name"]] * ob.get("slices", 1)
+    slots = [None] * total
+    for name, pos in zip(flat, [*range(0, total, 2), *range(1, total, 2)]):
+        slots[pos] = name
+    for i, name in enumerate(slots):
+        if name == slots[(i + 1) % total]:
+            raise SystemExit(
+                f"REFUSE: the slice ring places '{name}' in consecutive slots "
+                f"({slots}) — its weight is too large for the ring (max is "
+                "half the total, rounded down). Lower the weight or add "
+                "objects.")
+    return slots
 
 
 def slice_layer(doc, c):
     """Multi-object time-multiplex: one object's measure rig is live per slice,
-    so N objects cost one rig instead of N.
+    so N objects cost one rig instead of N — and, with the walks shared, one
+    walk set instead of N.
 
     The layer OWNS `m_IsActive` on every object's three measure subtrees — the
     enable's own clips deliberately leave that binding alone here, because two
@@ -1033,47 +1197,77 @@ def slice_layer(doc, c):
     next frame, which is exactly how a driver-only clear failed (measured: an
     off-slice object's sense params held ~0.5, not 0). The walks are unblocked
     only at `Run`, and only once this object's receivers actually read something
-    the geometry could have produced."""
+    the geometry could have produced.
+
+    Shared-walk consequences, both load-bearing. The Enter/Parked clear covers
+    the WHOLE shared sense union — with one param set, a stale reading is no
+    longer the outgoing object's own value on its own param but the seed of a
+    cross-object publish: liveness gates satisfied by the previous object's
+    frozen readings walk object A's position into object B's words. And `Run`
+    is the only writer of `Slice/Live` (plus `Slice/FullLive` for full-mode
+    objects), so Live=1 always means exactly one `Slice/<o>`=1, with an Enter
+    frame between any two — which is what the walks' abandon rung and the
+    `Commit_<o>` routing conditions rest on."""
     p, d = c["prefix"], derive(c)
     names = [ob["name"] for ob in c["objects"]]
+    mode = {ob["name"]: ob["rotation"] for ob in c["objects"]}
     for o in names:
         doc.param(f"  {p}/Slice/{o}: {{ type: float, scratch: true }}",
                   f"{p}/Slice/{o}")
+    doc.param(f"  {p}/Slice/Live: {{ type: float, scratch: true }}",
+              f"{p}/Slice/Live")
+    if any(m == "full" for m in mode.values()):
+        doc.param(f"  {p}/Slice/FullLive: {{ type: float, scratch: true }}",
+                  f"{p}/Slice/FullLive")
     gates = {o: doc.clip(f"slice_gate_{safe(o)}", gate_bindings(c, o), seconds=1)
              for o in names}
     parked_clip = doc.clip("slice_gate_park", gate_bindings(c, None), seconds=1)
-    blocked = dict(all_sense(c), **{f"{p}/Slice/{x}": 0 for x in names})
+    blocked = dict(sense_union(c), **{f"{p}/Slice/{x}": 0 for x in names})
+    blocked[f"{p}/Slice/Live"] = 0
+    if any(m == "full" for m in mode.values()):
+        blocked[f"{p}/Slice/FullLive"] = 0
     # The run window holds the slowest walk in the slice plus its Parked climb
     # and its Commit hop; the skip window bounds how long a dead rig may hold
     # the slice before the next object gets its turn.
     hold = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
     skip = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
 
+    slots = slice_schedule(c)
+    seen = {o: 0 for o in names}
+    labels = []
+    for o in slots:
+        labels.append((o, seen[o]))
+        seen[o] += 1
     out = [f"  - name: {p}/Slice", "    states:"]
-    for i, o in enumerate(names):
+    for i, (o, j) in enumerate(labels):
         motion = f"{{ clip: {gates[o]} }}"
+        no, nj = labels[(i + 1) % len(labels)]
         # Deactivate every other object's rig AND block every walk, in one
-        # frame, before anything is cleared.
-        nxt_obj = names[(i + 1) % len(names)]
-        # Wait for this object's reactivated receivers to come live rather than
-        # counting frames at them; the skip rung is there so one dead rig cannot
-        # starve the other objects of their slices. Advancing on it is safe —
-        # the walks carry the same gate, so a skipped slice measures nothing
-        # rather than measuring zeros.
+        # frame, before anything is cleared. Wait for this object's reactivated
+        # receivers to come live rather than counting frames at them; the skip
+        # rung is there so one dead rig cannot starve the other objects of
+        # their slices. Advancing on it is safe — the walks carry the same
+        # gate, so a skipped slice measures nothing rather than measuring
+        # zeros.
+        run_sets = {f"{p}/Slice/{x}": (1 if x == o else 0) for x in names}
+        run_sets[f"{p}/Slice/Live"] = 1
+        if any(m == "full" for m in mode.values()):
+            run_sets[f"{p}/Slice/FullLive"] = 1 if mode[o] == "full" else 0
         out.extend(state(
-            f"Enter_{o}", driver(sets=blocked),
-            [f"{{ to: Run_{o}, when: [ {', '.join(live(d, slice_wake_params(c, o)))} ] }}",
-             f"{{ to: Enter_{nxt_obj}, when: [], exitTime: {skip} }}"
+            f"Enter_{o}_{j}", driver(sets=blocked),
+            [f"{{ to: Run_{o}_{j}, when: [ {', '.join(live(d, slice_wake_params(c, o)))} ] }}",
+             f"{{ to: Enter_{no}_{nj}, when: [], exitTime: {skip} }}"
              "   # a rig that never wakes must not starve the other slices"],
             motion=motion))
         out.extend(state(
-            f"Run_{o}",
-            driver(sets={f"{p}/Slice/{x}": (1 if x == o else 0) for x in names}),
-            [f"{{ to: Enter_{nxt_obj}, when: [], exitTime: {hold} }}"
+            f"Run_{o}_{j}",
+            driver(sets=run_sets),
+            [f"{{ to: Enter_{no}_{nj}, when: [], exitTime: {hold} }}"
              "   # the gate clip declares its length, so exitTime is seconds"],
             motion=motion))
+    first_o, first_j = labels[0]
     out.extend(state("Parked", driver(sets=blocked),
-                     [f"{{ to: Enter_{names[0]}, when: [ {p}/Enable greater 0.5 ] }}"],
+                     [f"{{ to: Enter_{first_o}_{first_j}, when: [ {p}/Enable greater 0.5 ] }}"],
                      motion=f"{{ clip: {parked_clip} }}"))
     out.extend(off_ladder(c))
     out.append("    default: Parked")
@@ -1081,15 +1275,22 @@ def slice_layer(doc, c):
 
 
 def max_walk_frames(c):
+    """The slowest ladder's frame count — what the slice hold/skip windows and
+    the header's cycle math are sized on. The serial pair walks TWO rotBits
+    ladders back-to-back, so it has its own term: sizing the window on the
+    position ladder alone would, at a geometry where 2·rotBits+3 exceeds it
+    (legal from coarseBits 9 / rotBits 12 up), abandon every rotation cycle at
+    the window's edge, forever."""
     pos = 2 + c["coarseBits"] + 1 + c["settleFrames"] + 1 + c["fineBits"] + 1
-    # A rotation layer costs Idle + Start + one state per bit + its end state.
-    # Components walk in parallel whatever the mode; a barriered value pays two
-    # more frames (the barrier's own Commit, then the flag-lowered hop home).
-    rot = 2 + c["rotBits"] + 1
-    if any(lay is not None for ob in c["objects"]
-           for _, lay in rot_walk_plan(c, ob)):
-        rot += 2
-    return max(pos, rot)
+    frames = [pos]
+    multi = len(c["objects"]) > 1
+    modes = {ob["rotation"] for ob in c["objects"]}
+    pair = (multi and modes - {"none"}) or (not multi and "y" in modes)
+    if pair:
+        frames.append(2 + 2 * c["rotBits"] + 1)
+    if "full" in modes:
+        frames.append(2 + c["rotBits"] + 1)
+    return max(frames)
 
 
 def sense_param(doc, c, name):
@@ -1100,14 +1301,23 @@ def sense_param(doc, c, name):
     return name
 
 
-def gate(c, ob, multi):
+def gate(c, shared, full_only=False):
+    """A walk's standing entry conditions. Shared (multi-object) walks gate on
+    `Slice/Live` — set only inside a Run window, so a walk never climbs during
+    an Enter's clear frame. `full_only` adds the `Slice/FullLive` term for the
+    component layers only a full-mode object feeds: without it they would climb
+    during a y slice (blocked today only by the cleared sense reading) and,
+    having no y-mode Commit to route to, park at the ladder top until the next
+    Enter dropped Live."""
     g = ["IsLocal is true", f"{c['prefix']}/Enable greater 0.5"]
-    if multi:
-        g.append(f"{c['prefix']}/Slice/{ob['name']} greater 0.5")
+    if shared:
+        g.append(f"{c['prefix']}/Slice/Live greater 0.5")
+    if full_only:
+        g.append(f"{c['prefix']}/Slice/FullLive greater 0.5")
     return g
 
 
-def off_ladder(c, ob=None, multi=False):
+def off_ladder(c, shared=False):
     """The AnyState rungs that yank an encode layer out of its walk.
 
     The state is `Parked`, not `Off`: a bare `Off` in value position infers as
@@ -1120,24 +1330,30 @@ def off_ladder(c, ob=None, multi=False):
     writes again (it only freezes what it last wrote, which is what the clear is
     for).
 
-    The second rung is what keeps a multi-object slice honest: a walk whose
-    object just lost the measure rig must ABANDON rather than run on to its
-    Commit and publish limbs measured against another object's senders."""
+    The `Live` rung is what keeps a multi-object slice honest: every slice
+    change passes through an Enter state that drops `Live` for at least a frame,
+    so a walk mid-ladder ABANDONS rather than running on to a Commit and
+    publishing limbs measured against another object's senders. It replaces the
+    per-object `Slice/<o>` rung the unshared walks carried — a shared walk
+    belongs to no object, and `Live` is the one param that says 'some rig is
+    live and it is still the one I started against' (Run's single driver makes
+    Live=1 equivalent to exactly one Slice/<o>=1, with an Enter frame between
+    any two)."""
     p = c["prefix"]
     out = ["    any:",
            f"      - {{ to: Parked, when: [ {p}/Enable less 0.5 ], "
            "canTransitionToSelf: false }"]
-    if multi:
-        out.append(f"      - {{ to: Parked, when: [ {p}/Slice/{ob['name']} "
+    if shared:
+        out.append(f"      - {{ to: Parked, when: [ {p}/Slice/Live "
                    "less 0.5 ], canTransitionToSelf: false }")
     return out
 
 
-def wake_up(c, ob, multi):
+def wake_up(c, shared):
     """The conditions that let a Parked encode layer start climbing again."""
     up = [f"{c['prefix']}/Enable greater 0.5"]
-    if multi:
-        up.append(f"{c['prefix']}/Slice/{ob['name']} greater 0.5")
+    if shared:
+        up.append(f"{c['prefix']}/Slice/Live greater 0.5")
     return up
 
 
@@ -1170,49 +1386,61 @@ def liveness_audit(c, d):
     p = c["prefix"]
     multi = len(c["objects"]) > 1
     rows = []
-    for ob in c["objects"]:
-        o = ob["name"]
-        for a in AXES:
-            lay = f"{p}/Enc/{o}/P{a}"
-            for st in ("Idle", "Commit"):
-                rows.append({
-                    "layer": lay, "state": st,
-                    "params": [f"{p}/Sense/{o}/C{a}"], "escape": None,
-                    "why": "self-restoring: the coarse receiver's box spans the "
-                           "whole working volume and the squeeze constraint keeps "
-                           "its sender inside, so a 0 means only re-acquisition "
-                           "or a prop outside the range — both clear on their own"})
+    coarse_why = ("self-restoring: the coarse receiver's box spans the whole "
+                  "working volume and the squeeze constraint keeps its sender "
+                  "inside, so a 0 means only re-acquisition or a prop outside "
+                  "the range — both clear on their own")
+    fine_why = ("NOT self-restoring: the fine receiver rides the measurement "
+                "anchor, which only a fresh coarse commit moves, so a teleport "
+                "out of the cell leaves this waiting on a stage it cannot reach")
+    marker_why = ("self-restoring: the marker rides a rigid arm on a holder "
+                  "pinned to the rig and cannot leave its receiver's box, so a "
+                  "0 means re-acquisition and nothing else")
+    scr = "Sh" if multi else c["objects"][0]["name"]
+    # Position: the walk-entry states are Idle plus every commit state (a
+    # commit's loop back into the walk is a walk entry too). Shared layers fan
+    # commits out per object; single-object layers have the one Commit.
+    commit_states = ([f"Commit_{ob['name']}" for ob in c["objects"]]
+                     if multi else ["Commit"])
+    for a in AXES:
+        lay = f"{p}/Enc/{scr}/P{a}"
+        for st in ["Idle"] + commit_states:
+            rows.append({"layer": lay, "state": st,
+                         "params": [f"{p}/Sense/{scr}/C{a}"], "escape": None,
+                         "why": coarse_why})
+        rows.append({"layer": lay, "state": f"Settle{c['settleFrames'] - 1}",
+                     "params": [f"{p}/Sense/{scr}/F{a}"], "escape": "Idle",
+                     "why": fine_why})
+    modes = {ob["rotation"] for ob in c["objects"]}
+    # The pair layer's ONE liveness site is Idle, covering both heading senses:
+    # Start samples both in a single driver and the Z ladder walks a residual
+    # frozen there, so no mid-ladder state reads a sense param at all.
+    if (multi and modes - {"none"}) or (not multi and "y" in modes):
+        rows.append({"layer": f"{p}/Enc/{scr}/Ry", "state": "Idle",
+                     "params": [f"{p}/Sense/{scr}/R{x}" for x in Y_COMPS],
+                     "escape": None, "why": marker_why})
+    if "full" in modes:
+        comps = full_only_comps(c) if multi else FULL_COMPS
+        for comp in comps:
+            rows.append({"layer": f"{p}/Enc/{scr}/R{comp}", "state": "Idle",
+                         "params": [f"{p}/Sense/{scr}/R{comp}"],
+                         "escape": None, "why": marker_why})
+    if multi:
+        labels, seen = [], {}
+        for o in slice_schedule(c):
+            j = seen.get(o, 0)
+            labels.append((o, j))
+            seen[o] = j + 1
+        for i, (o, j) in enumerate(labels):
+            no, nj = labels[(i + 1) % len(labels)]
             rows.append({
-                "layer": lay, "state": f"Settle{c['settleFrames'] - 1}",
-                "params": [f"{p}/Sense/{o}/F{a}"], "escape": "Idle",
-                "why": "NOT self-restoring: the fine receiver rides the "
-                       "measurement anchor, which only a fresh coarse commit "
-                       "moves, so a teleport out of the cell leaves this waiting "
-                       "on a stage it cannot reach"})
-        for comp in rot_comps(ob["rotation"]):
-            # One row per component walk, barriered or not: the barrier changes
-            # what the layer does at the END of its ladder, never how it enters.
-            # The barrier's own `Wait` is not a liveness site — it waits on a
-            # peer walk's staged-done flag, and that peer's entry is this row.
-            rows.append({
-                "layer": f"{p}/Enc/{o}/R{comp}", "state": "Idle",
-                "params": [f"{p}/Sense/{o}/R{comp}"], "escape": None,
-                "why": "self-restoring: the marker rides a rigid arm on a holder "
-                       "pinned to the rig and cannot leave its receiver's box, so "
-                       "a 0 means re-acquisition and nothing else"})
-        if multi:
-            rows.append({
-                "layer": f"{p}/Slice", "state": f"Enter_{o}",
-                "params": slice_wake_params(c, o), "escape": f"Enter_{next_object(c, o)}",
-                "why": "self-restoring (coarse and marker sources, as above), and "
-                       "bounded anyway by the skip rung that stops one dead rig "
-                       "starving the other slices"})
+                "layer": f"{p}/Slice", "state": f"Enter_{o}_{j}",
+                "params": slice_wake_params(c, o),
+                "escape": f"Enter_{no}_{nj}",
+                "why": "self-restoring (coarse and marker sources, as above), "
+                       "and bounded anyway by the skip rung that stops one dead "
+                       "rig starving the other slices"})
     return rows
-
-
-def next_object(c, o):
-    names = [x["name"] for x in c["objects"]]
-    return names[(names.index(o) + 1) % len(names)]
 
 
 def tag_set(c, o):
@@ -1271,16 +1499,27 @@ def sync_target_path(c, o):
     return "Sync_Target" if len(c["objects"]) == 1 else f"Sync{o}_Target"
 
 
-def position_walk(doc, c, d, ob, a, multi):
+def position_walk(doc, c, d, a, ob=None):
     """One axis, one layer: coarse walk -> anchor -> settle -> fine walk ->
-    atomic commit. IsLocal-gated; a remote sits in Idle forever."""
-    p, o = c["prefix"], ob["name"]
-    lay = f"{p}/Enc/{o}/P{a}"
-    sc = sense_param(doc, c, f"{p}/Sense/{o}/C{a}")
-    sf = sense_param(doc, c, f"{p}/Sense/{o}/F{a}")
-    st = f"{p}/S/{o}/P{a}"
-    res = f"{p}/R/{o}/P{a}"
-    kacc, kfloat = f"{st}/Kacc", f"{p}/K/{o}/P{a}"
+    atomic commit. IsLocal-gated; a remote sits in Idle forever.
+
+    `ob` set is the single-object shape: staging, sense params and the one
+    Commit all belong to that object. `ob` None is the SHARED multi-object
+    shape — the layer that makes walk states flat in N: one `Sh` staging set
+    walked once per slice, receivers on every object's rig multiplexed onto
+    the shared sense params (at most one live writer — the slice gate clip
+    flips rigs in one evaluation), and a per-object `Commit_<o>` fan-out
+    routing the finished words to whichever object's slice is live."""
+    p = c["prefix"]
+    shared = ob is None
+    scr = "Sh" if shared else ob["name"]
+    commit_objs = c["objects"] if shared else [ob]
+    lay = f"{p}/Enc/{scr}/P{a}"
+    sc = sense_param(doc, c, f"{p}/Sense/{scr}/C{a}")
+    sf = sense_param(doc, c, f"{p}/Sense/{scr}/F{a}")
+    st = f"{p}/S/{scr}/P{a}"
+    res = f"{p}/R/{scr}/P{a}"
+    kacc, kfloat = f"{st}/Kacc", f"{p}/K/{scr}/P{a}"
     for nm in (f"{st}/C", f"{st}/F", f"{res}/C", f"{res}/F", kacc, kfloat):
         doc.param(f"  {nm}: {{ type: float, scratch: true }}", nm)
     cbools = [f"{st}/C{j}" for j in range(c["coarseBits"] - 8)]
@@ -1290,7 +1529,7 @@ def position_walk(doc, c, d, ob, a, multi):
 
     # Walk-entry conditions: the gate, plus liveness on the very param the state
     # it leads to is about to sample.
-    enter = gate(c, ob, multi) + live(d, [sc])
+    enter = gate(c, shared) + live(d, [sc])
     out = [f"  - name: {lay}", "    states:"]
     out.extend(state("Idle", None,
                      [f"{{ to: CoarseStart, when: [ {', '.join(enter)} ] }}"]))
@@ -1302,7 +1541,7 @@ def position_walk(doc, c, d, ob, a, multi):
         walk_rungs(f"{res}/C", 0, "C0A", "C0R")))
     rows = emit_walk("C", c["coarseBits"], f"{res}/C",
                      bit_plan(c["coarseBits"], f"{st}/C", cbools),
-                     kacc, out, "CoarseEnd", f"{p}/True")
+                     kacc, out, exit_when_true(c, "CoarseEnd"))
     out.extend(state("CoarseEnd", driver(copies={kfloat: kacc}),
                      [f"{{ to: Settle0, when: [ {p}/True is true ] }}"]))
     # The fine-anchor settle IS this entry's own quantity — the anchor takes one
@@ -1328,6 +1567,15 @@ def position_walk(doc, c, d, ob, a, multi):
                 "   # motionless state: exitTime is literal seconds. The fine "
                 "sender left its box; restage the cell.")
         out.extend(state(f"Settle{i}", None, rungs))
+    # The fan-out: single-object exits to its one Commit unconditionally;
+    # shared exits to whichever object's slice is live. Live=1 implies exactly
+    # one Slice/<o>=1 (Run's single driver), so exactly one rung is open; if
+    # the slice ends here first, the Live AnyState rung abandons instead.
+    if shared:
+        fine_exit = [f"{{ to: Commit_{x['name']}, when: [ {p}/Slice/{x['name']} "
+                     "greater 0.5 ] }" for x in commit_objs]
+    else:
+        fine_exit = exit_when_true(c, "Commit")
     out.extend(state(
         "FineStart",
         driver(sets=dict({f"{st}/F": 0}, **{b: 0 for b in fbools}),
@@ -1336,69 +1584,148 @@ def position_walk(doc, c, d, ob, a, multi):
         walk_rungs(f"{res}/F", 0, "F0A", "F0R")))
     rows += emit_walk("F", c["fineBits"], f"{res}/F",
                       bit_plan(c["fineBits"], f"{st}/F", fbools),
-                      None, out, "Commit", f"{p}/True")
-    commit = {f"{o}/P{a}/C": f"{st}/C", f"{o}/P{a}/F": f"{st}/F"}
-    for j in range(c["coarseBits"] - 8):
-        commit[f"{o}/P{a}/C{j}"] = f"{st}/C{j}"
-    for j in range(c["fineBits"] - 8):
-        commit[f"{o}/P{a}/F{j}"] = f"{st}/F{j}"
+                      None, out, fine_exit)
     # The loop back into the walk is a walk entry too: a rig that dies mid-run
     # must not restart against a receiver reading 0.
     leave = [f"{{ to: CoarseStart, when: [ {', '.join(enter)} ] }}",
              "{ to: Idle, when: [ IsLocal is false ] }"]
-    if multi:
-        leave.append(f"{{ to: Idle, when: [ {p}/Slice/{o} less 0.5 ] }}")
-    out.extend(state("Commit", driver(copies=commit), leave))
+    commit_states = []
+    for x in commit_objs:
+        o = x["name"]
+        commit = {f"{o}/P{a}/C": f"{st}/C", f"{o}/P{a}/F": f"{st}/F"}
+        for j in range(c["coarseBits"] - 8):
+            commit[f"{o}/P{a}/C{j}"] = f"{st}/C{j}"
+        for j in range(c["fineBits"] - 8):
+            commit[f"{o}/P{a}/F{j}"] = f"{st}/F{j}"
+        cs = f"Commit_{o}" if shared else "Commit"
+        commit_states.append(cs)
+        out.extend(state(cs, driver(copies=commit), leave))
     park = dict({f"{st}/C": 0, f"{st}/F": 0, f"{res}/C": 0, f"{res}/F": 0,
                  kacc: 0, kfloat: 0, sc: 0, sf: 0},
                 **{b: 0 for b in cbools + fbools})
     out.extend(state("Parked", driver(sets=park),
-                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
-    out.extend(off_ladder(c, ob, multi))
+                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, shared))} ] }}"]))
+    out.extend(off_ladder(c, shared))
     out.append("    default: Idle")
-    out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart",
-                                  "Commit", "Parked"] +
+    out.extend(walk_layout(rows, ["Idle", "CoarseStart", "CoarseEnd", "FineStart"]
+                           + commit_states + ["Parked"] +
                            [f"Settle{i}" for i in range(c["settleFrames"])]))
     return out
 
 
-def rot_walk_plan(c, ob):
-    """([components], barrier layer or None) per rotation value.
-
-    A rotation VALUE is what has to reach the wire in one piece. `full`'s six
-    components are six independent readings from two markers, so each is its own
-    value: its own walk layer, its own commit, and a torn set of them is a stale
-    orientation rather than one no marker held. `y`'s two components are one
-    value — a heading — so they walk in PARALLEL, as always, and hand their
-    staging to a commit barrier that publishes all 24 bits in one frame
-    (`barrier_layer`).
-
-    Parallel-plus-barrier, not one serial walk: serializing would add a whole
-    component's ladder (~0.2 s) to every measure cycle of the y configuration to
-    close a window worth ~1.7% of commits (measured — see the README), on a
-    display already a second behind. The barrier costs two frames and two scratch
-    bools."""
-    o, mode = ob["name"], ob["rotation"]
-    comps = rot_comps(mode)
-    if mode == "y":
-        return [(list(comps), f"{c['prefix']}/Enc/{o}/Ry")]
-    return [([comp], None) for comp in comps]
+def full_only_comps(c):
+    """The components only a full-mode object reads — everything outside the
+    heading pair the shared pair layer owns."""
+    return tuple(x for x in FULL_COMPS if x not in Y_COMPS)
 
 
-def done_flag(c, ob, comp):
-    return f"{c['prefix']}/RDone/{ob['name']}/R{comp}"
+def pair_layer(doc, c, d, shared):
+    """The serial heading pair: A/X and A/Z sampled in ONE driver, walked as two
+    back-to-back ladders off the frozen residuals, published by one commit.
+
+    A heading's two components are one value, and BOTH halves of that need a
+    single frame: the sampling and the publication. The parallel-plus-barrier
+    shape this replaces bought publication atomicity on top of walks that
+    sampled simultaneously by construction; a naive serialization keeps the
+    cheap half and loses the one that matters — two samples ~13 frames apart on
+    a yawing prop commit, atomically, an angle the marker never held. So
+    `Start`'s one driver copies BOTH residuals, the X ladder walks its frozen
+    residual, its final pair steps straight into the Z ladder's first decision
+    (no hop state, no mid-ladder sense read, no second liveness gate — Idle's
+    single gate covers both senses), and one Commit publishes all 24 bits.
+    Against the old shape this deletes the barrier layer, its done-flags and
+    their cross-layer races, at 2 + 2·rotBits + 1 frames — under the position
+    ladder, so cycle time is untouched; the old README's anti-serialization
+    argument priced the ladder against the wrong critical path.
+
+    `shared` (multi-object) commits fan out per rotating object exactly like
+    `position_walk`'s. Full-mode objects ride this layer for A/X + A/Z too:
+    their two readings are independent values, but sharing one sample frame and
+    one commit driver costs an independent pair nothing — each component's word
+    group still lands whole in one frame."""
+    p = c["prefix"]
+    scr = "Sh" if shared else c["objects"][0]["name"]
+    rot_obs = ([x for x in c["objects"] if x["rotation"] != "none"]
+               if shared else [c["objects"][0]])
+    lay = f"{p}/Enc/{scr}/Ry"
+    sts, ress, senses, clear = {}, {}, {}, {}
+    for comp in Y_COMPS:
+        sts[comp] = f"{p}/S/{scr}/R{comp}"
+        ress[comp] = f"{p}/R/{scr}/R{comp}"
+        doc.param(f"  {sts[comp]}: {{ type: float, scratch: true }}", sts[comp])
+        doc.param(f"  {ress[comp]}: {{ type: float, scratch: true }}", ress[comp])
+        senses[comp] = sense_param(doc, c, f"{p}/Sense/{scr}/R{comp}")
+        clear[sts[comp]] = 0
+        for j in range(c["rotBits"] - 8):
+            b = f"{sts[comp]}/B{j}"
+            doc.param(f"  {b}: {{ type: bool, scratch: true }}", b)
+            clear[b] = 0
+
+    enter = gate(c, shared) + live(d, [senses[x] for x in Y_COMPS])
+    out = [f"  - name: {lay}", "    states:"]
+    out.extend(state("Idle", None,
+                     [f"{{ to: Start, when: [ {', '.join(enter)} ] }}"]))
+    out.extend(state("Start", driver(
+        sets=clear,
+        copies={ress[x]: f"{{ source: {senses[x]}, sourceMin: {num(d['rotMin'])}, "
+                         f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"
+                for x in Y_COMPS}),
+        walk_rungs(ress["A/X"], 0, "X0A", "X0R")))
+    rows = emit_walk("X", c["rotBits"], ress["A/X"],
+                     bit_plan(c["rotBits"], sts["A/X"],
+                              [f"{sts['A/X']}/B{j}"
+                               for j in range(c["rotBits"] - 8)]),
+                     None, out, walk_rungs(ress["A/Z"], 0, "Z0A", "Z0R"))
+    if shared:
+        z_exit = [f"{{ to: Commit_{x['name']}, when: [ {p}/Slice/{x['name']} "
+                  "greater 0.5 ] }" for x in rot_obs]
+    else:
+        z_exit = exit_when_true(c, "Commit")
+    rows += emit_walk("Z", c["rotBits"], ress["A/Z"],
+                      bit_plan(c["rotBits"], sts["A/Z"],
+                               [f"{sts['A/Z']}/B{j}"
+                                for j in range(c["rotBits"] - 8)]),
+                      None, out, z_exit)
+    commit_states = []
+    for x in rot_obs:
+        o = x["name"]
+        commit = {}
+        for comp in Y_COMPS:
+            commit[f"{o}/R{comp}"] = sts[comp]
+            for j in range(c["rotBits"] - 8):
+                commit[f"{o}/R{comp}/B{j}"] = f"{sts[comp]}/B{j}"
+        cs = f"Commit_{o}" if shared else "Commit"
+        commit_states.append(cs)
+        out.extend(state(cs, driver(copies=commit),
+                         [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
+    park = dict(clear, **{ress[x]: 0 for x in Y_COMPS},
+                **{senses[x]: 0 for x in Y_COMPS})
+    out.extend(state("Parked", driver(sets=park),
+                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, shared))} ] }}"]))
+    out.extend(off_ladder(c, shared))
+    out.append("    default: Idle")
+    out.extend(walk_layout(rows, ["Idle", "Start"] + commit_states + ["Parked"]))
+    return out
 
 
-def component_walk(doc, c, d, ob, comp, multi, barrier=False):
-    """One marker component, one layer. Both rotation modes use this walk
-    unchanged — `y` is `full` with four of the six components dropped.
+def component_walk(doc, c, d, comp, ob=None):
+    """One marker component, one layer, one atomic commit per reading.
 
-    `barrier` swaps the layer's own `Commit` for a `Done` state that raises this
-    component's staged-done flag and waits for `barrier_layer` to lower it. The
-    walk itself is identical, so nothing about the measure cycle changes."""
-    p, o = c["prefix"], ob["name"]
-    lay = f"{p}/Enc/{o}/R{comp}"
-    st, res = f"{p}/S/{o}/R{comp}", f"{p}/R/{o}/R{comp}"
+    `ob` set is the single-object full build: all six components, each an
+    independent reading with its own walk — a torn set of them is a stale
+    orientation, never one no marker held. `ob` None is the shared multi-object
+    shape for the components ONLY a full-mode object reads (A/Y, B/*): gated on
+    `Slice/FullLive` so it never climbs during a y slice, with commits fanned
+    out per full-mode object only — a y object declares no words for these
+    components, so a commit routed to it would copy into params that do not
+    exist."""
+    p = c["prefix"]
+    shared = ob is None
+    scr = "Sh" if shared else ob["name"]
+    commit_objs = ([x for x in c["objects"] if x["rotation"] == "full"]
+                   if shared else [ob])
+    lay = f"{p}/Enc/{scr}/R{comp}"
+    st, res = f"{p}/S/{scr}/R{comp}", f"{p}/R/{scr}/R{comp}"
     doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
     doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
     rbools = [f"{st}/B{j}" for j in range(c["rotBits"] - 8)]
@@ -1406,15 +1733,10 @@ def component_walk(doc, c, d, ob, comp, multi, barrier=False):
         doc.param(f"  {nm}: {{ type: bool, scratch: true }}", nm)
     plan = bit_plan(c["rotBits"], st, rbools)
     clear = dict({st: 0}, **{b: 0 for b in rbools})
-    flag = done_flag(c, ob, comp) if barrier else None
-    if flag:
-        doc.param(f"  {flag}: {{ type: bool, scratch: true }}", flag)
 
     out = [f"  - name: {lay}", "    states:"]
-    end = "Done" if barrier else "Commit"
-    extras = ["Idle", end, "Start", "Parked"]
-    sr = sense_param(doc, c, f"{p}/Sense/{o}/R{comp}")
-    enter = gate(c, ob, multi) + live(d, [sr])
+    sr = sense_param(doc, c, f"{p}/Sense/{scr}/R{comp}")
+    enter = gate(c, shared, full_only=shared) + live(d, [sr])
     out.extend(state("Idle", None,
                      [f"{{ to: Start, when: [ {', '.join(enter)} ] }}"]))
     out.extend(state("Start", driver(
@@ -1422,68 +1744,28 @@ def component_walk(doc, c, d, ob, comp, multi, barrier=False):
         copies={res: f"{{ source: {sr}, sourceMin: {num(d['rotMin'])}, "
                      f"sourceMax: {num(d['rotMax'])}, destMin: 0, destMax: 1 }}"}),
         walk_rungs(res, 0, "R0A", "R0R")))
-    rows = emit_walk("R", c["rotBits"], res, plan, None, out, end, f"{p}/True")
-    if barrier:
-        # Raise the flag and hold. The wait ends when the barrier lowers it,
-        # which happens as soon as the sibling component's walk also finishes —
-        # a wait on the peer, not on a receiver, so it is not a liveness site and
-        # needs no escape: the peer's own liveness gate is the self-restoring one
-        # (`liveness_audit`), and a peer that never wakes leaves the wire holding
-        # its last committed heading, which is this entry's declared failure.
-        out.extend(state("Done", driver(sets={flag: 1}),
-                         [f"{{ to: Idle, when: [ {flag} is false ] }}"]))
+    if shared:
+        end_rungs = [f"{{ to: Commit_{x['name']}, when: [ {p}/Slice/{x['name']} "
+                     "greater 0.5 ] }" for x in commit_objs]
     else:
+        end_rungs = exit_when_true(c, "Commit")
+    rows = emit_walk("R", c["rotBits"], res, plan, None, out, end_rungs)
+    commit_states = []
+    for x in commit_objs:
+        o = x["name"]
         commit = {f"{o}/R{comp}": st}
         for j in range(c["rotBits"] - 8):
             commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
-        out.extend(state("Commit", driver(copies=commit),
+        cs = f"Commit_{o}" if shared else "Commit"
+        commit_states.append(cs)
+        out.extend(state(cs, driver(copies=commit),
                          [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     park = dict(clear, **{res: 0, sr: 0})
-    if flag:
-        park[flag] = 0
     out.extend(state("Parked", driver(sets=park),
-                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, ob, multi))} ] }}"]))
-    out.extend(off_ladder(c, ob, multi))
+                     [f"{{ to: Idle, when: [ {', '.join(wake_up(c, shared))} ] }}"]))
+    out.extend(off_ladder(c, shared))
     out.append("    default: Idle")
-    out.extend(walk_layout(rows, extras))
-    return out
-
-
-def barrier_layer(doc, c, ob, comps, lay, multi):
-    """The commit barrier for a multi-component rotation value.
-
-    Two states. `Wait` holds until every component has raised its staged-done
-    flag; `Commit` copies all of their bytes and bool tails into the word params
-    in ONE driver frame and lowers the flags, releasing the walks. The walks are
-    the same length and start together, so the barrier costs one frame of waiting
-    plus one commit frame — not a component's worth of ladder.
-
-    `Wait` carries the same `gate()` the walks do, deliberately: on the frame
-    Enable (or the slice) drops, the walks' Parked drivers clear staging in that
-    same frame, and a barrier that fired on the previous frame's flags would
-    publish the cleared staging — which decodes to cell 0, the corner of the
-    range. Both sides read one Enable value per frame, so gating here is what
-    makes that race impossible rather than merely unlikely."""
-    p, o = c["prefix"], ob["name"]
-    flags = [done_flag(c, ob, x) for x in comps]
-    commit = {}
-    for x in comps:
-        st = f"{p}/S/{o}/R{x}"
-        commit[f"{o}/R{x}"] = st
-        for j in range(c["rotBits"] - 8):
-            commit[f"{o}/R{x}/B{j}"] = f"{st}/B{j}"
-    ready = gate(c, ob, multi) + [f"{f} is true" for f in flags]
-    out = [f"  - name: {lay}", "    states:"]
-    out.extend(state("Wait", None,
-                     [f"{{ to: Commit, when: [ {', '.join(ready)} ] }}"]))
-    out.extend(state("Commit",
-                     driver(sets={f: 0 for f in flags}, copies=commit),
-                     [f"{{ to: Wait, when: [ {p}/True is true ] }}"]))
-    out.append("    default: Wait")
-    out.extend(["    layout:", "      nodes:",
-                "        Wait:   [30, 180]", "        Commit: [270, 180]",
-                "      entry: [50, 120]", "      any:   [50, 40]",
-                "      exit:  [50, 80]"])
+    out.extend(walk_layout(rows, ["Idle", "Start"] + commit_states + ["Parked"]))
     return out
 
 
@@ -1512,7 +1794,10 @@ def header(c, d, facts, numbers, bools):
     o("# object-sync: absolute world position (+rotation) for droppable props, measured with")
     o("# contacts only and carried over word-channel. No physbones, no Rigidbody.")
     o("#")
-    obj_desc = ", ".join(f"{ob['name']} (rotation {ob['rotation']})" for ob in c["objects"])
+    obj_desc = ", ".join(
+        f"{ob['name']} (rotation {ob['rotation']}"
+        + (f", slices {ob['slices']}" if ob.get("slices", 1) != 1 else "") + ")"
+        for ob in c["objects"])
     o(f"# Objects: {obj_desc}")
     o(f"# Position: +/-{num(c['range'])} m about the rig anchor, {c['coarseBits']} coarse bits "
       f"({num(c['cellSize'])} m cells) + {c['fineBits']} fine bits")
@@ -1533,9 +1818,11 @@ def header(c, d, facts, numbers, bools):
         o("#   publishing a cleared one.")
     else:
         per = max_walk_frames(c) + 2 * c["settleFrames"] + 5
-        o(f"# Local measure cycle: {len(c['objects'])} slices x {per} frames = "
-          f"~{len(c['objects']) * per / 60:.2f}s — each slice deactivates every other object's")
-        o("#   rig, clears, settles, and only then unblocks its walks.")
+        slots = slice_schedule(c)
+        o(f"# Local measure cycle: {len(slots)} slices x {per} frames = "
+          f"~{len(slots) * per / 60:.2f}s ring — each slice deactivates every other object's")
+        o("#   rig, clears the SHARED sense set, settles, and only then unblocks the shared")
+        o(f"#   walks. Ring (weighted, interleaved): {', '.join(slots)}.")
     o(f"# Rig park (deterministic from rigSeed '{c['rigSeed']}'): "
       f"({d['rigOffset'][0]}, {d['rigOffset'][1]}, {d['rigOffset'][2]}) m — the README's Rig section")
     o("#   is the spec the prefab is kept against. The park is the object node's transform")
@@ -1604,11 +1891,32 @@ def document(c):
 
 # ------------------------------------------------------------- self-test ----
 
-def preset_configs():
+def committed_configs():
+    """The three builds with on-disk artifacts: byte-pinned controller.yaml,
+    hand-maintained prefab, compiled built/. Only these feed the prefab scans,
+    the committed-vs-disk pin, and main()'s disk writes."""
     out = {"committed": CONFIG}
     for name, over in PRESETS.items():
         cfg = dict(CONFIG)
         cfg.update(over)
+        out[name] = cfg
+    return out
+
+
+def check_configs():
+    """Everything the structural suite runs over: the committed builds plus the
+    check-only DEMOS. A DEMO's `wire` merges shallowly onto CONFIG's (see the
+    DEMOS comment for the indexLoops trap a replacement reintroduces)."""
+    out = committed_configs()
+    for name, over in DEMOS.items():
+        cfg = dict(CONFIG)
+        for k, v in over.items():
+            if k == "wire":
+                w = dict(CONFIG["wire"])
+                w.update(v)
+                cfg["wire"] = w
+            else:
+                cfg[k] = v
         out[name] = cfg
     return out
 
@@ -1622,7 +1930,7 @@ def check():
         if not cond:
             ok = False
 
-    for label, cfg in preset_configs().items():
+    for label, cfg in check_configs().items():
         print(f"[{label}]")
         pf = cfg["prefix"]
         text, f = document(cfg)
@@ -1658,52 +1966,91 @@ def check():
         # Every axis commits its whole word in one driver — probed inside the
         # ENCODE layer's own block, because word-channel's receiver copies the
         # same words in one driver too and would satisfy a document-wide probe
-        # while the producer was writing them a limb at a time.
+        # while the producer was writing them a limb at a time. Multi-object
+        # walks are SHARED (`Enc/Sh/…`) with per-object Commit_<o> fan-outs, so
+        # the probe additionally pins the routing: every rung into an object's
+        # commit carries that object's own `Slice/<o>` condition — one of the
+        # two guards (with the Live abandon rung) that replaced the old
+        # per-object gate()/off_ladder/leave triple.
+        multi = len(cfg["objects"]) > 1
+        scr = "Sh" if multi else cfg["objects"][0]["name"]
+        rot_names = [ob["name"] for ob in cfg["objects"]
+                     if ob["rotation"] != "none"]
+        full_names = [ob["name"] for ob in cfg["objects"]
+                      if ob["rotation"] == "full"]
+
+        def commit_routed(lay, o):
+            rungs = [ln for ln in rung_block(text, lay).splitlines()
+                     if f"to: Commit_{o}," in ln]
+            return rungs and all(f"{pf}/Slice/{o} greater 0.5" in ln
+                                 for ln in rungs)
+
         for ob in cfg["objects"]:
+            o = ob["name"]
             for a in AXES:
-                lay = f"{cfg['prefix']}/Enc/{ob['name']}/P{a}"
-                names = [f"{ob['name']}/P{a}/C", f"{ob['name']}/P{a}/F"]
-                names += [f"{ob['name']}/P{a}/C{j}" for j in range(cfg["coarseBits"] - 8)]
-                names += [f"{ob['name']}/P{a}/F{j}" for j in range(cfg["fineBits"] - 8)]
+                lay = f"{pf}/Enc/{scr}/P{a}"
+                names = [f"{o}/P{a}/C", f"{o}/P{a}/F"]
+                names += [f"{o}/P{a}/C{j}" for j in range(cfg["coarseBits"] - 8)]
+                names += [f"{o}/P{a}/F{j}" for j in range(cfg["fineBits"] - 8)]
                 assert_(one_driver_has(rung_block(text, lay), names),
-                        f"{ob['name']}/P{a}: all {len(names)} words in one commit driver")
-            # One commit driver per rotation VALUE, not per component: y mode's
-            # two heading components are one value, so all 24 bits leave in one
-            # frame or a client reconstructs an angle from two measure cycles.
-            # Where a barrier owns that commit, the probe runs on the BARRIER's
-            # block and the component walks must carry no word write at all.
-            for comps, lay in rot_walk_plan(cfg, ob):
+                        f"{o}/P{a}: all {len(names)} words in one commit driver")
+                if multi:
+                    assert_(commit_routed(lay, o),
+                            f"{lay}: every rung into Commit_{o} requires "
+                            f"Slice/{o}")
+            mode = ob["rotation"]
+            if mode == "none":
+                continue
+            # The heading pair is one VALUE: all 24 bits of A/X + A/Z leave in
+            # one driver (the pair layer's commit), or a client reconstructs an
+            # angle from two measure cycles. Single-object full mode keeps a
+            # walk per component instead — six independent readings.
+            if multi or mode == "y":
                 names = []
-                for comp in comps:
-                    names.append(f"{ob['name']}/R{comp}")
-                    names += [f"{ob['name']}/R{comp}/B{j}"
+                for comp in Y_COMPS:
+                    names.append(f"{o}/R{comp}")
+                    names += [f"{o}/R{comp}/B{j}"
                               for j in range(cfg["rotBits"] - 8)]
-                where = lay or f"{pf}/Enc/{ob['name']}/R{comps[0]}"
-                assert_(one_driver_has(rung_block(text, where), names),
-                        f"{where}: all {len(names)} words of "
-                        f"{len(comps)} component(s) in one commit driver")
-                if lay is None:
-                    continue
+                lay = f"{pf}/Enc/{scr}/Ry"
+                assert_(one_driver_has(rung_block(text, lay), names),
+                        f"{o}: all {len(names)} heading words in the pair "
+                        "layer's one commit driver")
+                if multi:
+                    assert_(commit_routed(lay, o),
+                            f"{lay}: every rung into Commit_{o} requires "
+                            f"Slice/{o}")
+            if mode == "full":
+                comps = full_only_comps(cfg) if multi else FULL_COMPS
                 for comp in comps:
-                    wlay = rung_block(text, f"{pf}/Enc/{ob['name']}/R{comp}")
-                    wrote = [dst for op, dst, _ in driver_ops(wlay)
-                             if dst.startswith(f"{ob['name']}/R")]
-                    assert_(not wrote,
-                            f"{ob['name']}/R{comp}: the walk stages only — no word "
-                            f"write outside the barrier ({wrote[:2]})")
-                    assert_(f"{done_flag(cfg, ob, comp)}: 1" in wlay,
-                            f"{ob['name']}/R{comp}: the walk ends by raising its "
-                            "staged-done flag")
-                # The barrier fires only with every flag up AND the gate, so the
-                # frame Enable drops cannot publish just-cleared staging.
-                bw = rung_text(text, lay, "Wait")
-                assert_(all(f"{done_flag(cfg, ob, x)} is true" in bw for x in comps)
-                        and f"{pf}/Enable greater 0.5" in bw,
-                        f"{lay}: Wait releases only on every staged-done flag "
-                        "plus the enable gate")
-                assert_(all(f"{done_flag(cfg, ob, x)}: 0" in rung_block(text, lay)
-                            for x in comps),
-                        f"{lay}: Commit lowers every flag, releasing the walks")
+                    names = [f"{o}/R{comp}"]
+                    names += [f"{o}/R{comp}/B{j}"
+                              for j in range(cfg["rotBits"] - 8)]
+                    lay = f"{pf}/Enc/{scr}/R{comp}"
+                    assert_(one_driver_has(rung_block(text, lay), names),
+                            f"{o}/R{comp}: all {len(names)} words in one "
+                            "commit driver")
+                    if multi:
+                        assert_(commit_routed(lay, o),
+                                f"{lay}: every rung into Commit_{o} requires "
+                                f"Slice/{o}")
+
+        # Coherent SAMPLING, the half of heading coherence a barrier never
+        # bought and a naive serialization loses: the pair layer's Start copies
+        # BOTH residuals in its single driver, so the Z ladder walks a value
+        # frozen in the same frame as X's — no state between Start and the
+        # commit reads a sense param.
+        if any(ob["rotation"] != "none" for ob in cfg["objects"]) \
+                and (multi or cfg["objects"][0]["rotation"] == "y"):
+            start = state_block(rung_block(text, f"{pf}/Enc/{scr}/Ry"), "Start")
+            assert_(all(f"{pf}/R/{scr}/R{x}: {{ source: {pf}/Sense/{scr}/R{x}"
+                        in start for x in Y_COMPS),
+                    "pair layer Start samples BOTH heading residuals in one "
+                    "driver frame")
+            body_after = rung_block(text, f"{pf}/Enc/{scr}/Ry")
+            n_copies = body_after.count(f"source: {pf}/Sense/{scr}/R")
+            assert_(n_copies == 2,
+                    f"pair layer reads its senses exactly once each at Start "
+                    f"({n_copies} sense copies) — no mid-ladder resample")
 
         # Decode coherence: every word limb — bytes included — reaches the
         # decode through the SAME Floatify copy, so an axis's assembled pair
@@ -1776,9 +2123,18 @@ def check():
                 "no freeform-directional tree anywhere (the angle lookup is gone)")
         assert_(text.count("motion: ~") > 0 and "tree: direct" in text,
                 "document carries both ladder states and Direct trees")
-        assert_(all(f"  - name: {cfg['prefix']}/Enc/{ob['name']}/P{a}" in text
-                    for ob in cfg["objects"] for a in AXES),
-                "one encode layer per object per axis")
+        assert_(all(f"  - name: {cfg['prefix']}/Enc/{scr}/P{a}" in text
+                    for a in AXES)
+                and text.count(f"  - name: {cfg['prefix']}/Enc/") ==
+                len([1 for a in AXES]) + (
+                    (1 if rot_names else 0) +
+                    (len(full_only_comps(cfg)) if full_names else 0)
+                    if multi else
+                    (1 if cfg["objects"][0]["rotation"] == "y" else 0) +
+                    (len(FULL_COMPS)
+                     if cfg["objects"][0]["rotation"] == "full" else 0)),
+                "exactly the planned encode layers: one per axis plus the "
+                "rotation set — shared once for multi, per-object for one")
 
         # Rotation reconstruction: `y` is `full` minus marker B, so its decode
         # drives ProxyA's X and Z and never mentions ProxyB.
@@ -1807,54 +2163,87 @@ def check():
                 "menu block carries one Toggle bound to Enable")
         enc = [ln.split("- name: ")[1] for ln in text.splitlines()
                if "  - name: " + pf in ln and ("/Enable" not in ln)]
-        # Barrier layers are exempt by construction: they stage nothing, so a
-        # Parked driver would have nothing to clear, and their `Wait` carries the
-        # enable gate instead — the stronger guarantee, since that is what stops
-        # a commit firing on the frame the walks clear their staging.
-        barriers = {lay for ob in cfg["objects"]
-                    for _, lay in rot_walk_plan(cfg, ob) if lay is not None}
-        measuring = [n for n in enc
-                     if ("/Enc/" in n or n.endswith("/Slice")) and n not in barriers]
+        measuring = [n for n in enc if "/Enc/" in n or n.endswith("/Slice")]
         assert_(text.count("- { to: Parked, when: [ " + pf + "/Enable less 0.5 ], "
                            "canTransitionToSelf: false }") == len(measuring),
-                f"all {len(measuring)} measuring layers park on Enable false "
-                f"({len(barriers)} barrier layer(s) exempt — they gate instead)")
+                f"all {len(measuring)} measuring layers park on Enable false")
         assert_("Off:" not in text and "to: Off" not in text,
                 "the parked state is not named Off (a bare Off infers as false)")
-        for ob in cfg["objects"]:
-            o = ob["name"]
-            cleared = parked_clears(text, f"{pf}/Enc/{o}/PX")
-            want = {f"{pf}/Sense/{o}/CX", f"{pf}/Sense/{o}/FX",
-                    f"{pf}/S/{o}/PX/C", f"{pf}/S/{o}/PX/F",
-                    f"{pf}/R/{o}/PX/C", f"{pf}/R/{o}/PX/F",
-                    f"{pf}/K/{o}/PX", f"{pf}/S/{o}/PX/Kacc"}
-            assert_(want <= cleared,
-                    f"{o}/PX Parked clears staging, residual, cell index and both "
-                    f"sense params ({len(cleared)} params; missing {want - cleared})")
+        cleared = parked_clears(text, f"{pf}/Enc/{scr}/PX")
+        want = {f"{pf}/Sense/{scr}/CX", f"{pf}/Sense/{scr}/FX",
+                f"{pf}/S/{scr}/PX/C", f"{pf}/S/{scr}/PX/F",
+                f"{pf}/R/{scr}/PX/C", f"{pf}/R/{scr}/PX/F",
+                f"{pf}/K/{scr}/PX", f"{pf}/S/{scr}/PX/Kacc"}
+        assert_(want <= cleared,
+                f"{scr}/PX Parked clears staging, residual, cell index and both "
+                f"sense params ({len(cleared)} params; missing {want - cleared})")
+        # The barrier's Enable-drop property, re-homed: the pair layer parks on
+        # Enable/Live like every walk, and its Parked driver clears the very
+        # staging its commits read — so the frame Enable drops cannot publish
+        # cleared staging (the AnyState rung outranks the commit rung, same
+        # layer, no cross-layer flag race left to have).
+        if rot_names and (multi or cfg["objects"][0]["rotation"] == "y"):
+            pc = parked_clears(text, f"{pf}/Enc/{scr}/Ry")
+            pwant = set()
+            for x in Y_COMPS:
+                pwant |= {f"{pf}/S/{scr}/R{x}", f"{pf}/R/{scr}/R{x}",
+                          f"{pf}/Sense/{scr}/R{x}"}
+                pwant |= {f"{pf}/S/{scr}/R{x}/B{j}"
+                          for j in range(cfg["rotBits"] - 8)}
+            assert_(pwant <= pc,
+                    f"pair layer Parked clears both components' staging, "
+                    f"residuals and senses (missing {pwant - pc})")
 
         # Defect B and its single-object twin: a Commit must be reachable ONLY
         # by walking every bit, and the one road out of Parked runs through the
         # re-acquisition dwell. Neither a slice entry nor an unpark may reach a
-        # Commit whose staging was cleared and never recomputed.
-        for ob in cfg["objects"]:
-            o = ob["name"]
-            # A barriered walk ends at `Done` instead of `Commit`; the property is
-            # the same one — the end state is reachable only by walking every bit.
-            barriered = {c for comps, lay in rot_walk_plan(cfg, ob)
-                         if lay is not None for c in comps}
-            plan = [(f"{pf}/Enc/{o}/P{a}", f"F{cfg['fineBits'] - 1}", "Commit")
-                    for a in AXES]
-            plan += [(f"{pf}/Enc/{o}/R{comp}", f"R{cfg['rotBits'] - 1}",
-                      "Done" if comp in barriered else "Commit")
-                     for comp in rot_comps(ob["rotation"])]
-            for lay, last, end in plan:
-                tr = transitions_of(text, lay)
+        # Commit whose staging was cleared and never recomputed. In the pair
+        # layer the final pair is the SECOND ladder's (`Z…`) — a commit
+        # reachable off the X ladder would publish a heading half-walked.
+        plan = []
+        for a in AXES:
+            plan.append((f"{pf}/Enc/{scr}/P{a}", f"F{cfg['fineBits'] - 1}",
+                         [f"Commit_{o}" for o in
+                          (x["name"] for x in cfg["objects"])] if multi
+                         else ["Commit"]))
+        if rot_names and (multi or cfg["objects"][0]["rotation"] == "y"):
+            plan.append((f"{pf}/Enc/{scr}/Ry", f"Z{cfg['rotBits'] - 1}",
+                         [f"Commit_{o}" for o in rot_names] if multi
+                         else ["Commit"]))
+        if full_names:
+            comps = full_only_comps(cfg) if multi else FULL_COMPS
+            for comp in comps:
+                plan.append((f"{pf}/Enc/{scr}/R{comp}", f"R{cfg['rotBits'] - 1}",
+                             [f"Commit_{o}" for o in full_names] if multi
+                             else ["Commit"]))
+        for lay, last, ends in plan:
+            tr = transitions_of(text, lay)
+            for end in ends:
                 into = {s for s, tg in tr.items() if end in tg}
                 assert_(into == {last + "A", last + "R"},
                         f"{lay}: {end} reachable only from the final walk pair "
                         f"({sorted(into)})")
-                assert_(tr.get("Parked") == ["Idle"],
-                        f"{lay}: Parked exits only to Idle ({tr.get('Parked')})")
+            assert_(tr.get("Parked") == ["Idle"],
+                    f"{lay}: Parked exits only to Idle ({tr.get('Parked')})")
+            # The abandon guard that replaced the per-object slice rung: every
+            # shared walk layer bails to Parked the frame `Slice/Live` drops.
+            if multi:
+                assert_(any("to: Parked" in r and f"{pf}/Slice/Live less 0.5" in r
+                            and "canTransitionToSelf: false" in r
+                            for r in any_rungs(text, lay)),
+                        f"{lay}: AnyState abandon rung on Slice/Live")
+
+        # Driver hygiene over the sense params, all configs: receivers are the
+        # ONLY live writers — every driver write naming a /Sense/ param is a
+        # clear (`set` to 0), in a slice Enter/Parked or a walk's Parked. A
+        # driver COPY into a sense param would fake liveness; with the params
+        # shared, faked liveness walks one object's position into another's
+        # words.
+        bad_sense = [(op, dst, v) for op, dst, v in driver_ops(text)
+                     if "/Sense/" in dst and not (op == "set" and v == "0")]
+        assert_(not bad_sense,
+                f"every driver write to a sense param is a clear-to-0 "
+                f"({bad_sense[:2]})")
 
         # Liveness: every transition that leads a walk into sampling a sense
         # param carries that param's own liveness condition. A reactivated
@@ -1889,36 +2278,79 @@ def check():
                 f"reading (lowest is {min(d0['coarseMin'], d0['fineMin'], d0['rotMin']):.4f})")
 
         # Defect A: the slice must deactivate a rig, not merely stop reading it.
-        if len(cfg["objects"]) > 1:
+        # Plus the shared-walk additions: the ring is read off the EMITTED text
+        # (weighted, interleaved, counts exact), every Enter and Parked clear
+        # covers the whole shared sense union (the assertion standing between a
+        # graceful wait and a cross-object publish), and Run is the sole writer
+        # of Live/FullLive.
+        if multi:
             tr = transitions_of(text, f"{pf}/Slice")
-            for ob in cfg["objects"]:
-                o = ob["name"]
-                gate = f["clips"][f"slice_gate_{safe(o)}"][0]
-                assert_(all(str(gate[f"Rig/{x['name']}/{s}/GameObject.m_IsActive"])
+            slice_block = rung_block(text, f"{pf}/Slice")
+            ring = [s.split("Enter_", 1)[1].rsplit("_", 1)[0]
+                    for s in tr if s.startswith("Enter_")]
+            want_counts = {ob["name"]: ob.get("slices", 1)
+                           for ob in cfg["objects"]}
+            assert_({o: ring.count(o) for o in want_counts} == want_counts,
+                    f"ring carries each object exactly its weight ({ring})")
+            assert_(all(ring[i] != ring[(i + 1) % len(ring)]
+                        for i in range(len(ring))),
+                    f"no object holds two consecutive slices, ring-wise ({ring})"
+                    " — an adjacent repeat's Enter would tear down its own walk")
+            union = set(sense_union(cfg))
+            labels, seen = [], {}
+            for o in ring:
+                j = seen.get(o, 0)
+                labels.append((o, j))
+                seen[o] = j + 1
+            full_modes = {ob["name"]: ob["rotation"] for ob in cfg["objects"]}
+            any_full = "full" in full_modes.values()
+            for i, (o, j) in enumerate(labels):
+                gate_clip = f["clips"][f"slice_gate_{safe(o)}"][0]
+                assert_(all(str(gate_clip[f"Rig/{x['name']}/{s}/GameObject.m_IsActive"])
                             == ("1" if x["name"] == o else "0")
                             for x in cfg["objects"]
                             for s in ("Coarse", "Fine", "Rot")),
                         f"slice {o}: its three subtrees live, every other object's dead")
-                nxt = cfg["objects"][(cfg["objects"].index(ob) + 1)
-                                     % len(cfg["objects"])]["name"]
-                assert_(tr.get(f"Enter_{o}") == [f"Run_{o}", f"Enter_{nxt}"],
-                        f"slice {o}: entry waits for live, then yields rather than starving")
-                entry = rung_text(text, f"{pf}/Slice", f"Enter_{o}")
+                no, nj = labels[(i + 1) % len(labels)]
+                assert_(tr.get(f"Enter_{o}_{j}") == [f"Run_{o}_{j}",
+                                                     f"Enter_{no}_{nj}"],
+                        f"slice {o}#{j}: entry waits for live, then yields "
+                        "rather than starving")
+                entry = rung_text(text, f"{pf}/Slice", f"Enter_{o}_{j}")
                 assert_(all(f"{q} {eps}" in entry for q in slice_wake_params(cfg, o)),
-                        f"slice {o}: unblocks only once all "
+                        f"slice {o}#{j}: unblocks only once all "
                         f"{len(slice_wake_params(cfg, o))} of its coarse and marker "
                         "receivers read live")
+                esets = state_sets(slice_block, f"Enter_{o}_{j}")
+                assert_(union <= set(esets) and
+                        all(esets[k] == "0" for k in union),
+                        f"slice {o}#{j}: Enter clears the WHOLE shared sense "
+                        f"union (missing {union - set(esets)})")
+                rsets = state_sets(slice_block, f"Run_{o}_{j}")
+                want_run = {f"{pf}/Slice/Live": "1",
+                            f"{pf}/Slice/{o}": "1"}
+                if any_full:
+                    want_run[f"{pf}/Slice/FullLive"] = \
+                        "1" if full_modes[o] == "full" else "0"
+                assert_(all(rsets.get(k) == v for k, v in want_run.items())
+                        and all(rsets.get(f"{pf}/Slice/{x['name']}") ==
+                                ("1" if x["name"] == o else "0")
+                                for x in cfg["objects"]),
+                        f"slice {o}#{j}: Run raises Live + exactly its own "
+                        "Slice flag" + (" + FullLive per mode" if any_full else ""))
+            psets = state_sets(slice_block, "Parked")
+            assert_(union <= set(psets),
+                    f"Slice Parked clears the whole shared sense union "
+                    f"(missing {union - set(psets)})")
             assert_("enable_park" not in f["clips"],
                     "no enable clips at all with several objects — the Slice layer "
                     "owns m_IsActive (one property, one writer)")
             assert_(all("m_IsActive" in k
                         for k in f["clips"]["slice_gate_park"][0]),
                     "the Slice layer's parked clip is what Enable reaches the subtrees through")
-            for ob in cfg["objects"]:
-                assert_(all(str(v) == "0" for v in
-                            f["clips"]["slice_gate_park"][0].values()),
-                        "parking the Slice layer deactivates every object's rig")
-                break
+            assert_(all(str(v) == "0" for v in
+                        f["clips"]["slice_gate_park"][0].values()),
+                    "parking the Slice layer deactivates every object's rig")
 
         # Per-object collision tags: two objects on one tag set is measured-broken.
         tags = [tag_set(cfg, ob["name"]) for ob in cfg["objects"]]
@@ -1937,10 +2369,13 @@ def check():
                 assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
                             for s in ("Coarse", "Fine", "Rot")),
                         f"{ob['name']}: parking deactivates all three measure subtrees")
-        assert_(not any(k.startswith(("Sync", "Sync_Target"))
-                        for k in f["clips"].get("enable_park", ({},))[0]),
-                "the enable's tree reaches the measure rig only — Sync is the "
-                "Follow layer's alone, and Sync_Target is the consumer's")
+            # Scoped to the single-object branch where enable_park EXISTS: on a
+            # multi config the old document-level spelling read `.get(...)`'s
+            # empty fallback and passed vacuously.
+            assert_(not any(k.startswith(("Sync", "Sync_Target"))
+                            for k in park),
+                    "the enable's tree reaches the measure rig only — Sync is "
+                    "the Follow layer's alone, and Sync_Target is the consumer's")
 
         # THE FENCE, and it stays a pure negative because the correct answer
         # here really is "nothing": Sync_Target is the consumer's node — their
@@ -2078,6 +2513,35 @@ def check():
         assert_(f"**{wire_bits + 1} synced bits**" in body,
                 f"README's lead states {wire_bits + 1} synced bits total "
                 f"(wire {wire_bits} + {CONFIG['prefix']}/Enable)")
+        # The geometry pins the wire-bit pair cannot see: the 8192->4096 bump
+        # measurably moved NEITHER wireBits figure, so without these a fully
+        # stale README passes. Every figure is read off derive()'s output, and
+        # the two squeeze weights use exact dyadic repr — num()'s 9-decimal
+        # rounding would pin a value the prefab must not carry.
+        gm = cfacts["geometry"]
+        g_w = CONFIG["coarseHalfSpan"] / CONFIG["range"]
+        for frag, why in (
+                (f"±{num(CONFIG['range'])} m", "working volume"),
+                (f"{CONFIG['coarseBits']}+{CONFIG['fineBits']}", "bit split"),
+                (f"({num(gm['fineSpan'])} m)", "redundant fine field"),
+                (f"{num(round(gm['fineLSB'] * 1000, 5))} mm", "fine LSB"),
+                (repr(g_w), "squeeze weight g"),
+                (repr(1 - g_w), "squeeze weight 1-g")):
+            assert_(frag in body, f"README carries the current {why} ({frag})")
+        # Cost accounting pinned per committed build: state/layer counts and
+        # the Floatify limb count are the generator's own figures.
+        dfacts = {lbl: document(cfg2)[1]["facts"]
+                  for lbl, cfg2 in committed_configs().items()}
+        s0, l0 = dfacts["committed"]["stateCount"], dfacts["committed"]["layerCount"]
+        assert_(f"**{s0} states and {l0} layers**" in body,
+                f"README's Costs states the root build's {s0}/{l0}")
+        assert_(f"({dfacts['y']['stateCount']}/{dfacts['y']['layerCount']} and "
+                f"{dfacts['y_double']['stateCount']}/{dfacts['y_double']['layerCount']} "
+                in body,
+                "README's Costs states the y and y_double state/layer counts")
+        fl = dfacts["committed"]["floatifyLimbs"]
+        assert_(f"({fl - 1}+1 params" in body,
+                f"README's Floatify accounting matches the generator ({fl - 1}+1)")
     else:
         assert_(False, "README.md is missing")
 
@@ -2088,7 +2552,7 @@ def check():
     # source-space offset must be exactly zero.
     print("[prefab source offsets]")
     import re as _re
-    for label in preset_configs():
+    for label in committed_configs():
         pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
         if not os.path.exists(pf_path):
             assert_(False, f"{label}: ObjectSync.prefab is missing")
@@ -2143,7 +2607,7 @@ def check():
             f"assets/World.prefab.meta carries a GUID ({world_guid})")
     assert_(bool(world_tf), f"assets/World.prefab carries a Transform ({world_tf})")
     if world_guid is not None and world_tf:
-        for label in preset_configs():
+        for label in committed_configs():
             pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
             if not os.path.exists(pf_path):
                 continue      # the missing-prefab FAIL is already reported above
@@ -2167,7 +2631,7 @@ def check():
     # so a generator change that moves any of the three documents is a defect
     # until that variant's built/ is recompiled.
     print("[committed vs disk]")
-    for label, cfg in preset_configs().items():
+    for label, cfg in committed_configs().items():
         on_disk = os.path.join(HERE, *preset_dir(label), "controller.yaml")
         if os.path.exists(on_disk):
             with open(on_disk, encoding="utf-8", newline="") as fh:
@@ -2202,7 +2666,7 @@ def driver_ops(text):
             val = val.strip()
             src = val.split("source:", 1)[1].split(",")[0].strip() \
                 if val.startswith("{") and "source:" in val else val
-            ops.append((op, dst.strip(), src if op == "copy" else None))
+            ops.append((op, dst.strip(), src if op == "copy" else val))
         elif s and not ln.startswith("              "):
             op = None
     return ops
@@ -2345,6 +2809,25 @@ def parked_clears(text, layer):
     return out
 
 
+def state_sets(layer_text, name):
+    """One state's driver `set:` writes, key -> raw value string — the surface
+    the clear-totality probes read (parked_clears collapses values away; these
+    need them)."""
+    body = state_block(layer_text, name)
+    out, in_set = {}, False
+    for ln in body.splitlines():
+        s = ln.strip()
+        if ln.startswith("              ") and not ln.startswith("               ") \
+                and s.endswith(":"):
+            in_set = s == "set:"
+        elif in_set and ln.startswith("                ") and ":" in s:
+            k, v = s.split(":", 1)
+            out[k.strip()] = v.strip()
+        elif s and not ln.startswith("              "):
+            in_set = False
+    return out
+
+
 def aap_params(text):
     return {ln.split(":", 1)[0].strip() for ln in text.splitlines()
             if "aap: true" in ln and ln.startswith("  ")}
@@ -2372,7 +2855,7 @@ def one_driver_has(text, names):
 def main():
     if "--check" in sys.argv:
         sys.exit(check())
-    for label, cfg in preset_configs().items():
+    for label, cfg in committed_configs().items():
         text, f = document(cfg)
         outdir = os.path.join(HERE, *preset_dir(label))
         os.makedirs(outdir, exist_ok=True)
@@ -2380,10 +2863,11 @@ def main():
         with open(out, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
         facts = f["facts"]
-        print(f"wrote {os.path.relpath(out, HERE)}: {len(f['layers'])} layers, "
-              f"{len(f['clips'])} clips, {facts['wireBits']} wire bits, "
-              f"{facts['payloadBits']} payload bits, {facts['batchCount']} batches, "
-              f"~{facts['cycleSeconds']:.2f}s refresh @60fps")
+        print(f"wrote {os.path.relpath(out, HERE)}: {facts['stateCount']} states, "
+              f"{len(f['layers'])} layers, {len(f['clips'])} clips, "
+              f"{facts['wireBits']} wire bits, {facts['payloadBits']} payload bits, "
+              f"{facts['batchCount']} batches, ~{facts['cycleSeconds']:.2f}s refresh "
+              f"@60fps, Floatify {facts['floatifyLimbs']} limbs")
 
 
 if __name__ == "__main__":

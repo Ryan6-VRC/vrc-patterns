@@ -3,15 +3,15 @@
 # contacts only and carried over word-channel. No physbones, no Rigidbody.
 #
 # Objects: Prop (rotation full)
-# Position: +/-8192 m about the rig anchor, 13 coarse bits (2 m cells) + 12 fine bits
-#   over a 4.4 m redundant field (cell + 2 x 1.2 m coarse guard,
-#   the guard covering the coarse stage's own 1.162 m worst-case world error),
-#   fine LSB 1.0742 mm, 0.8 m of face left on each side of the field.
+# Position: +/-4096 m about the rig anchor, 12 coarse bits (2 m cells) + 12 fine bits
+#   over a 3.2 m redundant field (cell + 2 x 0.6 m coarse guard,
+#   the guard covering the coarse stage's own 0.581 m worst-case world error),
+#   fine LSB 0.7812 mm, 1.4 m of face left on each side of the field.
 # Rotation: 12 bits per component, 1 m arms in a 2.5 m face (0.25 m guard),
 #   component LSB 0.4883 mm.
-# Wire: 52 synced bits carrying 147 payload bits in 3 batches, atomic=batch,
+# Wire: 50 synced bits carrying 144 payload bits in 3 batches, atomic=batch,
 #   ~0.35s full refresh @60fps.
-# Local measure cycle: 34 frames (~0.57s); an unpark costs 4 more, waiting out contact re-acquisition
+# Local measure cycle: 33 frames (~0.55s); an unpark costs 4 more, waiting out contact re-acquisition
 #   before the first sample, so the wire holds its last committed pose rather than
 #   publishing a cleared one.
 # Rig park (deterministic from rigSeed 'object-sync/g3'): (73, 932, 233) m — the README's Rig section
@@ -59,7 +59,6 @@ parameters:
   Prop/PX/C1: bool
   Prop/PX/C2: bool
   Prop/PX/C3: bool
-  Prop/PX/C4: bool
   Prop/PX/F0: bool
   Prop/PX/F1: bool
   Prop/PX/F2: bool
@@ -68,7 +67,6 @@ parameters:
   Prop/PY/C1: bool
   Prop/PY/C2: bool
   Prop/PY/C3: bool
-  Prop/PY/C4: bool
   Prop/PY/F0: bool
   Prop/PY/F1: bool
   Prop/PY/F2: bool
@@ -77,7 +75,6 @@ parameters:
   Prop/PZ/C1: bool
   Prop/PZ/C2: bool
   Prop/PZ/C3: bool
-  Prop/PZ/C4: bool
   Prop/PZ/F0: bool
   Prop/PZ/F1: bool
   Prop/PZ/F2: bool
@@ -139,8 +136,6 @@ parameters:
   ObjectSync/Ch/Wire/Bool13: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Bool14: { type: bool, vrc: { synced: true, saved: false } }
   ObjectSync/Ch/Wire/Bool15: { type: bool, vrc: { synced: true, saved: false } }
-  ObjectSync/Ch/Wire/Bool16: { type: bool, vrc: { synced: true, saved: false } }
-  ObjectSync/Ch/Wire/Bool17: { type: bool, vrc: { synced: true, saved: false } }
   IsLocal: bool              # VRC built-in
   ObjectSync/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   ObjectSync/One: { type: float, default: 1, scratch: true }      # Direct-tree carrier weight
@@ -161,7 +156,6 @@ parameters:
   ObjectSync/B/Prop/PX/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C2: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/C3: { type: float, scratch: true }
-  ObjectSync/B/Prop/PX/C4: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/F0: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/F1: { type: float, scratch: true }
   ObjectSync/B/Prop/PX/F2: { type: float, scratch: true }
@@ -170,7 +164,6 @@ parameters:
   ObjectSync/B/Prop/PY/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PY/C2: { type: float, scratch: true }
   ObjectSync/B/Prop/PY/C3: { type: float, scratch: true }
-  ObjectSync/B/Prop/PY/C4: { type: float, scratch: true }
   ObjectSync/B/Prop/PY/F0: { type: float, scratch: true }
   ObjectSync/B/Prop/PY/F1: { type: float, scratch: true }
   ObjectSync/B/Prop/PY/F2: { type: float, scratch: true }
@@ -179,7 +172,6 @@ parameters:
   ObjectSync/B/Prop/PZ/C1: { type: float, scratch: true }
   ObjectSync/B/Prop/PZ/C2: { type: float, scratch: true }
   ObjectSync/B/Prop/PZ/C3: { type: float, scratch: true }
-  ObjectSync/B/Prop/PZ/C4: { type: float, scratch: true }
   ObjectSync/B/Prop/PZ/F0: { type: float, scratch: true }
   ObjectSync/B/Prop/PZ/F1: { type: float, scratch: true }
   ObjectSync/B/Prop/PZ/F2: { type: float, scratch: true }
@@ -233,7 +225,6 @@ parameters:
   ObjectSync/S/Prop/PX/C1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PX/C2: { type: bool, scratch: true }
   ObjectSync/S/Prop/PX/C3: { type: bool, scratch: true }
-  ObjectSync/S/Prop/PX/C4: { type: bool, scratch: true }
   ObjectSync/S/Prop/PX/F0: { type: bool, scratch: true }
   ObjectSync/S/Prop/PX/F1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PX/F2: { type: bool, scratch: true }
@@ -250,7 +241,6 @@ parameters:
   ObjectSync/S/Prop/PY/C1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PY/C2: { type: bool, scratch: true }
   ObjectSync/S/Prop/PY/C3: { type: bool, scratch: true }
-  ObjectSync/S/Prop/PY/C4: { type: bool, scratch: true }
   ObjectSync/S/Prop/PY/F0: { type: bool, scratch: true }
   ObjectSync/S/Prop/PY/F1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PY/F2: { type: bool, scratch: true }
@@ -267,7 +257,6 @@ parameters:
   ObjectSync/S/Prop/PZ/C1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PZ/C2: { type: bool, scratch: true }
   ObjectSync/S/Prop/PZ/C3: { type: bool, scratch: true }
-  ObjectSync/S/Prop/PZ/C4: { type: bool, scratch: true }
   ObjectSync/S/Prop/PZ/F0: { type: bool, scratch: true }
   ObjectSync/S/Prop/PZ/F1: { type: bool, scratch: true }
   ObjectSync/S/Prop/PZ/F2: { type: bool, scratch: true }
@@ -323,7 +312,7 @@ layers:
         transitions:
           - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
-      # counter 1/3 = batch 1/3: Prop/PX/C, Prop/PX/F, Prop/PY/C, Prop/PY/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/C4, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/C4, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
+      # counter 1/3 = batch 1/3: Prop/PX/C, Prop/PX/F, Prop/PY/C, Prop/PY/F, Prop/PX/C0, Prop/PX/C1, Prop/PX/C2, Prop/PX/C3, Prop/PX/F0, Prop/PX/F1, Prop/PX/F2, Prop/PX/F3, Prop/PY/C0, Prop/PY/C1, Prop/PY/C2, Prop/PY/C3, Prop/PY/F0, Prop/PY/F1, Prop/PY/F2, Prop/PY/F3
       Send0:
         motion: ~
         behaviours:
@@ -340,27 +329,25 @@ layers:
                 ObjectSync/Ch/Wire/Bool1: Prop/PX/C1
                 ObjectSync/Ch/Wire/Bool2: Prop/PX/C2
                 ObjectSync/Ch/Wire/Bool3: Prop/PX/C3
-                ObjectSync/Ch/Wire/Bool4: Prop/PX/C4
-                ObjectSync/Ch/Wire/Bool5: Prop/PX/F0
-                ObjectSync/Ch/Wire/Bool6: Prop/PX/F1
-                ObjectSync/Ch/Wire/Bool7: Prop/PX/F2
-                ObjectSync/Ch/Wire/Bool8: Prop/PX/F3
-                ObjectSync/Ch/Wire/Bool9: Prop/PY/C0
-                ObjectSync/Ch/Wire/Bool10: Prop/PY/C1
-                ObjectSync/Ch/Wire/Bool11: Prop/PY/C2
-                ObjectSync/Ch/Wire/Bool12: Prop/PY/C3
-                ObjectSync/Ch/Wire/Bool13: Prop/PY/C4
-                ObjectSync/Ch/Wire/Bool14: Prop/PY/F0
-                ObjectSync/Ch/Wire/Bool15: Prop/PY/F1
-                ObjectSync/Ch/Wire/Bool16: Prop/PY/F2
-                ObjectSync/Ch/Wire/Bool17: Prop/PY/F3
+                ObjectSync/Ch/Wire/Bool4: Prop/PX/F0
+                ObjectSync/Ch/Wire/Bool5: Prop/PX/F1
+                ObjectSync/Ch/Wire/Bool6: Prop/PX/F2
+                ObjectSync/Ch/Wire/Bool7: Prop/PX/F3
+                ObjectSync/Ch/Wire/Bool8: Prop/PY/C0
+                ObjectSync/Ch/Wire/Bool9: Prop/PY/C1
+                ObjectSync/Ch/Wire/Bool10: Prop/PY/C2
+                ObjectSync/Ch/Wire/Bool11: Prop/PY/C3
+                ObjectSync/Ch/Wire/Bool12: Prop/PY/F0
+                ObjectSync/Ch/Wire/Bool13: Prop/PY/F1
+                ObjectSync/Ch/Wire/Bool14: Prop/PY/F2
+                ObjectSync/Ch/Wire/Bool15: Prop/PY/F3
         transitions:
           - { to: Extra0, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra0:
         motion: ~
         transitions:
           - { to: Send1, when: [ ObjectSync/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 2/3 = batch 2/3: Prop/PZ/C, Prop/PZ/F, Prop/RA/X, Prop/RA/Y, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/C4, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
+      # counter 2/3 = batch 2/3: Prop/PZ/C, Prop/PZ/F, Prop/RA/X, Prop/RA/Y, Prop/PZ/C0, Prop/PZ/C1, Prop/PZ/C2, Prop/PZ/C3, Prop/PZ/F0, Prop/PZ/F1, Prop/PZ/F2, Prop/PZ/F3, Prop/RA/X/B0, Prop/RA/X/B1, Prop/RA/X/B2, Prop/RA/X/B3, Prop/RA/Y/B0, Prop/RA/Y/B1, Prop/RA/Y/B2, Prop/RA/Y/B3
       Send1:
         motion: ~
         behaviours:
@@ -377,19 +364,18 @@ layers:
                 ObjectSync/Ch/Wire/Bool1: Prop/PZ/C1
                 ObjectSync/Ch/Wire/Bool2: Prop/PZ/C2
                 ObjectSync/Ch/Wire/Bool3: Prop/PZ/C3
-                ObjectSync/Ch/Wire/Bool4: Prop/PZ/C4
-                ObjectSync/Ch/Wire/Bool5: Prop/PZ/F0
-                ObjectSync/Ch/Wire/Bool6: Prop/PZ/F1
-                ObjectSync/Ch/Wire/Bool7: Prop/PZ/F2
-                ObjectSync/Ch/Wire/Bool8: Prop/PZ/F3
-                ObjectSync/Ch/Wire/Bool9: Prop/RA/X/B0
-                ObjectSync/Ch/Wire/Bool10: Prop/RA/X/B1
-                ObjectSync/Ch/Wire/Bool11: Prop/RA/X/B2
-                ObjectSync/Ch/Wire/Bool12: Prop/RA/X/B3
-                ObjectSync/Ch/Wire/Bool13: Prop/RA/Y/B0
-                ObjectSync/Ch/Wire/Bool14: Prop/RA/Y/B1
-                ObjectSync/Ch/Wire/Bool15: Prop/RA/Y/B2
-                ObjectSync/Ch/Wire/Bool16: Prop/RA/Y/B3
+                ObjectSync/Ch/Wire/Bool4: Prop/PZ/F0
+                ObjectSync/Ch/Wire/Bool5: Prop/PZ/F1
+                ObjectSync/Ch/Wire/Bool6: Prop/PZ/F2
+                ObjectSync/Ch/Wire/Bool7: Prop/PZ/F3
+                ObjectSync/Ch/Wire/Bool8: Prop/RA/X/B0
+                ObjectSync/Ch/Wire/Bool9: Prop/RA/X/B1
+                ObjectSync/Ch/Wire/Bool10: Prop/RA/X/B2
+                ObjectSync/Ch/Wire/Bool11: Prop/RA/X/B3
+                ObjectSync/Ch/Wire/Bool12: Prop/RA/Y/B0
+                ObjectSync/Ch/Wire/Bool13: Prop/RA/Y/B1
+                ObjectSync/Ch/Wire/Bool14: Prop/RA/Y/B2
+                ObjectSync/Ch/Wire/Bool15: Prop/RA/Y/B3
         transitions:
           - { to: Extra1, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra1:
@@ -460,20 +446,18 @@ layers:
                 Prop/PX/C1: ObjectSync/Ch/Wire/Bool1
                 Prop/PX/C2: ObjectSync/Ch/Wire/Bool2
                 Prop/PX/C3: ObjectSync/Ch/Wire/Bool3
-                Prop/PX/C4: ObjectSync/Ch/Wire/Bool4
-                Prop/PX/F0: ObjectSync/Ch/Wire/Bool5
-                Prop/PX/F1: ObjectSync/Ch/Wire/Bool6
-                Prop/PX/F2: ObjectSync/Ch/Wire/Bool7
-                Prop/PX/F3: ObjectSync/Ch/Wire/Bool8
-                Prop/PY/C0: ObjectSync/Ch/Wire/Bool9
-                Prop/PY/C1: ObjectSync/Ch/Wire/Bool10
-                Prop/PY/C2: ObjectSync/Ch/Wire/Bool11
-                Prop/PY/C3: ObjectSync/Ch/Wire/Bool12
-                Prop/PY/C4: ObjectSync/Ch/Wire/Bool13
-                Prop/PY/F0: ObjectSync/Ch/Wire/Bool14
-                Prop/PY/F1: ObjectSync/Ch/Wire/Bool15
-                Prop/PY/F2: ObjectSync/Ch/Wire/Bool16
-                Prop/PY/F3: ObjectSync/Ch/Wire/Bool17
+                Prop/PX/F0: ObjectSync/Ch/Wire/Bool4
+                Prop/PX/F1: ObjectSync/Ch/Wire/Bool5
+                Prop/PX/F2: ObjectSync/Ch/Wire/Bool6
+                Prop/PX/F3: ObjectSync/Ch/Wire/Bool7
+                Prop/PY/C0: ObjectSync/Ch/Wire/Bool8
+                Prop/PY/C1: ObjectSync/Ch/Wire/Bool9
+                Prop/PY/C2: ObjectSync/Ch/Wire/Bool10
+                Prop/PY/C3: ObjectSync/Ch/Wire/Bool11
+                Prop/PY/F0: ObjectSync/Ch/Wire/Bool12
+                Prop/PY/F1: ObjectSync/Ch/Wire/Bool13
+                Prop/PY/F2: ObjectSync/Ch/Wire/Bool14
+                Prop/PY/F3: ObjectSync/Ch/Wire/Bool15
         transitions:
           - { to: Recv1, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is false ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false, ObjectSync/Ch/Wire/Idx1 is false ] }
@@ -491,19 +475,18 @@ layers:
                 Prop/PZ/C1: ObjectSync/Ch/Wire/Bool1
                 Prop/PZ/C2: ObjectSync/Ch/Wire/Bool2
                 Prop/PZ/C3: ObjectSync/Ch/Wire/Bool3
-                Prop/PZ/C4: ObjectSync/Ch/Wire/Bool4
-                Prop/PZ/F0: ObjectSync/Ch/Wire/Bool5
-                Prop/PZ/F1: ObjectSync/Ch/Wire/Bool6
-                Prop/PZ/F2: ObjectSync/Ch/Wire/Bool7
-                Prop/PZ/F3: ObjectSync/Ch/Wire/Bool8
-                Prop/RA/X/B0: ObjectSync/Ch/Wire/Bool9
-                Prop/RA/X/B1: ObjectSync/Ch/Wire/Bool10
-                Prop/RA/X/B2: ObjectSync/Ch/Wire/Bool11
-                Prop/RA/X/B3: ObjectSync/Ch/Wire/Bool12
-                Prop/RA/Y/B0: ObjectSync/Ch/Wire/Bool13
-                Prop/RA/Y/B1: ObjectSync/Ch/Wire/Bool14
-                Prop/RA/Y/B2: ObjectSync/Ch/Wire/Bool15
-                Prop/RA/Y/B3: ObjectSync/Ch/Wire/Bool16
+                Prop/PZ/F0: ObjectSync/Ch/Wire/Bool4
+                Prop/PZ/F1: ObjectSync/Ch/Wire/Bool5
+                Prop/PZ/F2: ObjectSync/Ch/Wire/Bool6
+                Prop/PZ/F3: ObjectSync/Ch/Wire/Bool7
+                Prop/RA/X/B0: ObjectSync/Ch/Wire/Bool8
+                Prop/RA/X/B1: ObjectSync/Ch/Wire/Bool9
+                Prop/RA/X/B2: ObjectSync/Ch/Wire/Bool10
+                Prop/RA/X/B3: ObjectSync/Ch/Wire/Bool11
+                Prop/RA/Y/B0: ObjectSync/Ch/Wire/Bool12
+                Prop/RA/Y/B1: ObjectSync/Ch/Wire/Bool13
+                Prop/RA/Y/B2: ObjectSync/Ch/Wire/Bool14
+                Prop/RA/Y/B3: ObjectSync/Ch/Wire/Bool15
         transitions:
           - { to: Recv2, when: [ ObjectSync/Ch/Wire/Idx0 is true, ObjectSync/Ch/Wire/Idx1 is true ] }
           - { to: Lost, when: [ ObjectSync/Ch/Wire/Idx0 is false ] }
@@ -608,7 +591,6 @@ layers:
                 ObjectSync/B/Prop/PX/C1: Prop/PX/C1
                 ObjectSync/B/Prop/PX/C2: Prop/PX/C2
                 ObjectSync/B/Prop/PX/C3: Prop/PX/C3
-                ObjectSync/B/Prop/PX/C4: Prop/PX/C4
                 ObjectSync/B/Prop/PX/F0: Prop/PX/F0
                 ObjectSync/B/Prop/PX/F1: Prop/PX/F1
                 ObjectSync/B/Prop/PX/F2: Prop/PX/F2
@@ -617,7 +599,6 @@ layers:
                 ObjectSync/B/Prop/PY/C1: Prop/PY/C1
                 ObjectSync/B/Prop/PY/C2: Prop/PY/C2
                 ObjectSync/B/Prop/PY/C3: Prop/PY/C3
-                ObjectSync/B/Prop/PY/C4: Prop/PY/C4
                 ObjectSync/B/Prop/PY/F0: Prop/PY/F0
                 ObjectSync/B/Prop/PY/F1: Prop/PY/F1
                 ObjectSync/B/Prop/PY/F2: Prop/PY/F2
@@ -626,7 +607,6 @@ layers:
                 ObjectSync/B/Prop/PZ/C1: Prop/PZ/C1
                 ObjectSync/B/Prop/PZ/C2: Prop/PZ/C2
                 ObjectSync/B/Prop/PZ/C3: Prop/PZ/C3
-                ObjectSync/B/Prop/PZ/C4: Prop/PZ/C4
                 ObjectSync/B/Prop/PZ/F0: Prop/PZ/F0
                 ObjectSync/B/Prop/PZ/F1: Prop/PZ/F1
                 ObjectSync/B/Prop/PZ/F2: Prop/PZ/F2
@@ -679,7 +659,6 @@ layers:
                 ObjectSync/B/Prop/PX/C1: Prop/PX/C1
                 ObjectSync/B/Prop/PX/C2: Prop/PX/C2
                 ObjectSync/B/Prop/PX/C3: Prop/PX/C3
-                ObjectSync/B/Prop/PX/C4: Prop/PX/C4
                 ObjectSync/B/Prop/PX/F0: Prop/PX/F0
                 ObjectSync/B/Prop/PX/F1: Prop/PX/F1
                 ObjectSync/B/Prop/PX/F2: Prop/PX/F2
@@ -688,7 +667,6 @@ layers:
                 ObjectSync/B/Prop/PY/C1: Prop/PY/C1
                 ObjectSync/B/Prop/PY/C2: Prop/PY/C2
                 ObjectSync/B/Prop/PY/C3: Prop/PY/C3
-                ObjectSync/B/Prop/PY/C4: Prop/PY/C4
                 ObjectSync/B/Prop/PY/F0: Prop/PY/F0
                 ObjectSync/B/Prop/PY/F1: Prop/PY/F1
                 ObjectSync/B/Prop/PY/F2: Prop/PY/F2
@@ -697,7 +675,6 @@ layers:
                 ObjectSync/B/Prop/PZ/C1: Prop/PZ/C1
                 ObjectSync/B/Prop/PZ/C2: Prop/PZ/C2
                 ObjectSync/B/Prop/PZ/C3: Prop/PZ/C3
-                ObjectSync/B/Prop/PZ/C4: Prop/PZ/C4
                 ObjectSync/B/Prop/PZ/F0: Prop/PZ/F0
                 ObjectSync/B/Prop/PZ/F1: Prop/PZ/F1
                 ObjectSync/B/Prop/PZ/F2: Prop/PZ/F2
@@ -742,36 +719,33 @@ layers:
       Decode:
         motion:
           tree: direct
-          name: DecodeSum
+          name: DecodeDisplay
           children:
-            - { clip: asm_objectsync_d_prop_px_c_32, directWeight: ObjectSync/B/Prop/PX/C }
-            - { clip: asm_objectsync_d_prop_px_c_16, directWeight: ObjectSync/B/Prop/PX/C0 }
-            - { clip: asm_objectsync_d_prop_px_c_8, directWeight: ObjectSync/B/Prop/PX/C1 }
-            - { clip: asm_objectsync_d_prop_px_c_4, directWeight: ObjectSync/B/Prop/PX/C2 }
-            - { clip: asm_objectsync_d_prop_px_c_2, directWeight: ObjectSync/B/Prop/PX/C3 }
-            - { clip: asm_objectsync_d_prop_px_c_1, directWeight: ObjectSync/B/Prop/PX/C4 }
+            - { clip: asm_objectsync_d_prop_px_c_16, directWeight: ObjectSync/B/Prop/PX/C }
+            - { clip: asm_objectsync_d_prop_px_c_8, directWeight: ObjectSync/B/Prop/PX/C0 }
+            - { clip: asm_objectsync_d_prop_px_c_4, directWeight: ObjectSync/B/Prop/PX/C1 }
+            - { clip: asm_objectsync_d_prop_px_c_2, directWeight: ObjectSync/B/Prop/PX/C2 }
+            - { clip: asm_objectsync_d_prop_px_c_1, directWeight: ObjectSync/B/Prop/PX/C3 }
             - { clip: asm_objectsync_d_prop_px_f_16, directWeight: ObjectSync/B/Prop/PX/F }
             - { clip: asm_objectsync_d_prop_px_f_8, directWeight: ObjectSync/B/Prop/PX/F0 }
             - { clip: asm_objectsync_d_prop_px_f_4, directWeight: ObjectSync/B/Prop/PX/F1 }
             - { clip: asm_objectsync_d_prop_px_f_2, directWeight: ObjectSync/B/Prop/PX/F2 }
             - { clip: asm_objectsync_d_prop_px_f_1, directWeight: ObjectSync/B/Prop/PX/F3 }
-            - { clip: asm_objectsync_d_prop_py_c_32, directWeight: ObjectSync/B/Prop/PY/C }
-            - { clip: asm_objectsync_d_prop_py_c_16, directWeight: ObjectSync/B/Prop/PY/C0 }
-            - { clip: asm_objectsync_d_prop_py_c_8, directWeight: ObjectSync/B/Prop/PY/C1 }
-            - { clip: asm_objectsync_d_prop_py_c_4, directWeight: ObjectSync/B/Prop/PY/C2 }
-            - { clip: asm_objectsync_d_prop_py_c_2, directWeight: ObjectSync/B/Prop/PY/C3 }
-            - { clip: asm_objectsync_d_prop_py_c_1, directWeight: ObjectSync/B/Prop/PY/C4 }
+            - { clip: asm_objectsync_d_prop_py_c_16, directWeight: ObjectSync/B/Prop/PY/C }
+            - { clip: asm_objectsync_d_prop_py_c_8, directWeight: ObjectSync/B/Prop/PY/C0 }
+            - { clip: asm_objectsync_d_prop_py_c_4, directWeight: ObjectSync/B/Prop/PY/C1 }
+            - { clip: asm_objectsync_d_prop_py_c_2, directWeight: ObjectSync/B/Prop/PY/C2 }
+            - { clip: asm_objectsync_d_prop_py_c_1, directWeight: ObjectSync/B/Prop/PY/C3 }
             - { clip: asm_objectsync_d_prop_py_f_16, directWeight: ObjectSync/B/Prop/PY/F }
             - { clip: asm_objectsync_d_prop_py_f_8, directWeight: ObjectSync/B/Prop/PY/F0 }
             - { clip: asm_objectsync_d_prop_py_f_4, directWeight: ObjectSync/B/Prop/PY/F1 }
             - { clip: asm_objectsync_d_prop_py_f_2, directWeight: ObjectSync/B/Prop/PY/F2 }
             - { clip: asm_objectsync_d_prop_py_f_1, directWeight: ObjectSync/B/Prop/PY/F3 }
-            - { clip: asm_objectsync_d_prop_pz_c_32, directWeight: ObjectSync/B/Prop/PZ/C }
-            - { clip: asm_objectsync_d_prop_pz_c_16, directWeight: ObjectSync/B/Prop/PZ/C0 }
-            - { clip: asm_objectsync_d_prop_pz_c_8, directWeight: ObjectSync/B/Prop/PZ/C1 }
-            - { clip: asm_objectsync_d_prop_pz_c_4, directWeight: ObjectSync/B/Prop/PZ/C2 }
-            - { clip: asm_objectsync_d_prop_pz_c_2, directWeight: ObjectSync/B/Prop/PZ/C3 }
-            - { clip: asm_objectsync_d_prop_pz_c_1, directWeight: ObjectSync/B/Prop/PZ/C4 }
+            - { clip: asm_objectsync_d_prop_pz_c_16, directWeight: ObjectSync/B/Prop/PZ/C }
+            - { clip: asm_objectsync_d_prop_pz_c_8, directWeight: ObjectSync/B/Prop/PZ/C0 }
+            - { clip: asm_objectsync_d_prop_pz_c_4, directWeight: ObjectSync/B/Prop/PZ/C1 }
+            - { clip: asm_objectsync_d_prop_pz_c_2, directWeight: ObjectSync/B/Prop/PZ/C2 }
+            - { clip: asm_objectsync_d_prop_pz_c_1, directWeight: ObjectSync/B/Prop/PZ/C3 }
             - { clip: asm_objectsync_d_prop_pz_f_16, directWeight: ObjectSync/B/Prop/PZ/F }
             - { clip: asm_objectsync_d_prop_pz_f_8, directWeight: ObjectSync/B/Prop/PZ/F0 }
             - { clip: asm_objectsync_d_prop_pz_f_4, directWeight: ObjectSync/B/Prop/PZ/F1 }
@@ -807,14 +781,6 @@ layers:
             - { clip: asm_objectsync_d_prop_rb_z_4, directWeight: ObjectSync/B/Prop/RB/Z/B1 }
             - { clip: asm_objectsync_d_prop_rb_z_2, directWeight: ObjectSync/B/Prop/RB/Z/B2 }
             - { clip: asm_objectsync_d_prop_rb_z_1, directWeight: ObjectSync/B/Prop/RB/Z/B3 }
-    default: Decode
-  - name: ObjectSync/Display
-    states:
-      Display:
-        motion:
-          tree: direct
-          name: DisplaySum
-          children:
             - { clip: anch_prop_base, directWeight: ObjectSync/One }
             - { clip: anch_prop_x_cell, directWeight: ObjectSync/K/Prop/PX }
             - { clip: anch_prop_y_cell, directWeight: ObjectSync/K/Prop/PY }
@@ -841,7 +807,7 @@ layers:
               children:
                 - { clip: enable_park, threshold: 0 }
                 - { clip: enable_live, threshold: 1 }
-    default: Display
+    default: Decode
   - name: ObjectSync/Follow
     states:
       Release:
@@ -880,7 +846,6 @@ layers:
                 ObjectSync/S/Prop/PX/C1: 0
                 ObjectSync/S/Prop/PX/C2: 0
                 ObjectSync/S/Prop/PX/C3: 0
-                ObjectSync/S/Prop/PX/C4: 0
               copy:
                 ObjectSync/R/Prop/PX/C: { source: ObjectSync/Sense/Prop/CX, sourceMin: 0.05, sourceMax: 0.966666667, destMin: 0, destMax: 1 }
         transitions:
@@ -893,7 +858,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.5
                 ObjectSync/S/Prop/PX/C: 128
-                ObjectSync/S/Prop/PX/Kacc: 4096
+                ObjectSync/S/Prop/PX/Kacc: 2048
         transitions:
           - { to: C1A, when: [ ObjectSync/R/Prop/PX/C greater 0.249975 ] }
           - { to: C1R, when: [ ObjectSync/R/Prop/PX/C less 0.250025 ] }
@@ -909,7 +874,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.25
                 ObjectSync/S/Prop/PX/C: 64
-                ObjectSync/S/Prop/PX/Kacc: 2048
+                ObjectSync/S/Prop/PX/Kacc: 1024
         transitions:
           - { to: C2A, when: [ ObjectSync/R/Prop/PX/C greater 0.1249875 ] }
           - { to: C2R, when: [ ObjectSync/R/Prop/PX/C less 0.1250125 ] }
@@ -925,7 +890,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.125
                 ObjectSync/S/Prop/PX/C: 32
-                ObjectSync/S/Prop/PX/Kacc: 1024
+                ObjectSync/S/Prop/PX/Kacc: 512
         transitions:
           - { to: C3A, when: [ ObjectSync/R/Prop/PX/C greater 0.06249375 ] }
           - { to: C3R, when: [ ObjectSync/R/Prop/PX/C less 0.06250625 ] }
@@ -941,7 +906,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.0625
                 ObjectSync/S/Prop/PX/C: 16
-                ObjectSync/S/Prop/PX/Kacc: 512
+                ObjectSync/S/Prop/PX/Kacc: 256
         transitions:
           - { to: C4A, when: [ ObjectSync/R/Prop/PX/C greater 0.031246875 ] }
           - { to: C4R, when: [ ObjectSync/R/Prop/PX/C less 0.031253125 ] }
@@ -957,7 +922,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.03125
                 ObjectSync/S/Prop/PX/C: 8
-                ObjectSync/S/Prop/PX/Kacc: 256
+                ObjectSync/S/Prop/PX/Kacc: 128
         transitions:
           - { to: C5A, when: [ ObjectSync/R/Prop/PX/C greater 0.015623438 ] }
           - { to: C5R, when: [ ObjectSync/R/Prop/PX/C less 0.015626562 ] }
@@ -973,7 +938,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.015625
                 ObjectSync/S/Prop/PX/C: 4
-                ObjectSync/S/Prop/PX/Kacc: 128
+                ObjectSync/S/Prop/PX/Kacc: 64
         transitions:
           - { to: C6A, when: [ ObjectSync/R/Prop/PX/C greater 0.007811719 ] }
           - { to: C6R, when: [ ObjectSync/R/Prop/PX/C less 0.007813281 ] }
@@ -989,7 +954,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.0078125
                 ObjectSync/S/Prop/PX/C: 2
-                ObjectSync/S/Prop/PX/Kacc: 64
+                ObjectSync/S/Prop/PX/Kacc: 32
         transitions:
           - { to: C7A, when: [ ObjectSync/R/Prop/PX/C greater 0.003905859 ] }
           - { to: C7R, when: [ ObjectSync/R/Prop/PX/C less 0.003906641 ] }
@@ -1005,7 +970,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PX/C: -0.00390625
                 ObjectSync/S/Prop/PX/C: 1
-                ObjectSync/S/Prop/PX/Kacc: 32
+                ObjectSync/S/Prop/PX/Kacc: 16
         transitions:
           - { to: C8A, when: [ ObjectSync/R/Prop/PX/C greater 0.00195293 ] }
           - { to: C8R, when: [ ObjectSync/R/Prop/PX/C less 0.00195332 ] }
@@ -1022,7 +987,7 @@ layers:
                 ObjectSync/S/Prop/PX/C0: 1
               add:
                 ObjectSync/R/Prop/PX/C: -0.001953125
-                ObjectSync/S/Prop/PX/Kacc: 16
+                ObjectSync/S/Prop/PX/Kacc: 8
         transitions:
           - { to: C9A, when: [ ObjectSync/R/Prop/PX/C greater 0.000976465 ] }
           - { to: C9R, when: [ ObjectSync/R/Prop/PX/C less 0.00097666 ] }
@@ -1039,7 +1004,7 @@ layers:
                 ObjectSync/S/Prop/PX/C1: 1
               add:
                 ObjectSync/R/Prop/PX/C: -0.000976562
-                ObjectSync/S/Prop/PX/Kacc: 8
+                ObjectSync/S/Prop/PX/Kacc: 4
         transitions:
           - { to: C10A, when: [ ObjectSync/R/Prop/PX/C greater 0.000488232 ] }
           - { to: C10R, when: [ ObjectSync/R/Prop/PX/C less 0.00048833 ] }
@@ -1056,7 +1021,7 @@ layers:
                 ObjectSync/S/Prop/PX/C2: 1
               add:
                 ObjectSync/R/Prop/PX/C: -0.000488281
-                ObjectSync/S/Prop/PX/Kacc: 4
+                ObjectSync/S/Prop/PX/Kacc: 2
         transitions:
           - { to: C11A, when: [ ObjectSync/R/Prop/PX/C greater 0.000244116 ] }
           - { to: C11R, when: [ ObjectSync/R/Prop/PX/C less 0.000244165 ] }
@@ -1073,27 +1038,10 @@ layers:
                 ObjectSync/S/Prop/PX/C3: 1
               add:
                 ObjectSync/R/Prop/PX/C: -0.000244141
-                ObjectSync/S/Prop/PX/Kacc: 2
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PX/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PX/C less 0.000122083 ] }
-      C11R:
-        motion: ~
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PX/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PX/C less 0.000122083 ] }
-      C12A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/PX/C4: 1
-              add:
-                ObjectSync/R/Prop/PX/C: -0.00012207
                 ObjectSync/S/Prop/PX/Kacc: 1
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
-      C12R:
+      C11R:
         motion: ~
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
@@ -1133,7 +1081,7 @@ layers:
                 ObjectSync/S/Prop/PX/F2: 0
                 ObjectSync/S/Prop/PX/F3: 0
               copy:
-                ObjectSync/R/Prop/PX/F: { source: ObjectSync/Sense/Prop/FX, sourceMin: 0.141666667, sourceMax: 0.875, destMin: 0, destMax: 1 }
+                ObjectSync/R/Prop/PX/F: { source: ObjectSync/Sense/Prop/FX, sourceMin: 0.241666667, sourceMax: 0.775, destMin: 0, destMax: 1 }
         transitions:
           - { to: F0A, when: [ ObjectSync/R/Prop/PX/F greater 0.49995 ] }
           - { to: F0R, when: [ ObjectSync/R/Prop/PX/F less 0.50005 ] }
@@ -1330,7 +1278,6 @@ layers:
                 Prop/PX/C1: ObjectSync/S/Prop/PX/C1
                 Prop/PX/C2: ObjectSync/S/Prop/PX/C2
                 Prop/PX/C3: ObjectSync/S/Prop/PX/C3
-                Prop/PX/C4: ObjectSync/S/Prop/PX/C4
                 Prop/PX/F0: ObjectSync/S/Prop/PX/F0
                 Prop/PX/F1: ObjectSync/S/Prop/PX/F1
                 Prop/PX/F2: ObjectSync/S/Prop/PX/F2
@@ -1355,7 +1302,6 @@ layers:
                 ObjectSync/S/Prop/PX/C1: 0
                 ObjectSync/S/Prop/PX/C2: 0
                 ObjectSync/S/Prop/PX/C3: 0
-                ObjectSync/S/Prop/PX/C4: 0
                 ObjectSync/S/Prop/PX/F0: 0
                 ObjectSync/S/Prop/PX/F1: 0
                 ObjectSync/S/Prop/PX/F2: 0
@@ -1401,32 +1347,30 @@ layers:
         C10R: [2430, 300]
         C11A: [2670, 180]
         C11R: [2670, 300]
-        C12A: [2910, 180]
-        C12R: [2910, 300]
-        F0A: [3150, 180]
-        F0R: [3150, 300]
-        F1A: [3390, 180]
-        F1R: [3390, 300]
-        F2A: [3630, 180]
-        F2R: [3630, 300]
-        F3A: [3870, 180]
-        F3R: [3870, 300]
-        F4A: [4110, 180]
-        F4R: [4110, 300]
-        F5A: [4350, 180]
-        F5R: [4350, 300]
-        F6A: [4590, 180]
-        F6R: [4590, 300]
-        F7A: [4830, 180]
-        F7R: [4830, 300]
-        F8A: [5070, 180]
-        F8R: [5070, 300]
-        F9A: [5310, 180]
-        F9R: [5310, 300]
-        F10A: [5550, 180]
-        F10R: [5550, 300]
-        F11A: [5790, 180]
-        F11R: [5790, 300]
+        F0A: [2910, 180]
+        F0R: [2910, 300]
+        F1A: [3150, 180]
+        F1R: [3150, 300]
+        F2A: [3390, 180]
+        F2R: [3390, 300]
+        F3A: [3630, 180]
+        F3R: [3630, 300]
+        F4A: [3870, 180]
+        F4R: [3870, 300]
+        F5A: [4110, 180]
+        F5R: [4110, 300]
+        F6A: [4350, 180]
+        F6R: [4350, 300]
+        F7A: [4590, 180]
+        F7R: [4590, 300]
+        F8A: [4830, 180]
+        F8R: [4830, 300]
+        F9A: [5070, 180]
+        F9R: [5070, 300]
+        F10A: [5310, 180]
+        F10R: [5310, 300]
+        F11A: [5550, 180]
+        F11R: [5550, 300]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -1447,7 +1391,6 @@ layers:
                 ObjectSync/S/Prop/PY/C1: 0
                 ObjectSync/S/Prop/PY/C2: 0
                 ObjectSync/S/Prop/PY/C3: 0
-                ObjectSync/S/Prop/PY/C4: 0
               copy:
                 ObjectSync/R/Prop/PY/C: { source: ObjectSync/Sense/Prop/CY, sourceMin: 0.05, sourceMax: 0.966666667, destMin: 0, destMax: 1 }
         transitions:
@@ -1460,7 +1403,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.5
                 ObjectSync/S/Prop/PY/C: 128
-                ObjectSync/S/Prop/PY/Kacc: 4096
+                ObjectSync/S/Prop/PY/Kacc: 2048
         transitions:
           - { to: C1A, when: [ ObjectSync/R/Prop/PY/C greater 0.249975 ] }
           - { to: C1R, when: [ ObjectSync/R/Prop/PY/C less 0.250025 ] }
@@ -1476,7 +1419,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.25
                 ObjectSync/S/Prop/PY/C: 64
-                ObjectSync/S/Prop/PY/Kacc: 2048
+                ObjectSync/S/Prop/PY/Kacc: 1024
         transitions:
           - { to: C2A, when: [ ObjectSync/R/Prop/PY/C greater 0.1249875 ] }
           - { to: C2R, when: [ ObjectSync/R/Prop/PY/C less 0.1250125 ] }
@@ -1492,7 +1435,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.125
                 ObjectSync/S/Prop/PY/C: 32
-                ObjectSync/S/Prop/PY/Kacc: 1024
+                ObjectSync/S/Prop/PY/Kacc: 512
         transitions:
           - { to: C3A, when: [ ObjectSync/R/Prop/PY/C greater 0.06249375 ] }
           - { to: C3R, when: [ ObjectSync/R/Prop/PY/C less 0.06250625 ] }
@@ -1508,7 +1451,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.0625
                 ObjectSync/S/Prop/PY/C: 16
-                ObjectSync/S/Prop/PY/Kacc: 512
+                ObjectSync/S/Prop/PY/Kacc: 256
         transitions:
           - { to: C4A, when: [ ObjectSync/R/Prop/PY/C greater 0.031246875 ] }
           - { to: C4R, when: [ ObjectSync/R/Prop/PY/C less 0.031253125 ] }
@@ -1524,7 +1467,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.03125
                 ObjectSync/S/Prop/PY/C: 8
-                ObjectSync/S/Prop/PY/Kacc: 256
+                ObjectSync/S/Prop/PY/Kacc: 128
         transitions:
           - { to: C5A, when: [ ObjectSync/R/Prop/PY/C greater 0.015623438 ] }
           - { to: C5R, when: [ ObjectSync/R/Prop/PY/C less 0.015626562 ] }
@@ -1540,7 +1483,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.015625
                 ObjectSync/S/Prop/PY/C: 4
-                ObjectSync/S/Prop/PY/Kacc: 128
+                ObjectSync/S/Prop/PY/Kacc: 64
         transitions:
           - { to: C6A, when: [ ObjectSync/R/Prop/PY/C greater 0.007811719 ] }
           - { to: C6R, when: [ ObjectSync/R/Prop/PY/C less 0.007813281 ] }
@@ -1556,7 +1499,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.0078125
                 ObjectSync/S/Prop/PY/C: 2
-                ObjectSync/S/Prop/PY/Kacc: 64
+                ObjectSync/S/Prop/PY/Kacc: 32
         transitions:
           - { to: C7A, when: [ ObjectSync/R/Prop/PY/C greater 0.003905859 ] }
           - { to: C7R, when: [ ObjectSync/R/Prop/PY/C less 0.003906641 ] }
@@ -1572,7 +1515,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PY/C: -0.00390625
                 ObjectSync/S/Prop/PY/C: 1
-                ObjectSync/S/Prop/PY/Kacc: 32
+                ObjectSync/S/Prop/PY/Kacc: 16
         transitions:
           - { to: C8A, when: [ ObjectSync/R/Prop/PY/C greater 0.00195293 ] }
           - { to: C8R, when: [ ObjectSync/R/Prop/PY/C less 0.00195332 ] }
@@ -1589,7 +1532,7 @@ layers:
                 ObjectSync/S/Prop/PY/C0: 1
               add:
                 ObjectSync/R/Prop/PY/C: -0.001953125
-                ObjectSync/S/Prop/PY/Kacc: 16
+                ObjectSync/S/Prop/PY/Kacc: 8
         transitions:
           - { to: C9A, when: [ ObjectSync/R/Prop/PY/C greater 0.000976465 ] }
           - { to: C9R, when: [ ObjectSync/R/Prop/PY/C less 0.00097666 ] }
@@ -1606,7 +1549,7 @@ layers:
                 ObjectSync/S/Prop/PY/C1: 1
               add:
                 ObjectSync/R/Prop/PY/C: -0.000976562
-                ObjectSync/S/Prop/PY/Kacc: 8
+                ObjectSync/S/Prop/PY/Kacc: 4
         transitions:
           - { to: C10A, when: [ ObjectSync/R/Prop/PY/C greater 0.000488232 ] }
           - { to: C10R, when: [ ObjectSync/R/Prop/PY/C less 0.00048833 ] }
@@ -1623,7 +1566,7 @@ layers:
                 ObjectSync/S/Prop/PY/C2: 1
               add:
                 ObjectSync/R/Prop/PY/C: -0.000488281
-                ObjectSync/S/Prop/PY/Kacc: 4
+                ObjectSync/S/Prop/PY/Kacc: 2
         transitions:
           - { to: C11A, when: [ ObjectSync/R/Prop/PY/C greater 0.000244116 ] }
           - { to: C11R, when: [ ObjectSync/R/Prop/PY/C less 0.000244165 ] }
@@ -1640,27 +1583,10 @@ layers:
                 ObjectSync/S/Prop/PY/C3: 1
               add:
                 ObjectSync/R/Prop/PY/C: -0.000244141
-                ObjectSync/S/Prop/PY/Kacc: 2
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PY/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PY/C less 0.000122083 ] }
-      C11R:
-        motion: ~
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PY/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PY/C less 0.000122083 ] }
-      C12A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/PY/C4: 1
-              add:
-                ObjectSync/R/Prop/PY/C: -0.00012207
                 ObjectSync/S/Prop/PY/Kacc: 1
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
-      C12R:
+      C11R:
         motion: ~
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
@@ -1700,7 +1626,7 @@ layers:
                 ObjectSync/S/Prop/PY/F2: 0
                 ObjectSync/S/Prop/PY/F3: 0
               copy:
-                ObjectSync/R/Prop/PY/F: { source: ObjectSync/Sense/Prop/FY, sourceMin: 0.141666667, sourceMax: 0.875, destMin: 0, destMax: 1 }
+                ObjectSync/R/Prop/PY/F: { source: ObjectSync/Sense/Prop/FY, sourceMin: 0.241666667, sourceMax: 0.775, destMin: 0, destMax: 1 }
         transitions:
           - { to: F0A, when: [ ObjectSync/R/Prop/PY/F greater 0.49995 ] }
           - { to: F0R, when: [ ObjectSync/R/Prop/PY/F less 0.50005 ] }
@@ -1897,7 +1823,6 @@ layers:
                 Prop/PY/C1: ObjectSync/S/Prop/PY/C1
                 Prop/PY/C2: ObjectSync/S/Prop/PY/C2
                 Prop/PY/C3: ObjectSync/S/Prop/PY/C3
-                Prop/PY/C4: ObjectSync/S/Prop/PY/C4
                 Prop/PY/F0: ObjectSync/S/Prop/PY/F0
                 Prop/PY/F1: ObjectSync/S/Prop/PY/F1
                 Prop/PY/F2: ObjectSync/S/Prop/PY/F2
@@ -1922,7 +1847,6 @@ layers:
                 ObjectSync/S/Prop/PY/C1: 0
                 ObjectSync/S/Prop/PY/C2: 0
                 ObjectSync/S/Prop/PY/C3: 0
-                ObjectSync/S/Prop/PY/C4: 0
                 ObjectSync/S/Prop/PY/F0: 0
                 ObjectSync/S/Prop/PY/F1: 0
                 ObjectSync/S/Prop/PY/F2: 0
@@ -1968,32 +1892,30 @@ layers:
         C10R: [2430, 300]
         C11A: [2670, 180]
         C11R: [2670, 300]
-        C12A: [2910, 180]
-        C12R: [2910, 300]
-        F0A: [3150, 180]
-        F0R: [3150, 300]
-        F1A: [3390, 180]
-        F1R: [3390, 300]
-        F2A: [3630, 180]
-        F2R: [3630, 300]
-        F3A: [3870, 180]
-        F3R: [3870, 300]
-        F4A: [4110, 180]
-        F4R: [4110, 300]
-        F5A: [4350, 180]
-        F5R: [4350, 300]
-        F6A: [4590, 180]
-        F6R: [4590, 300]
-        F7A: [4830, 180]
-        F7R: [4830, 300]
-        F8A: [5070, 180]
-        F8R: [5070, 300]
-        F9A: [5310, 180]
-        F9R: [5310, 300]
-        F10A: [5550, 180]
-        F10R: [5550, 300]
-        F11A: [5790, 180]
-        F11R: [5790, 300]
+        F0A: [2910, 180]
+        F0R: [2910, 300]
+        F1A: [3150, 180]
+        F1R: [3150, 300]
+        F2A: [3390, 180]
+        F2R: [3390, 300]
+        F3A: [3630, 180]
+        F3R: [3630, 300]
+        F4A: [3870, 180]
+        F4R: [3870, 300]
+        F5A: [4110, 180]
+        F5R: [4110, 300]
+        F6A: [4350, 180]
+        F6R: [4350, 300]
+        F7A: [4590, 180]
+        F7R: [4590, 300]
+        F8A: [4830, 180]
+        F8R: [4830, 300]
+        F9A: [5070, 180]
+        F9R: [5070, 300]
+        F10A: [5310, 180]
+        F10R: [5310, 300]
+        F11A: [5550, 180]
+        F11R: [5550, 300]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -2014,7 +1936,6 @@ layers:
                 ObjectSync/S/Prop/PZ/C1: 0
                 ObjectSync/S/Prop/PZ/C2: 0
                 ObjectSync/S/Prop/PZ/C3: 0
-                ObjectSync/S/Prop/PZ/C4: 0
               copy:
                 ObjectSync/R/Prop/PZ/C: { source: ObjectSync/Sense/Prop/CZ, sourceMin: 0.05, sourceMax: 0.966666667, destMin: 0, destMax: 1 }
         transitions:
@@ -2027,7 +1948,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.5
                 ObjectSync/S/Prop/PZ/C: 128
-                ObjectSync/S/Prop/PZ/Kacc: 4096
+                ObjectSync/S/Prop/PZ/Kacc: 2048
         transitions:
           - { to: C1A, when: [ ObjectSync/R/Prop/PZ/C greater 0.249975 ] }
           - { to: C1R, when: [ ObjectSync/R/Prop/PZ/C less 0.250025 ] }
@@ -2043,7 +1964,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.25
                 ObjectSync/S/Prop/PZ/C: 64
-                ObjectSync/S/Prop/PZ/Kacc: 2048
+                ObjectSync/S/Prop/PZ/Kacc: 1024
         transitions:
           - { to: C2A, when: [ ObjectSync/R/Prop/PZ/C greater 0.1249875 ] }
           - { to: C2R, when: [ ObjectSync/R/Prop/PZ/C less 0.1250125 ] }
@@ -2059,7 +1980,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.125
                 ObjectSync/S/Prop/PZ/C: 32
-                ObjectSync/S/Prop/PZ/Kacc: 1024
+                ObjectSync/S/Prop/PZ/Kacc: 512
         transitions:
           - { to: C3A, when: [ ObjectSync/R/Prop/PZ/C greater 0.06249375 ] }
           - { to: C3R, when: [ ObjectSync/R/Prop/PZ/C less 0.06250625 ] }
@@ -2075,7 +1996,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.0625
                 ObjectSync/S/Prop/PZ/C: 16
-                ObjectSync/S/Prop/PZ/Kacc: 512
+                ObjectSync/S/Prop/PZ/Kacc: 256
         transitions:
           - { to: C4A, when: [ ObjectSync/R/Prop/PZ/C greater 0.031246875 ] }
           - { to: C4R, when: [ ObjectSync/R/Prop/PZ/C less 0.031253125 ] }
@@ -2091,7 +2012,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.03125
                 ObjectSync/S/Prop/PZ/C: 8
-                ObjectSync/S/Prop/PZ/Kacc: 256
+                ObjectSync/S/Prop/PZ/Kacc: 128
         transitions:
           - { to: C5A, when: [ ObjectSync/R/Prop/PZ/C greater 0.015623438 ] }
           - { to: C5R, when: [ ObjectSync/R/Prop/PZ/C less 0.015626562 ] }
@@ -2107,7 +2028,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.015625
                 ObjectSync/S/Prop/PZ/C: 4
-                ObjectSync/S/Prop/PZ/Kacc: 128
+                ObjectSync/S/Prop/PZ/Kacc: 64
         transitions:
           - { to: C6A, when: [ ObjectSync/R/Prop/PZ/C greater 0.007811719 ] }
           - { to: C6R, when: [ ObjectSync/R/Prop/PZ/C less 0.007813281 ] }
@@ -2123,7 +2044,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.0078125
                 ObjectSync/S/Prop/PZ/C: 2
-                ObjectSync/S/Prop/PZ/Kacc: 64
+                ObjectSync/S/Prop/PZ/Kacc: 32
         transitions:
           - { to: C7A, when: [ ObjectSync/R/Prop/PZ/C greater 0.003905859 ] }
           - { to: C7R, when: [ ObjectSync/R/Prop/PZ/C less 0.003906641 ] }
@@ -2139,7 +2060,7 @@ layers:
               add:
                 ObjectSync/R/Prop/PZ/C: -0.00390625
                 ObjectSync/S/Prop/PZ/C: 1
-                ObjectSync/S/Prop/PZ/Kacc: 32
+                ObjectSync/S/Prop/PZ/Kacc: 16
         transitions:
           - { to: C8A, when: [ ObjectSync/R/Prop/PZ/C greater 0.00195293 ] }
           - { to: C8R, when: [ ObjectSync/R/Prop/PZ/C less 0.00195332 ] }
@@ -2156,7 +2077,7 @@ layers:
                 ObjectSync/S/Prop/PZ/C0: 1
               add:
                 ObjectSync/R/Prop/PZ/C: -0.001953125
-                ObjectSync/S/Prop/PZ/Kacc: 16
+                ObjectSync/S/Prop/PZ/Kacc: 8
         transitions:
           - { to: C9A, when: [ ObjectSync/R/Prop/PZ/C greater 0.000976465 ] }
           - { to: C9R, when: [ ObjectSync/R/Prop/PZ/C less 0.00097666 ] }
@@ -2173,7 +2094,7 @@ layers:
                 ObjectSync/S/Prop/PZ/C1: 1
               add:
                 ObjectSync/R/Prop/PZ/C: -0.000976562
-                ObjectSync/S/Prop/PZ/Kacc: 8
+                ObjectSync/S/Prop/PZ/Kacc: 4
         transitions:
           - { to: C10A, when: [ ObjectSync/R/Prop/PZ/C greater 0.000488232 ] }
           - { to: C10R, when: [ ObjectSync/R/Prop/PZ/C less 0.00048833 ] }
@@ -2190,7 +2111,7 @@ layers:
                 ObjectSync/S/Prop/PZ/C2: 1
               add:
                 ObjectSync/R/Prop/PZ/C: -0.000488281
-                ObjectSync/S/Prop/PZ/Kacc: 4
+                ObjectSync/S/Prop/PZ/Kacc: 2
         transitions:
           - { to: C11A, when: [ ObjectSync/R/Prop/PZ/C greater 0.000244116 ] }
           - { to: C11R, when: [ ObjectSync/R/Prop/PZ/C less 0.000244165 ] }
@@ -2207,27 +2128,10 @@ layers:
                 ObjectSync/S/Prop/PZ/C3: 1
               add:
                 ObjectSync/R/Prop/PZ/C: -0.000244141
-                ObjectSync/S/Prop/PZ/Kacc: 2
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PZ/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PZ/C less 0.000122083 ] }
-      C11R:
-        motion: ~
-        transitions:
-          - { to: C12A, when: [ ObjectSync/R/Prop/PZ/C greater 0.000122058 ] }
-          - { to: C12R, when: [ ObjectSync/R/Prop/PZ/C less 0.000122083 ] }
-      C12A:
-        motion: ~
-        behaviours:
-          - driver:
-              set:
-                ObjectSync/S/Prop/PZ/C4: 1
-              add:
-                ObjectSync/R/Prop/PZ/C: -0.00012207
                 ObjectSync/S/Prop/PZ/Kacc: 1
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
-      C12R:
+      C11R:
         motion: ~
         transitions:
           - { to: CoarseEnd, when: [ ObjectSync/True is true ] }
@@ -2267,7 +2171,7 @@ layers:
                 ObjectSync/S/Prop/PZ/F2: 0
                 ObjectSync/S/Prop/PZ/F3: 0
               copy:
-                ObjectSync/R/Prop/PZ/F: { source: ObjectSync/Sense/Prop/FZ, sourceMin: 0.141666667, sourceMax: 0.875, destMin: 0, destMax: 1 }
+                ObjectSync/R/Prop/PZ/F: { source: ObjectSync/Sense/Prop/FZ, sourceMin: 0.241666667, sourceMax: 0.775, destMin: 0, destMax: 1 }
         transitions:
           - { to: F0A, when: [ ObjectSync/R/Prop/PZ/F greater 0.49995 ] }
           - { to: F0R, when: [ ObjectSync/R/Prop/PZ/F less 0.50005 ] }
@@ -2464,7 +2368,6 @@ layers:
                 Prop/PZ/C1: ObjectSync/S/Prop/PZ/C1
                 Prop/PZ/C2: ObjectSync/S/Prop/PZ/C2
                 Prop/PZ/C3: ObjectSync/S/Prop/PZ/C3
-                Prop/PZ/C4: ObjectSync/S/Prop/PZ/C4
                 Prop/PZ/F0: ObjectSync/S/Prop/PZ/F0
                 Prop/PZ/F1: ObjectSync/S/Prop/PZ/F1
                 Prop/PZ/F2: ObjectSync/S/Prop/PZ/F2
@@ -2489,7 +2392,6 @@ layers:
                 ObjectSync/S/Prop/PZ/C1: 0
                 ObjectSync/S/Prop/PZ/C2: 0
                 ObjectSync/S/Prop/PZ/C3: 0
-                ObjectSync/S/Prop/PZ/C4: 0
                 ObjectSync/S/Prop/PZ/F0: 0
                 ObjectSync/S/Prop/PZ/F1: 0
                 ObjectSync/S/Prop/PZ/F2: 0
@@ -2535,32 +2437,30 @@ layers:
         C10R: [2430, 300]
         C11A: [2670, 180]
         C11R: [2670, 300]
-        C12A: [2910, 180]
-        C12R: [2910, 300]
-        F0A: [3150, 180]
-        F0R: [3150, 300]
-        F1A: [3390, 180]
-        F1R: [3390, 300]
-        F2A: [3630, 180]
-        F2R: [3630, 300]
-        F3A: [3870, 180]
-        F3R: [3870, 300]
-        F4A: [4110, 180]
-        F4R: [4110, 300]
-        F5A: [4350, 180]
-        F5R: [4350, 300]
-        F6A: [4590, 180]
-        F6R: [4590, 300]
-        F7A: [4830, 180]
-        F7R: [4830, 300]
-        F8A: [5070, 180]
-        F8R: [5070, 300]
-        F9A: [5310, 180]
-        F9R: [5310, 300]
-        F10A: [5550, 180]
-        F10R: [5550, 300]
-        F11A: [5790, 180]
-        F11R: [5790, 300]
+        F0A: [2910, 180]
+        F0R: [2910, 300]
+        F1A: [3150, 180]
+        F1R: [3150, 300]
+        F2A: [3390, 180]
+        F2R: [3390, 300]
+        F3A: [3630, 180]
+        F3R: [3630, 300]
+        F4A: [3870, 180]
+        F4R: [3870, 300]
+        F5A: [4110, 180]
+        F5R: [4110, 300]
+        F6A: [4350, 180]
+        F6R: [4350, 300]
+        F7A: [4590, 180]
+        F7R: [4590, 300]
+        F8A: [4830, 180]
+        F8R: [4830, 300]
+        F9A: [5070, 180]
+        F9R: [5070, 300]
+        F10A: [5310, 180]
+        F10R: [5310, 300]
+        F11A: [5550, 180]
+        F11R: [5550, 300]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -2799,8 +2699,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -3064,8 +2964,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -3329,8 +3229,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -3594,8 +3494,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -3859,8 +3759,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -4124,8 +4024,8 @@ layers:
     layout:
       nodes:
         Idle: [-540, 180]
-        Commit: [-300, 180]
-        Start: [-540, 270]
+        Start: [-300, 180]
+        Commit: [-540, 270]
         Parked: [-300, 270]
         R0A: [30, 180]
         R0R: [30, 300]
@@ -4156,7 +4056,6 @@ layers:
       exit:  [50, 80]
 
 clips:
-  asm_objectsync_d_prop_px_c_32: { set: { ObjectSync/D/Prop/PX/C: 32 } }
   asm_objectsync_d_prop_px_c_16: { set: { ObjectSync/D/Prop/PX/C: 16 } }
   asm_objectsync_d_prop_px_c_8: { set: { ObjectSync/D/Prop/PX/C: 8 } }
   asm_objectsync_d_prop_px_c_4: { set: { ObjectSync/D/Prop/PX/C: 4 } }
@@ -4167,7 +4066,6 @@ clips:
   asm_objectsync_d_prop_px_f_4: { set: { ObjectSync/D/Prop/PX/F: 4 } }
   asm_objectsync_d_prop_px_f_2: { set: { ObjectSync/D/Prop/PX/F: 2 } }
   asm_objectsync_d_prop_px_f_1: { set: { ObjectSync/D/Prop/PX/F: 1 } }
-  asm_objectsync_d_prop_py_c_32: { set: { ObjectSync/D/Prop/PY/C: 32 } }
   asm_objectsync_d_prop_py_c_16: { set: { ObjectSync/D/Prop/PY/C: 16 } }
   asm_objectsync_d_prop_py_c_8: { set: { ObjectSync/D/Prop/PY/C: 8 } }
   asm_objectsync_d_prop_py_c_4: { set: { ObjectSync/D/Prop/PY/C: 4 } }
@@ -4178,7 +4076,6 @@ clips:
   asm_objectsync_d_prop_py_f_4: { set: { ObjectSync/D/Prop/PY/F: 4 } }
   asm_objectsync_d_prop_py_f_2: { set: { ObjectSync/D/Prop/PY/F: 2 } }
   asm_objectsync_d_prop_py_f_1: { set: { ObjectSync/D/Prop/PY/F: 1 } }
-  asm_objectsync_d_prop_pz_c_32: { set: { ObjectSync/D/Prop/PZ/C: 32 } }
   asm_objectsync_d_prop_pz_c_16: { set: { ObjectSync/D/Prop/PZ/C: 16 } }
   asm_objectsync_d_prop_pz_c_8: { set: { ObjectSync/D/Prop/PZ/C: 8 } }
   asm_objectsync_d_prop_pz_c_4: { set: { ObjectSync/D/Prop/PZ/C: 4 } }
@@ -4221,9 +4118,9 @@ clips:
   asm_objectsync_d_prop_rb_z_1: { set: { ObjectSync/D/Prop/RB/Z: 1 } }
   anch_prop_base:
     set:
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -8118
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -7259
-      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -7958
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
+      Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
   anch_prop_x_cell:
     set:
       Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
@@ -4241,9 +4138,9 @@ clips:
       Rig/Prop/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_prop_base:
     set:
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: -8120.2
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: -7261.2
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: -7960.2
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
   disp_prop_x_cell:
     set:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 2
@@ -4251,7 +4148,7 @@ clips:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_prop_x_lsb:
     set:
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 0.001074219
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: 0
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_prop_y_cell:
@@ -4262,7 +4159,7 @@ clips:
   disp_prop_y_lsb:
     set:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: 0.001074219
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_prop_z_cell:
     set:
@@ -4273,7 +4170,7 @@ clips:
     set:
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.x: 0
       Rig/Prop/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0.001074219
+      Rig/Prop/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
   prox_prop_a_base:
     set:
       Rig/Prop/Recon/ProxyA/Transform.m_LocalPosition.x: -1
