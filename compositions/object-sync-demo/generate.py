@@ -12,7 +12,7 @@ Output: `object-sync/controller.yaml` beside this file. Compile it with
 WHY THE BUILD LIVES HERE AND NOT IN THE ENTRY
 ---------------------------------------------
 `check()`'s `[committed vs disk]` block pins a `controller.yaml` on disk for
-every label `preset_configs()` returns, so a `demo` preset would either fail
+every label `committed_configs()` returns, so a `demo` preset would either fail
 `--check` or force a fourth build, prefab and README claim into the public entry
 for a single consumer. The composition drives the entry's generator from outside
 instead: `object-sync/generate.py` is imported unmodified and the entry stays

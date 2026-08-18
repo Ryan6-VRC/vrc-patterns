@@ -233,6 +233,12 @@ def derive(c):
             raise SystemExit(
                 f"REFUSE: {ob['name']} slices {k!r} — a slice weight is a "
                 "positive integer count of turns in the ring")
+        if k != 1 and len(c["objects"]) == 1:
+            raise SystemExit(
+                f"REFUSE: {ob['name']} slices {k} — a slice weight is a share "
+                "of the multi-object ring, and a single-object build emits no "
+                "Slice layer, so the key would change nothing while the header "
+                "claimed it did. Drop it.")
     # Per-slice contact budget: one object's rig live at a time, so the active
     # cluster is that object's own receivers — coarse 3 + fine 3 + one per
     # rotation component (6/2/0 by mode). The ceiling guards FUTURE modes, not
@@ -1146,22 +1152,23 @@ def slice_wake_params(c, o):
 
 def slice_schedule(c):
     """The ring of slices, weighted and INTERLEAVED: an object with `slices: k`
-    appears k times, spread as evenly as the ring allows and never in two
-    consecutive slots (ring-wise). Adjacency is not a style point: an adjacent
+    appears k times, never in two consecutive slots (ring-wise). Adjacency is not a style point: an adjacent
     repeat's own Enter drops `Live`, which drives every shared walk through the
     abandon rung and clears staging mid-ladder — the second slot would tear
     down the very walk it was bought to extend, discarding up to a full ladder
     and repaying the settle."""
     total = sum(ob.get("slices", 1) for ob in c["objects"])
-    slots, taken = [None] * total, set()
+    # Deal heaviest-first into the even indices, then the odd: on a ring this
+    # is adjacency-free for every weighting with max <= total//2 — a quotient
+    # placement with linear probing refused feasible rings (2,2,3 among them)
+    # while its message blamed the weight — so the refusal below fires exactly
+    # when the bound it states is actually violated.
+    flat = []
     for ob in sorted(c["objects"], key=lambda x: -x.get("slices", 1)):
-        k = ob.get("slices", 1)
-        for j in range(k):
-            pos = int(j * total / k)
-            while pos in taken:
-                pos = (pos + 1) % total
-            taken.add(pos)
-            slots[pos] = ob["name"]
+        flat += [ob["name"]] * ob.get("slices", 1)
+    slots = [None] * total
+    for name, pos in zip(flat, [*range(0, total, 2), *range(1, total, 2)]):
+        slots[pos] = name
     for i, name in enumerate(slots):
         if name == slots[(i + 1) % total]:
             raise SystemExit(
