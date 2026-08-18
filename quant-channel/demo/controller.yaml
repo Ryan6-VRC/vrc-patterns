@@ -1,0 +1,83 @@
+# quant-channel demo consumer — the worked "touchpad puppet" shape: two 2D freeform trees, one per
+# pad, each scrubbing a debug cube by the channel's SMOOTHED outputs, gated on QDemo/Enable (0 parks
+# the cube at rest). Hand-authored (not generated): this is what a consumer writes against the base
+# entry's interface, kept as a nested entry so the substrate prefab stays binding-free.
+# Binding paths are prefab-root-relative (basis: mount-root ↔ FullController rootBindingsApplyToAvatar: 0).
+# Every position clip writes all three components — the animator evaluates m_LocalPosition as a unit,
+# and an unwritten component is driven to 0, not left at rest (animator-schema.md §clips).
+
+schema: 1
+controller: QuantChannelDemo_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  Demo/One: { type: float, default: 1.0, scratch: true }   # constant full-weight helper
+  # Read from the composed quant-channel module (bare via its globalParams). Scratch here so this
+  # document's params asset does not double-declare what the base entry already declares.
+  QDemo/LX/Smoothed: { type: float, scratch: true }
+  QDemo/LY/Smoothed: { type: float, scratch: true }
+  QDemo/RX/Smoothed: { type: float, scratch: true }
+  QDemo/RY/Smoothed: { type: float, scratch: true }
+  QDemo/Enable:      { type: float, scratch: true }        # bool on the wire; float animator copy
+
+layers:
+  - name: QuantChannelDemo
+    states:
+      "Puppets (WD ON)":
+        motion:
+          tree: direct
+          name: DemoRoot
+          children:
+            - tree: 1d
+              name: "left puppet (Enable-gated)"
+              param: QDemo/Enable
+              directWeight: Demo/One
+              children:
+                - { clip: L_rest, threshold: 0.0 }
+                - tree: freeformCartesian2d
+                  name: "left pad"
+                  param: QDemo/LX/Smoothed
+                  paramY: QDemo/LY/Smoothed
+                  threshold: 1.0
+                  children:
+                    - { clip: L_rest,   x: 0.0,  y: 0.0 }
+                    - { clip: L_pXpY,   x: 1.0,  y: 1.0 }
+                    - { clip: L_pXnY,   x: 1.0,  y: -1.0 }
+                    - { clip: L_nXpY,   x: -1.0, y: 1.0 }
+                    - { clip: L_nXnY,   x: -1.0, y: -1.0 }
+            - tree: 1d
+              name: "right puppet (Enable-gated)"
+              param: QDemo/Enable
+              directWeight: Demo/One
+              children:
+                - { clip: R_rest, threshold: 0.0 }
+                - tree: freeformCartesian2d
+                  name: "right pad"
+                  param: QDemo/RX/Smoothed
+                  paramY: QDemo/RY/Smoothed
+                  threshold: 1.0
+                  children:
+                    - { clip: R_rest,   x: 0.0,  y: 0.0 }
+                    - { clip: R_pXpY,   x: 1.0,  y: 1.0 }
+                    - { clip: R_pXnY,   x: 1.0,  y: -1.0 }
+                    - { clip: R_nXpY,   x: -1.0, y: 1.0 }
+                    - { clip: R_nXnY,   x: -1.0, y: -1.0 }
+    default: "Puppets (WD ON)"
+
+# Each clip = one pad extreme, ±0.25 m off the cube's mount; named by where it puts the cube.
+clips:
+  L_rest: { set: { "MountL/PuppetL/Transform.m_LocalPosition.x": 0.0,   "MountL/PuppetL/Transform.m_LocalPosition.y": 0.0,   "MountL/PuppetL/Transform.m_LocalPosition.z": 0.0 } }
+  L_pXpY: { set: { "MountL/PuppetL/Transform.m_LocalPosition.x": 0.25,  "MountL/PuppetL/Transform.m_LocalPosition.y": 0.25,  "MountL/PuppetL/Transform.m_LocalPosition.z": 0.0 } }
+  L_pXnY: { set: { "MountL/PuppetL/Transform.m_LocalPosition.x": 0.25,  "MountL/PuppetL/Transform.m_LocalPosition.y": -0.25, "MountL/PuppetL/Transform.m_LocalPosition.z": 0.0 } }
+  L_nXpY: { set: { "MountL/PuppetL/Transform.m_LocalPosition.x": -0.25, "MountL/PuppetL/Transform.m_LocalPosition.y": 0.25,  "MountL/PuppetL/Transform.m_LocalPosition.z": 0.0 } }
+  L_nXnY: { set: { "MountL/PuppetL/Transform.m_LocalPosition.x": -0.25, "MountL/PuppetL/Transform.m_LocalPosition.y": -0.25, "MountL/PuppetL/Transform.m_LocalPosition.z": 0.0 } }
+  R_rest: { set: { "MountR/PuppetR/Transform.m_LocalPosition.x": 0.0,   "MountR/PuppetR/Transform.m_LocalPosition.y": 0.0,   "MountR/PuppetR/Transform.m_LocalPosition.z": 0.0 } }
+  R_pXpY: { set: { "MountR/PuppetR/Transform.m_LocalPosition.x": 0.25,  "MountR/PuppetR/Transform.m_LocalPosition.y": 0.25,  "MountR/PuppetR/Transform.m_LocalPosition.z": 0.0 } }
+  R_pXnY: { set: { "MountR/PuppetR/Transform.m_LocalPosition.x": 0.25,  "MountR/PuppetR/Transform.m_LocalPosition.y": -0.25, "MountR/PuppetR/Transform.m_LocalPosition.z": 0.0 } }
+  R_nXpY: { set: { "MountR/PuppetR/Transform.m_LocalPosition.x": -0.25, "MountR/PuppetR/Transform.m_LocalPosition.y": 0.25,  "MountR/PuppetR/Transform.m_LocalPosition.z": 0.0 } }
+  R_nXnY: { set: { "MountR/PuppetR/Transform.m_LocalPosition.x": -0.25, "MountR/PuppetR/Transform.m_LocalPosition.y": -0.25, "MountR/PuppetR/Transform.m_LocalPosition.z": 0.0 } }
