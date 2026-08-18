@@ -28,8 +28,13 @@ The wire convention (`<Name>1/2/4…` + `<Name>Negative`, decode `x̂ = ±k/(2�
 | id | entry |
 |---|---|
 | 1 | this entry's shipped config |
+| 2 | `index-puppet/` — the same channels at vrc-bridge's shipped `index_puppet` addresses |
 
 1–999 are vrc-patterns' range; 1000+ are third parties', declared in the bridge's manifest-schema doc. `id` is identity, `revision` is content — bump `revision` on any channel change, and reinstall the emitted `manifest.json` beside the bridge whenever it changes, or the two halves diverge with nothing on the wire saying so.
+
+## index-puppet/ — the shipped sender's instance
+
+A second generated configuration (own `generate.py` through the base's `build(config)` door, own `built/` and prefab): the four touchpad axes at `IndexPuppet/{Left,Right}_{X,Y}` plus `IndexPuppet/Enable` — the addresses vrc-bridge's `index_puppet` mapping drives out of the box, so composing `index-puppet.prefab` needs no sender code at all. Its `bits`/`floatTau` mirror the bridge's `[puppet]` defaults deliberately: the directory's puppet cross-check refuses to arm a manifest that disagrees with the settings driving those addresses, so retuning either side means changing both and bumping `revision`. One instance per avatar still governs — this config and the shipped `QDemo/*` config collide on the sentinel like any two installs; pick one.
 
 ## How it works
 

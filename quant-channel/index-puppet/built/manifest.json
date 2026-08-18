@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "id": 2,
+  "revision": 1,
+  "channels": [
+    {
+      "name": "IndexPuppet/Left_X",
+      "address": "/avatar/parameters/IndexPuppet/Left_X",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "IndexPuppet/Left_Y",
+      "address": "/avatar/parameters/IndexPuppet/Left_Y",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "IndexPuppet/Right_X",
+      "address": "/avatar/parameters/IndexPuppet/Right_X",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "IndexPuppet/Right_Y",
+      "address": "/avatar/parameters/IndexPuppet/Right_Y",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    }
+  ],
+  "gates": [
+    {
+      "name": "IndexPuppet/Enable",
+      "address": "/avatar/parameters/IndexPuppet/Enable"
+    }
+  ]
+}
