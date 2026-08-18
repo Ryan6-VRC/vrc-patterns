@@ -30,7 +30,10 @@ Decode is gated on IsLocal, structurally: two IsLocal-switched states, the local
 one smoothing the raw float, the remote one decoding bits then smoothing. This
 deliberately fixes the measured defect in the studied reference rig, whose
 generated decoder ran ungated so the wearer saw the quantized reconstruction
-despite being sent full floats. Only the active state is evaluated, so the
+despite being sent full floats. The wearer can also be forced down the Remote
+branch deliberately, by the unsynced `QC/PreviewRemote` debug door — so IsLocal
+is not the sole selector, and nothing on the wire changes when it is set (README
+§Verifying carries the fidelity limit). Only the active state is evaluated, so the
 frametime rig is duplicated into any state that needs it — a rig living only in
 Remote would freeze a local frametime smoother's dt at whatever it last read.
 
@@ -107,7 +110,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SENTINEL = "QuantChannel/Manifest"
 
 # Internal-param prefix. Everything under it stays OFF the prefab's globalParams,
-# so a merged build instance-prefixes it; nothing outside the module may bind it.
+# so a merged build instance-prefixes it; nothing outside the module may bind it BY THE
+# BARE NAME. QC/PreviewRemote is the one member a driver is meant to reach — as the
+# instance-prefixed name OSCQuery serves, which is why it alone is declared, not scratch.
 QC = "QC"
 
 CONFIG = {
@@ -360,9 +365,11 @@ def build(config):
       f" = {synced} synced bits.")
     o("# Wire: VRCFT-compatible <Name>1/2/4… (+ <Name>Negative when signed), decode x̂ = ±k/(2ⁿ−1);")
     o("# an unsynced declared float <Name> carries the wearer's full precision. No on-avatar encoder.")
-    o("# Two IsLocal-switched states: Local smooths the raw float (the wearer NEVER sees the")
+    o("# Two IsLocal-switched states: Local smooths the raw float (the wearer does not see the")
     o("# quantized reconstruction — the gate the studied reference rig lacked); Remote decodes")
-    o("# bits then smooths. Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-")
+    o(f"# bits then smooths. The unsynced {QC}/PreviewRemote door deliberately puts the WEARER on")
+    o("# the Remote branch to preview that decode — the one way a local copy shows steps.")
+    o("# Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-")
     o("# measured over forward Euler, which turns into a passthrough at dt ≥ τ); τ tunable via")
     o(f"# the {QC}/InvTau/* param defaults. Sentinel {SENTINEL} default = manifest id {c['manifestId']}")
     o("# (revision " + str(c["revision"]) + "); built/manifest.json is the sender-side contract.")
@@ -376,6 +383,12 @@ def build(config):
     o("  # is not registered and 404s). The SDK inspector truncates a >255 default on any")
     o("  # keystroke in its row — regenerate, don't hand-edit.")
     o(f"  {SENTINEL}: {{ type: int, default: {c['manifestId']}, vrc: {{ synced: false, saved: false }} }}")
+    # Declared rather than scratch: OSC has to be able to write it (osc.md — leave nothing
+    # OSC-written animator-only), and animator type bool because only transitions read it.
+    o("  # Preview door: force the Remote branch on the WEARER — their own /Smoothed then shows")
+    o(f"  # the stepped decode. Unsynced (zero wire bits), unsaved, {QC}-prefixed so a merged build")
+    o("  # instance-prefixes it; drive it by the name OSCQuery serves.")
+    o(f"  {QC}/PreviewRemote: {{ type: bool, default: false, vrc: {{ synced: false, saved: false }} }}")
     for ch in channels:
         name, n = ch["name"], ch["bits"]
         if n:
@@ -445,6 +458,7 @@ def build(config):
     layer.extend(state_lines("local", "L"))
     o("        transitions:")
     o("          - { to: \"Remote (WD ON)\", when: [ IsLocal is false ] }")
+    o(f"          - {{ to: \"Remote (WD ON)\", when: [ {QC}/PreviewRemote is true ] }}")
     o("      \"Remote (WD ON)\":")
     o("        motion:")
     o("          tree: direct")
@@ -452,7 +466,10 @@ def build(config):
     o("          children:")
     layer.extend(state_lines("remote", "R"))
     o("        transitions:")
-    o("          - { to: \"Local (WD ON)\", when: [ IsLocal is true ] }")
+    o(f"          - {{ to: \"Local (WD ON)\", when: [ IsLocal is true, {QC}/PreviewRemote is false ] }}")
+    o(f"    # {QC}/PreviewRemote (unsynced debug door) forces the wearer down the Remote branch and")
+    o("    # holds them there; Remote->Local needs IsLocal AND the toggle clear, so a wearer who")
+    o("    # flips it off returns to their raw float. A remote is unaffected either way.")
     o("    # Default Remote + mutual IsLocal transitions: correct on frame 1 either way, and")
     o("    # self-correcting if IsLocal lands late. IsLocal never changes mid-session after that.")
     o("    default: \"Remote (WD ON)\"")

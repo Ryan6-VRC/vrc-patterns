@@ -2,9 +2,11 @@
 # quant-channel: 4 smoothed binary-synced OSC channels + 1 gate bool = 17 synced bits.
 # Wire: VRCFT-compatible <Name>1/2/4… (+ <Name>Negative when signed), decode x̂ = ±k/(2ⁿ−1);
 # an unsynced declared float <Name> carries the wearer's full precision. No on-avatar encoder.
-# Two IsLocal-switched states: Local smooths the raw float (the wearer NEVER sees the
+# Two IsLocal-switched states: Local smooths the raw float (the wearer does not see the
 # quantized reconstruction — the gate the studied reference rig lacked); Remote decodes
-# bits then smooths. Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-
+# bits then smooths. The unsynced QC/PreviewRemote door deliberately puts the WEARER on
+# the Remote branch to preview that decode — the one way a local copy shows steps.
+# Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-
 # measured over forward Euler, which turns into a passthrough at dt ≥ τ); τ tunable via
 # the QC/InvTau/* param defaults. Sentinel QuantChannel/Manifest default = manifest id 1
 # (revision 1); built/manifest.json is the sender-side contract.
@@ -26,6 +28,10 @@ parameters:
   # is not registered and 404s). The SDK inspector truncates a >255 default on any
   # keystroke in its row — regenerate, don't hand-edit.
   QuantChannel/Manifest: { type: int, default: 1, vrc: { synced: false, saved: false } }
+  # Preview door: force the Remote branch on the WEARER — their own /Smoothed then shows
+  # the stepped decode. Unsynced (zero wire bits), unsaved, QC-prefixed so a merged build
+  # instance-prefixes it; drive it by the name OSCQuery serves.
+  QC/PreviewRemote: { type: bool, default: false, vrc: { synced: false, saved: false } }
   # QDemo/LX: 3-bit signed channel (4 synced bits + free unsynced float)
   QDemo/LX: { type: float, vrc: { synced: false } }   # OSC float companion — declared (osc.md: leave nothing OSC-written animator-only)
   QDemo/LX1: { type: float, vrc: { type: bool, synced: true, saved: false } }
@@ -158,6 +164,7 @@ layers:
                     - { clip: Sm_QDemo_RY_pos, threshold: 1.0 }
         transitions:
           - { to: "Remote (WD ON)", when: [ IsLocal is false ] }
+          - { to: "Remote (WD ON)", when: [ QC/PreviewRemote is true ] }
       "Remote (WD ON)":
         motion:
           tree: direct
@@ -339,7 +346,10 @@ layers:
                     - { clip: Sm_QDemo_RY_neg, threshold: -1.0 }
                     - { clip: Sm_QDemo_RY_pos, threshold: 1.0 }
         transitions:
-          - { to: "Local (WD ON)", when: [ IsLocal is true ] }
+          - { to: "Local (WD ON)", when: [ IsLocal is true, QC/PreviewRemote is false ] }
+    # QC/PreviewRemote (unsynced debug door) forces the wearer down the Remote branch and
+    # holds them there; Remote->Local needs IsLocal AND the toggle clear, so a wearer who
+    # flips it off returns to their raw float. A remote is unaffected either way.
     # Default Remote + mutual IsLocal transitions: correct on frame 1 either way, and
     # self-correcting if IsLocal lands late. IsLocal never changes mid-session after that.
     default: "Remote (WD ON)"
