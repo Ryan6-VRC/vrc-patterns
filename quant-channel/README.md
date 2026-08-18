@@ -1,0 +1,54 @@
+# quant-channel (Module)
+
+Continuous OSC-driven parameters replicated to every remote client through binary-quantized synced bools, decoded and exponentially smoothed on the receiving side only — the wearer rides their own raw float at full precision. A generator (`generate.py`) mints the FX layer, the parameter declarations, and a sender-side manifest JSON from one CONFIG; the shipped build is a worked touchpad-puppet configuration — four signed 3-bit axes plus a gate bool over **17 synced bits** (vs 33 as plain synced floats), wire-compatible with VRCFaceTracking's binary parameter convention.
+
+## Provenance
+
+The wire convention (`<Name>1/2/4…` + `<Name>Negative`, decode `x̂ = ±k/(2ⁿ−1)`) and the 1D-on-keep smoother tree are OSCmooth's (MIT, © 2022 regzo2), credited as convention ancestor — nothing is ported, and its on-avatar encoder half is deliberately dropped: encoding is sender-side everywhere here. VRCFaceTracking (Apache-2.0) is the interop target the decode tolerates (below). Generalized from a personal avatar's touchpad-puppet module, whose measured defect — a decoder running ungated, showing the wearer the 1/7-step reconstruction — is what the `IsLocal` gate here exists to fix. The sender counterpart is `vrc-bridge`, which owns the manifest schema as its third-party extension surface.
+
+## Interface
+
+- **Params in** (the sender writes over OSC; per axis `<Ax>` ∈ LX, LY, RX, RY): `QDemo/<Ax>` (declared **unsynced** float — full local precision, and declared because VRChat's unchecked inbound path is unreliable: `../docs/osc.md`), `QDemo/<Ax>1/2/4` + `QDemo/<Ax>Negative` (synced bools, unsaved), `QDemo/Enable` (synced bool, unsaved — the gate consumers weight trees on; the sender drops it after idle).
+- **Params out** (every client): `QDemo/<Ax>/Smoothed` (AAP float — the one name a consumer binds; on the wearer it is the smoothed raw float, on remotes the smoothed decode).
+- **Sentinel**: `QuantChannel/Manifest`, unsynced Int whose *default value* is the manifest id (1 here) — the bridge reads it over OSCQuery to pick the manifest. A fixed global name on purpose; see Before you compose it.
+- **Seam**: VRCFury `FullController` on the prefab root; the base prefab has **no scene bindings and no anchor** (`basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0`, vacuous while no bindings exist but recorded so a fork adding one lands in the right frame). `globalParams` enumerates exactly the 26 interface names above; everything `QC/*` takes an instance prefix. The nested `demo/` prefab merges the base controller plus its own consumer layer, whose only bindings are its own child cubes (prefab-root-relative).
+- **Dependencies**: a sender — `vrc-bridge`'s quant-channel helper driving the manifest, or any VRCFT-shaped binary encoder. Frontless: no menu, deliberately (an OSC-contract module; the gate is sender-driven, not menu-driven).
+- **Required assets**: `built/` by GUID (controller + params asset + `manifest.json`); the manifest file is the sender-side contract and installs into the bridge's manifest directory.
+
+## Before you compose it
+
+- **One instance per avatar — not merely one per name set.** The sentinel is a fixed global address, so two installs collide on it regardless of channel naming, and the manifest id is an *avatar*-scoped identity: an avatar carrying puppet channels plus any other quant set merges them into one CONFIG and one manifest.
+- **An avatar already running an OSCmooth-generated decode of the same wire names must shed it first** — composing this beside it yields two decoders, duplicate expression-parameter declarations, and a wearer still seeing quantization steps through the old ungated proxies.
+- **This entry is generated output.** `controller.yaml` and `built/manifest.json` are written by `generate.py` from its CONFIG — edit the config, rerun, recompile `built/`; never hand-edit either file committed here (`--check` holds both to byte-identity, plus the prefabs' `globalParams` lists, which no gate reads). `build(config)` is the fragment-mode door for a generator composing these channels into its own controller — the contract is in `generate.py`'s docstring.
+- **The SDK inspector silently truncates a >255 Int default on any keystroke in its row** — a manifest id ≥256 survives only if you regenerate rather than touch the params asset by hand. Never author this module's parameter defaults through Modular Avatar's `ModularAvatarParameters` inspector: it clamps Int defaults to 0–255 at edit time (the SDK-native and generated paths used here carry no such clamp; ids >255 are live-validated — `../docs/osc.md`).
+
+## Manifest ids (registry)
+
+| id | entry |
+|---|---|
+| 1 | this entry's shipped config |
+
+1–999 are vrc-patterns' range; 1000+ are third parties', declared in the bridge's manifest-schema doc. `id` is identity, `revision` is content — bump `revision` on any channel change, and reinstall the emitted `manifest.json` beside the bridge whenever it changes, or the two halves diverge with nothing on the wire saying so.
+
+## How it works
+
+One FX layer, two `IsLocal`-switched states, both always-on Direct roots. **Local** feeds each axis's smoother from the raw float; **Remote** first decodes the bits (`x̂ = ±k/(2ⁿ−1)`, a bit-weight sum under a 1D-on-`Negative` sign select — ±0 is 0 structurally, so a sender that asserts `Negative` at zero magnitude is harmless) and smooths the decode. The smoother is a 1D tree whose blend parameter is **keep**: input subtree at threshold 0, feedback at 1, children thresholded ±1 so signed values survive (a 0/1-thresholded smoother rectifies the negative half — measured).
+
+Frametime compensation (default on, per side per channel) derives keep per frame as **`1/(1 + dt/τ)`** — backward Euler, computed by the Normalize-Blend-Values divide idiom from an owned frametime rig (`../blendtree-math` shapes). The repo's smoother catalog is `../smooth-frametime`; against its two flavours: its `clamp01` is the `clamp(dt/τ)` forward Euler this entry measured into a literal passthrough at `dt ≥ τ` — no smoothing exactly on the slow clients that need it — and its `remap` is exact but tabulated, holding only as densely as its 1D keys sample the operating band, a per-channel tuning surface a generator would have to guess. Backward Euler is closed-form, unconditionally stable at any `dt`, and errs only toward more smoothing — the right default for emitted-per-config trees; lift `remap` instead when one hand-tuned channel needs exact independence over a known band. The rig is duplicated into each state that compensates, because only the active state evaluates. The keep value reads a 3-frame-stale `dt` (rig → U → keep, one AAP hop each) — inert at steady frame rate; the one-frame garbage `dt` at avatar load lands as a single frozen frame (keep clamps to 1) and self-clears.
+
+| Knob | Where | Effect |
+|---|---|---|
+| `bits`, `signed` | `generate.py` CONFIG | wire cost per channel = bits (+1 signed); step = 1/(2ⁿ−1); `bits: 0` = plain synced float channel (8 wire bits, no decode) |
+| `remote.tau` | CONFIG → `QC/InvTau/*` param default | remote smoothing time constant; install-tunable without regenerating. Below the ~0.083 s sync tick it is a near-no-op — the remote input is a tick staircase and a faster smoother just reproduces it |
+| `local.lambda` | CONFIG → `QC/<Name>/LambdaL` default | fixed local keep; 0 (default) = passthrough, the sender's own smoothing owns local feel; non-zero exists for raw-sensor senders (VRCFT eye gaze) |
+| `floatTau` | CONFIG → manifest only | sender-side float smoothing; an avatar-side no-op, carried so the bridge and avatar share one contract |
+
+**Behavior** (edit-mode measured, τ = 0.15): effective smoothing time 1.05τ at 60 fps, 1.21τ at 15 fps, 1.57τ at 5 fps — bounded and monotone, never a passthrough. Whole-entry cost: ~14 µs per frame for four compensated channels plus rig in edit mode — far below any budget that matters.
+
+**Wire facts a consumer stops worrying about:** all of one axis's bools changed in one frame replicate as one coherent snapshot (the ~12 Hz sync tick batches them — `../docs/runtime.md`), so a code cannot tear across the wire; the rare tick-straddling burst is absorbed by the remote smoother. Senders may write the bools as OSC ints (the bridge does) or true bools (VRCFT does) — both are valid writes to a declared bool, so do not "fix" either. VRCFT's floor encoder reads back through this decode with a one-sided upward bias still inside one step (`1/(2ⁿ−1)`); the bridge's `round` encoder is exact to half a step.
+
+## Verifying the install
+
+In play mode with av3emu, the runtime mirror lists the 26 interface names bare — the wire bools with `synced=True`, the float companions, `<Ax>/Smoothed`, `QDemo/Enable`, `QuantChannel/Manifest` — and everything `QC/*` instance-prefixed (`VF##_QC/…`). Spawn a remote clone, set an axis's bits on the local (e.g. `<Ax>1` + `<Ax>4` + `<Ax>Negative`), and the clone's `<Ax>/Smoothed` settles to −5/7 ≈ −0.714 within ~3τ while the **local** copy's `Smoothed` stays on the raw float — a local copy that shows the stepped value means the `IsLocal` gate was lost. Bare interface names missing means `globalParams` was edited or the module was merged through a foreign controller. On the demo prefab, the cubes move only while `QDemo/Enable` is set — a cube pinned at rest with bits changing is the gate param not landing.
+
+What the emulator structurally cannot show for this entry: the sentinel fetch (it serves no OSCQuery — pin the manifest on the bridge instead), and the client's bool-expression-to-float-animator coercion is reproduced but not proven here — the wire contract itself is live-validated (`../docs/osc.md` pins the sentinel and unsynced-param serving facts).

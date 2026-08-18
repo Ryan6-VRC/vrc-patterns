@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "id": 1,
+  "revision": 1,
+  "channels": [
+    {
+      "name": "QDemo/LX",
+      "address": "/avatar/parameters/QDemo/LX",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "QDemo/LY",
+      "address": "/avatar/parameters/QDemo/LY",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "QDemo/RX",
+      "address": "/avatar/parameters/QDemo/RX",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    },
+    {
+      "name": "QDemo/RY",
+      "address": "/avatar/parameters/QDemo/RY",
+      "bits": 3,
+      "signed": true,
+      "floatTau": 0.12,
+      "declaredWidths": {
+        "bools": 4
+      }
+    }
+  ],
+  "gates": [
+    {
+      "name": "QDemo/Enable",
+      "address": "/avatar/parameters/QDemo/Enable"
+    }
+  ]
+}
