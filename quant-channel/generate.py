@@ -153,8 +153,6 @@ def refuse(msg):
 def lint_names(channels, gates):
     names = [ch["name"] for ch in channels]
     all_names = names + list(gates)
-    if len(set(all_names)) != len(all_names):
-        refuse("duplicate channel/gate names")
     for n in all_names:
         if " " in n:
             refuse(f"name '{n}' contains a space — the client rewrites it, the emulator does not; one name, two addresses")
@@ -164,6 +162,34 @@ def lint_names(channels, gates):
         for m in names:
             if m != n and m.startswith(n) and m[len(n):].isdigit():
                 refuse(f"channel name '{m}' is '{n}' plus digits — '{n}'s wire bools and '{m}'s float companion collide")
+    # The whole EMITTED namespace must be collision-free, not just the config's base
+    # names: a channel also owns its derived wire bools and its /Smoothed output, so a
+    # gate named 'Foo1' beside channel 'Foo', or a channel named 'FooNegative', would
+    # declare one parameter twice — with contradictory declarations.
+    owners = {}
+
+    def claim(name, owner):
+        if name in owners:
+            refuse(f"name '{name}' is emitted twice: by {owner} and by {owners[name]}")
+        owners[name] = owner
+
+    for ch in channels:
+        bits, neg = wire_bools(ch)
+        me = f"channel '{ch['name']}'"
+        claim(ch["name"], me)
+        for b in bits + neg:
+            claim(b, f"{me} (a derived wire bool)")
+        claim(ch["name"] + "/Smoothed", f"{me} (its output)")
+    for g in gates:
+        claim(g, f"gate '{g}'")
+    claim(SENTINEL, "the sentinel")
+    # Clip keys flatten '/' to '_' (san), so two channel names differing only there
+    # would emit duplicate clip keys — one channel's trees driven by the other's clips.
+    sans = {}
+    for n in names:
+        if san(n) in sans:
+            refuse(f"channel names '{sans[san(n)]}' and '{n}' collide after the '/' -> '_' clip-key flattening")
+        sans[san(n)] = n
 
 
 def san(name):
@@ -302,13 +328,13 @@ def build(config):
         refuse("no channels declared")
     if not (1 <= int(c["manifestId"])):
         refuse("manifestId must be >= 1")
-    lint_names(channels, gates)
     for ch in channels:
         n = ch["bits"]
         if not (0 <= n <= 8):
             refuse(f"channel '{ch['name']}': bits must be 0..8 (0 = plain synced float)")
         if n == 0 and ch.get("signed"):
             refuse(f"channel '{ch['name']}': signed is meaningless at bits: 0 — a synced float already carries sign")
+    lint_names(channels, gates)          # after the bits check: the lint derives the wire bools
 
     sides = {"local": [side(ch, "local") for ch in channels],
              "remote": [side(ch, "remote") for ch in channels]}
