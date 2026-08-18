@@ -63,7 +63,7 @@ Tracking is deliberately **raw** — no smoothing on the aim. Aliasing under a f
 
 ## Its own object-sync build
 
-`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 18 against the shipped 147-bit word table — **52 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 28-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. Retune in `generate.py`, never in the emitted `controller.yaml`.
+`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 18 against the shipped 144-bit word table — **52 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 28-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. Retune in `generate.py`, never in the emitted `controller.yaml`.
 
 One post-generation deviation, applied in `demo_document()` which owns the reason: `Enable` defaults **true**, because a demo whose subject is off until you find the menu demonstrates nothing.
 

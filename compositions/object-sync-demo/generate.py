@@ -24,7 +24,7 @@ reason. Every emission path goes through it, `--check` included.
 
 THE WIRE
 --------
-`numberSlots` 4 / `boolSlots` 18 against the shipped 147-bit word table — 3
+`numberSlots` 4 / `boolSlots` 18 against the shipped 144-bit word table — 3
 batches, 52 wire bits, 0.350 s full refresh, 11 sync states. Settled in
 `docs/local/m3-brief.md` §The wire; the 28-bit shipped default stays for
 composed avatars that cannot afford more, and this avatar carries no other
