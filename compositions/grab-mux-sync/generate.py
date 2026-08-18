@@ -60,8 +60,17 @@ OBJECTS = [{"name": "Prop0", "rotation": "y"},
 T_SWAP = 6.5
 
 # Damper mux weight against self-weight 1 — τ = 1/ln(1 + 0.1) ≈ 10.5 frames.
-# Empirical and wear-test-owned; the wearer's states ride rigid (1:0) instead,
-# so a grab has nothing to fight (the object-sync-demo split, same reason).
+# Empirical and wear-test-owned. The damper's ONE job is hiding the snap from
+# the IK-drop hold onto the synced rest (operator-ruled 2026-08-18): ONLY
+# RestShown carries it — engaged by the Bridge→RestShown weight change on the
+# witnessed path, where it also smooths per-wire-cycle word steps thereafter.
+# Every other state rides rigid (1:0): Local/Carried/Bridge so a grab and its
+# hold have nothing to fight, Home so a body-riding prop never jiggles, and
+# the HIDDEN rest states (RestHidden/RestWait) deliberately — a cold joiner's
+# damper snaps onto the synced spot while the container is off, so the first
+# shown frame is already in place and nothing ever flies in from the origin
+# (operator-ruled 2026-08-18; the settle dwell now guards decode stability,
+# not damper convergence).
 W_DAMP = 0.1
 # The visibility settle dwell on the cold sync path — ~3τ, so the always-active
 # damper has converged before the container first shows (operator option (a)).
@@ -346,12 +355,12 @@ def composition_document(cfg):
             w(f"      {ct}: {vis}")
 
         place(f"pl{i}_local", 1, 0, 0, 1, 1)
-        place(f"pl{i}_carried", 0, 1, 0, W_DAMP, 1)
-        place(f"pl{i}_bridge", 0, 1, 0, W_DAMP, 1, seconds=T_SWAP)
-        place(f"pl{i}_rest_hidden", 1, 0, 0, W_DAMP, 0)
-        place(f"pl{i}_rest_wait", 1, 0, 0, W_DAMP, 0, seconds=T_SETTLE)
+        place(f"pl{i}_carried", 0, 1, 0, 1, 1)
+        place(f"pl{i}_bridge", 0, 1, 0, 1, 1, seconds=T_SWAP)
+        place(f"pl{i}_rest_hidden", 1, 0, 0, 1, 0)
+        place(f"pl{i}_rest_wait", 1, 0, 0, 1, 0, seconds=T_SETTLE)
         place(f"pl{i}_rest_shown", 1, 0, 0, W_DAMP, 1)
-        place(f"pl{i}_home", 0, 0, 1, W_DAMP, 1)
+        place(f"pl{i}_home", 0, 0, 1, 1, 1)
         place(f"pl{i}_off", 0, 0, 1, 1, 0)
     return "\n".join(o) + "\n"
 

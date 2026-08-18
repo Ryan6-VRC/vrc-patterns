@@ -33,7 +33,7 @@ The composition is single-instance for `object-sync`'s own reason (fixed collisi
        ├─ DragRig/         drag-bone yaw: Follower (source = SourcePosition, upstream of the display chain) -> Drag_Rotation
        ├─ Carry            pose composer: position <- SourcePosition, rotation <- Drag_Rotation (two constraints, disjoint channels)
        ├─ Mux              sources [SyncProp<N>, Carry, HomeAnchor/Offset], weights animated one-hot
-       └─ Damped           [Mux, self] — one combined damper, riding under the pinned root; holds Container (the visible prop)
+       └─ Damped           [Mux, self] — one combined damper, engaged only in the shown rest state, riding under the pinned root; holds Container (the visible prop)
 
 This is `object-sync`'s pin → mux → damper → content idiom (its README §Composing against Sync owns the law), instanced per prop. `Sync<N>_Target` carries the consumer sources the entry deliberately ships empty — `[HomeAnchor/Offset, Carry]`, weights animated by the rig layers — and the entry's shipped per-object `Drop` toggles are **deleted** from the carried arrangement: the release choreography owns the rest hold instead, and a second writer plus an unbudgeted synced bit is what leaving them would cost.
 
@@ -49,7 +49,7 @@ This is `object-sync`'s pin → mux → damper → content idiom (its README §C
 
 - A late joiner landing inside the release→swap window rides a word table still holding the previous rest, then glides — bounded by the Bridge timer.
 - A joiner who does not receive an in-progress grab (whether the live grab reaches late joiners is client-unconfirmed either way) shows a carried prop at its home anchor until the next release; the state machine is correct under both outcomes.
-- The damper is live while carried, so the prop trails the hand by τ×speed (`../../docs/runtime.md` §Constraints owns the law; the weight is `generate.py`'s) — retune there if the lag reads wrong in a wear test.
+- The damper exists for one moment only — hiding the swap from a remote's IK-drop hold onto the synced rest — so only the shown rest state carries it: grab, carry, bridge, and home all ride rigid, and the hidden cold-path states snap onto the sync spot before the container ever shows, so a late joiner's prop materializes in place rather than flying in (`../../docs/runtime.md` §Constraints owns the damper law; the weight is `generate.py`'s).
 - `Placed` is unsaved by design: a placed pose is runtime state (sample-and-hold captures plus an unsaved word table), so persisting the flag across sessions would point at nothing.
 
 ## Verifying the install
