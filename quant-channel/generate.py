@@ -545,15 +545,17 @@ def build(config):
     }
 
 
-def document(c):
+def document(c, controller="QuantChannel_Fx"):
     """The committed controller.yaml as text, plus the build. `main()` writes
-    it; `--check` re-derives it and compares against disk."""
+    it; `--check` re-derives it and compares against disk. An instance build
+    (`index-puppet/`) reuses this frame under its own controller name — the
+    frame has one home, so a frame change reaches every build or none."""
     f = build(c)
     L = []
     L.extend(f["header"])
     L.append("")
     L.append("schema: 1")
-    L.append("controller: QuantChannel_Fx")
+    L.append("controller: " + controller)
     L.append("basis: mount-root          # no scene bindings; AAP trees only")
     L.append("role: fx")
     L.append("")
@@ -577,11 +579,12 @@ def manifest_text(f):
     return json.dumps(f["manifest"], indent=2, sort_keys=False) + "\n"
 
 
-def check():
-    """Everything the repo gate cannot see: byte-identity of both emitted files
-    against disk, and the prefab globalParams lists — which no compile reads."""
-    c = CONFIG
-    text, f = document(c)
+def check_files(document_fn, c, here, prefabs, extra=()):
+    """The check body, shared with instance builds: byte-identity of both emitted
+    files against disk, and each prefab's globalParams list — which no compile
+    reads. `extra` is (condition, message) pairs an instance appends (its registry
+    asserts); returns ok rather than exiting so the caller owns the exit code."""
+    text, f = document_fn(c)
     ok = True
 
     def assert_(cond, msg):
@@ -590,8 +593,8 @@ def check():
         ok = ok and cond
 
     print("[document]")
-    assert_(document(c)[0] == text, "emission is deterministic across two calls")
-    out = os.path.join(HERE, "controller.yaml")
+    assert_(document_fn(c)[0] == text, "emission is deterministic across two calls")
+    out = os.path.join(here, "controller.yaml")
     if os.path.exists(out):
         with open(out, encoding="utf-8", newline="") as fh:
             assert_(fh.read().replace("\r\n", "\n") == text,
@@ -600,7 +603,7 @@ def check():
         assert_(False, f"controller.yaml is missing ({out})")
 
     print("[manifest]")
-    mpath = os.path.join(HERE, "built", "manifest.json")
+    mpath = os.path.join(here, "built", "manifest.json")
     if os.path.exists(mpath):
         with open(mpath, encoding="utf-8", newline="") as fh:
             assert_(fh.read().replace("\r\n", "\n") == manifest_text(f),
@@ -612,9 +615,18 @@ def check():
                 f"manifest address for {ch['name']} is the checked echo of its name")
 
     print("[prefab globalParams]")
-    want = f["facts"]["interface"]
-    for prefab in ("quant-channel.prefab", os.path.join("demo", "quant-channel-demo.prefab")):
-        path = os.path.join(HERE, prefab)
+    # The prefabs carry VRCFury prefix wildcards (`<Set>/*`), not the enumerated
+    # interface — adding a channel must not require a prefab edit. Expected list =
+    # the interface's name-set prefixes in order of first appearance; `QC/*` is
+    # deliberately never among them, so internals stay instance-prefixed.
+    want, seen = [], set()
+    for n in f["facts"]["interface"]:
+        p = n.split("/")[0] + "/*"
+        if p not in seen:
+            seen.add(p)
+            want.append(p)
+    for prefab in prefabs:
+        path = os.path.join(here, prefab)
         if not os.path.exists(path):
             assert_(False, f"{prefab} is missing")
             continue
@@ -630,9 +642,20 @@ def check():
                 else:
                     break
         assert_(got == want,
-                f"{prefab} globalParams == the interface set ({len(want)} names)")
+                f"{prefab} globalParams == the interface prefix wildcards ({', '.join(want)})")
+
+    for cond, msg in extra:
+        assert_(cond, msg)
 
     print("OK" if ok else "FAILED")
+    return ok
+
+
+def check():
+    """Everything the repo gate cannot see, over this root build's files."""
+    ok = check_files(document, CONFIG, HERE,
+                     ("quant-channel.prefab",
+                      os.path.join("demo", "quant-channel-demo.prefab")))
     sys.exit(0 if ok else 1)
 
 

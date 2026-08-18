@@ -1,6 +1,6 @@
 # quant-channel (Module)
 
-Continuous OSC-driven parameters replicated to every remote client through binary-quantized synced bools, decoded and exponentially smoothed on the receiving side only — the wearer rides their own raw float at full precision. A generator (`generate.py`) mints the FX layer, the parameter declarations, and a sender-side manifest JSON from one CONFIG; the shipped build is a worked touchpad-puppet configuration — four signed 3-bit axes plus a gate bool over **17 synced bits** (vs 33 as plain synced floats), wire-compatible with VRCFaceTracking's binary parameter convention.
+Continuous OSC-driven parameters replicated to every remote client through binary-quantized synced bools, decoded and exponentially smoothed on the receiving side only — the wearer rides their own raw float at full precision. A generator (`generate.py`) mints the FX layer, the parameter declarations, and a sender-side manifest JSON from one CONFIG; the shipped builds are two worked touchpad-puppet configurations — the root's `QDemo/*` set (manifest 1) and `index-puppet/`'s `IndexPuppet/*` set at vrc-bridge's shipped sender addresses (manifest 2) — each four signed 3-bit axes plus a gate bool over **17 synced bits** (vs 33 as plain synced floats), wire-compatible with VRCFaceTracking's binary parameter convention.
 
 ## Provenance
 
@@ -8,11 +8,11 @@ The wire convention (`<Name>1/2/4…` + `<Name>Negative`, decode `x̂ = ±k/(2�
 
 ## Interface
 
-- **Params in** (the sender writes over OSC; per axis `<Ax>` ∈ LX, LY, RX, RY): `QDemo/<Ax>` (declared **unsynced** float — full local precision, and declared because VRChat's unchecked inbound path is unreliable: `../docs/osc.md`), `QDemo/<Ax>1/2/4` + `QDemo/<Ax>Negative` (synced bools, unsaved), `QDemo/Enable` (synced bool, unsaved — the gate consumers weight trees on; the sender drops it after idle).
-- **Params out** (every client): `QDemo/<Ax>/Smoothed` (AAP float — the one name a consumer binds; on the wearer it is the smoothed raw float — unless the preview door below is set — on remotes the smoothed decode).
-- **Sentinel**: `QuantChannel/Manifest`, unsynced Int whose *default value* is the manifest id (1 here) — the bridge reads it over OSCQuery to pick the manifest. A fixed global name on purpose; see Before you compose it.
+- **Params in** (the sender writes over OSC; per axis `<Set>/<Ax>` — root build `QDemo/{LX,LY,RX,RY}`, `index-puppet/` build `IndexPuppet/{Left_X,Left_Y,Right_X,Right_Y}`): `<Set>/<Ax>` (declared **unsynced** float — full local precision, and declared because VRChat's unchecked inbound path is unreliable: `../docs/osc.md`), `<Set>/<Ax>1/2/4` + `<Set>/<Ax>Negative` (synced bools, unsaved), `<Set>/Enable` (synced bool, unsaved — the gate consumers weight trees on; the sender drops it after idle).
+- **Params out** (every client): `<Set>/<Ax>/Smoothed` (AAP float — the one name a consumer binds; on the wearer it is the smoothed raw float — unless the preview door below is set — on remotes the smoothed decode).
+- **Sentinel**: `QuantChannel/Manifest`, unsynced Int whose *default value* is the manifest id (1 for the root build, 2 for `index-puppet/`) — the bridge reads it over OSCQuery to pick the manifest. A fixed global name on purpose; see Before you compose it.
 - **Debug door**: `QC/PreviewRemote` (unsynced bool, unsaved) forces the wearer down the Remote branch, so their own `<Ax>/Smoothed` shows the stepped decode instead of their raw float. `QC/`-prefixed, so it stays off `globalParams` and takes the merge instance prefix — drive it by the name OSCQuery serves (`VF##_QC/PreviewRemote`). Frontless like the rest of the entry: no menu control, and nothing on the wire changes.
-- **Seam**: VRCFury `FullController` on the prefab root; the base prefab has **no scene bindings and no anchor** (`basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0`, vacuous while no bindings exist but recorded so a fork adding one lands in the right frame). `globalParams` enumerates exactly the 26 interface names above; everything `QC/*` takes an instance prefix. The nested `demo/` prefab merges the base controller plus its own consumer layer, whose only bindings are its own child cubes (prefab-root-relative).
+- **Seam**: VRCFury `FullController` on the prefab root; the base prefab has **no scene bindings and no anchor** (`basis: mount-root` ↔ the FullController default `rootBindingsApplyToAvatar: 0`, vacuous while no bindings exist but recorded so a fork adding one lands in the right frame). each prefab's `globalParams` carries its build's two name-set prefixes as VRCFury wildcards (`<Set>/*`, `QuantChannel/*`) — covering all 26 interface names without a prefab edit when channels change — while everything `QC/*` matches neither prefix and takes the instance prefix. The nested `demo/` prefab merges the base controller plus its own consumer layer, whose only bindings are its own child cubes (prefab-root-relative).
 - **Dependencies**: a sender — `vrc-bridge`'s quant-channel helper driving the manifest, or any VRCFT-shaped binary encoder. Frontless: no menu, deliberately (an OSC-contract module; the gate is sender-driven, not menu-driven).
 - **Required assets**: `built/` by GUID (controller + params asset + `manifest.json`); the manifest file is the sender-side contract and installs into the bridge's manifest directory.
 
@@ -28,8 +28,13 @@ The wire convention (`<Name>1/2/4…` + `<Name>Negative`, decode `x̂ = ±k/(2�
 | id | entry |
 |---|---|
 | 1 | this entry's shipped config |
+| 2 | `index-puppet/` — the same channels at vrc-bridge's shipped `index_puppet` addresses |
 
 1–999 are vrc-patterns' range; 1000+ are third parties', declared in the bridge's manifest-schema doc. `id` is identity, `revision` is content — bump `revision` on any channel change, and reinstall the emitted `manifest.json` beside the bridge whenever it changes, or the two halves diverge with nothing on the wire saying so.
+
+## index-puppet/ — the shipped sender's instance
+
+A second generated configuration (own `generate.py` through the base's `build(config)` door, own `built/` and prefab): the four touchpad axes at `IndexPuppet/{Left,Right}_{X,Y}` plus `IndexPuppet/Enable` — the addresses vrc-bridge's `index_puppet` mapping drives out of the box, so composing `index-puppet.prefab` needs no sender code at all. Its `bits`/`floatTau` mirror the bridge's `[puppet]` defaults deliberately: the directory's puppet cross-check refuses to arm a manifest that disagrees with the settings driving those addresses, so retuning either side means changing both and bumping `revision`. One instance per avatar still governs — this config and the shipped `QDemo/*` config collide on the sentinel like any two installs; pick one.
 
 ## How it works
 
@@ -52,6 +57,6 @@ Frametime compensation (default on, per side per channel) derives keep per frame
 
 ## Verifying the install
 
-In play mode with av3emu, the runtime mirror lists the 26 interface names bare — the wire bools with `synced=True`, the float companions, `<Ax>/Smoothed`, `QDemo/Enable`, `QuantChannel/Manifest` — and everything `QC/*` instance-prefixed (`VF##_QC/…`). Spawn a remote clone, set an axis's bits on the local (e.g. `<Ax>1` + `<Ax>4` + `<Ax>Negative`), and the clone's `<Ax>/Smoothed` settles to −5/7 ≈ −0.714 within ~3τ while the **local** copy's `Smoothed` stays on the raw float — a local copy that shows the stepped value means the `IsLocal` gate was lost, unless `QC/PreviewRemote` is set (§How it works). Bare interface names missing means `globalParams` was edited or the module was merged through a foreign controller. On the demo prefab, the cubes move only while `QDemo/Enable` is set — a cube pinned at rest with bits changing is the gate param not landing.
+In play mode with av3emu, the runtime mirror lists the composed build's 26 interface names bare — the wire bools with `synced=True`, the float companions, `<Set>/<Ax>/Smoothed`, `<Set>/Enable`, `QuantChannel/Manifest` — and everything `QC/*` instance-prefixed (`VF##_QC/…`). Spawn a remote clone, set an axis's bits on the local (e.g. `<Ax>1` + `<Ax>4` + `<Ax>Negative`), and the clone's `<Ax>/Smoothed` settles to −5/7 ≈ −0.714 within ~3τ while the **local** copy's `Smoothed` stays on the raw float — a local copy that shows the stepped value means the `IsLocal` gate was lost, unless `QC/PreviewRemote` is set (§How it works). Bare interface names missing means `globalParams` was edited or the module was merged through a foreign controller. On the demo prefab, the cubes move only while `QDemo/Enable` is set — a cube pinned at rest with bits changing is the gate param not landing.
 
 What the emulator structurally cannot show for this entry: the sentinel fetch (it serves no OSCQuery — pin the manifest on the bridge instead), and the client's bool-expression-to-float-animator coercion is reproduced but not proven here — the wire contract itself is live-validated (`../docs/osc.md` pins the sentinel and unsynced-param serving facts).
