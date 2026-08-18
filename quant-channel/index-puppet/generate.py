@@ -19,7 +19,6 @@ Same discipline as the base: edit CONFIG, rerun (`python generate.py`), recompil
 """
 
 import importlib.util
-import json
 import os
 import sys
 
@@ -66,92 +65,19 @@ CONFIG = {
 
 
 def document(base, c):
-    """The committed controller.yaml as text, plus the build — the base
-    `document()`'s frame with this instance's controller name."""
-    f = base.build(c)
-    L = []
-    L.extend(f["header"])
-    L.append("")
-    L.append("schema: 1")
-    L.append("controller: QuantChannelIndexPuppet_Fx")
-    L.append("basis: mount-root          # no scene bindings; AAP trees only")
-    L.append("role: fx")
-    L.append("")
-    L.append("defaults:")
-    L.append("  writeDefaults: on")
-    L.append("  transition: { duration: 0, exitTime: none, interruption: none }")
-    L.append("")
-    L.append("parameters:")
-    L.extend(f["params"])
-    L.append("")
-    L.append("layers:")
-    for block in f["layers"]:
-        L.extend(block)
-    L.append("")
-    L.append("clips:")
-    L.extend(f["clips"])
-    return "\n".join(L) + "\n", f
-
-
-def manifest_text(f):
-    return json.dumps(f["manifest"], indent=2, sort_keys=False) + "\n"
+    """The base `document()`'s frame under this instance's controller name —
+    one frame home, so a base frame change reaches this build through `--check`."""
+    return base.document(c, controller="QuantChannelIndexPuppet_Fx")
 
 
 def check(base):
-    """Byte-identity of both emitted files against disk, and the prefab
-    globalParams list — the base `check()`'s shape, one prefab."""
-    c = CONFIG
-    text, f = document(base, c)
-    ok = True
-
-    def assert_(cond, msg):
-        nonlocal ok
-        print(("  ok   " if cond else "  FAIL ") + msg)
-        ok = ok and cond
-
-    print("[document]")
-    assert_(document(base, c)[0] == text, "emission is deterministic across two calls")
-    out = os.path.join(HERE, "controller.yaml")
-    if os.path.exists(out):
-        with open(out, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == text,
-                    "controller.yaml on disk matches CONFIG")
-    else:
-        assert_(False, f"controller.yaml is missing ({out})")
-
-    print("[manifest]")
-    mpath = os.path.join(HERE, "built", "manifest.json")
-    if os.path.exists(mpath):
-        with open(mpath, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == manifest_text(f),
-                    "built/manifest.json on disk matches CONFIG")
-    else:
-        assert_(False, f"built/manifest.json is missing ({mpath})")
-    for ch in f["manifest"]["channels"] + f["manifest"]["gates"]:
-        assert_(ch["address"] == "/avatar/parameters/" + ch["name"],
-                f"manifest address for {ch['name']} is the checked echo of its name")
-
-    print("[prefab globalParams]")
-    want = f["facts"]["interface"]
-    path = os.path.join(HERE, "index-puppet.prefab")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as fh:
-            body = fh.read()
-        got, inside = [], False
-        for ln in body.splitlines():
-            if ln.strip() == "globalParams:":
-                inside = True
-            elif inside:
-                if ln.strip().startswith("- "):
-                    got.append(ln.strip()[2:].strip())
-                else:
-                    break
-        assert_(got == want,
-                f"index-puppet.prefab globalParams == the interface set ({len(want)} names)")
-    else:
-        assert_(False, "index-puppet.prefab is missing")
-
-    print("OK" if ok else "FAILED")
+    """The base check body over this instance's files, plus the registry assert
+    the base cannot make for itself: two generators now pin manifest ids, and the
+    README table is narration no gate reads — the collision must fail here."""
+    ok = base.check_files(
+        lambda c: document(base, c), CONFIG, HERE, ("index-puppet.prefab",),
+        extra=((CONFIG["manifestId"] != base.CONFIG["manifestId"],
+                "manifestId does not collide with the base config's"),))
     sys.exit(0 if ok else 1)
 
 
@@ -165,7 +91,7 @@ def main():
         fh.write(text)
     os.makedirs(os.path.join(HERE, "built"), exist_ok=True)
     with open(os.path.join(HERE, "built", "manifest.json"), "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(manifest_text(f))
+        fh.write(base.manifest_text(f))
     facts = f["facts"]
     print(f"wrote controller.yaml + built/manifest.json — {facts['channelCount']} channels, "
           f"{facts['syncedBits']} synced bits, interface = {len(facts['interface'])} names")
