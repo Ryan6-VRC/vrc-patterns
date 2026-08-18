@@ -2,9 +2,11 @@
 # quant-channel: 4 smoothed binary-synced OSC channels + 1 gate bool = 17 synced bits.
 # Wire: VRCFT-compatible <Name>1/2/4… (+ <Name>Negative when signed), decode x̂ = ±k/(2ⁿ−1);
 # an unsynced declared float <Name> carries the wearer's full precision. No on-avatar encoder.
-# Two IsLocal-switched states: Local smooths the raw float (the wearer NEVER sees the
+# Two IsLocal-switched states: Local smooths the raw float (the wearer does not see the
 # quantized reconstruction — the gate the studied reference rig lacked); Remote decodes
-# bits then smooths. Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-
+# bits then smooths. The unsynced QC/PreviewRemote door deliberately puts the WEARER on
+# the Remote branch to preview that decode — the one way a local copy shows steps.
+# Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-
 # measured over forward Euler, which turns into a passthrough at dt ≥ τ); τ tunable via
 # the QC/InvTau/* param defaults. Sentinel QuantChannel/Manifest default = manifest id 1
 # (revision 1); built/manifest.json is the sender-side contract.
