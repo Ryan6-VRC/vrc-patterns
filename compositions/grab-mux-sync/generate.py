@@ -32,11 +32,14 @@ grabbed one is off-wire by construction. No post-generation deviation: `Enable`
 keeps the entry's default-off, driven by the entry's own menu Toggle.
 """
 
+import glob
 import importlib.util
 import os
+import re as _re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir))
 ENTRY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "object-sync", "generate.py"))
 OUT = os.path.join(HERE, "object-sync", "controller.yaml")
@@ -103,9 +106,17 @@ def global_params(cfg):
     the four `Placed<N>` bits — deliberately matches NOTHING here: both halves
     of each physbone pair take the instance prefix together (the base-field
     rewrite asymmetry, `gimmicks.md` §Packaging), and a prefixed synced param
-    syncs by table index exactly as well as a bare one."""
+    syncs by table index exactly as well as a bare one.
+
+    `!{ch}/Wire/Idx*` is the one entry the demo's list does NOT carry: the
+    demo exposes the index bools because its tablet's Counter readout walks
+    them, and this composition has no consumer — they are the same
+    host-capturable carried-state class as the word slots, so they take the
+    instance prefix here (bake-confirmed 2026-08-18: bare without this entry,
+    prefixed with it, sync cost identical either way)."""
     p, ch = cfg["prefix"], cfg["channel"]
-    return [f"{p}/*", f"!{ch}/Cycle", f"!{ch}/Wire/Num*", f"!{ch}/Wire/Bool*"]
+    return [f"{p}/*", f"!{ch}/Cycle", f"!{ch}/Wire/Idx*",
+            f"!{ch}/Wire/Num*", f"!{ch}/Wire/Bool*"]
 
 
 def composition_document(cfg):
@@ -404,6 +415,61 @@ def main():
             assert_(stem in text,
                     f"exclusion `{entry}` still names a declared param "
                     f"(stem `{stem}` appears in the emitted document)")
+        # The prefab is the hand-edited half — a wrong globalParams entry lands
+        # silently (VRCFury exposes nothing and says nothing) and no compile or
+        # gate reads the field, so pin both FullController blocks here (the
+        # demo's generator carries the same assert for the same reason).
+        pf_path = os.path.join(HERE, "GrabMuxSync.prefab")
+        if os.path.exists(pf_path):
+            body = open(pf_path, encoding="utf-8").read()
+            blocks, cur, inside = [], [], False
+            for ln in body.splitlines():
+                if ln.strip() == "globalParams:":
+                    inside, cur = True, []
+                elif inside:
+                    if ln.lstrip().startswith("- "):
+                        # Unity writes each `!` entry single-quoted (YAML tag
+                        # indicator) — strip the quotes, keep the `!`.
+                        cur.append(ln.split("- ", 1)[1].strip().strip("'\""))
+                    else:
+                        blocks.append(cur)
+                        inside = False
+            if inside:
+                blocks.append(cur)
+            entry_blocks = [b for b in blocks
+                            if any(e.lstrip("!").startswith(f"{cfg['prefix']}/")
+                                   for e in b)]
+            assert_(len(entry_blocks) == 2
+                    and all(b == want_gp for b in entry_blocks),
+                    f"both FullController globalParams blocks are exactly the "
+                    f"{len(want_gp)} entries above, in order "
+                    f"({[b for b in entry_blocks if b != want_gp][:1]})")
+            # Both world pins (composition root + the carried rig's own) source
+            # never-instantiated World.prefab assets; a broken reference there
+            # resolves to null and the rig silently rides the avatar instead of
+            # the world, reading correct at the origin — same assert, same
+            # resolve-by-GUID method as the demo's.
+            world = {}
+            for meta in glob.glob(os.path.join(REPO, "*", "assets",
+                                               "World.prefab.meta")):
+                asset = meta[:-len(".meta")]
+                g = _re.search(r"^guid: ([0-9a-f]{32})$",
+                               open(meta, encoding="utf-8").read(), _re.M)
+                if g and os.path.exists(asset):
+                    world[g.group(1)] = set(
+                        _re.findall(r"^--- !u!4 &(-?\d+)$",
+                                    open(asset, encoding="utf-8").read(), _re.M))
+            refs = _re.findall(
+                r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})",
+                body)
+            dangling = [r for r in refs
+                        if r[1] not in world or r[0] not in world[r[1]]]
+            assert_(bool(refs) and not dangling,
+                    f"all {len(refs)} cross-asset pin sources resolve to a "
+                    f"Transform in a composed entry's World.prefab — dangling: "
+                    f"{sorted(set(dangling))}")
+        else:
+            assert_(False, f"GrabMuxSync.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload "
               f"/ {facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s "
               f"refresh; surface pairs: "
