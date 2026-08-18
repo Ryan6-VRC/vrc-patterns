@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """object-sync generator: emits the three committed controller.yaml documents
-(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below.
+(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below; DEMOS configs are
+check-only (probed and packable on every change, nothing on disk).
 
 Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
 three controller.yaml documents committed here are generated output, pinned
@@ -35,11 +36,11 @@ Per axis the measure is two-stage, both stages reading a face-mode box receiver
 
 The fine stage is bias-cancelling: anchor, receiver and sender ride one
 hierarchy, so the avatar's own float32 displacement cancels bit-exactly
-(measured — see the README). The coarse stage is not: at range 8192 m with the
-avatar kilometres from the world origin its world-space error runs past a metre,
-which is why the fine field is REDUNDANT — it spans the cell plus twice that
-error, not one cell, so a cell chosen one boundary out is still reconstructed
-exactly. That redundancy is what buys 13+12 bits per axis rather than 13+11.
+(measured — see the README). The coarse stage is not: at range its world-space
+error runs to over a quarter-cell, which is why the fine field is REDUNDANT —
+it spans the cell plus twice the guarded error, not one cell, so a cell chosen
+one boundary out is still reconstructed exactly. That redundancy is what buys
+12+12 bits per axis rather than 12+11.
 
 Rotation `full` needs no trig: a rotation-only holder carries two markers
 on orthogonal arms, each marker's three components measured by the same face
@@ -305,8 +306,8 @@ def derive(c):
         # The y-mode branch test: which half-turn the marker is in.
         "rotMid": 0.5 + r / c["rotSpan"],
         # Display base offset, summed FIRST so the running total never exceeds
-        # the range (float32 ulp at 8192 m is ~0.98 mm — the precision floor
-        # this design is built to, not a defect it introduces).
+        # the range (the float32 ulp at range is the precision floor this
+        # design is built to, not a defect it introduces).
         "posBase": -c["range"] + c["cellSize"] / 2 - fine_span / 2,
         "rigOffset": rig_offset(c["rigSeed"]),
     }
@@ -372,13 +373,12 @@ def rot_groups(c, ob):
     """(group label, [components]) for one object's rotation words.
 
     `full`'s six components belong to two different markers and are independent
-    readings, so each takes its own group — and for the same reason its own walk
-    layer and its own commit (`rot_walk_plan`): a torn set of six independent
+    readings, so each takes its own group — a torn set of six independent
     readings is a stale orientation, never one no marker ever held. `y`'s two
     components are ONE value — a heading — and want the same adjacent-cell
     coherence a position axis wants, so they share a group when the slots can
-    hold it, and a commit barrier publishes both limbs in one frame whatever the
-    slots do."""
+    hold it, and the pair layer's single commit publishes both limbs in one
+    frame whatever the slots do (`pair_layer`)."""
     o, mode = ob["name"], ob["rotation"]
     comps = rot_comps(mode)
     if mode == "y":
