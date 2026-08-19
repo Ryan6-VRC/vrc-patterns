@@ -152,6 +152,20 @@ CONFIG = {
     # the fine sender is outside its box, which nothing but a fresh coarse cell
     # can fix.
     "fineEscapeFrames": 30,
+    # The frame-rate floor the multi-object slice ring's wall-clock escapes are
+    # sized at. The ring's Run windows are COMPLETION-GATED (each shared walk
+    # stamps a Slice/Done/* bit at commit, and Run advances only once every walk
+    # its slice's mode runs has stamped), because the walks step one state per
+    # FRAME while an exitTime is wall-clock SECONDS: the pre-fix window divided
+    # the frame budget by a hard-coded 60, so at ~45 fps the heading pair
+    # (27 frames) still fit while the position walk (33) was beheaded by the
+    # Slice/Live abandon rung at ~F3 on every cycle — heading synced, position
+    # words never committed, measured in-venue (G5, 2026-08-18). This constant
+    # sizes only the escape bound a slice that CANNOT finish (dead rig, fine
+    # stage escaping under fast motion) yields at; below this fps that bound can
+    # fire before completion again, so it is set at the unfocused-editor floor
+    # rather than a client figure.
+    "sliceFloorFps": 12,
 
     # Parks the contact cluster away from spawn-dense space. Any string; the
     # offset it derives is a rig fact the README's Rig section declares. The
@@ -1150,6 +1164,29 @@ def slice_wake_params(c, o):
             [f"{p}/Sense/Sh/R{comp}" for comp in rot_comps(ob["rotation"])])
 
 
+def slice_done_param(c, walk):
+    """The completion stamp one shared walk leaves for the Slice layer —
+    written 1 by that walk's Commit_<o> drivers, cleared by every slice Enter
+    and by the Slice layer's Parked."""
+    return f"{c['prefix']}/Slice/Done/{walk}"
+
+
+def slice_done_walks(c, mode=None):
+    """The shared walks a slice must see commit before it may hand off —
+    keyed by the walk's layer tail (`P<axis>`, `Ry`, `R<comp>`). Position is
+    every mode's; the heading pair joins for any rotating mode; the full-only
+    component walks join for full. `mode` None is the union over the config's
+    modes — the mint/clear set."""
+    walks = [f"P{a}" for a in AXES]
+    modes = ({ob["rotation"] for ob in c["objects"]} if mode is None
+             else {mode})
+    if modes - {"none"}:
+        walks.append("Ry")
+    if "full" in modes:
+        walks += [f"R{comp}" for comp in full_only_comps(c)]
+    return walks
+
+
 def slice_schedule(c):
     """The ring of slices, weighted and INTERLEAVED: an object with `slices: k`
     appears k times, never in two consecutive slots (ring-wise). Adjacency is not a style point: an adjacent
@@ -1226,11 +1263,25 @@ def slice_layer(doc, c):
     blocked[f"{p}/Slice/Live"] = 0
     if any(m == "full" for m in mode.values()):
         blocked[f"{p}/Slice/FullLive"] = 0
-    # The run window holds the slowest walk in the slice plus its Parked climb
-    # and its Commit hop; the skip window bounds how long a dead rig may hold
-    # the slice before the next object gets its turn.
-    hold = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
-    skip = num(round((max_walk_frames(c) + c["settleFrames"] + 4) / 60.0, 4))
+    for w in slice_done_walks(c):
+        dp = slice_done_param(c, w)
+        doc.param(f"  {dp}: {{ type: bool, scratch: true }}", dp)
+        blocked[dp] = 0
+    # The Run window is COMPLETION-GATED: the walks step one state per FRAME
+    # while an exitTime is wall-clock SECONDS, so any fixed dwell is a frame
+    # budget divided by an assumed fps — the pre-fix /60.0 beheaded the
+    # position walk mid-fine-ladder at every fps under ~58 (the Slice/Live
+    # abandon rung fired first), which read as heading synced, position words
+    # zero forever. Run now advances when every walk its slice's mode runs has
+    # stamped its Slice/Done/* bit, frame-true at any fps; the wall-clock
+    # escapes below remain only as the yield bound on a slice that CANNOT
+    # finish — a rig that never wakes (skip) or walks that never converge
+    # (hold: fine stage escaping under fast motion) — sized at sliceFloorFps,
+    # where they cost nothing in normal operation.
+    hold = num(round((max_walk_frames(c) + c["settleFrames"] + 4)
+                     / c["sliceFloorFps"], 4))
+    skip = num(round((max_walk_frames(c) + c["settleFrames"] + 4)
+                     / c["sliceFloorFps"], 4))
 
     slots = slice_schedule(c)
     seen = {o: 0 for o in names}
@@ -1259,11 +1310,16 @@ def slice_layer(doc, c):
              f"{{ to: Enter_{no}_{nj}, when: [], exitTime: {skip} }}"
              "   # a rig that never wakes must not starve the other slices"],
             motion=motion))
+        done_terms = ", ".join(f"{slice_done_param(c, w)} is true"
+                               for w in slice_done_walks(c, mode[o]))
         out.extend(state(
             f"Run_{o}_{j}",
             driver(sets=run_sets),
-            [f"{{ to: Enter_{no}_{nj}, when: [], exitTime: {hold} }}"
-             "   # the gate clip declares its length, so exitTime is seconds"],
+            [f"{{ to: Enter_{no}_{nj}, when: [ {done_terms} ] }}"
+             "   # completion-gated: every walk this mode runs has committed",
+             f"{{ to: Enter_{no}_{nj}, when: [], exitTime: {hold} }}"
+             "   # dead-slice yield bound only (walks that cannot finish); "
+             "the gate clip declares its length, so exitTime is seconds"],
             motion=motion))
     first_o, first_j = labels[0]
     out.extend(state("Parked", driver(sets=blocked),
@@ -1599,7 +1655,8 @@ def position_walk(doc, c, d, a, ob=None):
             commit[f"{o}/P{a}/F{j}"] = f"{st}/F{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
-        out.extend(state(cs, driver(copies=commit), leave))
+        done = ({slice_done_param(c, f"P{a}"): 1} if shared else None)
+        out.extend(state(cs, driver(sets=done, copies=commit), leave))
     park = dict({f"{st}/C": 0, f"{st}/F": 0, f"{res}/C": 0, f"{res}/F": 0,
                  kacc: 0, kfloat: 0, sc: 0, sf: 0},
                 **{b: 0 for b in cbools + fbools})
@@ -1696,7 +1753,8 @@ def pair_layer(doc, c, d, shared):
                 commit[f"{o}/R{comp}/B{j}"] = f"{sts[comp]}/B{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
-        out.extend(state(cs, driver(copies=commit),
+        done = ({slice_done_param(c, "Ry"): 1} if shared else None)
+        out.extend(state(cs, driver(sets=done, copies=commit),
                          [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     park = dict(clear, **{ress[x]: 0 for x in Y_COMPS},
                 **{senses[x]: 0 for x in Y_COMPS})
@@ -1758,7 +1816,8 @@ def component_walk(doc, c, d, comp, ob=None):
             commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
-        out.extend(state(cs, driver(copies=commit),
+        done = ({slice_done_param(c, f"R{comp}"): 1} if shared else None)
+        out.extend(state(cs, driver(sets=done, copies=commit),
                          [f"{{ to: Idle, when: [ {p}/True is true ] }}"]))
     park = dict(clear, **{res: 0, sr: 0})
     out.extend(state("Parked", driver(sets=park),
@@ -1820,9 +1879,11 @@ def header(c, d, facts, numbers, bools):
         per = max_walk_frames(c) + 2 * c["settleFrames"] + 5
         slots = slice_schedule(c)
         o(f"# Local measure cycle: {len(slots)} slices x {per} frames = "
-          f"~{len(slots) * per / 60:.2f}s ring — each slice deactivates every other object's")
-        o("#   rig, clears the SHARED sense set, settles, and only then unblocks the shared")
-        o(f"#   walks. Ring (weighted, interleaved): {', '.join(slots)}.")
+          f"~{len(slots) * per / 60:.2f}s ring @60fps — each slice deactivates every other")
+        o("#   object's rig, clears the SHARED sense set, settles, unblocks the shared walks,")
+        o("#   and hands off when they have COMMITTED (frame-true at any fps; a slice whose")
+        o(f"#   walks cannot finish yields after {(max_walk_frames(c) + c['settleFrames'] + 4) / c['sliceFloorFps']:.2f}s, sized at {c['sliceFloorFps']} fps).")
+        o(f"#   Ring (weighted, interleaved): {', '.join(slots)}.")
     o(f"# Rig park (deterministic from rigSeed '{c['rigSeed']}'): "
       f"({d['rigOffset'][0]}, {d['rigOffset'][1]}, {d['rigOffset'][2]}) m — the README's Rig section")
     o("#   is the spec the prefab is kept against. The park is the object node's transform")
@@ -2338,10 +2399,58 @@ def check():
                                 for x in cfg["objects"]),
                         f"slice {o}#{j}: Run raises Live + exactly its own "
                         "Slice flag" + (" + FullLive per mode" if any_full else ""))
+                # The completion gate: Run hands off when every walk THIS
+                # slice's mode runs has stamped Done — the frame-true exit —
+                # with the wall-clock escape as the dead-slice bound only. A
+                # fixed dwell here is the beheading defect: frames vs seconds,
+                # so any fps under the assumed one cut the position walk
+                # mid-fine-ladder while the shorter heading pair still fit.
+                run_rungs = rung_text(text, f"{pf}/Slice", f"Run_{o}_{j}")
+                mode_done = [slice_done_param(cfg, w)
+                             for w in slice_done_walks(cfg, full_modes[o])]
+                assert_(all(f"{q} is true" in run_rungs for q in mode_done)
+                        and "exitTime:" in run_rungs,
+                        f"slice {o}#{j}: Run exits on its mode's "
+                        f"{len(mode_done)} Done stamps, escape-bounded")
+                done_all = {slice_done_param(cfg, w)
+                            for w in slice_done_walks(cfg)}
+                stray = [q for q in done_all - set(mode_done)
+                         if q in run_rungs]
+                assert_(not stray,
+                        f"slice {o}#{j}: Run waits on no walk its mode never "
+                        f"runs ({stray}) — that wait would only ever end by "
+                        "escape")
+                assert_(done_all <= set(esets)
+                        and all(esets[k] == "0" for k in done_all),
+                        f"slice {o}#{j}: Enter clears every Done stamp "
+                        f"(missing {done_all - set(esets)})")
             psets = state_sets(slice_block, "Parked")
             assert_(union <= set(psets),
                     f"Slice Parked clears the whole shared sense union "
                     f"(missing {union - set(psets)})")
+            done_all = {slice_done_param(cfg, w)
+                        for w in slice_done_walks(cfg)}
+            assert_(done_all <= set(psets)
+                    and all(psets[k] == "0" for k in done_all),
+                    f"Slice Parked clears every Done stamp "
+                    f"(missing {done_all - set(psets)})")
+            # The stamps' write side: every shared walk's every Commit_<o>
+            # sets that walk's own Done bit — a commit that forgets it turns
+            # every slice of that mode into an escape-length wait.
+            walk_commits = {f"P{a}": [ob["name"] for ob in cfg["objects"]]
+                            for a in AXES}
+            if rot_names:
+                walk_commits["Ry"] = rot_names
+            if full_names:
+                for comp in full_only_comps(cfg):
+                    walk_commits[f"R{comp}"] = full_names
+            for w, objs in walk_commits.items():
+                blk = rung_block(text, f"{pf}/Enc/Sh/{w}")
+                for o in objs:
+                    assert_(state_sets(blk, f"Commit_{o}")
+                            .get(slice_done_param(cfg, w)) == "1",
+                            f"Enc/Sh/{w}: Commit_{o} stamps "
+                            f"{slice_done_param(cfg, w)}")
             assert_("enable_park" not in f["clips"],
                     "no enable clips at all with several objects — the Slice layer "
                     "owns m_IsActive (one property, one writer)")
@@ -2359,6 +2468,9 @@ def check():
                 f"collision tags are unique across objects and stages ({flat})")
 
         if len(cfg["objects"]) == 1:
+            assert_("/Slice/Done/" not in text,
+                    "single-object build carries no Done stamps — there is no "
+                    "Slice layer to read them")
             park = f["clips"]["enable_park"][0]
             live_c = f["clips"]["enable_live"][0]
             assert_(set(park) == set(live_c) and park and
