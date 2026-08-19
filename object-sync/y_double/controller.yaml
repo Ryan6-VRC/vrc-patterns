@@ -11,9 +11,11 @@
 #   component LSB 0.4883 mm.
 # Wire: 28 synced bits carrying 192 payload bits in 8 batches, atomic=batch,
 #   ~0.93s full refresh @60fps.
-# Local measure cycle: 2 slices x 46 frames = ~1.53s ring — each slice deactivates every other object's
-#   rig, clears the SHARED sense set, settles, and only then unblocks the shared
-#   walks. Ring (weighted, interleaved): PropA, PropB.
+# Local measure cycle: 2 slices x 46 frames = ~1.53s ring @60fps — each slice deactivates every other
+#   object's rig, clears the SHARED sense set, settles, unblocks the shared walks,
+#   and hands off when they have COMMITTED (frame-true at any fps; a slice whose
+#   walks cannot finish yields after 3.42s, sized at 12 fps).
+#   Ring (weighted, interleaved): PropA, PropB.
 # Rig park (deterministic from rigSeed 'object-sync/g3'): (73, 932, 233) m — the README's Rig section
 #   is the spec the prefab is kept against. The park is the object node's transform
 #   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,
@@ -253,6 +255,10 @@ parameters:
   ObjectSync/Slice/PropA: { type: float, scratch: true }
   ObjectSync/Slice/PropB: { type: float, scratch: true }
   ObjectSync/Slice/Live: { type: float, scratch: true }
+  ObjectSync/Slice/Done/PX: { type: bool, scratch: true }
+  ObjectSync/Slice/Done/PY: { type: bool, scratch: true }
+  ObjectSync/Slice/Done/PZ: { type: bool, scratch: true }
+  ObjectSync/Slice/Done/Ry: { type: bool, scratch: true }
   ObjectSync/Sense/Sh/CX: float            # contact receiver (localOnly)
   ObjectSync/Sense/Sh/FX: float            # contact receiver (localOnly)
   ObjectSync/S/Sh/PX/C: { type: float, scratch: true }
@@ -1143,9 +1149,13 @@ layers:
                 ObjectSync/Slice/PropA: 0
                 ObjectSync/Slice/PropB: 0
                 ObjectSync/Slice/Live: 0
+                ObjectSync/Slice/Done/PX: 0
+                ObjectSync/Slice/Done/PY: 0
+                ObjectSync/Slice/Done/PZ: 0
+                ObjectSync/Slice/Done/Ry: 0
         transitions:
           - { to: Run_PropA_0, when: [ ObjectSync/Sense/Sh/CX greater 0.0125, ObjectSync/Sense/Sh/CY greater 0.0125, ObjectSync/Sense/Sh/CZ greater 0.0125, ObjectSync/Sense/Sh/RA/X greater 0.0125, ObjectSync/Sense/Sh/RA/Z greater 0.0125 ] }
-          - { to: Enter_PropB_0, when: [], exitTime: 0.6833 }   # a rig that never wakes must not starve the other slices
+          - { to: Enter_PropB_0, when: [], exitTime: 3.4167 }   # a rig that never wakes must not starve the other slices
       Run_PropA_0:
         motion: { clip: slice_gate_propa }
         behaviours:
@@ -1155,7 +1165,8 @@ layers:
                 ObjectSync/Slice/PropB: 0
                 ObjectSync/Slice/Live: 1
         transitions:
-          - { to: Enter_PropB_0, when: [], exitTime: 0.6833 }   # the gate clip declares its length, so exitTime is seconds
+          - { to: Enter_PropB_0, when: [ ObjectSync/Slice/Done/PX is true, ObjectSync/Slice/Done/PY is true, ObjectSync/Slice/Done/PZ is true, ObjectSync/Slice/Done/Ry is true ] }   # completion-gated: every walk this mode runs has committed
+          - { to: Enter_PropB_0, when: [], exitTime: 3.4167 }   # dead-slice yield bound only (walks that cannot finish); the gate clip declares its length, so exitTime is seconds
       Enter_PropB_0:
         motion: { clip: slice_gate_propb }
         behaviours:
@@ -1172,9 +1183,13 @@ layers:
                 ObjectSync/Slice/PropA: 0
                 ObjectSync/Slice/PropB: 0
                 ObjectSync/Slice/Live: 0
+                ObjectSync/Slice/Done/PX: 0
+                ObjectSync/Slice/Done/PY: 0
+                ObjectSync/Slice/Done/PZ: 0
+                ObjectSync/Slice/Done/Ry: 0
         transitions:
           - { to: Run_PropB_0, when: [ ObjectSync/Sense/Sh/CX greater 0.0125, ObjectSync/Sense/Sh/CY greater 0.0125, ObjectSync/Sense/Sh/CZ greater 0.0125, ObjectSync/Sense/Sh/RA/X greater 0.0125, ObjectSync/Sense/Sh/RA/Z greater 0.0125 ] }
-          - { to: Enter_PropA_0, when: [], exitTime: 0.6833 }   # a rig that never wakes must not starve the other slices
+          - { to: Enter_PropA_0, when: [], exitTime: 3.4167 }   # a rig that never wakes must not starve the other slices
       Run_PropB_0:
         motion: { clip: slice_gate_propb }
         behaviours:
@@ -1184,7 +1199,8 @@ layers:
                 ObjectSync/Slice/PropB: 1
                 ObjectSync/Slice/Live: 1
         transitions:
-          - { to: Enter_PropA_0, when: [], exitTime: 0.6833 }   # the gate clip declares its length, so exitTime is seconds
+          - { to: Enter_PropA_0, when: [ ObjectSync/Slice/Done/PX is true, ObjectSync/Slice/Done/PY is true, ObjectSync/Slice/Done/PZ is true, ObjectSync/Slice/Done/Ry is true ] }   # completion-gated: every walk this mode runs has committed
+          - { to: Enter_PropA_0, when: [], exitTime: 3.4167 }   # dead-slice yield bound only (walks that cannot finish); the gate clip declares its length, so exitTime is seconds
       Parked:
         motion: { clip: slice_gate_park }
         behaviours:
@@ -1201,6 +1217,10 @@ layers:
                 ObjectSync/Slice/PropA: 0
                 ObjectSync/Slice/PropB: 0
                 ObjectSync/Slice/Live: 0
+                ObjectSync/Slice/Done/PX: 0
+                ObjectSync/Slice/Done/PY: 0
+                ObjectSync/Slice/Done/PZ: 0
+                ObjectSync/Slice/Done/Ry: 0
         transitions:
           - { to: Enter_PropA_0, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
@@ -1650,6 +1670,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PX: 1
               copy:
                 PropA/PX/C: ObjectSync/S/Sh/PX/C
                 PropA/PX/F: ObjectSync/S/Sh/PX/F
@@ -1668,6 +1690,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PX: 1
               copy:
                 PropB/PX/C: ObjectSync/S/Sh/PX/C
                 PropB/PX/F: ObjectSync/S/Sh/PX/F
@@ -2217,6 +2241,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PY: 1
               copy:
                 PropA/PY/C: ObjectSync/S/Sh/PY/C
                 PropA/PY/F: ObjectSync/S/Sh/PY/F
@@ -2235,6 +2261,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PY: 1
               copy:
                 PropB/PY/C: ObjectSync/S/Sh/PY/C
                 PropB/PY/F: ObjectSync/S/Sh/PY/F
@@ -2784,6 +2812,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PZ: 1
               copy:
                 PropA/PZ/C: ObjectSync/S/Sh/PZ/C
                 PropA/PZ/F: ObjectSync/S/Sh/PZ/F
@@ -2802,6 +2832,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/PZ: 1
               copy:
                 PropB/PZ/C: ObjectSync/S/Sh/PZ/C
                 PropB/PZ/F: ObjectSync/S/Sh/PZ/F
@@ -3306,6 +3338,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/Ry: 1
               copy:
                 PropA/RA/X: ObjectSync/S/Sh/RA/X
                 PropA/RA/X/B0: ObjectSync/S/Sh/RA/X/B0
@@ -3323,6 +3357,8 @@ layers:
         motion: ~
         behaviours:
           - driver:
+              set:
+                ObjectSync/Slice/Done/Ry: 1
               copy:
                 PropB/RA/X: ObjectSync/S/Sh/RA/X
                 PropB/RA/X/B0: ObjectSync/S/Sh/RA/X/B0
