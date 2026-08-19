@@ -21,6 +21,8 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 
 Release freezes the prop via constraint-disable — the `Container` constraint turns off, holding its last transform — plus a re-sample of the settled tip, so a re-grab, which re-enables the constraint, picks up at the drop point instead of teleporting.
 
+**The freeze's placement is the design, not a convenience.** In the release frame the tip snaps to its rest and `SourcePosition` follows it before any same-frame `IsActive`/`m_Enabled` write can protect it, so the sample cell is briefly wrong on every release and anything reading it live inherits that — a rebuilt hold on `SourcePosition` itself, or on a mid-chain node the release frame updates, captures the home pose while reading exactly like this rig to every static check (frame-measured while building `compositions/grab-mux-sync`, whose generator carries the trace pointer). `Container` survives because it reads the sample across the constraint cycle's stale edge — one frame behind, still holding the drop — and the pulse then re-samples the settled tip, healing the cell after the freeze has already saved the payload.
+
 Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Knob |

@@ -72,8 +72,13 @@ T_SWAP = 6.5
 # (operator-ruled 2026-08-18; the settle dwell now guards decode stability,
 # not damper convergence).
 W_DAMP = 0.1
-# The visibility settle dwell on the cold sync path — ~3τ, so the always-active
-# damper has converged before the container first shows (operator option (a)).
+# The visibility settle dwell on the cold sync path. Two live jobs, neither of
+# them damper convergence (the hidden rest states ride rigid and snap): it lets
+# the decode land a coherent word application after `Acquired` certifies, and it
+# absorbs the raw-vs-Floatify one-frame skew this composition accepts by reading
+# `Ch/Acquired` raw (the entry's README §Who drives the prop owns that skew).
+# Tuning it toward zero reopens the cold-join stale-word window, not a damper
+# artifact.
 T_SETTLE = 0.5
 # The release clip's sample-and-hold pulse, verbatim from grab-prop: freeze at
 # t=0 (constraint off), re-sample the settled tip over [0.25, 0.5) — low-FPS
@@ -178,9 +183,14 @@ def composition_document(cfg):
     w("  IsLocal: bool")
     w("  # The entry's published pair, read bare (both FullControllers carry the")
     w("  # same scoped globalParams). scratch: the entry's params asset owns")
-    w("  # their declarations; ours would duplicate them.")
-    w("  ObjectSync/Enable: { type: bool, scratch: true }")
-    w("  ObjectSync/Ch/Acquired: { type: bool, scratch: true }")
+    w("  # their declarations; ours would duplicate them. FLOAT, matching the")
+    w("  # entry's animator type exactly: VRCFury's merge keeps the FIRST")
+    w("  # declaration of a shared name and drops the second's type with no")
+    w("  # warning (VFController._NewParam), so a bool here would survive or")
+    w("  # die by FullController merge order — conditions below read the pair")
+    w("  # with float compares for the same reason.")
+    w("  ObjectSync/Enable: { type: float, scratch: true }")
+    w("  ObjectSync/Ch/Acquired: { type: float, scratch: true }")
     for i, ob in enumerate(cfg["objects"]):
         w(f"  Grab{i}_IsGrabbed: bool        "
           f"# minted by {ob['name']}'s grab physbone (parameter: Grab{i})")
@@ -222,17 +232,22 @@ def composition_document(cfg):
         w(f"          - driver: {{ localOnly: false, set: {{ Grab{i}_IsGrabbed: 0 }} }}")
         w(f"          - driver: {{ localOnly: true, set: {{ Placed{i}: 0 }} }}")
         w("        transitions:")
-        w("          - { to: Home, when: [ ObjectSync/Enable is true ] }")
+        w("          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }")
         w("    any:")
-        w("      - { to: Disabled, when: [ ObjectSync/Enable is false ], "
+        w("      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], "
           "canTransitionToSelf: false }")
         w("    entry:")
         w(f"      - {{ to: Grabbed, when: [ Grab{i}_IsGrabbed is true ] }}")
         w(f"      - {{ to: Placed, when: [ Placed{i} is true ] }}")
         w("    default: Home")
+        # Layout follows the private doll rig's grammar (read off its
+        # controller, 2026-08-18): default state under entry on the center
+        # column, the grab family in the LEFT lane with release below the
+        # grab, placement converging back to center, AnyState-entered parks
+        # outboard right. The Place layer below shares the same columns.
         w("    layout:")
-        w("      nodes: { Home: [300, 180], Grabbed: [540, 180], "
-          "Released: [780, 180], Placed: [780, 320], Disabled: [60, 320] }")
+        w("      nodes: { Home: [30, 180], Grabbed: [-210, 180], "
+          "Released: [-210, 260], Placed: [30, 260], Disabled: [270, 60] }")
         w("      entry: [50, 120]")
         w("      any: [50, 40]")
         w("      exit: [50, 80]")
@@ -259,7 +274,7 @@ def composition_document(cfg):
         w("        transitions:")
         w(f"          - {{ to: Carried, when: [ Grab{i}_IsGrabbed is true ] }}")
         w(f"          - {{ to: Home, when: [ Placed{i} is false ] }}")
-        w("          - { to: RestWait, when: [ ObjectSync/Ch/Acquired is true ] }")
+        w("          - { to: RestWait, when: [ ObjectSync/Ch/Acquired greater 0.5 ] }")
         w("      RestWait:")
         w(f"        motion: {{ clip: pl{i}_rest_wait }}")
         w("        transitions:")
@@ -279,25 +294,30 @@ def composition_document(cfg):
         w("      Disabled:")
         w(f"        motion: {{ clip: pl{i}_off }}")
         w("        transitions:")
-        w("          - { to: Local, when: [ ObjectSync/Enable is true, "
+        w("          - { to: Local, when: [ ObjectSync/Enable greater 0.5, "
           "IsLocal is true ] }")
-        w(f"          - {{ to: Carried, when: [ ObjectSync/Enable is true, "
+        w(f"          - {{ to: Carried, when: [ ObjectSync/Enable greater 0.5, "
           f"Grab{i}_IsGrabbed is true ] }}")
-        w(f"          - {{ to: RestHidden, when: [ ObjectSync/Enable is true, "
+        w(f"          - {{ to: RestHidden, when: [ ObjectSync/Enable greater 0.5, "
           f"Placed{i} is true ] }}")
-        w("          - { to: Home, when: [ ObjectSync/Enable is true ] }")
+        w("          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }")
         w("    any:")
-        w("      - { to: Disabled, when: [ ObjectSync/Enable is false ], "
+        w("      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], "
           "canTransitionToSelf: false }")
         w("    entry:")
         w("      - { to: Local, when: [ IsLocal is true ] }")
         w(f"      - {{ to: Carried, when: [ Grab{i}_IsGrabbed is true ] }}")
         w(f"      - {{ to: RestHidden, when: [ Placed{i} is true ] }}")
         w("    default: Home")
+        # Same column semantics as Rig<N>: grab family left (Carried over
+        # Bridge, mirroring Grabbed over Released), the cold sync path as the
+        # mirrored RIGHT arm (RestHidden over RestWait), both arms converging
+        # on RestShown at center-bottom; Local and Disabled are the two
+        # entry/AnyState parks, outboard at the top.
         w("    layout:")
-        w("      nodes: { Local: [300, 60], Carried: [540, 180], "
-          "Bridge: [780, 180], RestShown: [1020, 180], RestHidden: [780, 320], "
-          "RestWait: [1020, 320], Home: [300, 180], Disabled: [60, 320] }")
+        w("      nodes: { Local: [-210, 60], Carried: [-210, 180], "
+          "Bridge: [-210, 260], RestShown: [30, 260], RestHidden: [270, 180], "
+          "RestWait: [270, 260], Home: [30, 180], Disabled: [270, 60] }")
         w("      entry: [50, 120]")
         w("      any: [50, 40]")
         w("      exit: [50, 80]")
@@ -314,6 +334,24 @@ def composition_document(cfg):
         dm = f"{p}/Damped/VRCParentConstraint.Sources"
         ct = f"{p}/Damped/Container/GameObject.m_IsActive"
 
+        dme = f"{p}/Damped/VRCParentConstraint.m_Enabled"
+
+        # THE HOLD IS THE DISPLAY LEAF'S m_Enabled FREEZE FOR THE RELEASE
+        # WINDOW — grab-prop's Container freeze, instanced on Damped. Frame-
+        # measured (2026-08-18, test-output/g5-grabphase): in the release frame
+        # the tip snaps to its rest and the sample cell follows it even with
+        # IsActive already 0 — the poison propagates down every LIVE constraint
+        # the same frame, and a mid-chain m_Enabled freeze (tried on Carry)
+        # just freezes the poisoned value: whether a node chases or holds in
+        # that frame is where the constraint CYCLE's stale edge falls, and the
+        # one node measured holding the last good value is Damped, one frame
+        # stale by that ordering. So Damped freezes for exactly the released
+        # clip (protecting every client's view, the wearer's included), the
+        # root re-anchors onto that frozen drop, the tip settles there, and
+        # the SourcePosition pulse re-samples it clean — HEALING Carry and the
+        # measurement within the clip, which is why Carry stays live and
+        # Placed re-enables Damped onto an already-agreeing chain. The ~0.3 s
+        # poisoned measurement window disappears under T_SWAP's full-ring wait.
         def rig(name, home_w, carry_w, root_home, root_drop, sample, bone):
             w(f"  {name}:")
             w("    set:")
@@ -323,24 +361,33 @@ def composition_document(cfg):
             w(f"      {gp}.source1.Weight: {root_drop}")
             w(f"      {sp}: {sample}")
             w(f"      {gb}: {bone}")
+            w(f"      {dme}: 1")
 
         rig(f"rig{i}_home", 1, 0, 1, 0, 1, 1)
         rig(f"rig{i}_grab", 0, 1, 1, 0, 1, 1)
         rig(f"rig{i}_placed", 0, 1, 0, 1, 0, 1)
         rig(f"rig{i}_off", 1, 0, 1, 0, 1, 0)
-        # The release pulse: constraint OFF at t=0 freezes the sample cell at
-        # the drop, ON over [0.25, 0.5) re-samples the settled tip, OFF holds.
+        # The release clip: Damped freezes for the whole clip (the hold), the
+        # root re-anchors onto the frozen drop via the [0,1] swap, and the
+        # SourcePosition pulse re-samples the settled tip over [0.25, 0.5) —
+        # the heal, and the re-grab pickup, in one mechanism.
         w(f"  rig{i}_released:")
-        w(f"    length: {T_RELEASE}")
+        w(f"    seconds: {T_RELEASE}")
         w("    set:")
         w(f"      {st}.source0.Weight: 0")
         w(f"      {st}.source1.Weight: 1")
         w(f"      {gp}.source0.Weight: 0")
         w(f"      {gp}.source1.Weight: 1")
         w(f"      {gb}: 1")
+        w(f"      {dme}: 0")
         w("    curves:")
         w(f"      {sp}: {{ tangents: stepped, "
           "keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }")
+
+        # The damper pair is explicit — RIGID = (1, 0), DAMPED = (W_DAMP, 1) —
+        # because deriving self-weight from the mux weight made W_DAMP = 1
+        # silently emit rigid everywhere while every doc still claimed a damper.
+        RIGID, DAMPED = (1, 0), (W_DAMP, 1)
 
         def place(name, sync_w, carry_w, home_w, damp, vis, seconds=None):
             w(f"  {name}:")
@@ -350,18 +397,18 @@ def composition_document(cfg):
             w(f"      {mx}.source0.Weight: {sync_w}")
             w(f"      {mx}.source1.Weight: {carry_w}")
             w(f"      {mx}.source2.Weight: {home_w}")
-            w(f"      {dm}.source0.Weight: {damp}")
-            w(f"      {dm}.source1.Weight: {1 if damp != 1 else 0}")
+            w(f"      {dm}.source0.Weight: {damp[0]}")
+            w(f"      {dm}.source1.Weight: {damp[1]}")
             w(f"      {ct}: {vis}")
 
-        place(f"pl{i}_local", 1, 0, 0, 1, 1)
-        place(f"pl{i}_carried", 0, 1, 0, 1, 1)
-        place(f"pl{i}_bridge", 0, 1, 0, 1, 1, seconds=T_SWAP)
-        place(f"pl{i}_rest_hidden", 1, 0, 0, 1, 0)
-        place(f"pl{i}_rest_wait", 1, 0, 0, 1, 0, seconds=T_SETTLE)
-        place(f"pl{i}_rest_shown", 1, 0, 0, W_DAMP, 1)
-        place(f"pl{i}_home", 0, 0, 1, 1, 1)
-        place(f"pl{i}_off", 0, 0, 1, 1, 0)
+        place(f"pl{i}_local", 1, 0, 0, RIGID, 1)
+        place(f"pl{i}_carried", 0, 1, 0, RIGID, 1)
+        place(f"pl{i}_bridge", 0, 1, 0, RIGID, 1, seconds=T_SWAP)
+        place(f"pl{i}_rest_hidden", 1, 0, 0, RIGID, 0)
+        place(f"pl{i}_rest_wait", 1, 0, 0, RIGID, 0, seconds=T_SETTLE)
+        place(f"pl{i}_rest_shown", 1, 0, 0, DAMPED, 1)
+        place(f"pl{i}_home", 0, 0, 1, RIGID, 1)
+        place(f"pl{i}_off", 0, 0, 1, RIGID, 0)
     return "\n".join(o) + "\n"
 
 
@@ -397,21 +444,48 @@ def main():
         else:
             assert_(False, f"carried controller.yaml is missing ({OUT})")
         fx = composition_document(cfg)
-        assert_(composition_document(cfg) == fx,
-                "FX regeneration is byte-identical")
+        assert_(composition_document(config(mod)) == fx,
+                "FX regeneration from a fresh config is byte-identical")
         if os.path.exists(OUT_FX):
             with open(OUT_FX, encoding="utf-8", newline="") as fh:
                 assert_(fh.read().replace("\r\n", "\n") == fx,
                         "FX controller.yaml on disk matches this generator")
         else:
             assert_(False, f"FX controller.yaml is missing ({OUT_FX})")
-        # The FX reads the entry's pair by their BARE names, which holds only
-        # while both stay on the carried build's globalParams-visible surface —
-        # assert the emitted entry document still declares both.
-        for name in (f"{cfg['prefix']}/Enable", f"{cfg['channel']}/Acquired"):
-            assert_(f"  {name}:" in text,
-                    f"entry document still declares `{name}` (the FX reads it "
-                    "bare across the two FullControllers)")
+        # The FX reads the entry's pair by their BARE names AND at the entry's
+        # exact animator type: VRCFury's merge keeps the first declaration of a
+        # shared name and silently drops the second's type, so a type drift
+        # between the two documents becomes a merge-order lottery. Pin the
+        # entry's full declarations, not just the names.
+        for decl in (
+            f"  {cfg['prefix']}/Enable: {{ type: float, default: 0, "
+            "vrc: { type: bool, synced: true, saved: false } }",
+            f"  {cfg['channel']}/Acquired: {{ type: float, default: 0, "
+            "vrc: { type: bool, synced: false, saved: false } }",
+        ):
+            assert_(decl in text,
+                    f"entry document still declares `{decl.strip()}` — the FX "
+                    "declares the same name as float and reads it with float "
+                    "compares; a drift here re-opens the merge-order type "
+                    "collision")
+        assert_(": { type: float, scratch: true }" in fx
+                and "ObjectSync/Enable: { type: bool" not in fx,
+                "FX declares the shared pair as float scratch")
+        # T_SWAP must cover what a remote actually waits for: full measure ring
+        # (from the emitted header) + full wire loop (facts) + fine re-lock +
+        # a real buffer. A CONFIG or word-channel tick change that stretches
+        # either term past the hard-coded delay fails here instead of shipping
+        # a remote that swaps onto a stale word.
+        ring_m = _re.search(r"# Local measure cycle: (\d+) slices x (\d+) "
+                            r"frames", text)
+        assert_(ring_m is not None, "emitted document carries the ring header")
+        if ring_m:
+            ring = int(ring_m.group(1)) * int(ring_m.group(2)) / 60.0
+            need = ring + facts["cycleSeconds"] + 0.7 + 0.5
+            assert_(T_SWAP >= need,
+                    f"T_SWAP {T_SWAP}s covers ring {ring:.2f} + wire "
+                    f"{facts['cycleSeconds']:.2f} + relock 0.7 + buffer 0.5 "
+                    f"= {need:.2f}s")
         want_gp = global_params(cfg)
         print("  globalParams for the composition prefab (BOTH FullControllers):")
         for n in want_gp:
@@ -462,27 +536,39 @@ def main():
             for meta in glob.glob(os.path.join(REPO, "*", "assets",
                                                "World.prefab.meta")):
                 asset = meta[:-len(".meta")]
-                g = _re.search(r"^guid: ([0-9a-f]{32})$",
-                               open(meta, encoding="utf-8").read(), _re.M)
+                with open(meta, encoding="utf-8") as mfh:
+                    g = _re.search(r"^guid: ([0-9a-f]{32})$", mfh.read(), _re.M)
                 if g and os.path.exists(asset):
-                    world[g.group(1)] = set(
-                        _re.findall(r"^--- !u!4 &(-?\d+)$",
-                                    open(asset, encoding="utf-8").read(), _re.M))
+                    with open(asset, encoding="utf-8") as afh:
+                        world[g.group(1)] = set(
+                            _re.findall(r"^--- !u!4 &(-?\d+)$", afh.read(),
+                                        _re.M))
             refs = _re.findall(
                 r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})",
                 body)
             dangling = [r for r in refs
                         if r[1] not in world or r[0] not in world[r[1]]]
-            assert_(bool(refs) and not dangling,
-                    f"all {len(refs)} cross-asset pin sources resolve to a "
-                    f"Transform in a composed entry's World.prefab — dangling: "
-                    f"{sorted(set(dangling))}")
+            # Exactly 4: parent + scale on the composition root, parent + scale
+            # on the carried Rig. A deleted pin removes its refs and the rest
+            # would still satisfy a bare "all resolve" — count it.
+            assert_(len(refs) == 4 and not dangling,
+                    f"exactly 4 cross-asset pin sources (root pair + Rig "
+                    f"pair), all resolving to a composed entry's World.prefab "
+                    f"— found {len(refs)}, dangling {sorted(set(dangling))}")
             # The consumer seam the entry deliberately ships empty: each
             # Sync{Obj}_Target must carry OUR two sources (Offset, Carry), or
             # every Sync-mediated path collapses to the world origin with the
             # state machines reading healthy — shipped exactly once before this
             # assert existed. The entry cannot hold this (its prefab is not
             # ours); this one is.
+            # Consumer constraint sources by IDENTITY AND ORDER, not count —
+            # the clips address sources by index, so a transposed pair reads
+            # (2,2)-healthy while every chord measures the wrong node; the
+            # origin defect this pass was written for shipped exactly that
+            # shaped. Resolves each SourceTransform to its GameObject name via
+            # the same document maps throughout; a stripped or nameless doc is
+            # skipped, never crashed on, so a parse surprise reports FAIL
+            # instead of a traceback.
             docs = {}
             for block in body.split("--- !u!"):
                 m = _re.match(r"\d+ &(-?\d+)", block)
@@ -490,32 +576,63 @@ def main():
                     docs[m.group(1)] = block
             go_of, name_of = {}, {}
             for fid, block in docs.items():
-                g = _re.search(r"^GameObject:", block, _re.M)
-                if g:
-                    name_of[fid] = _re.search(
-                        r"^  m_Name: (.*)$", block, _re.M).group(1)
+                if _re.search(r"^GameObject:", block, _re.M):
+                    nm = _re.search(r"^  m_Name: (.*)$", block, _re.M)
+                    if nm:
+                        name_of[fid] = nm.group(1)
             for fid, block in docs.items():
                 g = _re.search(r"m_GameObject: \{fileID: (-?\d+)\}", block)
                 if g:
                     go_of[fid] = g.group(1)
-            targets = {}
+
+            def source_names(block):
+                n = _re.search(r"totalLength: (\d+)", block)
+                if not n:
+                    return None
+                hits = list(_re.finditer(
+                    r"SourceTransform: \{fileID: (-?\d+)"
+                    r"(?:, guid: [0-9a-f]{32})?", block))[:int(n.group(1))]
+                return [name_of.get(go_of.get(sm.group(1), ""),
+                                    f"?{sm.group(1)}") for sm in hits]
+
+            want_by_name = {}
+            for i, ob in enumerate(cfg["objects"]):
+                want_by_name[f"Sync{ob['name']}_Target"] = ["Offset", "Carry"]
+            found, mux_syncs, bad = {}, [], {}
             for fid, block in docs.items():
-                if "VRCParentConstraint" not in block.split("\n", 2)[-1][:400] \
-                        and not _re.search(r"^MonoBehaviour:", block, _re.M):
+                if not _re.search(r"^MonoBehaviour:", block, _re.M) \
+                        or "totalLength" not in block:
                     continue
-                go = go_of.get(fid)
-                nm = name_of.get(go, "")
-                if _re.fullmatch(r"Sync\w+_Target", nm) and "Sources" in block:
-                    n = int(_re.search(r"totalLength: (\d+)", block).group(1))
-                    live = len([x for x in _re.findall(
-                        r"SourceTransform: \{fileID: (-?\d+)", block)[:n]
-                        if x != "0"])
-                    targets[nm] = (n, live)
-            bad = {k: v for k, v in targets.items() if v != (2, 2)}
-            assert_(len(targets) == len(cfg["objects"]) and not bad,
-                    f"every Sync_Target carries exactly 2 live consumer "
-                    f"sources ({len(targets)}/{len(cfg['objects'])} found; "
-                    f"bad: {bad})")
+                nm = name_of.get(go_of.get(fid, ""), "")
+                names = source_names(block)
+                if names is None:
+                    continue
+                if nm in want_by_name:
+                    found[nm] = names
+                    if names != want_by_name[nm]:
+                        bad[nm] = names
+                elif nm == "Mux":
+                    found[f"Mux#{fid}"] = names
+                    if (len(names) != 3 or names[1:] != ["Carry", "Offset"]
+                            or not names[0].startswith("Sync")):
+                        bad[f"Mux#{fid}"] = names
+                    else:
+                        mux_syncs.append(names[0])
+                elif nm == "Damped":
+                    found[f"Damped#{fid}"] = names
+                    if names != ["Mux", "Damped"]:
+                        bad[f"Damped#{fid}"] = names
+            n_obj = len(cfg["objects"])
+            want_syncs = sorted(f"Sync{ob['name']}" for ob in cfg["objects"])
+            counts = (len([k for k in found if k in want_by_name]),
+                      len([k for k in found if k.startswith("Mux#")]),
+                      len([k for k in found if k.startswith("Damped#")]))
+            assert_(counts == (n_obj, n_obj, n_obj) and not bad
+                    and sorted(mux_syncs) == want_syncs,
+                    f"consumer sources by name+order: {n_obj}x Sync_Target "
+                    f"[Offset, Carry], {n_obj}x Mux [Sync<obj>, Carry, Offset] "
+                    f"(each object once), {n_obj}x Damped [Mux, self] — found "
+                    f"{counts}, bad: {bad}, mux targets: {sorted(mux_syncs)}")
         else:
             assert_(False, f"GrabMuxSync.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload "

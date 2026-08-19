@@ -17,9 +17,14 @@ parameters:
   IsLocal: bool
   # The entry's published pair, read bare (both FullControllers carry the
   # same scoped globalParams). scratch: the entry's params asset owns
-  # their declarations; ours would duplicate them.
-  ObjectSync/Enable: { type: bool, scratch: true }
-  ObjectSync/Ch/Acquired: { type: bool, scratch: true }
+  # their declarations; ours would duplicate them. FLOAT, matching the
+  # entry's animator type exactly: VRCFury's merge keeps the FIRST
+  # declaration of a shared name and drops the second's type with no
+  # warning (VFController._NewParam), so a bool here would survive or
+  # die by FullController merge order — conditions below read the pair
+  # with float compares for the same reason.
+  ObjectSync/Enable: { type: float, scratch: true }
+  ObjectSync/Ch/Acquired: { type: float, scratch: true }
   Grab0_IsGrabbed: bool        # minted by Prop0's grab physbone (parameter: Grab0)
   Placed0: { type: bool, vrc: { synced: true, saved: false } }  # world-placed vs home; wearer-stamped, cleared by Enable-off
   Grab1_IsGrabbed: bool        # minted by Prop1's grab physbone (parameter: Grab1)
@@ -60,15 +65,15 @@ layers:
           - driver: { localOnly: false, set: { Grab0_IsGrabbed: 0 } }
           - driver: { localOnly: true, set: { Placed0: 0 } }
         transitions:
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Grabbed, when: [ Grab0_IsGrabbed is true ] }
       - { to: Placed, when: [ Placed0 is true ] }
     default: Home
     layout:
-      nodes: { Home: [300, 180], Grabbed: [540, 180], Released: [780, 180], Placed: [780, 320], Disabled: [60, 320] }
+      nodes: { Home: [30, 180], Grabbed: [-210, 180], Released: [-210, 260], Placed: [30, 260], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -92,7 +97,7 @@ layers:
         transitions:
           - { to: Carried, when: [ Grab0_IsGrabbed is true ] }
           - { to: Home, when: [ Placed0 is false ] }
-          - { to: RestWait, when: [ ObjectSync/Ch/Acquired is true ] }
+          - { to: RestWait, when: [ ObjectSync/Ch/Acquired greater 0.5 ] }
       RestWait:
         motion: { clip: pl0_rest_wait }
         transitions:
@@ -112,19 +117,19 @@ layers:
       Disabled:
         motion: { clip: pl0_off }
         transitions:
-          - { to: Local, when: [ ObjectSync/Enable is true, IsLocal is true ] }
-          - { to: Carried, when: [ ObjectSync/Enable is true, Grab0_IsGrabbed is true ] }
-          - { to: RestHidden, when: [ ObjectSync/Enable is true, Placed0 is true ] }
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Local, when: [ ObjectSync/Enable greater 0.5, IsLocal is true ] }
+          - { to: Carried, when: [ ObjectSync/Enable greater 0.5, Grab0_IsGrabbed is true ] }
+          - { to: RestHidden, when: [ ObjectSync/Enable greater 0.5, Placed0 is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Local, when: [ IsLocal is true ] }
       - { to: Carried, when: [ Grab0_IsGrabbed is true ] }
       - { to: RestHidden, when: [ Placed0 is true ] }
     default: Home
     layout:
-      nodes: { Local: [300, 60], Carried: [540, 180], Bridge: [780, 180], RestShown: [1020, 180], RestHidden: [780, 320], RestWait: [1020, 320], Home: [300, 180], Disabled: [60, 320] }
+      nodes: { Local: [-210, 60], Carried: [-210, 180], Bridge: [-210, 260], RestShown: [30, 260], RestHidden: [270, 180], RestWait: [270, 260], Home: [30, 180], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -158,15 +163,15 @@ layers:
           - driver: { localOnly: false, set: { Grab1_IsGrabbed: 0 } }
           - driver: { localOnly: true, set: { Placed1: 0 } }
         transitions:
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Grabbed, when: [ Grab1_IsGrabbed is true ] }
       - { to: Placed, when: [ Placed1 is true ] }
     default: Home
     layout:
-      nodes: { Home: [300, 180], Grabbed: [540, 180], Released: [780, 180], Placed: [780, 320], Disabled: [60, 320] }
+      nodes: { Home: [30, 180], Grabbed: [-210, 180], Released: [-210, 260], Placed: [30, 260], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -190,7 +195,7 @@ layers:
         transitions:
           - { to: Carried, when: [ Grab1_IsGrabbed is true ] }
           - { to: Home, when: [ Placed1 is false ] }
-          - { to: RestWait, when: [ ObjectSync/Ch/Acquired is true ] }
+          - { to: RestWait, when: [ ObjectSync/Ch/Acquired greater 0.5 ] }
       RestWait:
         motion: { clip: pl1_rest_wait }
         transitions:
@@ -210,19 +215,19 @@ layers:
       Disabled:
         motion: { clip: pl1_off }
         transitions:
-          - { to: Local, when: [ ObjectSync/Enable is true, IsLocal is true ] }
-          - { to: Carried, when: [ ObjectSync/Enable is true, Grab1_IsGrabbed is true ] }
-          - { to: RestHidden, when: [ ObjectSync/Enable is true, Placed1 is true ] }
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Local, when: [ ObjectSync/Enable greater 0.5, IsLocal is true ] }
+          - { to: Carried, when: [ ObjectSync/Enable greater 0.5, Grab1_IsGrabbed is true ] }
+          - { to: RestHidden, when: [ ObjectSync/Enable greater 0.5, Placed1 is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Local, when: [ IsLocal is true ] }
       - { to: Carried, when: [ Grab1_IsGrabbed is true ] }
       - { to: RestHidden, when: [ Placed1 is true ] }
     default: Home
     layout:
-      nodes: { Local: [300, 60], Carried: [540, 180], Bridge: [780, 180], RestShown: [1020, 180], RestHidden: [780, 320], RestWait: [1020, 320], Home: [300, 180], Disabled: [60, 320] }
+      nodes: { Local: [-210, 60], Carried: [-210, 180], Bridge: [-210, 260], RestShown: [30, 260], RestHidden: [270, 180], RestWait: [270, 260], Home: [30, 180], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -256,15 +261,15 @@ layers:
           - driver: { localOnly: false, set: { Grab2_IsGrabbed: 0 } }
           - driver: { localOnly: true, set: { Placed2: 0 } }
         transitions:
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Grabbed, when: [ Grab2_IsGrabbed is true ] }
       - { to: Placed, when: [ Placed2 is true ] }
     default: Home
     layout:
-      nodes: { Home: [300, 180], Grabbed: [540, 180], Released: [780, 180], Placed: [780, 320], Disabled: [60, 320] }
+      nodes: { Home: [30, 180], Grabbed: [-210, 180], Released: [-210, 260], Placed: [30, 260], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -288,7 +293,7 @@ layers:
         transitions:
           - { to: Carried, when: [ Grab2_IsGrabbed is true ] }
           - { to: Home, when: [ Placed2 is false ] }
-          - { to: RestWait, when: [ ObjectSync/Ch/Acquired is true ] }
+          - { to: RestWait, when: [ ObjectSync/Ch/Acquired greater 0.5 ] }
       RestWait:
         motion: { clip: pl2_rest_wait }
         transitions:
@@ -308,19 +313,19 @@ layers:
       Disabled:
         motion: { clip: pl2_off }
         transitions:
-          - { to: Local, when: [ ObjectSync/Enable is true, IsLocal is true ] }
-          - { to: Carried, when: [ ObjectSync/Enable is true, Grab2_IsGrabbed is true ] }
-          - { to: RestHidden, when: [ ObjectSync/Enable is true, Placed2 is true ] }
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Local, when: [ ObjectSync/Enable greater 0.5, IsLocal is true ] }
+          - { to: Carried, when: [ ObjectSync/Enable greater 0.5, Grab2_IsGrabbed is true ] }
+          - { to: RestHidden, when: [ ObjectSync/Enable greater 0.5, Placed2 is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Local, when: [ IsLocal is true ] }
       - { to: Carried, when: [ Grab2_IsGrabbed is true ] }
       - { to: RestHidden, when: [ Placed2 is true ] }
     default: Home
     layout:
-      nodes: { Local: [300, 60], Carried: [540, 180], Bridge: [780, 180], RestShown: [1020, 180], RestHidden: [780, 320], RestWait: [1020, 320], Home: [300, 180], Disabled: [60, 320] }
+      nodes: { Local: [-210, 60], Carried: [-210, 180], Bridge: [-210, 260], RestShown: [30, 260], RestHidden: [270, 180], RestWait: [270, 260], Home: [30, 180], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -354,15 +359,15 @@ layers:
           - driver: { localOnly: false, set: { Grab3_IsGrabbed: 0 } }
           - driver: { localOnly: true, set: { Placed3: 0 } }
         transitions:
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Grabbed, when: [ Grab3_IsGrabbed is true ] }
       - { to: Placed, when: [ Placed3 is true ] }
     default: Home
     layout:
-      nodes: { Home: [300, 180], Grabbed: [540, 180], Released: [780, 180], Placed: [780, 320], Disabled: [60, 320] }
+      nodes: { Home: [30, 180], Grabbed: [-210, 180], Released: [-210, 260], Placed: [30, 260], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -386,7 +391,7 @@ layers:
         transitions:
           - { to: Carried, when: [ Grab3_IsGrabbed is true ] }
           - { to: Home, when: [ Placed3 is false ] }
-          - { to: RestWait, when: [ ObjectSync/Ch/Acquired is true ] }
+          - { to: RestWait, when: [ ObjectSync/Ch/Acquired greater 0.5 ] }
       RestWait:
         motion: { clip: pl3_rest_wait }
         transitions:
@@ -406,19 +411,19 @@ layers:
       Disabled:
         motion: { clip: pl3_off }
         transitions:
-          - { to: Local, when: [ ObjectSync/Enable is true, IsLocal is true ] }
-          - { to: Carried, when: [ ObjectSync/Enable is true, Grab3_IsGrabbed is true ] }
-          - { to: RestHidden, when: [ ObjectSync/Enable is true, Placed3 is true ] }
-          - { to: Home, when: [ ObjectSync/Enable is true ] }
+          - { to: Local, when: [ ObjectSync/Enable greater 0.5, IsLocal is true ] }
+          - { to: Carried, when: [ ObjectSync/Enable greater 0.5, Grab3_IsGrabbed is true ] }
+          - { to: RestHidden, when: [ ObjectSync/Enable greater 0.5, Placed3 is true ] }
+          - { to: Home, when: [ ObjectSync/Enable greater 0.5 ] }
     any:
-      - { to: Disabled, when: [ ObjectSync/Enable is false ], canTransitionToSelf: false }
+      - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     entry:
       - { to: Local, when: [ IsLocal is true ] }
       - { to: Carried, when: [ Grab3_IsGrabbed is true ] }
       - { to: RestHidden, when: [ Placed3 is true ] }
     default: Home
     layout:
-      nodes: { Local: [300, 60], Carried: [540, 180], Bridge: [780, 180], RestShown: [1020, 180], RestHidden: [780, 320], RestWait: [1020, 320], Home: [300, 180], Disabled: [60, 320] }
+      nodes: { Local: [-210, 60], Carried: [-210, 180], Bridge: [-210, 260], RestShown: [30, 260], RestHidden: [270, 180], RestWait: [270, 260], Home: [30, 180], Disabled: [270, 60] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -432,6 +437,7 @@ clips:
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop0/Damped/VRCParentConstraint.m_Enabled: 1
   rig0_grab:
     set:
       ObjectSync4/SyncProp0_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -440,6 +446,7 @@ clips:
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop0/Damped/VRCParentConstraint.m_Enabled: 1
   rig0_placed:
     set:
       ObjectSync4/SyncProp0_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -448,6 +455,7 @@ clips:
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 0
       Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop0/Damped/VRCParentConstraint.m_Enabled: 1
   rig0_off:
     set:
       ObjectSync4/SyncProp0_Target/VRCParentConstraint.Sources.source0.Weight: 1
@@ -456,14 +464,16 @@ clips:
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 0
+      Prop0/Damped/VRCParentConstraint.m_Enabled: 1
   rig0_released:
-    length: 0.5
+    seconds: 0.5
     set:
       ObjectSync4/SyncProp0_Target/VRCParentConstraint.Sources.source0.Weight: 0
       ObjectSync4/SyncProp0_Target/VRCParentConstraint.Sources.source1.Weight: 1
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight: 0
       Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop0/Damped/VRCParentConstraint.m_Enabled: 0
     curves:
       Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
   pl0_local:
@@ -540,6 +550,7 @@ clips:
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop1/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop1/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop1/Damped/VRCParentConstraint.m_Enabled: 1
   rig1_grab:
     set:
       ObjectSync4/SyncProp1_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -548,6 +559,7 @@ clips:
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop1/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop1/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop1/Damped/VRCParentConstraint.m_Enabled: 1
   rig1_placed:
     set:
       ObjectSync4/SyncProp1_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -556,6 +568,7 @@ clips:
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop1/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 0
       Prop1/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop1/Damped/VRCParentConstraint.m_Enabled: 1
   rig1_off:
     set:
       ObjectSync4/SyncProp1_Target/VRCParentConstraint.Sources.source0.Weight: 1
@@ -564,14 +577,16 @@ clips:
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop1/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop1/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 0
+      Prop1/Damped/VRCParentConstraint.m_Enabled: 1
   rig1_released:
-    length: 0.5
+    seconds: 0.5
     set:
       ObjectSync4/SyncProp1_Target/VRCParentConstraint.Sources.source0.Weight: 0
       ObjectSync4/SyncProp1_Target/VRCParentConstraint.Sources.source1.Weight: 1
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight: 0
       Prop1/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop1/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop1/Damped/VRCParentConstraint.m_Enabled: 0
     curves:
       Prop1/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
   pl1_local:
@@ -648,6 +663,7 @@ clips:
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop2/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop2/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop2/Damped/VRCParentConstraint.m_Enabled: 1
   rig2_grab:
     set:
       ObjectSync4/SyncProp2_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -656,6 +672,7 @@ clips:
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop2/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop2/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop2/Damped/VRCParentConstraint.m_Enabled: 1
   rig2_placed:
     set:
       ObjectSync4/SyncProp2_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -664,6 +681,7 @@ clips:
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop2/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 0
       Prop2/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop2/Damped/VRCParentConstraint.m_Enabled: 1
   rig2_off:
     set:
       ObjectSync4/SyncProp2_Target/VRCParentConstraint.Sources.source0.Weight: 1
@@ -672,14 +690,16 @@ clips:
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop2/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop2/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 0
+      Prop2/Damped/VRCParentConstraint.m_Enabled: 1
   rig2_released:
-    length: 0.5
+    seconds: 0.5
     set:
       ObjectSync4/SyncProp2_Target/VRCParentConstraint.Sources.source0.Weight: 0
       ObjectSync4/SyncProp2_Target/VRCParentConstraint.Sources.source1.Weight: 1
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight: 0
       Prop2/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop2/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop2/Damped/VRCParentConstraint.m_Enabled: 0
     curves:
       Prop2/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
   pl2_local:
@@ -756,6 +776,7 @@ clips:
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop3/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop3/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop3/Damped/VRCParentConstraint.m_Enabled: 1
   rig3_grab:
     set:
       ObjectSync4/SyncProp3_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -764,6 +785,7 @@ clips:
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop3/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop3/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop3/Damped/VRCParentConstraint.m_Enabled: 1
   rig3_placed:
     set:
       ObjectSync4/SyncProp3_Target/VRCParentConstraint.Sources.source0.Weight: 0
@@ -772,6 +794,7 @@ clips:
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop3/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 0
       Prop3/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop3/Damped/VRCParentConstraint.m_Enabled: 1
   rig3_off:
     set:
       ObjectSync4/SyncProp3_Target/VRCParentConstraint.Sources.source0.Weight: 1
@@ -780,14 +803,16 @@ clips:
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 0
       Prop3/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: 1
       Prop3/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 0
+      Prop3/Damped/VRCParentConstraint.m_Enabled: 1
   rig3_released:
-    length: 0.5
+    seconds: 0.5
     set:
       ObjectSync4/SyncProp3_Target/VRCParentConstraint.Sources.source0.Weight: 0
       ObjectSync4/SyncProp3_Target/VRCParentConstraint.Sources.source1.Weight: 1
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight: 0
       Prop3/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight: 1
       Prop3/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive: 1
+      Prop3/Damped/VRCParentConstraint.m_Enabled: 0
     curves:
       Prop3/GrabRig/SourcePosition/VRCPositionConstraint.IsActive: { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
   pl3_local:
