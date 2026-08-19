@@ -21,6 +21,10 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 
 Release freezes the prop via constraint-disable — the `Container` constraint turns off, holding its last transform — plus a re-sample of the settled tip, so a re-grab, which re-enables the constraint, picks up at the drop point instead of teleporting.
 
+**The freeze's placement is the design, not a convenience.** In the release frame the tip snaps to its rest and `SourcePosition` follows it before any same-frame `IsActive`/`m_Enabled` write can protect it, so the sample cell is briefly wrong on every release and anything reading it live inherits that — a rebuilt hold on `SourcePosition` itself, or on a mid-chain node the release frame updates, captures the home pose while reading exactly like this rig to every static check (frame-measured). `Container` survives because it reads the sample across the constraint cycle's stale edge — one frame behind, still holding the drop — and the pulse then re-samples the settled tip, healing the cell after the freeze has already saved the payload.
+
+**Replicate the clip table, not this prose.** The rig holds still at both edges by constraint-freeze, and each freeze lives only as a clip value: `grabbed` freezes the **root** (`GrabPosition.IsActive` 0 — with it live, a re-grab from a drop swaps the root drop→home a frame before the grab owns the tip, and everything downstream reads the home anchor for one frame), and `dropped` never re-enables the **Container** constraint (the frozen transform IS the hold — re-riding a live chain after the drop re-opens whatever feedback path the consumer's display hangs off it). A composition that re-derives its chords from this section instead of diffing them binding-for-binding against `controller.yaml`'s clips has shipped both defects (frame-measured).
+
 Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 | Constant | Value | Knob |
