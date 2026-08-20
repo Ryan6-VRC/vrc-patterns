@@ -9,7 +9,7 @@ Build with it: anything that must behave differently on your own body than in th
 ## Interface
 
 - **Params:** `MirrorDetection/IsMirror` (float AAP, out; −1/0/+1) — never synced, never menu-exposed; it stays listed in the params asset deliberately, as the output a consumer reads. `MirrorDetection/DetectMirror` (bool, scratch) — race residue, out of the params asset. **Never saved**: a persisted `true` routes the next session's real local copy to `Mirror` permanently. The `MirrorDetection/*` namespace is the name consumers read — it is deliberately not renamed to match this entry's folder.
-- **Seam:** none shipped (Pattern tier). Consume either by lifting the layer whole into your controller YAML, or by referencing `built/MirrorDetect_Fx.controller` as an additional controller row in a VRCFury `FullController`. The second form is what enables **variant-by-controller-omission**: a variant that omits the row parks `IsMirror` at its declared default, which selects that consumer branch permanently — defaults-as-configuration, no controller fork (`gimmicks.md` §Packaging).
+- **Seam:** none shipped (Pattern tier). Consume either by lifting the layer whole into your controller YAML, or by referencing `built/MirrorDetect_Fx.controller` as an additional controller row in a VRCFury `FullController`. The second form is what enables **variant-by-controller-omission**: a variant that omits the row parks `IsMirror` at its declared default, which selects that consumer branch permanently — defaults-as-configuration, no controller fork (`gimmicks.md` §Packaging and interface).
 - **Dependencies:** none beyond the `IsLocal` builtin.
 - **Required assets:** none.
 

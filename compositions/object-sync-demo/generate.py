@@ -165,7 +165,7 @@ def global_params(cfg):
 
     What the two exclusions have in common is **carried state**, not syncedness:
     a `globalParams` name is capturable, and a host avatar declaring it wins with
-    *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging). The
+    *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging and interface). The
     wire slots cross the network, so a captured one carries the host's `saved`
     across avatar loads; `Ch/Cycle` accumulates (+1 per loop tail), so a host
     capturing it as *synced* would put the wearer's count on every client — the

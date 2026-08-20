@@ -5,7 +5,7 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 - **The chain stays grabbable in first person.** VRChat shrinks the humanoid head (colliders and physbone chains included) to ~0 locally — a face-grab gimmick collapses with it. So the chain root carries its own `VRCHeadChop @1` self-exemption plus an always-on `VRCScaleConstraint` sourcing the module root, and its world scale never depends on what the chop, the exemption compensation, or a stripped-chop mirror clone did to its parent.
 - **The stretch shows everywhere except where it must not.** The scale constraint is gated by `MirrorDetection/IsMirror`: OFF only on the real local copy (−1, driven — the client's chop owns the bone there), ON in the mirror clone (+1, driven — the client strips VRCHeadChop there, runtime.md §VRCHeadChop) and on remotes (parked default 1 — no chop exists there either).
 
-**Two prefabs, one family** (variant-by-omission — `gimmicks.md` §Packaging): `HeadDeform.prefab` for conventional rigs merges `mirror-detect` + the stretch FX; `HeadDeformProxy.prefab` (a prefab variant) is for proxy-head rigs (`head-proxy`), where the grab chain ArmatureLinks under the already-exempt humanoid head, so its own self-exemption is redundant-but-portable — no compensation exists to leak into mirrors, so it removes the mirror-detect controller row and the `ConstraintRetarget`, which on this rig would target the proxy bone rather than the deforming head.
+**Two prefabs, one family** (variant-by-omission — `gimmicks.md` §Packaging and interface): `HeadDeform.prefab` for conventional rigs merges `mirror-detect` + the stretch FX; `HeadDeformProxy.prefab` (a prefab variant) is for proxy-head rigs (`head-proxy`), where the grab chain ArmatureLinks under the already-exempt humanoid head, so its own self-exemption is redundant-but-portable — no compensation exists to leak into mirrors, so it removes the mirror-detect controller row and the `ConstraintRetarget`, which on this rig would target the proxy bone rather than the deforming head.
 
 **Provenance:** generalized from a private production avatar's face-stretch system, both variants measured live; the mirror race is [`mirror-detect`](../mirror-detect/), the smoother is the standard DBT exponential (`smooth-frametime`).
 
@@ -23,7 +23,7 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 ## Before you compose it
 
 - **Strangers can stretch your face.** The grab filter ships `allowSelf` + `allowOthers` — being poked is the point, but flip `allowOthers` off on the physbone for a self-only face.
-- **The stretch endpoints are feel constants** — the `headscale_wide` / `headscale_squish` clips' `WideTransform` scales, the rest clip's deadband threshold, and `HeadDeform/SmoothAmount`'s default (λ). Wear-tested on the production source; retune in `controller.yaml`, never in the built assets.
+- **The stretch endpoints are feel constants** — the `headscale_stretch` / `headscale_squish` clips' `WideTransform` scales, the rest deadband's −0.25/0 thresholds, and `HeadDeform/SmoothAmount`'s default (λ). Wear-tested on the production source; retune in `controller.yaml`, never in the built assets.
 - **Your own first-person view never shows the stretch.** Not a bug: the scale is gated off on the real local copy by design — you see it in mirrors and cameras, everyone else sees it always.
 
 ## Verifying the install
@@ -50,7 +50,7 @@ Mirror-side visuals are in-game checks — the emulator's mirror clone copies tr
     └─ Cheek_Root  (0, 1.145, 0)   VRCFury ArmatureLink → Head; VRCHeadChop {self @1};
        │                           VRCScaleConstraint ← root @1 (insulation, always on);
        │                           VRCPhysBone (grabbable self+others, no posing, maxStretch 6,
-       │                           limit Hinge 5°/45°, radius 0.025, param HeadDeform/CheekBone)
+       │                           limit Angle 5°, radius 0.025, param HeadDeform/CheekBone)
        ├─ Left_Cheek  → Left_Cheek_End   (+0.04 x)
        └─ Right_Cheek → Right_Cheek_End  (+0.04 x)
 

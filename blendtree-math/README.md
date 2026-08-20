@@ -19,7 +19,7 @@ A parameter used as a Direct blend tree's `directWeight` is clamped to `>=0` by 
 | Concern-layer | Node | Idiom |
 |---|---|---|
 | `Math/Arithmetic` | `Add (Direct child)` → `SumDirect` | Direct-child (canonical, higher precision, positive-only) |
-| | `Add (1D child)` → `Sum1D` | 1D-child (lower precision; needed for signed inputs, since Direct-child thresholds clamp negatives) |
+| | `Add (1D child)` → `Sum1D` | 1D-child (lower precision; its own [0,1] thresholds clamp a negative input to 0, so a signed input needs signed thresholds) |
 | | `Subtract` → `DiffOut` | Direct-child, sign baked into the clip constant |
 | | `Multiply` → `ProdOut` | nested Direct trees (positive-only) |
 | | `Divide` → `DivOut` | Normalize Blend Values + a weight-1 dummy child (divides by `1 + Input`, not `Input`) |
