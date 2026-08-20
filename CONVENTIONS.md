@@ -46,7 +46,7 @@ Three standing traps:
 - **Route values, keep relations.** A tuned number lives once at its authoring site; the README names the knob, the direction, and the relation. Quote only what the rig *produces*, a structural constant whose re-derivation is the design (named as an echo of its source), and a `Rig` section a hand-maintained prefab is kept against; when a clone physically copies a value, the canon names its copy sites.
 - **Never append a verification run.** A sound re-verification leaves the README alone; a broken one fixes the entry and edits the line that was wrong.
 
-A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name — `object-sync`'s fixed collision tags are the worked example). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
+A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
 ## The gate
 
