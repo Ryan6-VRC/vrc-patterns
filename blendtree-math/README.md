@@ -4,11 +4,11 @@ The DBT-math primitives an agent reaches for when a gimmick needs arithmetic on 
 
 **The four concern-layers are author-time legibility, not runtime structure.** Collapsing them into a single Direct tree is mechanical — nest the children — and costs no timing, because layer order never bought same-frame data flow in the first place (`docs/gimmicks.md` "Layer order buys no same-frame data flow"). Fold them if you are counting layers. This is Pattern tier: a consumer lifts the YAML and recompiles it in their own project with their own params/GUIDs; `built/` is committed only so the graphs are readable without a compile. Generalized from standard VRChat DBT-math constructions (vrc.school Advanced Blend Trees); no real-avatar naming.
 
-## Interface
+## Ground truth
 
-- **Params:** generic float inputs (not synced/saved — a consumer decides): `A`/`B` (shared inputs for add/subtract/multiply/min/max, working range `[0,1]`), `RemapIn` (`[-1,1]`), `ClampIn`, `DivInput` (`>=0`), `SmoothTarget` + `ExpKeep`/`ExpMix` (exponential smoothing), `LinTarget` (linear smoothing), and `One` (a constant helper, never driven — leave it at its default). Outputs (all AAPs, `aap: true`, not synced): `SumDirect`, `Sum1D`, `DiffOut`, `ProdOut`, `NegOut`, `ClampOut`, `DivOut`, `MaxOut`, `MinOut`, `SmoothedExp`, `SmoothedLin`, `Time`, `LastTime`, `FrameTime`, the composed min/max intermediates (`MaxDiff`/`MaxRelu`, `MinDiff`/`MinRelu`), the linear-smoothing intermediate (`LinDelta`), and one throwaway (`DivDummy`).
-- **Seam:** none shipped (Pattern tier, lifted as YAML). Every clip writes an animator parameter, not a scene property, so there are no bindings to repath; a consumer imports the layers they want and renames the generic params to their own naming.
-- **Dependencies / required assets:** none. Only animator parameters and blend trees — no shader, mesh, or package dependency (contrast `color-adjust`, which depends on the target material's shader).
+- Parameters, working ranges, and outputs: `controller.yaml` — every input and output is commented at its declaration site.
+- **Seam:** Pattern tier — nothing shipped; lifted as YAML. Every clip writes an animator parameter, not a scene property, so there are no bindings to repath; a consumer imports the layers they want and renames the generic params to their own naming.
+- **Dependencies / required assets:** only animator parameters and blend trees — no shader, mesh, or package dependency (contrast `color-adjust`, which depends on the target material's shader).
 
 ## The one hard constraint
 
