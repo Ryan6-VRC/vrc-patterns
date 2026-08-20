@@ -18,12 +18,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Entries whose READMEs predate the contract and are cleared by a named block, NOT a standing
-# exemption. `docs/local/readme-contract-brief.md`'s wave empties this list: object-sync's slice
-# deletes the seven attributions the census found, and both files' rewrites are authored against
-# vrc-patterns#91 (`ship-pinned-shape`), which already rewrote the paragraphs around them. An
-# allowlisted file with NO hits fails below — the list cannot outlive its cause unnoticed.
+# exemption. `docs/local/readme-contract-brief.md`'s wave empties this list; object-sync's slice
+# already deleted its attributions and dropped its line. An allowlisted file with NO hits fails
+# below — the list cannot outlive its cause unnoticed.
 $allow = @(
-  'object-sync/README.md',
   'compositions/object-sync-demo/README.md'
 )
 
