@@ -4,16 +4,12 @@ A wearer-only prop that rests at any of five anchors — stowed on the chest, he
 
 **Provenance:** the anchor-multiplexer + self-syncing-mode-int mechanism as vendor-proven by a vendor reference implementation, and in-house by our own gesture-release prop lineage.
 
-## Interface
+## Ground truth
 
-- **Params:**
-  - `AnchorProp/Mode` (int, out) — synced, **unsaved**. The rest mode, banded: 0 Hidden (off-is-reset), 1 Stowed, 2 HeldR, 3 HeldL, 4 Mouth, 11 World (attach band 1–9, world band 11–19). 8 bits pre-compressor, stamped with Set only, so nothing blocks Parameter Compressor membership. Written only by the wearer's `localOnly` drivers — no late-join park.
-  - `AnchorProp/Enable` (bool, in) — **unsynced** menu intent; the mode int carries the outcome, so the menu costs 0 sync bits.
-  - `AnchorProp/NearHandR/L`, `NearMouth`, `NearStow` (float, sensing) — proximity of the **prop's own sender** (private tag `AnchorProp`) at each anchor point (`allowSelf` only; `localOnly` — remotes never need them). Prop-near-anchor sensing, not `Hand`-tag sensing. Never synced/saved/menu-exposed.
-  - `GestureRight`/`GestureLeft` (VRC built-ins) — Fist (1) is the grip gesture on both hands.
+- Parameters, states, and clips: `controller.yaml` (FX row) and `gesture.yaml` (Gesture row). The set published to the host avatar: the prefab's VRCFury `FullController` `globalParams`. Everything else about the rig, including the sensing floats and the gesture wiring: `AnchorProp.prefab`.
 - **Seam:** VRCFury `FullController` on the prefab root with **two controller rows** — `built/AnchorProp_Fx.controller` (FX) and `built/AnchorProp_Gesture.controller` (Gesture) — plus `prms: built/AnchorProp_Fx_Parameters.asset` (the single sync-surface declaration) and `globalParams: [AnchorProp/Enable]` for the Toggle. `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`. MA `BoneProxy` on the four body anchors only; every animated binding targets `Container`/`WorldAnchor`, which no BoneProxy touches, and the anchors carry only object references (path-immune).
 - **Dependencies:** VRC SDK + VRCFury + Modular Avatar, and a **humanoid** avatar (the Gesture-playable merge refuses a generic rig; the BoneProxies resolve Chest/hands/Head through the humanoid mapping).
-- **Required assets:** none — `Payload` is a placeholder sphere on the built-in default material; swap it for your prop mesh, keep it under `Container`.
+- **Required assets:** `Payload` is a placeholder sphere on the built-in default material — swap it for your prop mesh, keep it under `Container`.
 
 ## Before you compose it
 
