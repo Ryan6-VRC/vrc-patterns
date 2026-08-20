@@ -32,12 +32,12 @@ Nobody sees the cube: everyone is *inside* it, and a cube viewed from inside is 
 
     AntiCull                 root — VRCFury FullController (FX, rootBindingsApplyToAvatar: 0)
     │                        + VRCFury Toggle "AntiCull" (defaultOn, drives AntiCull/Enable)
-    └─ Culling               INACTIVE, scale (0,0,0), layer 12 — the serialized-small half
+    └─ Culling               INACTIVE, layer 12 — the serialized-small half (§How it works has
+                             the rest-vs-runtime values)
          MeshFilter          built-in Cube
          MeshRenderer        shadows off, assets/AntiCull.mat
-         VRCScaleConstraint  IsActive 1, ScaleAtRest (0,0,0), ScaleOffset (10000, 10000, 10000),
-                             GlobalWeight 0, Locked; source0 = assets/World.prefab's
-                             transform, weight 1 (never instantiated → world origin)
+         VRCScaleConstraint  source0 = assets/World.prefab's transform (never instantiated →
+                             world origin)
 
 Layer 12 is inherited from the source verbatim and unverified as load-bearing — kept because the source's production history covers this exact configuration, not a normalized one.
 
