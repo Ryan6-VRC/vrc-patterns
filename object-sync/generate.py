@@ -2011,6 +2011,35 @@ def check():
     else:
         assert_(False, "README.md is missing")
 
+    # A build's prefab text, plus its base's when the build is a VARIANT. A variant serialises only
+    # its overrides, so scanning its own file alone sees a fraction of the wiring: the world-pin
+    # assert below reads zero cross-asset refs there and the offset assert passes over ~8% of the
+    # offsets it covered when every build was a flat copy. Both scan the union instead, which is the
+    # honest population for the proposition each makes - the pin THIS BUILD SHIPS resolves, and every
+    # offset THIS BUILD SHIPS is zero - whether the node is authored here or inherited.
+    #
+    # A variant's base must be this entry's own root prefab. That is the inheritance the entry now
+    # ships (README §Rig), and a variant pointing anywhere else is a wiring defect of exactly the
+    # class these asserts exist to catch, so it fails loud rather than silently scanning less.
+    def prefab_texts(label, pf_path):
+        import re as _re2
+        own = open(pf_path, encoding="utf-8").read()
+        src = _re2.search(r"m_SourcePrefab: \{fileID: \d+, guid: ([0-9a-f]{32})", own)
+        if src is None:
+            return [own], "authored flat"
+        root_meta = os.path.join(HERE, "ObjectSync.prefab.meta")
+        root_guid = None
+        if os.path.exists(root_meta):
+            m2 = _re2.search(r"^guid: ([0-9a-f]{32})$", open(root_meta, encoding="utf-8").read(), _re2.M)
+            root_guid = m2.group(1) if m2 else None
+        assert_(src.group(1) == root_guid,
+                f"{label}: is a prefab variant of THIS entry's root prefab "
+                f"(base guid {src.group(1)}, entry root {root_guid})")
+        if src.group(1) != root_guid:
+            return [own], "variant of an unknown base"
+        return [own, open(os.path.join(HERE, "ObjectSync.prefab"), encoding="utf-8").read()], \
+               "variant, so counted with the base it inherits"
+
     # The prefabs are hand-maintained, so the document pin cannot see a park
     # creeping back onto a constraint source offset — and the emulator cannot
     # either, because its SDK does not apply the shipping client's per-client
@@ -2023,13 +2052,15 @@ def check():
         if not os.path.exists(pf_path):
             assert_(False, f"{label}: ObjectSync.prefab is missing")
             continue
-        body = open(pf_path, encoding="utf-8").read()
-        offs = _re.findall(r"Parent(?:Position|Rotation)Offset: \{x: (\S+?), "
-                           r"y: (\S+?), z: (\S+?)\}", body)
+        texts, how = prefab_texts(label, pf_path)
+        offs = []
+        for body in texts:
+            offs += _re.findall(r"Parent(?:Position|Rotation)Offset: \{x: (\S+?), "
+                                r"y: (\S+?), z: (\S+?)\}", body)
         bad = [o for o in offs if any(float(v) != 0 for v in o)]
         assert_(offs and not bad,
                 f"{label}: all {len(offs)} source-space offsets in the prefab "
-                f"are zero ({bad[:2]})")
+                f"are zero [{how}] ({bad[:2]})")
 
     # A zero offset is only half the pin: the other half is that the pin still
     # RESOLVES. Both of Rig's constraints source a transform inside this entry's
@@ -2077,21 +2108,25 @@ def check():
             pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
             if not os.path.exists(pf_path):
                 continue      # the missing-prefab FAIL is already reported above
-            body = open(pf_path, encoding="utf-8").read()
+            texts, how = prefab_texts(label, pf_path)
             # `-?` because a cross-asset fileID is signed — the form an imported
             # model's transform takes. A reference shape this misses drops out of
             # the count, so an unmatched form fails loud rather than passing.
-            refs = _re.findall(
-                r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})", body)
-            # Exactly two, whatever the object count: Rig is one node carrying one
-            # VRCParentConstraint and one VRCScaleConstraint, and it is the
-            # entry's only cross-asset source. Fewer means a reference went null.
+            refs = []
+            for body in texts:
+                refs += _re.findall(
+                    r"SourceTransform: \{fileID: (-?\d+), guid: ([0-9a-f]{32})", body)
+            # Exactly two, whatever the object count: the prefab ROOT is one node
+            # carrying one VRCParentConstraint and one VRCScaleConstraint, and it
+            # is the entry's only cross-asset source. Fewer means a reference went
+            # null. A variant authors neither and inherits both, so the two are
+            # found in the base — which is why the count is over the union.
             bad = [r for r in refs if r[1] != world_guid or r[0] not in world_tf]
             assert_(len(refs) == 2 and not bad,
-                    f"{label}: Rig's 2 world-pin sources both resolve to a "
+                    f"{label}: the root's 2 world-pin sources both resolve to a "
                     f"Transform in this entry's World.prefab — expected 2 of "
                     f"(fileID in {sorted(world_tf)}, {world_guid}), "
-                    f"found {len(refs)}: {sorted(set(refs))}")
+                    f"found {len(refs)} [{how}]: {sorted(set(refs))}")
 
     print("scope: emit determinism and hand-maintained wiring only — freshness "
           "of committed generated files is regenerate-and-read-git-diff; "

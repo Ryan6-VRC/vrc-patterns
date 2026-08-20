@@ -46,7 +46,7 @@
 # need no local/remote choice from us at all, and this layer's old Cycle gate and Delay state are
 # gone with it. What Sync cannot give is the WEARER a view of the reconstruction: the entry's Follow
 # layer engages it only when !IsLocal, so on the wearer Sync is always Sync_Target. View Remote is
-# the demo's point, so src1 reads ObjectSync/Rig/Prop/Display directly. Reading a transform is not
+# the demo's point, so src1 reads Rig/Prop/Display directly. Reading a transform is not
 # writing it, so the two-writer rule is untouched — but this IS a reach past the surface, and if the
 # entry ever exports the reconstruction, src1 should move to that export.
 #
@@ -375,7 +375,7 @@ layers:
 # stale weight under WD-ON layering, which is the failure the totality discipline exists to prevent.
 # source0 is the constraint's OWN transform — the park, not a damper: a self-source resolves to the
 # transform's current pose, so the mode switch and the FreezeToWorld capture cannot race.
-#   source0 = ObjectSync/Sync_Target       itself — the park
+#   source0 = Sync_Target                  itself — the park
 #   source1 = HandR_Anchor                 the installer-adjustable hand anchor
 #   source2 = Raycast_Transform/Raycast_Offset
 # No empirical constants here: every weight is 0 or 1. The multiplexer selects, it does not blend.
