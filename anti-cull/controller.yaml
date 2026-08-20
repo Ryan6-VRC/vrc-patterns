@@ -3,7 +3,7 @@
 # remote client's view culling ever skips the avatar. Defeats VIEW culling only; distance culling
 # is a client-side unload nothing defeats. 1 synced bit (AntiCull/Enable).
 #
-# Default ON is load-bearing (README §Interface): Enabled is the default state and the param
+# Default ON is load-bearing (README §Ground truth): Enabled is the default state and the param
 # defaults true, so the avatar inflates on the animator's first frame — it can never spawn culled
 # with the toggle out of reach. Unsaved, so an off state never persists into a fresh load.
 #

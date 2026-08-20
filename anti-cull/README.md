@@ -6,12 +6,12 @@ Keeps the avatar's **animator evaluating** on every remote client — the mesh r
 
 **Provenance:** generalized from a private production avatar's anti-cull (VRLabs ancestry). Mechanism — cube, constraint values, layer — verbatim; the toggle, material, and world-anchor asset are this entry's own.
 
-## Interface
+## Ground truth
 
-- **Params:** `AntiCull/Enable` (bool, in) — synced, **unsaved**, **default ON**. The menu front (VRCFury Toggle on the prefab root, `defaultOn`) drives it. Default-on + unsaved is load-bearing: the avatar can never spawn already-culled with the toggle out of reach, and an off state never persists into a fresh load — turning it off is a per-session choice.
+- Parameters and behavior: `controller.yaml` (its header comment carries the default-on-plus-unsaved rationale). The set published to the host avatar: the prefab's VRCFury `FullController` `globalParams`. Everything else about the rig: `AntiCull.prefab`.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0`), so both clip bindings resolve **prop-root relative** (`basis: mount-root`). Pure VRCFury — no MA half. `AntiCull/Enable` is exported via `globalParams`; the Toggle drives it by name.
-- **Dependencies:** none beyond the VRC SDK + VRCFury. Drop the prefab anywhere under the avatar.
-- **Required assets:** none — self-contained (`assets/World.prefab`, `assets/AntiCull.mat`).
+- **Dependencies:** the VRC SDK + VRCFury only — drop the prefab anywhere under the avatar.
+- **Required assets:** self-contained (`assets/World.prefab`, `assets/AntiCull.mat`).
 
 ## When a module needs this
 
