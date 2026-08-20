@@ -109,14 +109,21 @@ consumer and the committed config's byte-identity check.
 """
 
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG = {
-    # Param prefix. All params live under this; the FullController's
-    # globalParams exposes only the interface set (words + Acquired).
+    # PUBLISHED prefix: the entry's own interface names, `<channel>/Acquired`
+    # today. A consumer publishes it with one `<channel>/*` wildcard, so nothing
+    # internal may live under it — `internal` below is where those go.
     "channel": "WordChannel",
+    # INTERNAL prefix, required (internal_prefix() refuses its absence): Wire/*,
+    # Latch/*, True, SawHead, Cycle. It must match no published wildcard, which
+    # is what keeps the wire instance-prefixed on a merged avatar and lets two
+    # instances coexist (docs/nondestructive.md rule 2).
+    "internal": "WC",
     # Wire slots per batch: each number slot is one synced 8-bit int, each
     # bool slot one synced bit. More slots = fewer batches = lower latency,
     # at more synced bits.
@@ -156,18 +163,23 @@ CONFIG = {
     #                (declare them adjacent; group size <= numberSlots).
     #                A label shared with bool words pins both kinds to the
     #                same batch index (docstring).
+    # Every word name sits under one config-chosen published prefix. That is
+    # what makes the whole table expressible as a single `WDemo/*` wildcard, so
+    # adding a word is not a prefab edit; a bare name (this table's `Level` once
+    # was) has no wildcard that matches it and would silently take the instance
+    # prefix instead.
     "numbers": [
-        {"name": "Pos/Hi", "kind": "byte", "group": "pos"},
-        {"name": "Pos/Lo", "kind": "byte", "group": "pos"},
-        {"name": "Level", "kind": "float", "min": -1, "max": 1},
+        {"name": "WDemo/Pos/Hi", "kind": "byte", "group": "pos"},
+        {"name": "WDemo/Pos/Lo", "kind": "byte", "group": "pos"},
+        {"name": "WDemo/Level", "kind": "float", "min": -1, "max": 1},
     ],
     # Bool words, boolSlots per batch: a bare name, or {"name":..,"group":..}
     # to pin into a number group's batch.
-    "bools": ["Flag/A", "Flag/B", "Flag/C", "Flag/D"],
+    "bools": ["WDemo/Flag/A", "WDemo/Flag/B", "WDemo/Flag/C", "WDemo/Flag/D"],
     # Reassembly demos: an always-on Direct-tree AAP computing hi*256+lo, the
     # worked idiom for consuming two byte limbs as one 16-bit word.
     "assemble": [
-        {"name": "Pos/Assembled", "hi": "Pos/Hi", "lo": "Pos/Lo"},
+        {"name": "WDemo/Pos/Assembled", "hi": "WDemo/Pos/Hi", "lo": "WDemo/Pos/Lo"},
     ],
 }
 
@@ -301,12 +313,81 @@ def lost_fallback_rungs(cur_bits, next_bits, idx_names):
     return [[cond(idx_names[b], v) for b, v in sorted(r.items())] for r in kept]
 
 
+# VRChat's own built-ins short-circuit ahead of globalParams and are always
+# bare (FullControllerBuilder), so they are neither published nor internal and
+# the namespace refusal must not judge them.
+BUILTINS = ("IsLocal", "IsAnimatorEnabled")
+
+
+def internal_prefix(c):
+    """The channel's internal namespace. REQUIRED, with no default: `Wire/*`,
+    `Latch/*`, `True`, `SawHead` and `Cycle` live under it, which is what lets a
+    consumer publish the interface as a wildcard while the wire keeps its
+    instance prefix. A default would make the collapsed shape reachable by
+    omission — `channel` carrying both, where `<channel>/*` publishes the wire
+    and every consumer has to enumerate instead."""
+    ip = c.get("internal")
+    if not ip:
+        raise SystemExit(
+            "REFUSE: `internal` is required. It is the prefix for Wire/Latch/"
+            "True/SawHead/Cycle; without it they share `channel` with the "
+            "published Acquired, and no wildcard can publish the interface "
+            "without also publishing the wire.")
+    return ip
+
+
+def check_namespaces(published, declared):
+    """Refuse a name layout whose published set no wildcard can express.
+
+    Two properties, and they are the whole reason the derived list below is
+    trustworthy: every published name carries a prefix (the wildcard for a bare
+    name is `Name/*`, which matches nothing — the name would silently take the
+    instance prefix), and no published prefix also covers a name that is NOT
+    published (or publishing the interface publishes an internal with it).
+
+    This runs inside build(), on every config including a consumer's, which is
+    the point: a guard computed from a prefab's globalParams list never fires
+    for a consumer that hand-writes its own, and that is every consumer."""
+    bare = sorted(n for n in published if "/" not in n)
+    if bare:
+        raise SystemExit(
+            f"REFUSE: published names {bare} carry no prefix. The derived "
+            "wildcard for a bare name is `Name/*`, which matches nothing, so "
+            "the name would take the instance prefix while the list read fine. "
+            "Put every published name under a prefix.")
+    roots = {n.split("/")[0] for n in published}
+    leaked = sorted(n for n in declared
+                    if n not in published and n.split("/")[0] in roots)
+    if leaked:
+        raise SystemExit(
+            f"REFUSE: {leaked} are not published but share a published prefix "
+            f"({sorted(roots)}), so the wildcard publishing the interface "
+            "publishes them too — a host avatar declaring one captures it, its "
+            "own synced/saved flags winning silently (docs/gimmicks.md "
+            "§Packaging). Move them under `internal`.")
+
+
+def published_wildcards(published):
+    """`globalParams` as a match grammar: one `<prefix>/*` per published
+    name-set, in order of first appearance. VRCFury strips the trailing `*` and
+    matches by StartsWith, so this publishes exactly the sets above and nothing
+    else once check_namespaces has passed."""
+    out, seen = [], set()
+    for n in published:
+        pre = n.split("/")[0] + "/*"
+        if pre not in seen:
+            seen.add(pre)
+            out.append(pre)
+    return out
+
+
 def build(config):
     """Fragment entry point: compute the channel and return its emitted pieces
     (docstring above carries the contract). `main()` assembles the same pieces
     into the committed controller.yaml."""
     c = config
     p = c["channel"]
+    ip = internal_prefix(c)
     numbers = c["numbers"]
     bools = [norm_bool(b) for b in c["bools"]]
     nslots, bslots = c["numberSlots"], c["boolSlots"]
@@ -333,15 +414,15 @@ def build(config):
     group_batch.update(bgroup)
     period = batch_count * loops
     bits = index_bits(period)
-    idx = [f"{p}/Wire/Idx{i}" for i in range(bits)]
-    nwire = [f"{p}/Wire/Num{i}" for i in range(nslots)]
-    bwire = [f"{p}/Wire/Bool{i}" for i in range(bslots)]
+    idx = [f"{ip}/Wire/Idx{i}" for i in range(bits)]
+    nwire = [f"{ip}/Wire/Num{i}" for i in range(nslots)]
+    bwire = [f"{ip}/Wire/Bool{i}" for i in range(bslots)]
     wire_bits = bits + 8 * nslots + bslots
     payload_bits = 8 * len(numbers) + len(bools)
     cycle_s = batch_count * (batch_seconds + 1 / 60)  # at 60 fps; the Extra state costs one full frame
 
     def latch(name):
-        return f"{p}/Latch/{name}"
+        return f"{ip}/Latch/{name}"
 
     def batch_words(b):
         ns = nbatches[b] if b < len(nbatches) else []
@@ -402,7 +483,7 @@ def build(config):
     # built-in. Default true is the SDK's, so a fresh load takes no spurious trip
     # through the reset state.
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in")
-    o(f"  {p}/True: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
+    o(f"  {ip}/True: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
     o("  # Interface — the word table. Producers write these on the wearer; consumers read")
     o("  # them on every client. Unsynced (the wire below carries them); in the params asset")
     o("  # for legibility and OSC reach.")
@@ -417,10 +498,11 @@ def build(config):
     o("  # client's receiver has applied a complete word table since then. The interface")
     o("  # output a consumer gates on; false on the wearer forever (sender layers only).")
     o(f"  {p}/Acquired: {{ type: float, default: 0, vrc: {{ type: bool, synced: false, saved: false }} }}")
-    o(f"  {p}/SawHead: {{ type: bool, scratch: true }}   # internal: a head has been walked since the last reset")
-    o(f"  {p}/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own")
-    o("  # receiver, so a rate distinguishes running from wedged where Acquired cannot. Off")
-    o("  # globalParams (a host avatar declaring the name would capture it). Float because a")
+    o(f"  {ip}/SawHead: {{ type: bool, scratch: true }}   # internal: a head has been walked since the last reset")
+    o(f"  {ip}/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own")
+    o("  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits")
+    o("  # under the internal prefix, so no published wildcard reaches it and a host avatar")
+    o("  # declaring the name cannot capture it — structural, not a list entry. Float because a")
     o("  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that")
     o("  # reaches synced Ints only and this is unsynced.")
     o("  # Wire — the only synced params.")
@@ -489,7 +571,7 @@ def build(config):
         o(f"      Extra{s}:")
         o("        motion: ~")
         o("        transitions:")
-        o(f"          - {{ to: Send{(s + 1) % period}, when: [ {p}/True is true ] }}   # conditional hop = the guaranteed +1 frame")
+        o(f"          - {{ to: Send{(s + 1) % period}, when: [ {ip}/True is true ] }}   # conditional hop = the guaranteed +1 frame")
     # Receiver states: one per counter value
     o("      Lost:")
     o("        motion: ~")
@@ -500,7 +582,7 @@ def build(config):
     o("          # zeroes the pair (docstring).")
     o("          - driver:")
     o("              copy:")
-    o(f"                {p}/SawHead: {p}/Acquired")
+    o(f"                {ip}/SawHead: {p}/Acquired")
     o("        transitions:")
     if atomic == "batch":
         for s in range(period):
@@ -527,7 +609,7 @@ def build(config):
         o("          - driver:")
         if b == 0:
             o("              set:")
-            o(f"                {p}/SawHead: 1   # head of a batch walk")
+            o(f"                {ip}/SawHead: 1   # head of a batch walk")
         o("              copy:")
         for k, w in enumerate(ns):
             dst = w["name"] if (last or atomic == "batch") else latch(w["name"])
@@ -548,9 +630,9 @@ def build(config):
                     for x in jbs:
                         o(f"                {x}: {latch(x)}")
             o("          - driver:")
-            o(f"              add: {{ {p}/Cycle: 1 }}")
+            o(f"              add: {{ {ip}/Cycle: 1 }}")
             o("              copy:")
-            o(f"                {p}/Acquired: {p}/SawHead   # tail of a walk that began at a head")
+            o(f"                {p}/Acquired: {ip}/SawHead   # tail of a walk that began at a head")
         o("        transitions:")
         adv = ", ".join(cond(idx[k], nxt[k]) for k in range(bits))
         o(f"          - {{ to: Recv{nxt_s}, when: [ {adv} ] }}")
@@ -596,7 +678,7 @@ def build(config):
     o("          - driver:")
     o("              set:")
     o(f"                {p}/Acquired: 0")
-    o(f"                {p}/SawHead: 0")
+    o(f"                {ip}/SawHead: 0")
     o("        transitions:")
     o("          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }")
     o("    default: Enabled")
@@ -634,12 +716,27 @@ def build(config):
             o(f"  asm_{base}_hi: {{ set: {{ {a['name']}: 256 }} }}")
             o(f"  asm_{base}_lo: {{ set: {{ {a['name']}: 1 }} }}")
 
+    # The published set, and the refusal that makes the derived wildcard list
+    # below mean something. `declared` is read back off the emitted param lines
+    # rather than rebuilt by hand, so a param added at any emission site is
+    # covered without a second list to keep true.
+    declared = [m.group(1) for m in
+                (re.match(r"\s*([^\s#:]+):", ln) for ln in params
+                 if ln.strip() and not ln.strip().startswith("#"))
+                if m and m.group(1) not in BUILTINS]
+    published = ([w["name"] for w in numbers] + [b["name"] for b in bools]
+                 if c.get("publishWords", True) else [])
+    published += [f"{p}/Acquired"] + [a["name"] for a in c["assemble"]]
+    check_namespaces(published, declared)
+
     return {
         "header": header,
         "params": params,
         "layers": layers,
         "clips": clips,
         "facts": {
+            "published": published,
+            "globalParams": published_wildcards(published),
             "batchCount": batch_count,
             "period": period,
             "indexBits": bits,
@@ -726,21 +823,21 @@ def check():
 
     # `globalParams` is a VRCFury field with no CompileController spelling, so
     # nothing in the compile or the gate reads it. Pin the prefab's list here or
-    # it drifts silently.
+    # it drifts silently. The expectation is DERIVED from the published set, not
+    # an enumeration echoed here: adding a word must not require a prefab edit,
+    # and check_namespaces has already refused a published set the wildcards
+    # cannot express exactly.
     print("[prefab globalParams]")
     pf_path = os.path.join(HERE, "WordChannel.prefab")
     if os.path.exists(pf_path):
-        want = ([w["name"] for w in c["numbers"]]
-                + [norm_bool(b)["name"] for b in c["bools"]]
-                + [f"{p}/Acquired"]
-                + [a["name"] for a in c["assemble"]])
+        want = document(c)[1]["facts"]["globalParams"]
         got_gp = prefab_global_params(open(pf_path, encoding="utf-8").read())
         assert_(got_gp == want,
-                f"the prefab exposes exactly the interface set — the word table, "
-                f"{p}/Acquired, and the assembled reads ({got_gp})")
-        assert_(f"{p}/Cycle" not in got_gp,
-                f"{p}/Cycle stays OFF globalParams — a host avatar declaring the "
-                "name would capture it, its own synced flag winning silently")
+                f"the prefab carries exactly the published prefix wildcards "
+                f"({', '.join(want)}) — got {got_gp}")
+        assert_(not any(g.startswith(c["internal"]) for g in got_gp),
+                f"no {c['internal']}/ entry reaches globalParams — the wire, the "
+                "latches and Cycle stay instance-prefixed")
     else:
         assert_(False, f"WordChannel.prefab is missing ({pf_path})")
 

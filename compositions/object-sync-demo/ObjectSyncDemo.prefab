@@ -1833,9 +1833,8 @@ MonoBehaviour:
         smoothedPrms: []
         globalParams:
         - ObjectSync/*
-        - '!ObjectSync/Ch/Cycle'
-        - '!ObjectSync/Ch/Wire/Num*'
-        - '!ObjectSync/Ch/Wire/Bool*'
+        - OS/D/*
+        - OS/Ch/Wire/Idx*
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -1921,9 +1920,8 @@ MonoBehaviour:
         smoothedPrms: []
         globalParams:
         - ObjectSync/*
-        - '!ObjectSync/Ch/Cycle'
-        - '!ObjectSync/Ch/Wire/Num*'
-        - '!ObjectSync/Ch/Wire/Bool*'
+        - OS/D/*
+        - OS/Ch/Wire/Idx*
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 

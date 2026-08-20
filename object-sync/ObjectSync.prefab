@@ -59,7 +59,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RA/Z
+  parameter: OS/Sense/Prop/RA/Z
   minVelocity: 0.05
 --- !u!1 &200768109292147770
 GameObject:
@@ -120,7 +120,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RB/X
+  parameter: OS/Sense/Prop/RB/X
   minVelocity: 0.05
 --- !u!1 &1141074536974990994
 GameObject:
@@ -181,7 +181,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/FY
+  parameter: OS/Sense/Prop/FY
   minVelocity: 0.05
 --- !u!1 &1293011435385654099
 GameObject:
@@ -267,8 +267,7 @@ MonoBehaviour:
             objRef: {fileID: 11400000, guid: a75b2466b607d3146823affda7c050af, type: 2}
         smoothedPrms: []
         globalParams:
-        - ObjectSync/Enable
-        - ObjectSync/Ch/Acquired
+        - ObjectSync/*
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -1071,7 +1070,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/CY
+  parameter: OS/Sense/Prop/CY
   minVelocity: 0.05
 --- !u!1 &2935722172530371367
 GameObject:
@@ -1132,7 +1131,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/CX
+  parameter: OS/Sense/Prop/CX
   minVelocity: 0.05
 --- !u!1 &3025017987244553493
 GameObject:
@@ -1228,7 +1227,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RA/X
+  parameter: OS/Sense/Prop/RA/X
   minVelocity: 0.05
 --- !u!1 &3715340308105659284
 GameObject:
@@ -1289,7 +1288,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/CZ
+  parameter: OS/Sense/Prop/CZ
   minVelocity: 0.05
 --- !u!1 &3869253953757563110
 GameObject:
@@ -1515,7 +1514,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RB/Z
+  parameter: OS/Sense/Prop/RB/Z
   minVelocity: 0.05
 --- !u!1 &4474411391964822053
 GameObject:
@@ -1610,7 +1609,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/FX
+  parameter: OS/Sense/Prop/FX
   minVelocity: 0.05
 --- !u!1 &4681659602734106034
 GameObject:
@@ -1881,7 +1880,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RB/Y
+  parameter: OS/Sense/Prop/RB/Y
   minVelocity: 0.05
 --- !u!1 &6967334845274465227
 GameObject:
@@ -2322,7 +2321,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/RA/Y
+  parameter: OS/Sense/Prop/RA/Y
   minVelocity: 0.05
 --- !u!1 &7907859495370575664
 GameObject:
@@ -3104,5 +3103,5 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Prop/FZ
+  parameter: OS/Sense/Prop/FZ
   minVelocity: 0.05
