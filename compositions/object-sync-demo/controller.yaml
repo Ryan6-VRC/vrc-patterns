@@ -10,18 +10,28 @@
 # avatar's hands; their local transforms ARE the fitting, authored in avatar space and preserved by
 # ArmatureLink.
 #
-#   <mount>                  VRCParentConstraint + VRCScaleConstraint -> object-sync's World.prefab
-#   |- ObjectSync            the entry: Rig / Sync_Target / Sync
+#   ObjectSyncDemo           a PREFAB VARIANT of object-sync's entry prefab, so the entry's own nodes
+#   |                          (Rig / Sync_Target / Sync) and its world pin are INHERITED, not authored
+#   |                          here: VRCParentConstraint + VRCScaleConstraint -> World.prefab, both
+#   |                          m_Enabled 0, re-enabled by the inherited ApplyDuringUpload -> PinEnable.anim.
+#   |                          This variant removes the entry's 27-bit FullController and its menu Toggle
+#   |                          and adds the demo's own 50-bit build; it removes Sync_Target's Drop toggle
+#   |                          (this composition drives placement itself). Nothing in VRCFury validates a
+#   |                          removal, so that list is prose or it is nowhere.
+#   |- Rig Sync_Target Sync  inherited from the entry
 #   |- AntiCull
+#   |  `- Culling            VRCScaleConstraint -> anti-cull's own World.prefab
 #   |- HandR_Anchor          VF ArmatureLink -> RightHand      [installer-adjustable]
-#   |  `- Raycast            VRCRaycast
+#   |  |- HandOffset         the carry pose; Sync_Target source1
+#   |  `- RayOrigin          VRCRaycast
+#   |     `- RayHit          the raycast result transform
+#   |        `- RayLift      half the cube's 0.15 m extent up the hit normal; Sync_Target source2
 #   |- HandL_Anchor          VF ArmatureLink -> LeftHand       [installer-adjustable]
 #   |  `- Panel              the tablet; its material is what Tablet/* below writes
-#   |- Raycast_Transform     VRCAimConstraint <- HandR_Anchor/Raycast
-#   |  `- Raycast_Offset     half the cube's 0.15 m extent up the hit normal
-#   |- Display_Source        src0 = ObjectSync/Sync, src1 = ObjectSync/Rig/Prop/Display
+#   |- Display_Source        src0 = Sync, src1 = Rig/Prop/Display
 #   `- Prop_Damped           src0 = Display_Source, src1 = self
 #      `- Cube               mesh, Wireframe swap, WorldCoords.mat
+#         `- DepthLight      what the Wireframe toggle drives
 #
 # EVERYTHING IS VRCFURY AND THAT IS LOAD-BEARING, not a preference. An MA BoneProxy over either
 # anchor would break two ways that raise no message: a VRCFury-merged clip pathing through an
@@ -36,7 +46,7 @@
 # need no local/remote choice from us at all, and this layer's old Cycle gate and Delay state are
 # gone with it. What Sync cannot give is the WEARER a view of the reconstruction: the entry's Follow
 # layer engages it only when !IsLocal, so on the wearer Sync is always Sync_Target. View Remote is
-# the demo's point, so src1 reads ObjectSync/Rig/Prop/Display directly. Reading a transform is not
+# the demo's point, so src1 reads Rig/Prop/Display directly. Reading a transform is not
 # writing it, so the two-writer rule is untouched — but this IS a reach past the surface, and if the
 # entry ever exports the reconstruction, src1 should move to that export.
 #
@@ -72,7 +82,7 @@
 # measurement the rig above already satisfies, restated so a later edit does not undo them: the
 # damper hangs UNDER a world-pinned frame and never ON one, and FreezeToWorld is NEVER set on the
 # damped node — they fight and the freeze wins totally (0.0 response for 150 frames, no error). The
-# freeze lives on ObjectSync/Sync_Target, two tiers above. Keep it there.
+# freeze lives on Sync_Target, the entry's own node beside the damper's frame. Keep it there.
 
 schema: 1
 controller: Demo_Fx
@@ -365,35 +375,35 @@ layers:
 # stale weight under WD-ON layering, which is the failure the totality discipline exists to prevent.
 # source0 is the constraint's OWN transform — the park, not a damper: a self-source resolves to the
 # transform's current pose, so the mode switch and the FreezeToWorld capture cannot race.
-#   source0 = ObjectSync/Sync_Target       itself — the park
+#   source0 = Sync_Target                  itself — the park
 #   source1 = HandR_Anchor                 the installer-adjustable hand anchor
 #   source2 = Raycast_Transform/Raycast_Offset
 # No empirical constants here: every weight is 0 or 1. The multiplexer selects, it does not blend.
 clips:
   hand:
     set:
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 1
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 0
+      "Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
+      "Sync_Target/VRCParentConstraint.Sources.source1.Weight": 1
+      "Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "Sync_Target/VRCParentConstraint.FreezeToWorld": 0
   ray_track:
     set:
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 1
-      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 0
+      "Sync_Target/VRCParentConstraint.Sources.source0.Weight": 0
+      "Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "Sync_Target/VRCParentConstraint.Sources.source2.Weight": 1
+      "Sync_Target/VRCParentConstraint.FreezeToWorld": 0
   ray_hold:
     set:
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 1
+      "Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
+      "Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "Sync_Target/VRCParentConstraint.FreezeToWorld": 1
   freeze:
     set:
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
-      "ObjectSync/Sync_Target/VRCParentConstraint.FreezeToWorld": 1
+      "Sync_Target/VRCParentConstraint.Sources.source0.Weight": 1
+      "Sync_Target/VRCParentConstraint.Sources.source1.Weight": 0
+      "Sync_Target/VRCParentConstraint.Sources.source2.Weight": 0
+      "Sync_Target/VRCParentConstraint.FreezeToWorld": 1
 
   # Position and rotation are two constraints on each node and their weights move in lockstep — a
   # clip that wrote one and not the other would show the reconstruction's position at the wearer's
