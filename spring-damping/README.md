@@ -2,6 +2,8 @@
 
 Two kinds of physics-like secondary motion from VRChat constraints alone: **damping** — an object lagging behind its target — and **spring** — overshoot and bounce around it. Both are the same trick: a constraint that lists **its own transform** as a source alongside a `Target` and solves in world space, so each frame it blends a fraction of the way from its own last position toward the target — a feedback loop that low-passes the target's motion. Useful on its own, and a repeatable primitive larger constraint-driven systems build on.
 
+**Provenance:** generalized from VRLabs' MIT-licensed [`Spring-Constraint`](https://github.com/VRLabs/Spring-Constraint) and [`Damping-Constraints`](https://github.com/VRLabs/Damping-Constraints), whose rigs and tuned weights are reproduced as-is on VRChat constraints. No real-avatar naming — the payload is a placeholder cube.
+
 ## The three rigs
 
 Weights are the tuned contract — the spring's shape and each damper's strength. All constraints solve in **world space** (`SolveInLocalSpace: 0`) and are `Locked`; the payload rides inside `Container`.
@@ -22,12 +24,13 @@ The self + `Target` source pattern is the mechanism, not the component; three ed
 - **Damp only some axes.** Each constraint gates which axes it writes via `AffectsPosition{X,Y,Z}` / `AffectsRotation{X,Y,Z}`. Clear a flag and that axis leaves the feedback loop — it rigid-follows the parent, undamped.
 - **Different strength per axis.** One constraint applies its source weights to *all* its enabled axes at once, so a per-axis strength split needs **one constraint per distinct value**: constraint A affecting only `X` (self `1` + `Target` `wX`), constraint B only `Y` (self `1` + `Target` `wY`), both on `Container` sharing the one `Target`. Stacking same-type constraints on one object is supported and costs one extra constraint (and one depth) per distinct-value axis. Mixing types (a `VRCPositionConstraint` for some axes + a `VRCParentConstraint` for others) is an equivalent alternative.
 
-## Interface
+## Ground truth
 
-- **Params:** none. No animator, nothing synced or saved — secondary motion is deterministic from transform motion, identical on every client without a synced bit.
+- Everything about the rig — components, sources, weights, axis flags — is in the three prefabs; the table above is the tuning contract and its rationale, not the serialized record.
+- **No animator and no parameters at all.** Secondary motion is deterministic from transform motion, so every client computes the same thing and it costs no synced bit.
 - **Anchoring (the seam):** the rig ships **unanchored** — dropped in, `Container` and `Target` rest at the avatar-root origin (the wearer's feet). You place two things: the **rig** where the payload lives, and the **`Target`** at the pose the payload settles toward (see §Parent-transform dependency — this placement *is* the behavior). Anchor the `Target` with an MA `BoneProxy` (`nadena.dev.modular-avatar`, already a package dependency); the rig itself is parented normally.
 - **Dependencies:** `com.vrchat.avatars` constraints (the `VRC*Constraint` components). No PhysBone, no contacts.
-- **Required assets:** none — the `Cube` payload uses Unity's built-in cube + default material, a stand-in to make the motion visible. Replace it with your object (or constrain your object to `Container`).
+- The `Cube` payload is Unity's built-in cube + default material, a stand-in to make the motion visible, so the entry ships no `assets/`. Replace it with your object, or constrain your object to `Container`.
 
 ## Parent-transform dependency
 
@@ -50,10 +53,6 @@ The fraction closed each frame is a **per-frame** constant, so these rigs are fr
 
 ## Verifying the install
 
-Enter play mode, anchor the `Target` to a moving bone, and move — the payload should trail and (spring) overshoot then settle. Two failure reads: the payload sitting at the **wearer's feet** means the rig or `Target` never got anchored (still at avatar-root origin); the payload **rigidly welded** to the bone with no lag means the rig and `Target` share a frame (no relative motion — reparent the rig higher) or a `Missing Script` on `Container` (the SDK's constraint components didn't resolve).
+There is no animator and no generated document here, so this is the entry's only standing check. Enter play mode, anchor the `Target` to a moving bone, and move — the payload should trail and (spring) overshoot then settle. Two failure reads: the payload sitting at the **wearer's feet** means the rig or `Target` never got anchored (still at avatar-root origin); the payload **rigidly welded** to the bone with no lag means the rig and `Target` share a frame (no relative motion — reparent the rig higher) or a `Missing Script` on `Container` (the SDK's constraint components didn't resolve).
 
 The av3emulator reproduces this faithfully — constraints are engine transforms, not avatar logic, so what you see in play mode is what uploads.
-
-## Provenance
-
-Generalized from VRLabs' MIT-licensed [`Spring-Constraint`](https://github.com/VRLabs/Spring-Constraint) and [`Damping-Constraints`](https://github.com/VRLabs/Damping-Constraints), whose rigs and tuned weights are reproduced as-is on VRChat constraints. No real-avatar naming — the payload is a placeholder cube.
