@@ -44,7 +44,7 @@ Runnable arrangements of two or more entries, committed as prefabs because an ar
 
 ## Using an entry
 
-- **Agent, in-workspace:** read the entry's `controller.yaml` + README Interface stanza; lift/adapt.
+- **Agent, in-workspace:** the interface is the source — `controller.yaml` (or the `generate.py` that emits it) and the prefab. Read those and lift/adapt from them; the README is orientation, traps, and measurements, and never answers a question the source can (`CONVENTIONS.md` §The README).
 - **Unity:** a project takes it as a package dependency (AvatarProject uses a `file:` ref in `Packages/manifest.json`); entries import at `Packages/com.ryan6vrc.patterns/<entry>/`.
 
 ## Gate

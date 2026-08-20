@@ -7,7 +7,7 @@
   Boots Unity batchmode against the workspace TestEditor (which loads the avatar-tools package by
   file: ref, so it always has the current CompileController/ControllerFixpoint) and runs
   ControllerFixpoint.RunGate over this repo's entries. The gate's mechanism lives in the tool; the
-  loop + pass/fail lives here (this script). Exit 0 iff every entry passes.
+  loop + pass/fail lives here (this script). Exit 0 iff every entry passes, README lint included.
 #>
 [CmdletBinding()]
 param(
@@ -18,6 +18,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+# Text-only, Unity-free, and first: a README rule broken here is knowable without a batchmode boot,
+# and the boot below costs minutes. CONVENTIONS.md §The README owns the rule.
+& (Join-Path $PSScriptRoot 'readme-lint.ps1') -Root $root
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Default AtelierRoot from the repo's MAIN checkout (git worktree list line 1), whose parent is the
 # Atelier workspace root — correct from the main checkout and from any git-worktree slice, where a
