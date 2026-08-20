@@ -49,7 +49,7 @@ Two clients in-game, not the emulator: remote-side cage re-derivation (clone rec
 
 The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` on, source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
 
-    DropOnPlayer                      root — VRCFury FullController + 2 Toggles
+    DropOnPlayer                      root — VRCFury FullController
     ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/AnchorOffset,
     │  │                              source1 SourcePosition, source2 TrackedPoint/RideOffset]
     │  ├─ Payload                     placeholder sphere — swap for your prop, keep under Container
@@ -70,9 +70,9 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
     │  │                              (side = 3 × scale); VRCParentConstraint [TrackingOffset] (park — rides
     │  │                              the prop); VRCPositionConstraint [source0 Output, source1 self] — the
     │  │                              crawl feedback loop, source0 eased in by the tracked clip (box-tracker);
-    │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×1] (absolute 6×6×3 m boxes)
+    │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×1] (absolute 3×3×3 m boxes in world)
     │  ├─ X+ X- Y+ Z+                 4 box GOs (box-tracker's cage), each a VRCContactReceiver: tag Head,
-    │  │                              Proximity + useFaceProximity, size 6×6×3, radius 0.5, allowSelf OFF
+    │  │                              Proximity + useFaceProximity, local size 6×6×3, radius 0.5, allowSelf OFF
     │  │                              allowOthers ON localOnly OFF; 90°-rotated per axis (+Z face → named
     │  │                              axis), localScale (0.5,0.5,1) — box-tracker owns the cage geometry
     │  └─ Output                      the readout target: the Tracked-state tree writes its localPosition

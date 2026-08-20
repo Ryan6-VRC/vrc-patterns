@@ -36,7 +36,7 @@ Every knob is a material property, grouped below the way the inspectors in `Edit
 | Property | What it does |
 |---|---|
 | `_Display_Face_Viewer` | Object mode only, off by default: yaws the readout plane 180° about the object's Y axis for any camera on the object's +Z side, so the grid reads from either side of a panel that stays fixed to its object. A rotation rather than a reflection, so glyphs never mirror and `_Text_Depth_Offset` keeps pushing toward the reader. §Traps has what it does at the crossing and in a mirror |
-| `_Grid_Columns` × `_Grid_Rows` | the cell grid the entries land in, up to 12 cells; entries past the grid are not drawn |
+| `_Grid_Columns` × `_Grid_Rows` | the cell grid the entries land in, up to 6×6; entries past the grid, or past the twelfth, are not drawn |
 | `_Total_Width` | layout width in **glyph advances**, not metres, so font size and layout stay independent. A cell needs 12 (label) + 10 (value) = 22 advances to avoid clipping; the inspector edits it per column (total ÷ columns), which is the number that decides whether a label clears its value |
 | `_Font_Size` | metres per ascender **at unit scale** |
 | `_Font_Scale_Relative` | on (default), `_Font_Size` is multiplied by the object's mean axis scale so text always fits its mesh; off restores the ancestor's absolute physical size. A single scalar, never per-axis — the plane basis is normalized so a stretched mesh cannot distort the monospace grid. UV mode ignores it (`_Font_Size` cancels out) |

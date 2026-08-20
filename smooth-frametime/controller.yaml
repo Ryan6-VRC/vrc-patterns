@@ -12,7 +12,7 @@
 # change. That is fine and intended here — a smoother's job IS lag. The exponential's S-reads-itself is the
 # intended one-frame recurrence, not a defect. Because layer order buys no same-frame data flow, the
 # two-layer split makes no timing change versus the same math in one tree; residual differences are
-# sub-tolerance float-summation-order artifacts (README records the measured numbers).
+# sub-tolerance float-summation-order artifacts.
 #
 # THE ONE HARD CONSTRAINT (see blendtree-math): a parameter used AS a Direct `directWeight` is clamped to
 # >=0 by Unity — only a clip's authored curve VALUE (`set:`) may carry a sign. So every weight here is a
