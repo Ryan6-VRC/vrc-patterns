@@ -6,12 +6,12 @@ Press a button on your expression menu and your avatar changes. The menu sends a
 
 This entry is **half of a system and inert on its own.** It ships the avatar side; the swap is performed by [`vrc-bridge`](https://github.com/Ryan6-VRC/vrc-bridge)'s `osc_wardrobe` mapping, which is where the avatar-id table lives. Nothing here has any effect without that running.
 
-## Interface
+## Ground truth
 
-- **Params:** `OscWardrobe/Manifest` (Int, unsynced, **not saved**, ships at 0 — set it to your manifest id) — the marker the host reads to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (Int, unsynced, **not saved**, default 0) — the button press. Both are declared for OSC's sake only: nothing on the avatar reads either one.
-- **Seam:** none. No merge, no anchor, no binding frame, no controller — an MA Parameters component and a menu, so the prefab drops anywhere under the avatar and no path can break.
-- **Dependencies:** Modular Avatar.
-- **Required assets:** an OSC host running `vrc-bridge`'s `osc_wardrobe`, with a manifest whose `id` matches this avatar's `OscWardrobe/Manifest` default. Without it the buttons do nothing at all.
+- `OscWardrobe.prefab` is the whole entry: the two parameter declarations, their flags and defaults, and every menu control. There is no `controller.yaml` and no `built/`.
+- The two parameters exist for OSC's sake only — nothing on the avatar reads either one. `OscWardrobe/Manifest` is the marker the host reads to learn *which* wardrobe this avatar has, and only its **default** matters at runtime; `OscWardrobe/Slot` carries the button press.
+- **The prefab drops anywhere under the avatar** — an MA Parameters component and a menu, nothing more: no merge, no anchor, no binding frame, no controller, so no path can break.
+- **Dependencies:** Modular Avatar, plus an OSC host running `vrc-bridge`'s `osc_wardrobe` with a manifest whose `id` matches this avatar's `OscWardrobe/Manifest` default. Without the host the buttons do nothing at all, and nothing on the avatar says so.
 
 **Single-instance.** Both parameter names are MA-declared and therefore un-prefixed, so two copies collide — and the marker is *definitionally* one per avatar, since its whole job is to identify this avatar's wardrobe. A second instance is incoherent, not merely redundant.
 
@@ -44,6 +44,8 @@ Four consequences worth knowing:
 - **Nothing here is synced,** so remote players see none of it and it costs no sync bits. They just see you change avatar, the way they always do.
 
 ## Verifying the install
+
+Nothing here compiles — no `controller.yaml`, no `built/` — so **this section is the entry's only standing check** (`CONVENTIONS.md` §Tier is derived, not assigned).
 
 Read the **baked** parameters, not the authored ones — MA rewrites flags at build, and the OR-merge above only shows up post-build. Enter play mode (or bake) and check the generated `VRCExpressionParameters` for:
 
