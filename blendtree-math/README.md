@@ -12,14 +12,14 @@ The DBT-math primitives an agent reaches for when a gimmick needs arithmetic on 
 
 ## The one hard constraint
 
-A parameter used as a Direct blend tree's `directWeight` is clamped to `>=0` by Unity — only a clip's authored curve *value* may carry a negative sign. Every idiom is shaped around that: `A`/`B` and the genuine clamp0 outputs (`MaxRelu`, `MinRelu`) are used directly as weights; a genuinely signed intermediate (`MaxDiff`, `MinDiff`, `LinDelta`) is instead read back through a 1D tree, whose blend *parameter* — unlike a Direct weight — is never clamped. (`SmoothedLin` looks `>=0` but isn't quite — see the linear-smoother limitation below.)
+A parameter used as a Direct blend tree's `directWeight` is clamped to `>=0` by Unity; every idiom below is shaped around that one fact. The full derivation — which outputs are safe to reuse as weights and which must round-trip through a 1D tree's unclamped blend parameter instead — is `controller.yaml`'s header comment ("THE ONE HARD CONSTRAINT").
 
 ## Coverage
 
 | Concern-layer | Node | Idiom |
 |---|---|---|
 | `Math/Arithmetic` | `Add (Direct child)` → `SumDirect` | Direct-child (canonical, higher precision, positive-only) |
-| | `Add (1D child)` → `Sum1D` | 1D-child (lower precision; needed for signed inputs, since Direct-child thresholds clamp negatives) |
+| | `Add (1D child)` → `Sum1D` | 1D-child (lower precision; its own `[0,1]` thresholds clamp a negative input to 0 — the Direct-child form has no thresholds at all, so there it is the raw `directWeight` Unity clamps, `controller.yaml:38-40`) |
 | | `Subtract` → `DiffOut` | Direct-child, sign baked into the clip constant |
 | | `Multiply` → `ProdOut` | nested Direct trees (positive-only) |
 | | `Divide` → `DivOut` | Normalize Blend Values + a weight-1 dummy child (divides by `1 + Input`, not `Input`) |
@@ -37,11 +37,11 @@ This entry computes `FrameTime` itself instead of using VRCFury's `FrameTimeServ
 
 ## min/max settle over ~3 frames
 
-`Max`/`Min`'s three stages (`diff → ReLU → recombine`) are siblings in one tree, each reading the previous stage's AAP from last frame, so an input change settles at frame ~3 on the branch whose difference is positive; the other branch's `ReLU` is 0 from frame 1, so it is exact immediately.
+`Max`/`Min` are derived, not primitive, so an input change takes ~3 frames to reach the recombined output; `controller.yaml`'s header ("SAME-FRAME vs SETTLE") derives why from the three sibling stages.
 
 ## Known limitation: the linear smoother limit-cycles (does not fully settle)
 
-The linear smoother ramps toward the target at a fixed step, then oscillates by ±one step around it forever — it never settles, because the clamped step acts on a one-frame-stale delta (`LinTarget − SmoothedLin`). Near a zero target the cycle dips `SmoothedLin` slightly negative; since this idiom uses `SmoothedLin` as a `directWeight`, Unity clamps that dip to 0, distorting the low end — a live instance of the hard constraint above. To carry a truly signed smoothed value, read it through a 1D tree instead of self-weighting. The exponential smoother has no such loop, because it feeds `SmoothedExp` and `SmoothTarget` directly as blend parameters with no computed intermediate; prefer it when a value must truly settle.
+The linear smoother never settles — it oscillates by ±one step around its target forever, and near a zero target the dip lands negative and gets clamped as a `directWeight` (a live instance of the hard constraint above), distorting the low end. `controller.yaml`'s header ("LINEAR SMOOTHING LIMIT-CYCLES") has the full derivation. The exponential smoother has no such loop; prefer it when a value must truly settle.
 
 ## Behavior
 
