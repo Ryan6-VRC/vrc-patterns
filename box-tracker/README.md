@@ -6,9 +6,9 @@ Make a payload follow one point on another player, one target at a time, reconst
 
 One prefab, one controller: `BoxTracker.prefab`.
 
-## Interface
+## Ground truth
 
-- **Params:** `BoxTracker/Enable` (bool, in) — synced, unsaved; off is the reset and recall: parks the cage at `HomeAnchor/Offset`, riding the wearer. `HomeAnchor` is an MA BoneProxy (Hips, AsChildAtRoot); retarget the proxy or drag its `Offset` child to move home. The four `BoxTracker/{X+,X-,Y+,Z+}` floats are sensing — never synced, never menu-exposed. `BoxTracker/One` is a scratch constant (DBT carrier weight), excluded from the params asset.
+- Parameters and behavior: `controller.yaml`. The set published to the host avatar: the prefab's VRCFury `FullController` `globalParams`. Everything else about the rig, including the `HomeAnchor` BoneProxy wiring (Hips, AsChildAtRoot; retarget the proxy or drag its `Offset` child to move home): `BoxTracker.prefab`.
 - **Latch zone knob:** size/shape = `TrackingPoints` rest `localScale` **and** the scale constraint's `ScaleAtRest`, edited together (GlobalWeight 0 drives to `ScaleAtRest`, so `localScale` alone is display-only) — zone side = 3 × scale, per-axis values giving a box-shaped zone. The receiver GOs' (0.5, 0.5, 1) is the cube-collapse invariant the clips own, not a knob: while not tracking, all four receivers collapse to **one coincident cube**.
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root` — clip paths bind relative to the prefab root, so the internal hierarchy names are load-bearing. The FullController merges `built/BoxTracker_Fx_Parameters.asset` (`prms`); `BoxTracker/Enable` rides `globalParams`, and a VRCFury `Toggle` (`useGlobalParam`) is the menu front inside the module.
 - **Dependencies:** Modular Avatar (the `HomeAnchor` proxy); **compose `anti-cull` alongside** (its README §When a module needs this) — the re-derivation runs only while a remote client evaluates the wearer's animator. Receivers are `localOnly: 0` **by necessity** — remote clients run the tracker to re-derive the cage; flipping them local-only breaks remote copies silently.
