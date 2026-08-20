@@ -5,16 +5,16 @@ emit-only smoke (emitted, and refused where unpackable, on every change; nothing
 on disk).
 
 Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
-three controller.yaml documents committed here are generated output, pinned
-byte-for-byte by --check, so hand-editing one desynchronises it from this
-generator. That pin covers this repo's builds only: a consumer generating into
-their own project owns the emitted document, and deviating there is fine as a
+three controller.yaml documents committed here are generated output: never
+hand-edit one, and check freshness by regenerating and reading git diff. That
+discipline covers this repo's builds only: a consumer generating into their
+own project owns the emitted document, and deviating there is fine as a
 commented transform in their build script, never as a silent edit. `python
 generate.py
---check` runs the self-test: byte-identical regeneration, the on-disk pin for
-all three builds, and the hand-maintained-surface pins (prefab wiring, README
-figures) — nothing about the emitted document's shape, on purpose
-(CONVENTIONS.md §Per-entry checks; check()'s docstring owns the argument).
+--check` pins the hand-maintained surfaces instead (prefab wiring, README
+figures) plus emit determinism — nothing about the emitted document's shape,
+on purpose (CONVENTIONS.md §Per-entry checks; check()'s docstring owns the
+argument).
 
 WHAT THIS BUILDS
 ----------------
@@ -198,8 +198,8 @@ CONFIG = {
 # ship as built artifacts, so a GitHub download is usable without this
 # workspace). Each overrides CONFIG["objects"] only and rides CONFIG's wire
 # block unchanged; each emits into its own subdirectory (`y/`, `y_double/`)
-# holding controller.yaml + built/ + prefab, and `--check` pins all three
-# on-disk documents byte-identical, not just the root one.
+# holding controller.yaml + built/ + prefab; `python generate.py` rewrites all
+# three documents, not just the root one.
 PRESETS = {
     "y": {"objects": [{"name": "Prop", "rotation": "y"}]},
     "y_double": {"objects": [{"name": "PropA", "rotation": "y"},
@@ -1912,20 +1912,19 @@ def check_configs():
 
 
 def check():
-    """Everything regeneration cannot fix — and deliberately nothing else.
-
-    Byte-identity of the committed documents against their CONFIGs, and the
-    hand-maintained surfaces no compile or gate reads: the prefabs' wiring and
-    cross-asset pins, and the README's quoted figures. The structural suite
-    that used to live here (some 700 assertions on the emitted document's
-    shape) is gone on purpose: the document is a pure function of this file,
-    so a shape assert is rewritten by the very edit it would catch — measured,
-    across a full composition build, at zero of five shipped defects found,
-    while its green output was cited as verification evidence. CONVENTIONS.md
+    """The hand-maintained surfaces no compile or gate reads — the prefabs'
+    wiring and cross-asset pins, the README's quoted figures — plus the emit
+    determinism that makes regenerate-and-read-git-diff a valid freshness
+    instrument. Deliberately nothing else: freshness of the committed
+    documents is regen + git diff, and nothing here asserts the emitted
+    document's shape — the document is a pure function of this file, so a
+    shape assert is rewritten by the very edit it would catch (measured,
+    across a full composition build, at zero of five shipped defects found
+    while its green output was cited as verification evidence). CONVENTIONS.md
     §Per-entry checks is the standard; a rule that generalizes lives in
-    ControllerRules, where CompileController's graph-lint stage already refuses the compile
-    (driver-on-animated-param, which this file once re-implemented in Python,
-    is the worked instance)."""
+    ControllerRules, where CompileController's graph-lint stage already
+    refuses the compile (driver-on-animated-param, which this file once
+    re-implemented in Python, is the worked instance)."""
     ok = True
 
     def assert_(cond, msg):
@@ -1934,10 +1933,10 @@ def check():
         if not cond:
             ok = False
 
-    # Reproducibility over every config, DEMOS included: the multi-object
-    # emission the committed builds cannot reach is still emitted on every
-    # change — derive() refuses an unpackable config loudly — and pinned
-    # deterministic, so the on-disk comparisons below can mean what they say.
+    # Determinism over every config, DEMOS included: the multi-object emission
+    # the committed builds cannot reach is still emitted on every change —
+    # derive() refuses an unpackable config loudly — and a nondeterministic
+    # emit would make every regen diff read as drift.
     for label, cfg in check_configs().items():
         print(f"[{label}]")
         text, f = document(cfg)
@@ -2094,22 +2093,9 @@ def check():
                     f"(fileID in {sorted(world_tf)}, {world_guid}), "
                     f"found {len(refs)}: {sorted(set(refs))}")
 
-    # Each committed build is the one artifact its `built/` was compiled from,
-    # so a generator change that moves any of the three documents is a defect
-    # until that variant's built/ is recompiled.
-    print("[committed vs disk]")
-    for label, cfg in committed_configs().items():
-        on_disk = os.path.join(HERE, *preset_dir(label), "controller.yaml")
-        if os.path.exists(on_disk):
-            with open(on_disk, encoding="utf-8", newline="") as fh:
-                assert_(fh.read().replace("\r\n", "\n") == document(cfg)[0],
-                        f"{label}: controller.yaml on disk matches its CONFIG")
-        else:
-            assert_(False, f"{label}: controller.yaml is missing "
-                           f"({os.path.relpath(on_disk, HERE)})")
-
-    print("scope: reproducibility and hand-maintained wiring only — document "
-          "structure, prefab behavior and runtime are unverified here")
+    print("scope: emit determinism and hand-maintained wiring only — freshness "
+          "of committed generated files is regenerate-and-read-git-diff; "
+          "document structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 

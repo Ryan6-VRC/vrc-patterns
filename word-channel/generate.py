@@ -655,7 +655,7 @@ def build(config):
 
 def document(c):
     """The committed controller.yaml as text, plus the build's facts. `main()`
-    writes it; `--check` re-derives it and compares against disk."""
+    writes it; freshness is checked by regenerating and reading git diff."""
     p = c["channel"]
     f = build(c)
     L = []
@@ -700,13 +700,14 @@ def prefab_global_params(body):
 
 
 def check():
-    """Everything regeneration cannot fix: byte-identity against disk, the
-    prefab's globalParams list (which no compile and no gate check reads), and
-    the README's quoted formula. Assertions on the emitted document's own
-    shape — the Acquired head/tail/Lost mechanism was pinned here once — are
-    deliberately gone (CONVENTIONS.md §Per-entry checks): the document is a
-    pure function of this file, and the mechanism's invariants live as
-    comments at their emission sites and in the emitted YAML."""
+    """The hand-maintained surfaces no compile or gate reads — the prefab's
+    globalParams list and the README's quoted formula — plus the emit
+    determinism that makes regenerate-and-read-git-diff a valid freshness
+    instrument. Assertions on the emitted document's own shape — the Acquired
+    head/tail/Lost mechanism was pinned here once — are deliberately gone
+    (CONVENTIONS.md §Per-entry checks): the document is a pure function of
+    this file, and the mechanism's invariants live as comments at their
+    emission sites and in the emitted YAML."""
     c = CONFIG
     p = c["channel"]
     text = document(c)[0]
@@ -718,18 +719,10 @@ def check():
         ok = ok and cond
 
     print("[document]")
-    # NOT a byte-identity check against anything committed — `document()` is a pure
-    # function of CONFIG, so comparing two calls only shows the emit is deterministic
-    # (no set iteration order, no clock, no dict-address leakage reaching the text).
-    # The check that can actually fail is the disk comparison below it.
+    # Comparing two calls shows only that the emit is deterministic (no set
+    # iteration order, no clock, no dict-address leakage reaching the text) —
+    # which is exactly what makes an empty regen diff mean "no drift".
     assert_(document(c)[0] == text, "emission is deterministic across two calls")
-    out = os.path.join(HERE, "controller.yaml")
-    if os.path.exists(out):
-        with open(out, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == text,
-                    "controller.yaml on disk matches CONFIG")
-    else:
-        assert_(False, f"controller.yaml is missing ({out})")
 
     # `globalParams` is a VRCFury field with no CompileController spelling, so
     # nothing in the compile or the gate reads it. Pin the prefab's list here or
@@ -762,8 +755,9 @@ def check():
     else:
         assert_(False, "README.md is missing")
 
-    print("scope: reproducibility and hand-maintained wiring only — document "
-          "structure, prefab behavior and runtime are unverified here")
+    print("scope: emit determinism and hand-maintained wiring only — freshness "
+          "of committed generated files is regenerate-and-read-git-diff; "
+          "document structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 

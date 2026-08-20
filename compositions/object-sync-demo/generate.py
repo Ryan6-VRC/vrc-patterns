@@ -11,12 +11,12 @@ Output: `object-sync/controller.yaml` beside this file. Compile it with
 
 WHY THE BUILD LIVES HERE AND NOT IN THE ENTRY
 ---------------------------------------------
-`check()`'s `[committed vs disk]` block pins a `controller.yaml` on disk for
-every label `committed_configs()` returns, so a `demo` preset would either fail
-`--check` or force a fourth build, prefab and README claim into the public entry
-for a single consumer. The composition drives the entry's generator from outside
-instead: `object-sync/generate.py` is imported unmodified and the entry stays
-byte-identical. `CONVENTIONS.md` §compositions/ is the rule this implements.
+A `demo` preset in the entry would force a fourth build, prefab and README
+claim into the public entry for a single consumer — `committed_configs()`
+emits a document on disk for every label it returns. The composition drives
+the entry's generator from outside instead: `object-sync/generate.py` is
+imported unmodified and the entry stays byte-identical. `CONVENTIONS.md`
+§compositions/ is the rule this implements.
 
 The demo carries exactly one post-generation deviation from the entry's emitted
 document — `Enable` defaults true — applied in `demo_document()`, which owns the
@@ -214,17 +214,12 @@ def main():
             ok = ok and cond
 
         assert_(demo_document(mod, cfg)[0] == text, "regeneration is byte-identical")
-        # The Enable-default deviation and the slot packing are NOT re-asserted
-        # here: demo_document() refuses a build where its transform found no line
-        # to rewrite, check_slots refuses an unpackable config, and the REFUSE
-        # above pins the settled 3-batch/50-bit wire — an assert restating any of
-        # those could only pass (CONVENTIONS.md §Per-entry checks).
-        if os.path.exists(OUT):
-            with open(OUT, encoding="utf-8", newline="") as fh:
-                assert_(fh.read().replace("\r\n", "\n") == text,
-                        "controller.yaml on disk matches this config")
-        else:
-            assert_(False, f"controller.yaml is missing ({OUT})")
+        # The Enable-default deviation, the slot packing, and the on-disk
+        # document are NOT re-asserted here: demo_document() refuses a build
+        # where its transform found no line to rewrite, check_slots refuses an
+        # unpackable config, the REFUSE above pins the settled 3-batch/50-bit
+        # wire, and freshness of the committed document is regenerate-and-read-
+        # git-diff (CONVENTIONS.md §Per-entry checks).
         # Printing the list left the prefab unpinned, and the prefab is the
         # hand-edited half — a wrong entry there lands silently (VRCFury exposes
         # nothing and says nothing) and no compile or gate reads globalParams.
@@ -305,8 +300,9 @@ def main():
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
-        print("scope: reproducibility and hand-maintained wiring only — document "
-              "structure, prefab behavior and runtime are unverified here")
+        print("scope: emit determinism and hand-maintained wiring only — freshness "
+              "of committed generated files is regenerate-and-read-git-diff; "
+              "document structure, prefab behavior and runtime are unverified here")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
