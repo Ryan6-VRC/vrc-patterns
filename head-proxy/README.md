@@ -6,6 +6,20 @@
 
 **Provenance:** generalized from a private production avatar's head-chop architecture; client chop behavior sourced from the public VRChat docs, Av3Emulator's reimplementation (MIT), and in-game measurement on the production rig.
 
+## Ground truth
+
+- Parameters, states, clips and the fake chop's timing are `controller.yaml`; its header is the design record. The published set is the prefab's `globalParams`.
+- `HeadProxy/MoveHead` is synced because ventriloquism is remotely visible. `MirrorDetection/IsMirror` is consumed from the mirror-detect row and declared with default 0 — the fail-safe park, since a parked 0 leaves the fake chop disengaged rather than wrong.
+- **Seam:** VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `built/HeadProxy_Fx.controller` + `mirror-detect`'s `built/MirrorDetect_Fx.controller` — and a Toggle fronting `MoveHead` via `globalParams`. `FixWriteDefaults` ships alongside. This entry *is* an avatar, not a mergeable — composing its ideas onto another avatar means rebuilding the rig per the Blender recipe, not dropping the prefab.
+- **Dependencies:** VRCFury.
+- **Required assets:** `assets/HeadProxyRig.fbx` — owned bare armature, primitives only, no vendor content.
+
+## Reaching out of the prefab — the socket, and why it ships wired
+
+`VoiceTarget` is a plain child of the avatar root, **wired as source1 in the same prefab as the constraint**. That placement is the lesson: a constraint-source object reference has no string-addressed form, so a reference that crosses a prefab boundary can only live as a scene-level override — and a scene copy silently loses it. The failure is silent by SDK behavior: a *weighted null source* is simply excluded from the solve, so the constraint no-ops and ventriloquism just stops moving the head, with nothing visibly broken.
+
+So: the socket ships in-prefab, and **"point the socket at your gimmick" is the one consumer step** — re-source or constrain `VoiceTarget` to whatever should speak (a doll's head).
+
 ## The rig
 
 ```
@@ -33,26 +47,13 @@ Three rules govern anything docked in an exempt slot:
 
 `MoveHead` swaps the weights of `Head_Proxy`'s position constraint — the voice origin and IK head move to `VoiceTarget`; the visible geometry stays home. Your **viewpoint and hearing do not follow**: both are locked to your VR headset, and animating the head bone never moves the camera — only the voice's *source* relocates. Because the relocated bone set eventually crosses the release gate, **the FakeChop layer auto-engages with the move**: it reproduces the chop with avatar animation (a `VRCScaleConstraint` driven to a 0.0001-scale source, never the bone's `m_LocalScale` directly), gated `IsLocal && IsMirror < 0` via [`mirror-detect`](../mirror-detect/). The mirror gate is not optional — the mirror clone runs your animator with `IsLocal` still true; delete the condition to demonstrate the failure. With the mirror-detect row omitted, `IsMirror` parks at 0 and the fake chop never engages — the fail-safe direction, a possible vision block rather than a wrong mirror.
 
-## Reaching out of the prefab — the socket, and why it ships wired
-
-`VoiceTarget` is a plain child of the avatar root, **wired as source1 in the same prefab as the constraint**. That placement is the lesson: a constraint-source object reference has no string-addressed form, so a reference that crosses a prefab boundary can only live as a scene-level override — and a scene copy silently loses it. The failure is silent by SDK behavior: a *weighted null source* is simply excluded from the solve, so the constraint no-ops and ventriloquism just stops moving the head, with nothing visibly broken.
-
-So: the socket ships in-prefab, and **"point the socket at your gimmick" is the one consumer step** — re-source or constrain `VoiceTarget` to whatever should speak (a doll's head).
-
-## Interface
-
-- **Params:** `HeadProxy/MoveHead` (bool, in) — synced, unsaved: ventriloquism is remotely visible. `MirrorDetection/IsMirror` (float, consumed from the mirror-detect row; declared default 0 = fail-safe park).
-- **Seam:** VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `built/HeadProxy_Fx.controller` + `mirror-detect`'s `built/MirrorDetect_Fx.controller` — and a Toggle fronting `MoveHead` via `globalParams`. `FixWriteDefaults` ships alongside. This entry *is* an avatar, not a mergeable — composing its ideas onto another avatar means rebuilding the rig per the Blender recipe, not dropping the prefab.
-- **Dependencies:** VRCFury.
-- **Required assets:** `assets/HeadProxyRig.fbx` — owned bare armature, primitives only, no vendor content.
-
 ## Verifying the install
 
 Play mode with Av3Emulator, avatar **at the world origin**, `EnableHeadScaling` flipped on only **after** the runtimes have run a few frames — the emulator caches exempt-bone baselines on the first chop-enabled frame, and enabling early (or off origin) bakes a poisoned baseline that silently no-ops the exemption or throws docked objects hundreds of meters. Then, reading at a pause:
 
 - deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1, in place.
 - `MoveHead` on → `Head_Proxy` lands at `VoiceTarget`; the exempt slot (+ any occupant) follows it — the head-anchored re-place, observed directly. `Chopping` engaging at all is the `IsMirror = −1` proof (hard transition condition).
-- `MoveHead` off → a ≥0.25 s restore pulse returns the deform head to scale 1 (so it never sticks at ~0 for a photo) before the constraint deactivates at rest weights.
+- `MoveHead` off → a restore pulse returns the deform head to scale 1 (so it never sticks at ~0 for a photo) before the constraint deactivates at rest weights. The pulse ships at 0.5 s, and its length is a floor rather than a taste knob: below ~0.25 s a low-FPS client can sample straight past it. `controller.yaml`'s `chop_constraint_restore` clip is where it lives.
 
 What the emulator structurally cannot show: **any mirror-side visual** (its clones copy transforms instead of stripping VRCHeadChop — runtime.md §VRCHeadChop), the **root-distance release gate** (no capsule model — the very thing the fake chop exists for), and in-game ordering of client chop vs animator writes. Hand those to an in-game tester, in that order.
 
