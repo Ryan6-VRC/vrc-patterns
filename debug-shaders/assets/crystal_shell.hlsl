@@ -81,7 +81,7 @@ half3 shell_rgb(float3 normal_ws, float3 position_ws)
     // curve pre-multiplied: perceptualRoughness * (10.2 - 4.2 * pR). The bare linear ramp this replaced
     // was NOT equivalent: it under-blurs the mid range and, against a chain that is already near-flat by
     // mip 6, spent the slider's top third on dead travel. The cubemap must be imported with
-    // cubemapConvolution = 1 or the whole curve is inert -- see the entry README's import-settings table.
+    // cubemapConvolution = 1 or the whole curve is inert -- see the entry README's import-settings trap.
     float perceptual_roughness = 1.0 - saturate(_Shell_Reflection_Smoothness);
     float reflection_mip = perceptual_roughness * (1.7 - 0.7 * perceptual_roughness)
                          * _Shell_Reflection_BlurMaxMip;
