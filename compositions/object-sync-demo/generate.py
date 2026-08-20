@@ -169,7 +169,7 @@ def global_params(cfg):
     wire slots cross the network, so a captured one carries the host's `saved`
     across avatar loads; `Ch/Cycle` accumulates (+1 per loop tail), so a host
     capturing it as *synced* would put the wearer's count on every client — the
-    argument `../../word-channel/README.md` §Interface makes for keeping it off
+    argument `../../word-channel/README.md` §Ground truth makes for keeping it off
     every list. Note `Ch/Cycle` is itself unsynced, which is why "exclude the
     synced ones" is the wrong reading of this list.
 

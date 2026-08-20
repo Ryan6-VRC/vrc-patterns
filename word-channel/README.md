@@ -29,7 +29,7 @@ The protocol is the VRCFury Parameter Compressor's (source-studied from `com.vrc
 
 **What `group:` is for.** It pins words into one batch so an aliased mix can never split one value's limbs — the shipped config groups `Pos/Hi`+`Pos/Lo`, and a single-pause run of an earlier ungrouped config produced exactly the split-limb corruption the option exists to prevent (`hi` from one snapshot, `lo` from the next — a value neither snapshot ever held). A group may span number and bool words (a 12-bit value = one byte word + four bools): the packer pins both kinds to one batch index, padding bool batches forward (a padded slot is free — the wire params exist every tick regardless), and refuses when declaration order makes alignment impossible.
 
-Slots are the bits↔latency dial. The cost model those slots move — wire bits, state count, full-refresh latency — is computed in `generate.py` and returned in its `facts`; read it there rather than from a copy of the formulas.
+Slots are the bits↔latency dial. Wire bits and full-refresh latency are computed in `generate.py` and returned in its `facts`; read them there rather than from a copy of the formulas. **State count is not among them** — `3·batchCount·indexLoops + 4`: the walk, plus `Split`/`Lost`, plus the `Reset` layer's fixed two, **plus one more when `assemble:` is non-empty**, since that reassembly layer sits outside the formula and contributes a single Direct-tree state however many entries it carries (the shipped config emits 16 + 1 = 17). Independent of word widths — there are no per-bit states anywhere.
 
 ## Verifying the install
 

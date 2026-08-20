@@ -751,7 +751,7 @@ def check():
         assert_(f"3·batchCount·indexLoops + 4" in body,
                 "README's state-count formula counts the reset layer's two states")
         assert_(f"`{p}/Acquired`" in body,
-                "README's Interface stanza names the emitted correctness output")
+                "README's Ground truth names the emitted correctness output")
     else:
         assert_(False, "README.md is missing")
 

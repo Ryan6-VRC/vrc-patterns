@@ -51,7 +51,7 @@ The entry prefab and `y_double/` are hand-maintained against this section; `y/` 
                                              and the pin's offset must stay zero (the park row below owns why).
                                              Beside it a VRCScaleConstraint → World.prefab (rest and offset (1,1,1))
                                              holds the whole subtree at world scale 1 under avatar scaling — the
-                                             measure tree AND the consumer's mount, deliberately (§Interface).
+                                             measure tree AND the consumer's mount, deliberately (§Ground truth).
                                              Both ship m_Enabled 0 with an ApplyDuringUpload → assets/PinEnable.anim
       Rig/                                 no constraints of its own: it is an identity child of the pinned root,
                                              so the root's pin already delivers world origin and world scale 1
