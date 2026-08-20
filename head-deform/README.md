@@ -9,22 +9,25 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 
 **Provenance:** generalized from a private production avatar's face-stretch system, both variants measured live; the mirror race is [`mirror-detect`](../mirror-detect/), the smoother is the standard DBT exponential (`smooth-frametime`).
 
-## Interface
+## Ground truth
 
-- **Params:**
-  - `HeadDeform/Active` (bool, in) — the enable, carried entirely by the VRCFury Toggle on the prefab root (`useGlobalParam`, **saved, default on, synced** — remotes must see the chain appear). It rides *inside* the smoother tree as the input weight, so switching off decays the deformation to rest instead of snapping.
-  - `HeadDeform/CheekBone` (physbone parameter → `_Stretch`/`_Squish`/`_IsGrabbed`) — never synced; the grab itself is natively synced, every client re-derives the pull locally.
-  - `MirrorDetection/IsMirror` (float, consumed) — declared here with **default 1**, the variant switch: see `mirror-detect` §Behavior for why only the driven −1 may be special.
-  - `HeadDeform/SmoothAmount` (float) — smoother λ, its default the feel constant below; install-time tunable, unsynced. `HeadDeform/Smoothed` (AAP) and `One` are internal.
-- **Seam:** VRCFury `FullController` on the prefab root (`basis: mount-root` ↔ `rootBindingsApplyToAvatar: 0`); `globalParams: [HeadDeform/Active]` only — everything else takes instance prefixes. A VRCFury `ArmatureLink` puts `Cheek_Root` on the humanoid **Head**; a VRCFury `ConstraintRetarget` (conventional prefab only) points the scale constraint's target at the humanoid Head at build.
-- **Dependencies:** VRCFury. Conventional prefab: a rig whose humanoid head actually chops. Proxy prefab: a `head-proxy`-class rig, plus one consumer wiring step — point the `ScaleConstraint`'s `TargetTransform` at the **deforming** head bone (a cross-prefab object reference is structurally a scene-level assignment; `head-proxy` §Reaching out of the prefab owns the mechanism and the silent-null trap).
-- **Required assets:** none. Sculpted deformation (cheek bulge blendshapes) is the documented consumer extension — a fourth 1D subtree on `HeadDeform/Smoothed` over your own clips, the hook annotated in `controller.yaml`.
+- Parameters, states and clips are `controller.yaml`, whose header is the design record: the three subtrees, why `MirrorDetection/IsMirror` parks at default 1, and where the consumer hook for sculpted deformation goes. The published set is the prefab's `globalParams` — `HeadDeform/Active` alone; everything else takes instance prefixes.
+- **The enable's sync and save live on the prefab, not in the controller.** A VRCFury Toggle on the root carries `HeadDeform/Active` with `useGlobalParam` and gates the `Cheek_Root` GO; the controller only reads the parameter as the smoother's input gate, inside the tree, so switching off decays the deformation to rest instead of snapping it.
+- **Seam:** VRCFury `FullController` on the prefab root (`basis: mount-root` ↔ `rootBindingsApplyToAvatar: 0`). A VRCFury `ArmatureLink` puts `Cheek_Root` on the humanoid **Head**; a VRCFury `ConstraintRetarget` — conventional prefab only — points the scale constraint's target at the humanoid Head at build.
+- **Dependencies:** VRCFury. The conventional prefab additionally needs a rig whose humanoid head actually chops.
+- **The proxy prefab needs a `head-proxy`-class rig plus one consumer wiring step:** point the `ScaleConstraint`'s `TargetTransform` at the **deforming** head bone. A cross-prefab object reference is structurally a scene-level assignment, and it ships empty — `head-proxy` §Reaching out of the prefab owns the mechanism and the silent-null trap.
+- Required assets: none.
+
+Sculpted deformation (cheek bulge blendshapes) is the documented consumer extension — a fourth 1D subtree on `HeadDeform/Smoothed` over your own clips, the hook annotated in `controller.yaml`.
 
 ## Before you compose it
 
 - **Strangers can stretch your face.** The grab filter ships `allowSelf` + `allowOthers` — being poked is the point, but flip `allowOthers` off on the physbone for a self-only face.
-- **The stretch endpoints are feel constants** — the `headscale_wide` / `headscale_squish` clips' `WideTransform` scales, the rest clip's deadband threshold, and `HeadDeform/SmoothAmount`'s default (λ). Wear-tested on the production source; retune in `controller.yaml`, never in the built assets.
 - **Your own first-person view never shows the stretch.** Not a bug: the scale is gated off on the real local copy by design — you see it in mirrors and cameras, everyone else sees it always.
+
+## Measured
+
+The endpoints and the feel are wear-tested constants from the production source, and each lives once at its authoring site in `controller.yaml`: the `headscale_stretch` and `headscale_squish` clips' `WideTransform` scales are the two poses, the flat rest segment in the *Wide Scale* subtree is the squish deadband (a pair of 1D thresholds, not a property of a clip — squish engages only on a firm squeeze), and `HeadDeform/SmoothAmount`'s default is the smoother λ. Retune there, never in the built assets.
 
 ## Verifying the install
 
@@ -40,21 +43,21 @@ Mirror-side visuals are in-game checks — the emulator's mirror clone copies tr
 ## Rig
 
     HeadDeform                     root — VRCFury FullController [MirrorDetect_Fx + HeadDeform_Fx]
-    │                              + VRCFury Toggle "Head Deform" (globalParam HeadDeform/Active,
-    │                              saved, defaultOn; ObjectToggle → Cheek_Root)
+    │                              + VRCFury Toggle "Head Deform" (globalParam HeadDeform/Active;
+    │                              ObjectToggle → Cheek_Root)
     ├─ WideTransform               plain GO — the FX writes its m_LocalScale; never anchor it to
     │                              anything scaled (it is the scale *source*)
-    ├─ ScaleConstraint             VRCScaleConstraint (IsActive 0 at rest, Locked), sources
-    │                              [WideTransform @1, root @0] + VRCFury ConstraintRetarget → Head
-    │                              (conventional prefab only)
-    └─ Cheek_Root  (0, 1.145, 0)   VRCFury ArmatureLink → Head; VRCHeadChop {self @1};
-       │                           VRCScaleConstraint ← root @1 (insulation, always on);
-       │                           VRCPhysBone (grabbable self+others, no posing, maxStretch 6,
-       │                           limit Hinge 5°/45°, radius 0.025, param HeadDeform/CheekBone)
-       ├─ Left_Cheek  → Left_Cheek_End   (+0.04 x)
-       └─ Right_Cheek → Right_Cheek_End  (+0.04 x)
+    ├─ ScaleConstraint             VRCScaleConstraint, Locked and off at rest — the Mirror Gate
+    │                              turns it on. Sources [WideTransform, root] + VRCFury
+    │                              ConstraintRetarget → Head (conventional prefab only)
+    └─ Cheek_Root                  VRCFury ArmatureLink → Head; VRCHeadChop {self @1};
+       │                           VRCScaleConstraint ← root (insulation, always on);
+       │                           VRCPhysBone (grabbable self+others, no posing,
+       │                           param HeadDeform/CheekBone)
+       ├─ Left_Cheek  → Left_Cheek_End
+       └─ Right_Cheek → Right_Cheek_End
 
-`HeadDeformProxy.prefab` = prefab variant of the above: removes the two-row FullController and the ConstraintRetarget, adds a one-row FullController (`HeadDeform_Fx` alone), ships the scale constraint IsActive 1. Everything else inherits.
+`HeadDeformProxy.prefab` = prefab variant of the above: removes the two-row FullController and the ConstraintRetarget, adds a one-row FullController (`HeadDeform_Fx` alone), and ships the scale constraint on at rest. Everything else inherits.
 
 ## Rebuilding
 
