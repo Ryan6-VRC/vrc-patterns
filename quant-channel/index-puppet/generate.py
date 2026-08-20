@@ -14,8 +14,8 @@ registry table is the ledger; bump `revision` here and reinstall the manifest).
 
 Same discipline as the base: edit CONFIG, rerun (`python generate.py`), recompile
 `built/` in a mounting Editor — never hand-edit `controller.yaml` or
-`built/manifest.json` (`--check` holds both to byte-identity, plus the prefab's
-`globalParams` list, which no gate reads).
+`built/manifest.json`; check their freshness by regenerating and reading git
+diff (`--check` pins the prefab's `globalParams` list, which no gate reads).
 """
 
 import importlib.util

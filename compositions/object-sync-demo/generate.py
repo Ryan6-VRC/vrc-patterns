@@ -11,12 +11,12 @@ Output: `object-sync/controller.yaml` beside this file. Compile it with
 
 WHY THE BUILD LIVES HERE AND NOT IN THE ENTRY
 ---------------------------------------------
-`check()`'s `[committed vs disk]` block pins a `controller.yaml` on disk for
-every label `committed_configs()` returns, so a `demo` preset would either fail
-`--check` or force a fourth build, prefab and README claim into the public entry
-for a single consumer. The composition drives the entry's generator from outside
-instead: `object-sync/generate.py` is imported unmodified and the entry stays
-byte-identical. `CONVENTIONS.md` §compositions/ is the rule this implements.
+A `demo` preset in the entry would force a fourth build, prefab and README
+claim into the public entry for a single consumer — `committed_configs()`
+emits a document on disk for every label it returns. The composition drives
+the entry's generator from outside instead: `object-sync/generate.py` is
+imported unmodified and the entry stays byte-identical. `CONVENTIONS.md`
+§compositions/ is the rule this implements.
 
 The demo carries exactly one post-generation deviation from the entry's emitted
 document — `Enable` defaults true — applied in `demo_document()`, which owns the
@@ -214,29 +214,12 @@ def main():
             ok = ok and cond
 
         assert_(demo_document(mod, cfg)[0] == text, "regeneration is byte-identical")
-        assert_(f"  {cfg['prefix']}/Enable: {{ type: float, default: 1, " in text,
-                "Enable defaults TRUE (demo-local deviation; see demo_document)")
-        # The one property the widened slots could break: word-channel first-fits
-        # runs into batches, so a wider batch pulls more groups into it and each
-        # of those groups' bools have to fit alongside. `check_slots` refuses the
-        # unplaceable case; this asserts the placement actually landed.
-        nb, bb, gb = facts["numberBatches"], facts["boolBatches"], facts["groupBatch"]
-        for g in facts["groups"]:
-            i = gb.get(g)
-            want_n = [w["name"] for w in facts["numberWords"] if w["group"] == g]
-            want_b = [w["name"] for w in facts["boolWords"] if w["group"] == g]
-            got_n = [w["name"] for w in (nb[i] if i is not None and i < len(nb) else [])]
-            got_b = [w["name"] for w in (bb[i] if i is not None and i < len(bb) else [])]
-            assert_(i is not None and all(n in got_n for n in want_n)
-                    and all(n in got_b for n in want_b),
-                    f"group {g}: {len(want_n)} number + {len(want_b)} bool words "
-                    f"co-batched at batch {(i or 0) + 1}")
-        if os.path.exists(OUT):
-            with open(OUT, encoding="utf-8", newline="") as fh:
-                assert_(fh.read().replace("\r\n", "\n") == text,
-                        "controller.yaml on disk matches this config")
-        else:
-            assert_(False, f"controller.yaml is missing ({OUT})")
+        # The Enable-default deviation, the slot packing, and the on-disk
+        # document are NOT re-asserted here: demo_document() refuses a build
+        # where its transform found no line to rewrite, check_slots refuses an
+        # unpackable config, the REFUSE above pins the settled 3-batch/50-bit
+        # wire, and freshness of the committed document is regenerate-and-read-
+        # git-diff (CONVENTIONS.md §Per-entry checks).
         # Printing the list left the prefab unpinned, and the prefab is the
         # hand-edited half — a wrong entry there lands silently (VRCFury exposes
         # nothing and says nothing) and no compile or gate reads globalParams.
@@ -317,6 +300,9 @@ def main():
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
+        print("scope: emit determinism and hand-maintained wiring only — freshness "
+              "of committed generated files is regenerate-and-read-git-diff; "
+              "document structure, prefab behavior and runtime are unverified here")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

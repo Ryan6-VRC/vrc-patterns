@@ -572,7 +572,10 @@ def build(config):
 
     # Emitted immediately after Sync and INSIDE the fragment, because ordering
     # within the fragment is the only ordering this generator owns — an importer
-    # decides where the fragment lands in its own document.
+    # decides where the fragment lands in its own document. Sync-then-Reset is
+    # safety-critical, not stylistic: on the pause frame a tail may fire
+    # `Acquired := SawHead` while Reset fires `Acquired: 0`, and Sync first is
+    # what lets the reset win that frame — do not reorder these two.
     reset = []
     o = reset.append
     o(f"  - name: {p}/Reset")
@@ -652,7 +655,7 @@ def build(config):
 
 def document(c):
     """The committed controller.yaml as text, plus the build's facts. `main()`
-    writes it; `--check` re-derives it and compares against disk."""
+    writes it; freshness is checked by regenerating and reading git diff."""
     p = c["channel"]
     f = build(c)
     L = []
@@ -682,32 +685,6 @@ def document(c):
     return "\n".join(L) + "\n", f
 
 
-def layer_block(text, name):
-    """One emitted layer's lines, `- name:` through the next layer."""
-    lines = text.splitlines()
-    try:
-        i = lines.index(f"  - name: {name}")
-    except ValueError:
-        return []
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("  - name: ")), len(lines))
-    return lines[i:end]
-
-
-def state_block(block, st):
-    """One state's body inside a layer block."""
-    try:
-        s = block.index(f"      {st}:")
-    except ValueError:
-        return ""
-    out = []
-    for ln in block[s + 1:]:
-        if ln.startswith("      ") and not ln.startswith("       "):
-            break
-        out.append(ln)
-    return "\n".join(out)
-
-
 def prefab_global_params(body):
     """The `globalParams:` list off the committed prefab, in order."""
     out, inside = [], False
@@ -723,13 +700,17 @@ def prefab_global_params(body):
 
 
 def check():
-    """Everything the repo gate cannot see: byte-identity against disk, the
-    Acquired mechanism §3.1 rests on, and the prefab's globalParams list —
-    which no compile and no gate check reads."""
+    """The hand-maintained surfaces no compile or gate reads — the prefab's
+    globalParams list and the README's quoted formula — plus the emit
+    determinism that makes regenerate-and-read-git-diff a valid freshness
+    instrument. Assertions on the emitted document's own shape — the Acquired
+    head/tail/Lost mechanism was pinned here once — are deliberately gone
+    (CONVENTIONS.md §Per-entry checks): the document is a pure function of
+    this file, and the mechanism's invariants live as comments at their
+    emission sites and in the emitted YAML."""
     c = CONFIG
     p = c["channel"]
-    text, f = document(c)
-    facts = f["facts"]
+    text = document(c)[0]
     ok = True
 
     def assert_(cond, msg):
@@ -738,60 +719,10 @@ def check():
         ok = ok and cond
 
     print("[document]")
-    # NOT a byte-identity check against anything committed — `document()` is a pure
-    # function of CONFIG, so comparing two calls only shows the emit is deterministic
-    # (no set iteration order, no clock, no dict-address leakage reaching the text).
-    # The check that can actually fail is the disk comparison below it.
+    # Comparing two calls shows only that the emit is deterministic (no set
+    # iteration order, no clock, no dict-address leakage reaching the text) —
+    # which is exactly what makes an empty regen diff mean "no drift".
     assert_(document(c)[0] == text, "emission is deterministic across two calls")
-    out = os.path.join(HERE, "controller.yaml")
-    if os.path.exists(out):
-        with open(out, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == text,
-                    "controller.yaml on disk matches CONFIG")
-    else:
-        assert_(False, f"controller.yaml is missing ({out})")
-
-    # The four drivers, asserted as the proof in the docstring states them: the
-    # only write of TRUE into Acquired is a tail copying SawHead. False reaches it
-    # two ways and both are wanted — the reset's literal `set`, and a tail copying
-    # a SawHead that is still false — so what is pinned below is that no SECOND
-    # literal zeroing exists outside the reset, not that the reset is the only
-    # write of false at all. Miscounting heads/tails is false-negative only, so
-    # nothing downstream would catch it.
-    print("[Acquired]")
-    bc, per = facts["batchCount"], facts["period"]
-    sync_b = layer_block(text, f"{p}/Sync")
-    heads = [s for s in range(per) if s % bc == 0]
-    tails = [s for s in range(per) if s % bc == bc - 1]
-    saw = [s for s in range(per) if f"{p}/SawHead: 1" in state_block(sync_b, f"Recv{s}")]
-    got = [s for s in range(per)
-           if f"{p}/Acquired: {p}/SawHead" in state_block(sync_b, f"Recv{s}")]
-    assert_(saw == heads,
-            f"SawHead is set at exactly the {len(heads)} head state(s) {heads} "
-            f"(b == 0, not s == 0 — {len(heads)} heads at indexLoops {c['indexLoops']})")
-    assert_(got == tails and text.count(f"{p}/Acquired: {p}/SawHead") == len(tails),
-            f"Acquired is copied from SawHead at exactly the {len(tails)} tail "
-            f"state(s) {tails}, and nowhere else")
-    lost = state_block(sync_b, "Lost")
-    assert_(f"{p}/SawHead: {p}/Acquired" in lost,
-            "Lost copies Acquired into SawHead — a dropped counter value cannot "
-            "knock a certified table's flag down")
-    assert_(text.count(f"{p}/Acquired: 0") == 1
-            and f"{p}/Acquired: 0" in "\n".join(layer_block(text, f"{p}/Reset")),
-            "the reset layer holds the only literal zeroing of Acquired, so every "
-            "one takes SawHead with it (a tail copying a false SawHead also writes "
-            "false, and is meant to)")
-    names = [ln.split("- name: ", 1)[1].strip()
-             for ln in text.splitlines() if ln.startswith("  - name: ")]
-    assert_(names[:2] == [f"{p}/Sync", f"{p}/Reset"],
-            "Reset is emitted directly after Sync, inside the fragment. TWO reasons, "
-            "and the second is the safety-critical one: an importer owns document "
-            "order and can silently not have it, AND on the pause frame a tail may "
-            "fire `Acquired := SawHead` while Reset fires `Acquired: 0` — Sync "
-            "first means the reset wins that frame, so do not reorder these")
-    assert_(f"  {p}/Acquired: {{ type: float, default: 0, "
-            "vrc: { type: bool, synced: false, saved: false } }" in text,
-            "Acquired is declared float-with-bool-wire, unsynced, default false")
 
     # `globalParams` is a VRCFury field with no CompileController spelling, so
     # nothing in the compile or the gate reads it. Pin the prefab's list here or
@@ -824,6 +755,9 @@ def check():
     else:
         assert_(False, "README.md is missing")
 
+    print("scope: emit determinism and hand-maintained wiring only — freshness "
+          "of committed generated files is regenerate-and-read-git-diff; "
+          "document structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 

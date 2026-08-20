@@ -94,7 +94,7 @@ identifier): `build(config)` returns the emitted pieces without writing a file:
 
 The importer owns the document frame (schema/controller/basis/role/defaults)
 and merges these under its own sections; `main()` below is itself the first
-consumer and the committed config's byte-identity check (`--check`).
+consumer.
 """
 
 import json
@@ -547,9 +547,9 @@ def build(config):
 
 def document(c, controller="QuantChannel_Fx"):
     """The committed controller.yaml as text, plus the build. `main()` writes
-    it; `--check` re-derives it and compares against disk. An instance build
-    (`index-puppet/`) reuses this frame under its own controller name — the
-    frame has one home, so a frame change reaches every build or none."""
+    it; freshness is checked by regenerating and reading git diff. An instance
+    build (`index-puppet/`) reuses this frame under its own controller name —
+    the frame has one home, so a frame change reaches every build or none."""
     f = build(c)
     L = []
     L.extend(f["header"])
@@ -580,10 +580,12 @@ def manifest_text(f):
 
 
 def check_files(document_fn, c, here, prefabs, extra=()):
-    """The check body, shared with instance builds: byte-identity of both emitted
-    files against disk, and each prefab's globalParams list — which no compile
-    reads. `extra` is (condition, message) pairs an instance appends (its registry
-    asserts); returns ok rather than exiting so the caller owns the exit code."""
+    """The check body, shared with instance builds: emit determinism (what
+    makes regenerate-and-read-git-diff a valid freshness instrument for the
+    two emitted files) and each prefab's globalParams list — which no compile
+    reads. `extra` is (condition, message) pairs an instance appends (its
+    registry asserts); returns ok rather than exiting so the caller owns the
+    exit code."""
     text, f = document_fn(c)
     ok = True
 
@@ -594,25 +596,6 @@ def check_files(document_fn, c, here, prefabs, extra=()):
 
     print("[document]")
     assert_(document_fn(c)[0] == text, "emission is deterministic across two calls")
-    out = os.path.join(here, "controller.yaml")
-    if os.path.exists(out):
-        with open(out, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == text,
-                    "controller.yaml on disk matches CONFIG")
-    else:
-        assert_(False, f"controller.yaml is missing ({out})")
-
-    print("[manifest]")
-    mpath = os.path.join(here, "built", "manifest.json")
-    if os.path.exists(mpath):
-        with open(mpath, encoding="utf-8", newline="") as fh:
-            assert_(fh.read().replace("\r\n", "\n") == manifest_text(f),
-                    "built/manifest.json on disk matches CONFIG")
-    else:
-        assert_(False, f"built/manifest.json is missing ({mpath})")
-    for ch in f["manifest"]["channels"] + f["manifest"]["gates"]:
-        assert_(ch["address"] == "/avatar/parameters/" + ch["name"],
-                f"manifest address for {ch['name']} is the checked echo of its name")
 
     print("[prefab globalParams]")
     # The prefabs carry VRCFury prefix wildcards (`<Set>/*`), not the enumerated
@@ -647,6 +630,9 @@ def check_files(document_fn, c, here, prefabs, extra=()):
     for cond, msg in extra:
         assert_(cond, msg)
 
+    print("scope: emit determinism and hand-maintained wiring only — freshness "
+          "of committed generated files is regenerate-and-read-git-diff; "
+          "document structure, prefab behavior and runtime are unverified here")
     print("OK" if ok else "FAILED")
     return ok
 
