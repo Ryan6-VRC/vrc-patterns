@@ -75,7 +75,7 @@ parameters:
 # The shipped menu. Two controls, so it ships as an asset rather than two bare VRCFury Toggles:
 # `menus:` places it at the FullController's prefix and RewriteParamName rewrites control and parameter
 # together, which is what keeps both names OFF `globalParams` and out of a host avatar's reach
-# (CONVENTIONS.md §The Interface stanza). Enable latches; ToHead is the momentary recall, so it is a
+# (CONVENTIONS.md §The README). Enable latches; ToHead is the momentary recall, so it is a
 # Button — a Toggle would leave the recall asserted until the wearer noticed and switched it back.
 menu:
   - toggle: Enable
