@@ -12,67 +12,21 @@ All three derive from [`lereldarion/unity-shaders`](https://github.com/lereldari
 
 The glyph atlas rasterizes **Geist Mono** (SIL Open Font License 1.1), credited as a courtesy: no font file ships here, only a raster we produced, so the OFL's conditions on copies of the Font Software do not attach to it and `assets/font/GeistMono-OFL.txt` ships for reference rather than obligation. Reserved Font Name binds Modified Versions of the Font Software, so by the same reasoning it does not reach a raster either — but keep the file named `GlyphAtlas`, so nobody downstream reads it as the font and inherits an obligation that is not there.
 
-## Configuring a material
+## Ground truth
 
-Every knob is a material property, grouped below the way the inspectors in `Editor/` group them. Copy a shipped material into `Assets/` before editing — the originals live under `Packages/`, which is read-only.
+- Every knob is a material property, and each shader's `Properties` block is canon for what exists and what it does: `assets/DebugDisplay.shader`, `assets/DebugOverlay.shader`, `assets/GammaCrystal.shader`, plus the crystal-shell properties all three declare identically. Those declarations carry their own rationale in comments — read them rather than anything secondhand. The `Editor/*ShaderGUI.cs` inspectors own the grouping and the section labels; with `avatar-tools` absent Unity's default inspector lists the same properties in declaration order.
+- `DebugDisplay`'s entry packing — the 6-bit charset, the label `Vector` packing, the format bitfield, the enumerated value sources — is a **managed echo of `Editor/DisplayGlyphs.cs`**, which is canon.
+- The grid goes up to 6×6, but only twelve entries exist: `DD_MAX_ENTRIES` is 12 (`assets/debug_display_common.hlsl`) and the fragment stage discards any cell past it, so a larger grid buys layout, not more readouts.
+- Parameters and animator: none of the three has either, and no menu. A value arrives from a render-side source inside the shader, or from a clip curve on the display's `MeshRenderer` writing `material._E{i}_Value`, `i` in 0..11 — a plain curve, since the shader is unlocked and needs no Poiyomi `Animated` tag.
+- Each prefab is a bare root with the renderer under it, plus the `DepthLight` child on the two that read depth, and carries no framework component of any kind — so **parenting it is the consumer's move and nothing does it for you**: no shader here depends on a rest position, and none anchors one.
+- Dependencies: none. Shaders, `ShaderGUI` inspectors, the `DisplayGlyphs` canon, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx` and three template materials all ship here, so everything is editable on a bare install of this package alone.
+- `tools/generate_atlas.ps1` regenerates the glyph atlas, parsing the charset out of `Editor/DisplayGlyphs.cs` and printing the `Font` constants to paste into `debug_display_common.hlsl`; its header carries the procedure. The cubemaps are shipped images with no generator — swap either for any 1:1 image, subject to the import settings under §Traps.
 
-**Crystal shell — all three shaders, identical properties** (`Shell enabled` gates the whole pass; turning it off leaves only the probe/readout/grading):
-
-| Property | What it does |
-|---|---|
-| `_Shell_Reflection_Color` (Color / Mask) | HDR tint and, through its alpha, a second multiplier on the reflection |
-| `_Shell_ReflectionCube` | the cubemap the shell reflects; two owned ones ship, and either may be swapped for any 1:1 image |
-| `_Shell_Reflection_Strength` | reflection brightness, 0–4 |
-| `_Shell_Reflection_Smoothness` | 0–1; drives the sampled mip through Unity's perceptual-roughness remap, so lower is blurrier |
-| `_Shell_Reflection_BlurMaxMip` | the LOD that remap reaches at roughness 1. Ranged 0–6 because 6 is `UNITY_SPECCUBE_LOD_STEPS`, where a convolved chain is already flat — the slider only ever trims blur below the convention |
-| `_Shell_Rim_Color` (Color / Alpha) | HDR rim tint; alpha is its strength multiplier |
-| `_Shell_Rim_Strength` | rim brightness, 0–4 |
-| `_Shell_Rim_Border` / `_Shell_Rim_Blur` | where the fresnel rim's smoothstep sits, and how wide its transition is |
-| `_Shell_Rim_FresnelPower` | how tightly the rim hugs the silhouette — higher is thinner |
-| `_Shell_Rim_VRParallaxStrength` | 0 puts the rim on the stereo-centre camera (both eyes see the same rim, flat but stable), 1 on the per-eye camera (parallaxes properly) |
-
-**`DebugDisplay`** — a mode bar plus three sections. `_Display_Mode` picks **Billboard** (the plane faces the viewer), **Object** (the plane is fixed to the object's basis) or **UV** (the readout is laid into the mesh's `TEXCOORD0`).
-
-| Property | What it does |
-|---|---|
-| `_Display_Face_Viewer` | Object mode only, off by default: yaws the readout plane 180° about the object's Y axis for any camera on the object's +Z side, so the grid reads from either side of a panel that stays fixed to its object. A rotation rather than a reflection, so glyphs never mirror and `_Text_Depth_Offset` keeps pushing toward the reader. §Traps has what it does at the crossing and in a mirror |
-| `_Grid_Columns` × `_Grid_Rows` | the cell grid the entries land in, up to 12 cells; entries past the grid are not drawn |
-| `_Total_Width` | layout width in **glyph advances**, not metres, so font size and layout stay independent. A cell needs 12 (label) + 10 (value) = 22 advances to avoid clipping; the inspector edits it per column (total ÷ columns), which is the number that decides whether a label clears its value |
-| `_Font_Size` | metres per ascender **at unit scale** |
-| `_Font_Scale_Relative` | on (default), `_Font_Size` is multiplied by the object's mean axis scale so text always fits its mesh; off restores the ancestor's absolute physical size. A single scalar, never per-axis — the plane basis is normalized so a stretched mesh cannot distort the monospace grid. UV mode ignores it (`_Font_Size` cancels out) |
-| `_Text_Depth_Offset` | pushes the text plane fore/aft of the object origin, ±0.5 |
-| `_Palette_0..3` | the four HDR text colours each entry chooses between |
-
-Each of the twelve entries carries a **label**, a **value**, and a packed **format** — decimals, palette index, right-pad, value source, and a **label-only** flag that draws the label with no number beside it, which is what a column-header cell is. The label is a string packed into a `Vector`; the format is a bitfield on a `[HideInInspector]` float. Both packings, the charset, and the enumerated value sources are a **managed echo of `Editor/DisplayGlyphs.cs`**, which is canon — read it rather than deriving anything here. Two facts an author cannot get from that file: **right-pad is not an align-decimals flag** — the value right-aligns to `cell_width − rpad`, so `rpad = max_decimals − entry_decimals` is what lines decimal points up down a grid column (the inspector's *Auto-align* button writes exactly that, and passes over label-only entries in both directions, so a header's unused decimals never pad the real values under it); and **labels are author-time only, by construction** — ShaderLab has no string property and animation curves carry floats, so no clip can ever drive text.
-
-**`DebugOverlay`** — `_Probe_Mode` selects **Wireframe** (triangle edges) or **Normal** (reconstructed world normals). `_Overlay_Fullscreen` takes the probe over the whole frame instead of the mesh; `_Overlay_Screenspace_Vertex_Reorder` permutes which NDC corner each vertex id lands on, for a mesh whose winding puts them the wrong way round. Fullscreen has a mesh requirement — see §Traps.
-
-**`GammaCrystal`** — grading, then the area it applies to.
-
-| Property | What it does |
-|---|---|
-| `_Gamma_Adjust_Value` | the grade itself, ±5. Negative brightens, positive darkens |
-| `_Transmit_Emission` | on, values above 1 bypass the **gamma** stage, so emissive surfaces stay emissive. Exposure is applied before the split and scotopic after it, so both still reach them |
-| `_Exposure_Enable` / `_Exposure_Value` | an optional linear exposure stage, ±5 EV stops |
-| `_Scotopic_Enable` / `_Scotopic_Strength` / `_Scotopic_Tint` | an optional desaturation toward a tint, modelling night vision |
-| `_AoE_Scale_Relative` | on (default), the three distances below are multiplied by the object's **mean axis scale**, so the effect tracks the mesh you can see; off restores the ancestor's absolute metres, and then scaling or animating the object slides the visible sphere out of the region it bounds. A single scalar: the area of effect is spherical by construction, so scale the host uniformly |
-| `_AoE_MinDistance` / `_AoE_MaxDistance` | metres from the sphere centre at which the grading is at full strength and at zero — the falloff band |
-| `_Core_Radius` / `_Core_Intensity` | a denser inner region that reads as the bubble's core. **Authored per material against the mesh you are on, not derived** — the core is a feathered smoothstep, so the radius that reads as tracing the silhouette sits slightly outside the surface, and a non-spherical mesh has no single radius to derive from. Retune by eye; scale-relative handling then holds it at any object scale |
-| `_Shell_Grading_Resist` | how much the shell resists **gamma and exposure** — 0 lets it go dark with the scene, 1 leaves it untouched and too bright. Scotopic tint is deliberately not resisted and always applies at full strength, because it is a hue shift rather than a brightness crush |
-
-## Interface
-
-**Params** — none, on any of the three. No animator, no synced parameters, no menu. Values arrive from the shader (render-side sources) or from a clip curve writing a material property.
-
-**Seam** — none, and no framework component of any kind: each prefab is a bare root with the renderer under it, plus the `DepthLight` on the two that read depth. **Parent it where you want it to ride** — no shader here depends on a rest position, so nothing anchors one for you.
-
-**Animation binding** — `DebugDisplay` only: `material._E{i}_Value`, `i` in 0..11, on the display's `MeshRenderer`. A plain clip curve; the shader is unlocked, so there is no Poiyomi `Animated`-tag step, and the material inspector has a copy button per path.
-
-**Dependencies** — none. The shaders, the `ShaderGUI` inspectors and the `DisplayGlyphs` format canon they read all ship in this entry, so everything is editable on a bare install of this package alone.
-
-**Required assets** — all shipped and self-contained: three shaders, four `.hlsl`, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx`, three template materials.
+Two facts about `DisplayGlyphs.cs` an author cannot get from that file. **Right-pad is not an align-decimals flag** — the value right-aligns to `cell_width − rpad`, so `rpad = max_decimals − entry_decimals` is what lines decimal points up down a grid column (the inspector's *Auto-align* button writes exactly that, and passes over label-only entries in both directions, so a header's unused decimals never pad the real values under it). And **labels are author-time only, by construction** — ShaderLab has no string property and animation curves carry floats, so no clip can ever drive text.
 
 ## Traps
+
+**Copy a shipped material into `Assets/` before editing it.** The originals live under `Packages/`, which is read-only.
 
 **Two of the three need a depth texture, and nothing on an avatar provides one.** `DebugOverlay` in both modes and `GammaCrystal`'s strength term read `_CameraDepthTexture`; in forward rendering Unity builds it for the screen-space shadow pass, so a **shadow-casting directional light** is what turns it on. Both sample prefabs carry a `DepthLight` child for exactly that — copy it wholesale rather than reconstructing its values, which the prefab holds. A world's own shadow-casting light populates the texture too, which is the trap in judging `DepthLight` redundant: it keeps working in the venue you tested and goes flat in the next one. Absence is silent — flat fill, uniform grading, no error.
 
@@ -92,7 +46,11 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 
 **Mesh merging can relocate any of this.** Optimizers key merge decisions off the avatar root, and wherever you parented these is not it. Measured against `d4rkAvatarOptimizer` at defaults on a composed humanoid, both displays were left alone — one optimizer at one setting, not a guarantee. Use the per-GameObject opt-out where a readout is load-bearing.
 
+**Texture import settings are load-bearing and Unity's defaults are wrong for all three.** The atlas must be uncompressed, non-sRGB and mip-free, and both cubemaps need `TextureCube` shape, Specular convolution, mips, and a trilinear filter. They are pinned only in the committed `.meta`s, every wrong value fails **silently** (a wrong reflection or a dead blur slider, never a pink material), and replacing a cubemap therefore means overwriting the PNG bytes and keeping the existing `.meta` — which also carries the GUID the materials resolve.
+
 ## Verifying the install
+
+Nothing in this entry compiles, so this section is its only standing check.
 
 **`DebugDisplay`** — the readout's numbers should track the wearer moving. Stuck near `0.00` means the prefab is still sitting at the avatar-root origin — it ships unparented, so that reading is "never placed", not a fault. Mesh visible but text absent means an outgrown window (`Cull Back` makes the mesh a window, so oversized text is absent rather than clipped) — check `_Font_Scale_Relative` and `_Font_Size`; in UV mode check the mesh has `TEXCOORD0` first.
 
@@ -105,9 +63,3 @@ Each of the twelve entries carries a **label**, a **value**, and a packed **form
 **To check whether a clip is driving a display entry, read the renderer's `MaterialPropertyBlock`, not the material.** `sharedMaterial.GetFloat("_E0_Value")` keeps returning the authored value while the display visibly animates; use `renderer.GetPropertyBlock(mpb)`. Never touch `renderer.material` on a live avatar — that instantiates it and changes what `sharedMaterial` compares equal to.
 
 **What the Editor cannot show:** `VRChatCameraMode`, `VRChatMirrorMode` and `StereoEyeIndex` read 0 whether or not the globals exist, so the camera and mirror behaviours above are Editor-invisible, and the stereo-centre handling only manifests as per-eye disparity in a headset. `docs/emulator.md` owns the general boundary.
-
-## Shipped assets
-
-Texture import settings are load-bearing and Unity's defaults are wrong for all three: the atlas must be uncompressed, non-sRGB and mip-free, and both cubemaps need `TextureCube` shape, Specular convolution, mips, and a trilinear filter. They are pinned only in the committed `.meta`s, every wrong value fails **silently** (a wrong reflection or a dead blur slider, never a pink material), and replacing a cubemap therefore means overwriting the PNG bytes and keeping the existing `.meta` — which also carries the GUID the materials resolve.
-
-`tools/generate_atlas.ps1` regenerates the glyph atlas, parsing the charset out of `Editor/DisplayGlyphs.cs` and printing the `Font` constants to paste into `debug_display_common.hlsl`; its header carries the procedure. The cubemaps are shipped images with no generator — swap either for any 1:1 image, subject to the settings above.
