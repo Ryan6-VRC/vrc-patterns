@@ -44,7 +44,7 @@ Two things this entry specifically flags for the emulator pass: the **remote cro
 ## Rig
 
     AnchorProp                        root — VRCFury FullController (FX + Gesture rows) + Toggle
-    ├─ Container      (0, 1.1, 0.14)  VRCParentConstraint, sources [source0 StowOffset,
+    ├─ Container                      VRCParentConstraint, sources [source0 StowOffset,
     │  │                              source1 HandROffset, source2 HandLOffset,
     │  │                              source3 MouthOffset, source4 WorldAnchor];
     │  │                              VRCContactSender sphere r=0.03, tag AnchorProp
@@ -58,17 +58,17 @@ Two things this entry specifically flags for the emulator pass: the **remote cro
     │                                 VRCFury's param rewrite and reads 0 forever —
     │                                 `nondestructive.md`) while its `rootTransform` points at
     │                                 the offset, so only the sensing shape rides the anchor
-    ├─ StowAnchor     (0, 1.1, 0)     MA BoneProxy → Chest, AsChildAtRoot
-    │  └─ StowOffset  (0, 0, 0.14)    consumer-editable; constraint + shape target
+    ├─ StowAnchor                     MA BoneProxy → Chest, AsChildAtRoot
+    │  └─ StowOffset                  consumer-editable; constraint + shape target
     ├─ HandRAnchor                    MA BoneProxy → Right Hand   └─ HandROffset
     ├─ HandLAnchor                    MA BoneProxy → Left Hand    └─ HandLOffset
-    └─ MouthAnchor    (0, 1.4, 0)     MA BoneProxy → Head, + VRCHeadChop {MouthAnchor @1} — the
+    └─ MouthAnchor                    MA BoneProxy → Head, + VRCHeadChop {MouthAnchor @1} — the
        │                              chop-exempt head anchor (the load-bearing piece): without
        │                              its own chop exemption, first-person head chop collapses the
        │                              anchor *offset* toward the head pivot (parent scale
        │                              multiplies child local position) and your full-size prop
        │                              floats inside your head instead of sitting at your lips
-       └─ MouthOffset (0, 0, 0.09)    consumer-editable lip point
+       └─ MouthOffset                 consumer-editable lip point
 
     On a proxy-head rig (`head-proxy`) the humanoid head is already exempt — the MouthAnchor's
     own chop component is then redundant but harmless (exemptions multiply at 1×1).
