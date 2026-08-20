@@ -17,15 +17,22 @@ Its own contribution, belonging to no entry: the raycast placement mode, the thr
 
 ## Install
 
-Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anchor` and `HandL_Anchor` are VRCFury `ArmatureLink`s targeting the humanoid **RightHand** and **LeftHand** bones, so they resolve on any humanoid rig without naming a bone or pointing at an object. It builds correctly from any scene position and at any avatar scale, and the rig rides the body while you author rather than snapping to the origin: the root's two pinning constraints ship **disabled**, and a VRCFury `ApplyDuringUpload` re-enables them during the build, so the hand seams capture the poses authored on the avatar instead of the origin-parked ones an edit-time constraint solve would yank them to.
+Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anchor` and `HandL_Anchor` are VRCFury `ArmatureLink`s targeting the humanoid **RightHand** and **LeftHand** bones, so they resolve on any humanoid rig without naming a bone or pointing at an object. It builds correctly from any scene position and at any avatar scale, and the rig rides the body while you author rather than snapping to the origin: the root's two pinning constraints ship **disabled** and a VRCFury `ApplyDuringUpload` re-enables them during the build, so the hand seams capture the poses authored on the avatar instead of the origin-parked ones an edit-time constraint solve would yank them to. All three of those — both constraints and the clip — are **inherited from `object-sync`'s entry prefab**, which this prefab is a variant of; they are not authored here and not yours to tune.
 
 **Do not enable those two constraints** to make the editor view look world-pinned. An enabled pin at edit time is what makes a keep-offsets seam bake the wrong offsets, and a re-baked pin is the failure the swap exists to prevent — `../../../docs/gimmicks.md` §Constraint patterns owns the rule and the trap it replaces.
 
 ## The arrangement, which is the point
 
-    ObjectSyncDemo         VRCParentConstraint + VRCScaleConstraint -> World, both disabled in the editor
-                           [VF FullController = Demo_Fx] [VF ApplyDuringUpload = assets/PinEnable.anim]
-    |- Display_Source      src0 = ObjectSync/Sync, src1 = ObjectSync/Rig/Prop/Display
+    ObjectSyncDemo         a PREFAB VARIANT of ../../object-sync/ObjectSync.prefab
+                           inherited: VRCParentConstraint + VRCScaleConstraint -> World, both disabled in
+                             the editor; [VF ApplyDuringUpload = ../../object-sync/assets/PinEnable.anim];
+                             and the entry's own nodes Rig / Sync_Target / Sync
+                           removed:  the entry's 27-bit [VF FullController], its menu [VF Toggle], and
+                             Sync_Target's Drop [VF Toggle] — this composition drives placement itself
+                           added:    [VF FullController = object-sync/built] this build's 50-bit entry,
+                             [VF FullController = Demo_Fx] everything below
+    |- Rig Sync_Target Sync  the entry's, inherited
+    |- Display_Source      src0 = Sync, src1 = Rig/Prop/Display
     |- Prop_Damped         src0 = Display_Source, src1 = self
     |  `- Cube             the carried prop (+ DepthLight)   [VF Toggle = Wireframe]
     |- HandR_Anchor        [VF ArmatureLink -> RightHand]
@@ -34,10 +41,9 @@ Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anc
     |     `- RayHit        the raycast's resultTransform
     |        `- RayLift    half the cube's 0.15 m extent up the normal, so it rests ON the surface
     |- HandL_Anchor        [VF ArmatureLink -> LeftHand]   `- Panel   the debug-shaders tablet
-    |- ObjectSync          the entry: Rig / Sync_Target / Sync
     `- AntiCull
 
-This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law): `ObjectSyncDemo` is the world pin, `Display_Source` the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. The damper sits under a pinned parent because a damper whose parent moves is dragged by its parent's motion. Read the two subtrees by role: `ObjectSync` is the measurement rig, self-pinned inside its own `Rig`; the `Display_Source → Prop_Damped → Cube` chain is the content the measurement drives.
+This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law), with the pin supplied by the entry rather than built here: the variant root **is** the entry's pinned root, `Display_Source` is the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. The damper sits under a pinned parent because a damper whose parent moves is dragged by its parent's motion. Read it by role: `Rig` is the measurement tree, riding the root's pin; the `Display_Source → Prop_Damped → Cube` chain is the content the measurement drives. There is one pinned frame now, not a composition pin above an entry pin — the entry carries it, and every consumer gets it.
 
 **`PinEnable.anim` is hand-maintained and ungated, so its content is specified here.** Two float curves, both `attribute: m_Enabled` at `path: ""` (an `ApplyDuringUpload` clip resolves against its own GameObject, which is the prefab root) with value `1` — one targeting the root's `VRCParentConstraint`, one its `VRCScaleConstraint`. The gate holds `built/` against `controller.yaml` and never opens `assets/`, so a curve dropped or retargeted here leaves every check green and surfaces only as a mislinked hand on someone else's avatar.
 
@@ -63,7 +69,7 @@ Tracking is deliberately **raw** — no smoothing on the aim. Aliasing under a f
 
 ## Its own object-sync build
 
-`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — **50 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 28-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. Retune in `generate.py`, never in the emitted `controller.yaml`.
+`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — **50 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 28-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. The variant reaches it by **removing** the entry's inherited `FullController` and adding its own pointing here — a VRCFury component takes no prefab-instance override, so remove-and-add is the only way to redirect one (`../../../docs/nondestructive.md`). Retune in `generate.py`, never in the emitted `controller.yaml`.
 
 One post-generation deviation, applied in `demo_document()` which owns the reason: `Enable` defaults **true**, because a demo whose subject is off until you find the menu demonstrates nothing.
 

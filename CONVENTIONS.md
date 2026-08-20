@@ -29,7 +29,7 @@ One axis: does the entry ship a GUID-consumer referencing `built/`? Read the tie
 
 ## `compositions/`
 
-A composition is a runnable arrangement of two or more entries, committed as a prefab rather than written up (prose is lossy about arrangement); gated as an entry but not a library entry — not catalogued, not lifted. It does not stamp the entry commits it was built against: the entries are checked out beside it, so git already holds that state.
+A composition is a runnable arrangement of two or more entries, committed as a prefab rather than written up (prose is lossy about arrangement); gated as an entry but not a library entry — not catalogued, not lifted. A configuration that differs from an entry — a composition, a variant build — is a **prefab variant** of that entry's prefab wherever it shares the entry's rig, so the shared nodes are inherited rather than copied and an entry-side retune reaches them. Customising a VRCFury component on a variant is whole-component **remove-and-add**, never a property override on the inherited one; `../docs/nondestructive.md` owns why an override there does not survive a build. It does not stamp the entry commits it was built against: the entries are checked out beside it, so git already holds that state.
 
 - **Never a vendor base.**
 - It may carry its own generated build of a composed entry, at its own CONFIG: drive the entry's generator unmodified and deviate after (a forked copy is a second canon), and regenerate that `built/` like any other — never hand-tune it.
