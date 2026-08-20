@@ -17,14 +17,6 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-# Entries whose READMEs predate the contract and are cleared by a named block, NOT a standing
-# exemption. `docs/local/readme-contract-brief.md`'s wave empties this list; object-sync's slice
-# already deleted its attributions and dropped its line. An allowlisted file with NO hits fails
-# below — the list cannot outlive its cause unnoticed.
-$allow = @(
-  'compositions/object-sync-demo/README.md'
-)
-
 $verbs = 'assert|hold|refus|pin|guard|catch|verif|enforc'
 $patterns = @(
   "(?i)--check[^\r\n]{0,40}?($verbs)",
@@ -40,7 +32,6 @@ $rootReadme = (Join-Path $Root 'README.md')
 $files = Get-ChildItem -LiteralPath $Root -Recurse -File -Filter 'README.md' |
   Where-Object { $_.FullName -ne $rootReadme -and -not $_.FullName.Contains([IO.Path]::DirectorySeparatorChar + '.git' + [IO.Path]::DirectorySeparatorChar) }
 
-$hitFiles = @{}
 $failed = $false
 foreach ($f in $files) {
   $rel = [IO.Path]::GetRelativePath($Root, $f.FullName).Replace('\', '/')
@@ -51,11 +42,8 @@ foreach ($f in $files) {
     foreach ($p in $patterns) {
       $m = [regex]::Match($line, $p)
       if ($m.Success) {
-        if ($allow -notcontains $rel) {
-          $failed = $true
-          Write-Host "[readme-lint] $rel`:$i attributes coverage to a check: ...$($m.Value)..."
-        }
-        $hitFiles[$rel] = $true
+        $failed = $true
+        Write-Host "[readme-lint] $rel`:$i attributes coverage to a check: ...$($m.Value)..."
         break
       }
     }
@@ -63,19 +51,10 @@ foreach ($f in $files) {
   }
 }
 
-foreach ($a in $allow) {
-  if (-not (Test-Path -LiteralPath (Join-Path $Root $a))) {
-    Write-Host "[readme-lint] allowlist names '$a', which does not exist — drop the entry."
-    $failed = $true
-  } elseif (-not $hitFiles.ContainsKey($a)) {
-    Write-Host "[readme-lint] allowlist names '$a', which is now clean — delete its line from this script."
-    $failed = $true
-  }
-}
 
 if ($failed) {
   Write-Host "[readme-lint] FAIL — CONVENTIONS.md §The README: the check prints its own scope; a README may say only ``run generate.py --check``. Figure pins are asserts inside --check, never claims here."
   exit 1
 }
-Write-Host "[readme-lint] pass — $($files.Count) READMEs, $($allow.Count) allowlisted."
+Write-Host "[readme-lint] pass — $($files.Count) entry READMEs."
 exit 0

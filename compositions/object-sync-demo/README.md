@@ -1,8 +1,12 @@
 # object-sync-demo — a world-synced prop with a live readout of its own wire (Composition)
 
-A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. Widened to **50 synced bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur.
+A droppable rig that carries a prop at absolute world position and rotation for every client in the instance: hold it in your hand, **point at a surface and place it there**, or freeze it where it stands. A hand-held tablet reads the sync out as it happens — the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Drop it on any humanoid avatar; it links to the hands by bone and touches nothing else. The wire is widened to **50 bits** for a 3-batch, ~0.350 s full refresh, which is what makes the tablet's Index read as a counter rather than a blur; the avatar-facing cost is **61 synced bits** — that wire, `ObjectSync/Enable`, and the demo's own three synced controls.
 
 Worth reading as a worked example of three things beyond world sync: a **hand-mounted `VRCRaycast`** with a surface-aligned result driving placement, a **`debug-shaders` numeric readout** driven live from animator clips, and a constraint **placement multiplexer** with a miss-tolerant hold state.
+
+## Provenance
+
+`object-sync` descends from VRLabs' **Custom-Object-Sync** (MIT, © VRLabs); the wire descends from **VRCFury**'s Parameter Compressor. The tablet and cube shaders are **Lereldarion**'s, with **d4rkpl4y3r**'s `unity_CameraInvProjection` patch for BIRP VR depth and the wireframe idea from **Neitri**; the glyph atlas rasterizes **Geist Mono** (SIL OFL 1.1). The three-tier arrangement was arrived at independently by a private doll rig and by this demo, which is what makes it an idiom rather than one author's habit.
 
 ## What it composes
 
@@ -14,6 +18,12 @@ Worth reading as a worked example of three things beyond world sync: a **hand-mo
 | `debug-shaders` | the hand tablet's numeric readout and the world-coordinate cube |
 
 Its own contribution, belonging to no entry: the raycast placement mode, the three-mode placement multiplexer, and the clips that drive the tablet.
+
+## Ground truth
+
+- Everything this composition authors — the placement ladder, the reconstruction view, the damper, the tablet clips, and every parameter's syncedness and default — is `controller.yaml` (`Demo_Fx`), hand-authored, with its header the design record for each of those four subsystems and for why the whole demo is one document.
+- The `object-sync` build it runs on is `object-sync/` beside this file, emitted by `generate.py` from the entry's generator; the `globalParams` match list the demo's prefab needs, and the reasoning for each of its four entries, are in that generator's `global_params()`.
+- **The shipped menu is seven controls**, authored as `controller.yaml`'s `menu:` block: the three placement modes, `Sync Info`, `Enable ObjectSync`, and a `Debug View` submenu carrying `View Remote` and `Damping`. Two defaults are deliberate and read as faults if you do not know them — **the tablet ships hidden** (`Tablet/Show` off, so the demo's first read is the cube alone rather than a wall of numbers) and `ObjectSync/Enable` ships **on**, against the entry's own default. There is no `AntiCull` control because its Toggle is deleted rather than hidden: `addMenuItem` is `[NonSerialized]`, so a shipped Toggle cannot be kept-but-hidden, and the entry's `AntiCull/Enable` defaults true, which leaves the module simply always on.
 
 ## Install
 
@@ -47,7 +57,9 @@ This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Co
 
 **`PinEnable.anim` is the entry's asset, not this composition's** — `../../object-sync/assets/PinEnable.anim`, inherited with the pin, and `../../object-sync/README.md` §Required assets is where its content is specified. It is reached here through inheritance and is not yours to edit; a curve dropped or retargeted there leaves every check green and surfaces only as a mislinked hand on someone else's avatar.
 
-**The tuned numbers, and why they are what they are.** `Prop_Damped` runs `1 : 0` on the wearer and `0.05 : 1` on a remote — undamped locally so a grab has nothing to fight, damped remotely because that is the only side with a stepping reconstruction to smooth. Rotation is left undamped: position wants lag where rotation reads as sluggishness. `Panel` and `HandOffset` carry hand-placement offsets set by eye against a real head-height view; they are taste, they are why this composition exists as a prefab rather than a description, and there is no derivation to recover them from.
+**The damper is a toggle, not a side.** `Reconstruction/Damping` is a **synced** menu bool defaulting **off** — the damper is a per-client constraint, so every client rendering the reconstruction has to be told to smooth it. Nor is it per-side: the `Reconstruction/Damp` layer damps whenever what is on screen is the *reconstruction* (a remote with `Enable` and `Ch/Acquired`, or the wearer in View Remote), and never the wearer's directly-carried prop. Position and rotation damp **in lockstep** — both are constraints on the same node and every clip writes all four weights, the policy stated at `controller.yaml:398-400`, because a clip that damped one and not the other would show the reconstruction's position at the wearer's hand orientation. The strength itself is a rate rather than a distance, and the header carries the law, the measurement behind it, and the two placement rules a later edit must not undo.
+
+`Panel` and `HandOffset` carry hand-placement offsets set by eye against a real head-height view; they are taste, they are why this composition exists as a prefab rather than a description, and there is no derivation to recover them from.
 
 ## Placement modes, and the raycast
 
@@ -59,7 +71,7 @@ This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Co
 
 Tracking is deliberately **raw** — no smoothing on the aim. Aliasing under a fast sweep is this rig's subject rather than its defect, and an exponential smoother changes the approach curve, never the sample rate, so it could not suppress it anyway.
 
-**The trap, which costs an hour and has no symptom.** Keep `Placement/Ray_Hit` **off** `globalParams`. VRCFury decides on the suffixed animator param but rewrites the `VRCRaycast` component's **base** parameter, so exposing `Placement/Ray_Hit` leaves the component writing `VF117_Placement/Ray_Hit` while the controller reads the bare one — the miss gate goes dead with no warning and no error, and everything looks wired. Scoping the prefab's list to `ObjectSync/*` rather than widening it to `*` is what keeps this pair prefixed together; `../../../docs/gimmicks.md` §Packaging owns the asymmetry and the sensing components it does *not* apply to.
+**The trap, which costs an hour and has no symptom.** Keep `Placement/Ray_Hit` **off** `globalParams`. VRCFury decides on the suffixed animator param but rewrites the `VRCRaycast` component's **base** parameter, so exposing `Placement/Ray_Hit` leaves the component writing `VF117_Placement/Ray_Hit` while the controller reads the bare one — the miss gate goes dead with no warning and no error, and everything looks wired. Scoping the prefab's list to `ObjectSync/*` rather than widening it to `*` is what keeps this pair prefixed together; `../../../docs/gimmicks.md` §Packaging and interface owns the asymmetry and the sensing components it does *not* apply to.
 
 `selective-animation` is the other raycast in this repo and the deeper reference on the component itself — per-observer targeting, layer masking, and why a miss reports differently per `MissBehavior`. It aims at *players*; this one aims at *world surfaces*, so the two do not share a trap list.
 
@@ -69,18 +81,14 @@ Tracking is deliberately **raw** — no smoothing on the aim. Aliasing under a f
 
 ## Its own object-sync build
 
-`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — **50 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 28-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. The variant reaches it by **removing** the entry's inherited `FullController` and adding its own pointing here — a VRCFury component takes no prefab-instance override, so remove-and-add is the only way to redirect one (`../../../docs/nondestructive.md`). Retune in `generate.py`, never in the emitted `controller.yaml`.
+`object-sync/` beside this file is this composition's own build of the entry, at `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — **50 wire bits, 3 batches, ~0.350 s**, against the entry's shipped 27-bit/6-batch default. `generate.py` drives `../../object-sync/generate.py` unmodified and deviates after, so the entry stays byte-identical; `CONVENTIONS.md` §compositions/ owns why the build lives here instead of as a fourth preset in the entry. The variant reaches it by **removing** the entry's inherited `FullController` and adding its own pointing here — a VRCFury component takes no prefab-instance override, so remove-and-add is the only way to redirect one (`../../../docs/nondestructive.md`). Retune in `generate.py`, never in the emitted `controller.yaml`.
 
 One post-generation deviation, applied in `demo_document()` which owns the reason: `Enable` defaults **true**, because a demo whose subject is off until you find the menu demonstrates nothing.
 
 ## Verifying it
 
-`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window.
+`object-sync`'s own §Verifying the install is the procedure and this composition adds nothing to it, with one shortcut it makes available: the tablet reads the full-resolution decoded values the entry computes, so `_E2..E7` showing the assembled cell index and fine index per axis, `_E8` climbing as the batch index, and `_E9` reading `ObjectSync/Ch/Acquired` **on a clone** is a whole-wire check you can read off the hand instead of from a param window. Turn the tablet on first — `Sync Info` in the menu, since it ships hidden.
 
 Measured on this arrangement against a spawned remote clone, with the clone's reconstruction engaged and its decode certified: reconstruction converges **1.74 mm / 0.00°**, and Freeze drifts 0.06 mm under a 2 m shove.
 
 The hand seams capture independently of where the avatar sits and how it is scaled: built anchor-to-bone error is **≤ 1 µm** at the origin, at (3, 0, −2), and at avatar root scale 1.7 — against **3.61 m** and **0.72 m** for the latter two with the pins left enabled at edit time. Scale is the case position alone cannot expose, and the one the shipped reference never exercised.
-
-## Provenance
-
-`object-sync` descends from VRLabs' **Custom-Object-Sync** (MIT, © VRLabs); the wire descends from **VRCFury**'s Parameter Compressor. The tablet and cube shaders are **Lereldarion**'s, with **d4rkpl4y3r**'s `unity_CameraInvProjection` patch for BIRP VR depth and the wireframe idea from **Neitri**; the glyph atlas rasterizes **Geist Mono** (SIL OFL 1.1). The three-tier arrangement was arrived at independently by a private doll rig and by this demo, which is what makes it an idiom rather than one author's habit.
