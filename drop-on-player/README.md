@@ -4,25 +4,24 @@ Grab the prop and release it: on your own head it anchors (a bone constraint); o
 
 **Provenance:** generalized from a private production avatar's carried-doll system; its tracking cage is `box-tracker`'s 4-box exact readout, lifted whole and wear-tested in-game. Not a compose of `grab-prop` + `box-tracker` — one compressed controller reusing their measured idioms.
 
-## Interface
+## Ground truth
 
-- **Params:**
-  - `DropOnPlayer/Out`, `DropOnPlayer/Worn` (bools, synced, **unsaved**) — the rest mode, written only by the wearer's localOnly drivers: `00` disabled · `01` anchored (own head) · `11` tracked (another player) · `10` dropped (world). Off-is-reset; both default false.
-  - `DropOnPlayer/Enable`, `DropOnPlayer/ToHead` (bools, **unsynced**) — menu intents, local-only; the synced pair carries the outcome. Both take the instance prefix with the shipped menu, so neither name is exposed to the host avatar. `Enable` off hides the prop everywhere and resets; on restores it to your own head. `ToHead` (momentary, a menu Button) recalls a dropped/tracked prop to your head — the failsafe, and desktop's only path back for an affordance it can't otherwise reach.
-  - `DropOnPlayer/{X+,X-,Y+,Z+}` + `SelfDetect` (floats), `GrabBone_IsGrabbed` (bool), `One` (scratch constant, excluded from the params asset) — sensing; never synced, never menu-exposed. The four box-cage receivers are `localOnly: 0` **by necessity** (remotes re-derive the chase); `SelfDetect` is `localOnly: 1` (routing input only — its outcome syncs as the pair).
-- **Seam:** VRCFury `FullController` on the prefab root (FX, `basis: mount-root`) merging `built/DropOnPlayer_Fx_Parameters.asset` and `built/DropOnPlayer_Fx_Menu.asset` at prefix `Drop On Player`. `globalParams` is **empty**: with two controls the menu ships as an asset, so `RewriteParamName` takes control and parameter together and nothing escapes to the host avatar. **Plus one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone — a mixed seam, needed so the anchor's placement is visible while authoring. `HeadMount` is referenced only as a constraint source; no VRCF clip binding paths through it.
+- Parameters, states, clips and the whole arbitration are `controller.yaml`. Its header is the design record — the 2-bool wire surface and what each combination means, the release ladder, how remotes and late joiners resolve, and the deliberate deltas from the source ancestor — and the per-state comments carry the rest. The published set is the prefab's VRCFury `FullController` `globalParams`, which is **empty**: with two controls the menu ships as an asset, so `RewriteParamName` takes control and parameter together and no name escapes to the host avatar.
+- **Seam:** VRCFury `FullController` on the prefab root (FX, `basis: mount-root`) merging `built/DropOnPlayer_Fx_Parameters.asset` and `built/DropOnPlayer_Fx_Menu.asset` at prefix `Drop On Player`, **plus one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone. The mixed seam is deliberate: the proxy is what makes the anchor's placement visible while authoring. `HeadMount` is referenced only as a constraint source, so no VRCF clip binding paths through it.
+- Everything else about the rig — every constraint source list, receiver shape, physbone force and rest offset — is in `DropOnPlayer.prefab`. See **Rig** for what each node is for.
+- The four box-cage receivers are `localOnly: 0` **by necessity**, because remotes re-derive the chase from their own sensors; `SelfDetect` is `localOnly: 1`, a routing input whose outcome syncs as the pair.
 - **Dependencies:** none beyond VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull` alongside** (its README §When a module needs this) — the tracked and dropped modes replay choreography while the payload is away from the wearer.
-- **Required assets:** `built/DropOnPlayer_Fx_Menu.asset` — the shipped menu, regenerated from the `menu:` block in `controller.yaml` like the rest of `built/`. `assets/World.prefab` — never-instantiated scale reference for the tracking cage (absolute meters). Do not instantiate or delete it. `Payload` is a placeholder sphere on Unity's built-in default material — swap it, keep it under `Container`.
+- **Required assets:** `built/DropOnPlayer_Fx_Menu.asset`, the shipped menu, regenerated from `controller.yaml`'s `menu:` block like the rest of `built/`. `assets/World.prefab` — a never-instantiated scale reference that makes the tracking cage absolute-meters; do not instantiate or delete it. `Payload` is a placeholder sphere on Unity's built-in default material — swap it, keep it under `Container`.
 
-## How it works
-
-The prop (`Container`) multiplexes three position sources: `HeadMount/AnchorOffset` (anchored), `SourcePosition` (grabbed/dropped, sample-and-hold), `TrackedPoint/RideOffset` (tracked, riding the cage). The same four box receivers that track a target double as the "is another player's head here" sensor: parked, they ride `TrackingOffset` at head-contact level below the prop; tracking, they reconstruct the target's exact position and the cage eases onto it, then crawls to keep station (`box-tracker`). The prop rides the cage, never the raw readout.
-
-**Release arbitration** (priority top-down, evaluated by the wearer): the self receiver fires (own standard Head sender at `TrackingOffset`) → anchored; all four boxes fire → tracked (the cage latches `allowOthers` shut and the readout crawler takes over); neither → a `grab-prop` release pulse → dropped. The winning branch's localOnly driver stamps the synced pair at release.
-
-**Remotes** resolve from the synced pair rather than local sensors, freezing the prop in place on every release and self-correcting if the pair changes. **Tracking loss also freezes the prop in place** rather than snapping it home, for wearer and remote alike, since observers unload a distant target at different times. **Late joiners** dwell a boot timer, then resolve from the pair alone — anchored or hidden resolve immediately, but a tracked or dropped prop stays hidden until a witnessed grab, fail-visible since that position never crossed the wire.
+## Before you compose it
 
 **Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the prop off your head and put it on theirs, since the wearer's client arbitrates from wherever the prop currently is. `allowPosing` is off — persistence is always a constraint hold.
+
+**Self-detection cannot be fooled by another wearer.** The `TrackingOffset` receiver is allowSelf-only on the standard `Head` tag, so a friend wearing the same module — or any other player's head — cannot trip your self-anchor, because their senders are "other".
+
+**Loss is ANY-box, inherited from `box-tracker`.** One dead box breaks the exact reconstruction, so a target leaving even one box's core drops the prop. Tracking loss freezes it in place rather than snapping it home, for wearer and remote alike, because observers unload a distant target at different times.
+
+## Measured
 
 Empirical constants (90% rule — test before changing):
 
@@ -47,52 +46,42 @@ Two clients in-game, not the emulator: remote-side cage re-derivation (clone rec
 
 ## Rig
 
-The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` on, source weights swapped by the clips; positions below are edit-time rest (0, 0.8, 0.25 ≈ chest-front).
+The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` is on and the clips swap source weights; the transform positions it carries are edit-time rest at chest-front.
 
-    DropOnPlayer                      root — VRCFury FullController + 2 Toggles
-    ├─ Container      (0, 0.8, 0.25)  VRCPositionConstraint [source0 HeadMount/AnchorOffset,
-    │  │                              source1 SourcePosition, source2 TrackedPoint/RideOffset]
-    │  ├─ Payload                     placeholder sphere — swap for your prop, keep under Container
-    │  └─ TrackingOffset (0,-0.2,0)   VRCContactReceiver: tag Head, Constant radius 0.1, allowSelf ON
-    │                                 allowOthers OFF localOnly ON → DropOnPlayer/SelfDetect; also the
-    │                                 cage's park source (How it works)
-    ├─ SourcePosition (0, 0.8, 0.25)  VRCPositionConstraint [source0 DropPosition, source1 TrackingPoints]
-    │                                 — the sample-and-hold cell; samples the cage while Tracked
-    ├─ HeadMount                      MA BoneProxy → Head (AsChildAtRoot — snaps to the head bone) +
-    │  │                              VRCHeadChop (target HeadMount, scale 1, AlwaysApply): the local
-    │  │                              player's head bone zero-scales in first person, which would
-    │  │                              collapse AnchorOffset onto the bone
-    │  └─ AnchorOffset (0, 0.25, 0)   the anchored rest point, in the head-bone frame (see the Anchor
-    │                                 offsets row)
-    ├─ TrackedPoint   (0, 0.8, 0.25)  VRCPositionConstraint [source0 TrackingPoints] — rides the cage
-    │  └─ RideOffset  (0, 0.2, 0)     tracked-mode rest point, above the cage — the prop rides like a hat
-    ├─ TrackingPoints (0, 0.8, 0.25)  localScale (0.05, 0.1, 0.05) = the 0.15×0.15×0.3 m catch column
-    │  │                              (side = 3 × scale); VRCParentConstraint [TrackingOffset] (park — rides
-    │  │                              the prop); VRCPositionConstraint [source0 Output, source1 self] — the
-    │  │                              crawl feedback loop, source0 eased in by the tracked clip (box-tracker);
-    │  │                              VRCScaleConstraint [World.prefab, ScaleOffset ×1] (absolute 6×6×3 m boxes)
-    │  ├─ X+ X- Y+ Z+                 4 box GOs (box-tracker's cage), each a VRCContactReceiver: tag Head,
-    │  │                              Proximity + useFaceProximity, size 6×6×3, radius 0.5, allowSelf OFF
-    │  │                              allowOthers ON localOnly OFF; 90°-rotated per axis (+Z face → named
-    │  │                              axis), localScale (0.5,0.5,1) — box-tracker owns the cage geometry
-    │  └─ Output                      the readout target: the Tracked-state tree writes its localPosition
-    │                                 (exact sender position)
-    ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint [source0 AnchorOffset, source1 Container]
-    │  └─ GrabBone                    VRCPhysBone (parameter GrabBone) — grab-prop's rig verbatim:
-    │     │                           pull 1, stiffness 0.2, spring 0, gravity 0, immobile 1 AllMotion,
-    │     │                           radius 0.075, grabMovement 1, maxStretch 100000, allowPosing OFF,
-    │     │                           ignoreTransforms [DropPosition], isAnimated 0, resetWhenDisabled 0
-    │     └─ GrabBone_End (0, .02, 0)
+    DropOnPlayer                      root — the VRCFury FullController seam
+    ├─ Container                      VRCPositionConstraint multiplexing the three rest sources:
+    │  │                              HeadMount/AnchorOffset, SourcePosition, TrackedPoint/RideOffset
+    │  ├─ Payload                     placeholder sphere — swap for your prop, keep it under Container
+    │  └─ TrackingOffset              self-only Head receiver → DropOnPlayer/SelfDetect; also the
+    │                                 cage's park source
+    ├─ SourcePosition                 VRCPositionConstraint [DropPosition, TrackingPoints] — the
+    │                                 sample-and-hold cell; samples the cage while Tracked
+    ├─ HeadMount                      MA BoneProxy → Head (AsChildAtRoot) + VRCHeadChop (AlwaysApply):
+    │  │                              the local player's head bone zero-scales in first person, which
+    │  │                              would otherwise collapse AnchorOffset onto the bone
+    │  └─ AnchorOffset                the anchored rest point, in the head-bone frame
+    ├─ TrackedPoint                   VRCPositionConstraint [TrackingPoints] — rides the cage
+    │  └─ RideOffset                  tracked-mode rest point above the cage — the prop rides like a hat
+    ├─ TrackingPoints                 the catch column, sized by its rest localScale together with the
+    │  │                              scale constraint's ScaleAtRest. VRCParentConstraint
+    │  │                              [TrackingOffset] parks it on the prop; VRCPositionConstraint
+    │  │                              [Output, self] is box-tracker's crawl feedback loop, eased in by
+    │  │                              the tracked clip; VRCScaleConstraint [World.prefab] makes the
+    │  │                              cage absolute-meters
+    │  ├─ X+ X- Y+ Z+                 box-tracker's 4-box cage — face-proximity Head receivers, one
+    │  │                              rotated onto each named axis; that entry owns the geometry
+    │  └─ Output                      the readout target: the Tracked tree writes its localPosition
+    ├─ GrabPosition                   VRCPositionConstraint [AnchorOffset, Container]
+    │  └─ GrabBone                    VRCPhysBone, grab-prop's rig verbatim — see that entry's Rig
+    │     └─ GrabBone_End
     │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld — world-stable rotation frame
-    │           └─ DropPosition (0, -.02, 0)  measures the grabbed tip
-    ├─ FreezeToWorld                  VRCParentConstraint drives root, FreezeToWorld; inactive in editor,
-    │                                 ApplyDuringUpload TurnOn
-    └─ EditorOnly                     edit-time alignment rig, ApplyDuringUpload TurnOff:
-                                      VRCPositionConstraint drives DropPosition from GrabPosition;
-                                      a second pins RideOffset to Container (parked pose ⇒ RideOffset
-                                      auto-mirrors TrackingOffset, any drag direction)
-
-**Self-detection correctness:** the receiver is allowSelf-only on the standard `Head` tag, so a friend wearing the same module (or any other player's head) can't trip your self-anchor — their senders are "other".
+    │           └─ DropPosition       measures the grabbed tip
+    ├─ FreezeToWorld                  VRCParentConstraint driving the root; inactive in the editor,
+    │                                 VRCFury ApplyDuringUpload turns it on
+    └─ EditorOnly                     edit-time alignment rig, ApplyDuringUpload turns it off: one
+                                      constraint drives DropPosition from GrabPosition, a second pins
+                                      RideOffset to Container, so the parked pose makes RideOffset
+                                      auto-mirror TrackingOffset in any drag direction
 
 ## Rebuilding
 
