@@ -15,4 +15,4 @@ A minimal one-param toggle. Copy this folder to start a new entry; it demonstrat
 
 Drive `Template_Toggle` and watch the `Cube` renderer follow it. If the toggle moves but nothing renders, the merged clip is binding somewhere other than the child path `Cube` — the frame pairing in **Seam** is what went wrong.
 
-Write this slot for the agent installing the entry, never as a log of past runs — `CONVENTIONS.md` §Verifying the install has the rule.
+Write this slot for the agent installing the entry, never as a log of past runs — `CONVENTIONS.md` §The README has the rule.
