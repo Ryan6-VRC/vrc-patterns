@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """object-sync generator: emits the three committed controller.yaml documents
 (root = full, `y/`, `y_double/`) from CONFIG + PRESETS below; DEMOS configs are
-check-only (probed and packable on every change, nothing on disk).
+emit-only smoke (emitted, and refused where unpackable, on every change; nothing
+on disk).
 
 Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
 three controller.yaml documents committed here are generated output, pinned
@@ -10,9 +11,10 @@ generator. That pin covers this repo's builds only: a consumer generating into
 their own project owns the emitted document, and deviating there is fine as a
 commented transform in their build script, never as a silent edit. `python
 generate.py
---check` runs the self-test (byte-identical regeneration, the packing table for
-every build, the structural assertions on every emitted document, and the
-on-disk pin for all three).
+--check` runs the self-test: byte-identical regeneration, the on-disk pin for
+all three builds, and the hand-maintained-surface pins (prefab wiring, README
+figures) — nothing about the emitted document's shape, on purpose
+(CONVENTIONS.md §Per-entry checks; check()'s docstring owns the argument).
 
 WHAT THIS BUILDS
 ----------------
@@ -204,12 +206,12 @@ PRESETS = {
                              {"name": "PropB", "rotation": "y"}]},
 }
 
-# Check-only DEMO configs (operator-ruled 2026-08-17): the full `--check`
-# structural suite runs over each, but nothing lands on disk — no
-# controller.yaml, no prefab, no built/. At this scale every consumer writes
-# their own CONFIG; these exist so the multi-object emission the committed
-# builds cannot reach (mixed rotation modes, slice weighting, widened slots)
-# is emitted, probed and packable on every change. A DEMO may override the
+# Check-only DEMO configs (operator-ruled 2026-08-17): `--check` emits each —
+# nothing lands on disk (no controller.yaml, no prefab, no built/) and nothing
+# is asserted beyond byte-identical regeneration. At this scale every consumer
+# writes their own CONFIG; these exist so the multi-object emission the
+# committed builds cannot reach (mixed rotation modes, slice weighting, widened
+# slots) still runs derive()'s refusals on every change. A DEMO may override the
 # `wire` block — merged SHALLOWLY onto CONFIG's, because a dict replacement
 # would silently drop `indexLoops: 1` back to word-channel's default of 2,
 # costing an index bit and three Sync states per batch with no diagnostic.
@@ -898,9 +900,8 @@ def decode_display_layer(doc, c, d):
     Side-agnostic: every client (the wearer included) reads the same Floatify
     copies of the word params and assembles the same AAPs. No state is carried
     across frames, so a culling pause costs staleness and never a corrupt
-    decode. Decode weights name only `B/` copies, never a word param —
-    `--check`'s decode-coherence probe holds that, and why it matters is
-    `floatify_layer`'s docstring.
+    decode. Decode weights name only `B/` copies, never a word param — why
+    that matters is `floatify_layer`'s docstring.
 
     Display: the base clip is the FIRST child of each axis's run so the
     running sum never leaves the working range — float32's ulp at range is
@@ -1427,78 +1428,6 @@ def live(d, params):
     return [f"{x} greater {num(d['livenessEps'])}" for x in params]
 
 
-def liveness_audit(c, d):
-    """Every state that waits on a receiver reading, and why waiting there is
-    survivable. This is the audit the in-venue stall bought.
-
-    A liveness wait is safe only if its condition can be restored WITHOUT the
-    machine advancing past the wait. Where that holds, the source is
-    self-restoring and the wait is a wait. Where it does not, the wait is a
-    deadlock and needs a bounded escape to whatever stage does restore it.
-
-    `--check` reads this table and holds the emitted document to it, including
-    the completeness direction: a liveness condition on a rung this table does
-    not name fails, so a new gate cannot be added without an audit entry."""
-    p = c["prefix"]
-    multi = len(c["objects"]) > 1
-    rows = []
-    coarse_why = ("self-restoring: the coarse receiver's box spans the whole "
-                  "working volume and the squeeze constraint keeps its sender "
-                  "inside, so a 0 means only re-acquisition or a prop outside "
-                  "the range — both clear on their own")
-    fine_why = ("NOT self-restoring: the fine receiver rides the measurement "
-                "anchor, which only a fresh coarse commit moves, so a teleport "
-                "out of the cell leaves this waiting on a stage it cannot reach")
-    marker_why = ("self-restoring: the marker rides a rigid arm on a holder "
-                  "pinned to the rig and cannot leave its receiver's box, so a "
-                  "0 means re-acquisition and nothing else")
-    scr = "Sh" if multi else c["objects"][0]["name"]
-    # Position: the walk-entry states are Idle plus every commit state (a
-    # commit's loop back into the walk is a walk entry too). Shared layers fan
-    # commits out per object; single-object layers have the one Commit.
-    commit_states = ([f"Commit_{ob['name']}" for ob in c["objects"]]
-                     if multi else ["Commit"])
-    for a in AXES:
-        lay = f"{p}/Enc/{scr}/P{a}"
-        for st in ["Idle"] + commit_states:
-            rows.append({"layer": lay, "state": st,
-                         "params": [f"{p}/Sense/{scr}/C{a}"], "escape": None,
-                         "why": coarse_why})
-        rows.append({"layer": lay, "state": f"Settle{c['settleFrames'] - 1}",
-                     "params": [f"{p}/Sense/{scr}/F{a}"], "escape": "Idle",
-                     "why": fine_why})
-    modes = {ob["rotation"] for ob in c["objects"]}
-    # The pair layer's ONE liveness site is Idle, covering both heading senses:
-    # Start samples both in a single driver and the Z ladder walks a residual
-    # frozen there, so no mid-ladder state reads a sense param at all.
-    if (multi and modes - {"none"}) or (not multi and "y" in modes):
-        rows.append({"layer": f"{p}/Enc/{scr}/Ry", "state": "Idle",
-                     "params": [f"{p}/Sense/{scr}/R{x}" for x in Y_COMPS],
-                     "escape": None, "why": marker_why})
-    if "full" in modes:
-        comps = full_only_comps(c) if multi else FULL_COMPS
-        for comp in comps:
-            rows.append({"layer": f"{p}/Enc/{scr}/R{comp}", "state": "Idle",
-                         "params": [f"{p}/Sense/{scr}/R{comp}"],
-                         "escape": None, "why": marker_why})
-    if multi:
-        labels, seen = [], {}
-        for o in slice_schedule(c):
-            j = seen.get(o, 0)
-            labels.append((o, j))
-            seen[o] = j + 1
-        for i, (o, j) in enumerate(labels):
-            no, nj = labels[(i + 1) % len(labels)]
-            rows.append({
-                "layer": f"{p}/Slice", "state": f"Enter_{o}_{j}",
-                "params": slice_wake_params(c, o),
-                "escape": f"Enter_{no}_{nj}",
-                "why": "self-restoring (coarse and marker sources, as above), "
-                       "and bounded anyway by the skip rung that stops one dead "
-                       "rig starving the other slices"})
-    return rows
-
-
 def tag_set(c, o):
     """Contact collision tags for one object's sender groups — only the groups
     that object's rotation mode gives a carrier: a tag the prefab cannot carry
@@ -1983,6 +1912,20 @@ def check_configs():
 
 
 def check():
+    """Everything regeneration cannot fix — and deliberately nothing else.
+
+    Byte-identity of the committed documents against their CONFIGs, and the
+    hand-maintained surfaces no compile or gate reads: the prefabs' wiring and
+    cross-asset pins, and the README's quoted figures. The structural suite
+    that used to live here (some 700 assertions on the emitted document's
+    shape) is gone on purpose: the document is a pure function of this file,
+    so a shape assert is rewritten by the very edit it would catch — measured,
+    across a full composition build, at zero of five shipped defects found,
+    while its green output was cited as verification evidence. CONVENTIONS.md
+    §Per-entry checks is the standard; a rule that generalizes lives in
+    ControllerRules, where CompileController's graph-lint stage already refuses the compile
+    (driver-on-animated-param, which this file once re-implemented in Python,
+    is the worked instance)."""
     ok = True
 
     def assert_(cond, msg):
@@ -1991,612 +1934,26 @@ def check():
         if not cond:
             ok = False
 
+    # Reproducibility over every config, DEMOS included: the multi-object
+    # emission the committed builds cannot reach is still emitted on every
+    # change — derive() refuses an unpackable config loudly — and pinned
+    # deterministic, so the on-disk comparisons below can mean what they say.
     for label, cfg in check_configs().items():
         print(f"[{label}]")
-        pf = cfg["prefix"]
         text, f = document(cfg)
-        text2, _ = document(cfg)
-        assert_(text == text2, "regeneration is byte-identical")
+        assert_(document(cfg)[0] == text, "regeneration is byte-identical")
         facts = f["facts"]
-        d0 = facts["geometry"]
+        print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
+              f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.2f}s refresh")
 
-        # Packing: every declared group's number words AND bool words in one batch.
-        nb, bb, gb = facts["numberBatches"], facts["boolBatches"], facts["groupBatch"]
-        for g in facts["groups"]:
-            i = gb.get(g)
-            want_n = [w["name"] for w in facts["numberWords"] if w["group"] == g]
-            want_b = [w["name"] for w in facts["boolWords"] if w["group"] == g]
-            got_n = [w["name"] for w in (nb[i] if i is not None and i < len(nb) else [])]
-            got_b = [w["name"] for w in (bb[i] if i is not None and i < len(bb) else [])]
-            assert_(i is not None and all(n in got_n for n in want_n)
-                    and all(n in got_b for n in want_b),
-                    f"group {g}: {len(want_n)} number + {len(want_b)} bool words "
-                    f"co-batched at batch {(i or 0) + 1}")
-        # `atomic: batch` asserted on the MACHINE, not on the header line that
-        # describes it: a header comment survives any regression it names. The
-        # two structural signatures are that no latch double-buffer exists (set
-        # mode is the only thing that emits `<channel>/Latch/…`) and that Lost
-        # re-locks at any counter value rather than only at a loop head.
-        assert_(f"{cfg['channel']}/Latch/" not in text,
-                "no latch params anywhere — a latch is set-atomic's double "
-                "buffer and cannot exist under batch")
-        assert_("re-lock at any exact counter value" in text,
-                "the receiver's Lost rungs carry batch mode's any-counter "
-                "re-locking, not a loop-head-only entry")
-
-        # Every axis commits its whole word in one driver — probed inside the
-        # ENCODE layer's own block, because word-channel's receiver copies the
-        # same words in one driver too and would satisfy a document-wide probe
-        # while the producer was writing them a limb at a time. Multi-object
-        # walks are SHARED (`Enc/Sh/…`) with per-object Commit_<o> fan-outs, so
-        # the probe additionally pins the routing: every rung into an object's
-        # commit carries that object's own `Slice/<o>` condition — one of the
-        # two guards (with the Live abandon rung) that replaced the old
-        # per-object gate()/off_ladder/leave triple.
-        multi = len(cfg["objects"]) > 1
-        scr = "Sh" if multi else cfg["objects"][0]["name"]
-        rot_names = [ob["name"] for ob in cfg["objects"]
-                     if ob["rotation"] != "none"]
-        full_names = [ob["name"] for ob in cfg["objects"]
-                      if ob["rotation"] == "full"]
-
-        def commit_routed(lay, o):
-            rungs = [ln for ln in rung_block(text, lay).splitlines()
-                     if f"to: Commit_{o}," in ln]
-            return rungs and all(f"{pf}/Slice/{o} greater 0.5" in ln
-                                 for ln in rungs)
-
-        for ob in cfg["objects"]:
-            o = ob["name"]
-            for a in AXES:
-                lay = f"{pf}/Enc/{scr}/P{a}"
-                names = [f"{o}/P{a}/C", f"{o}/P{a}/F"]
-                names += [f"{o}/P{a}/C{j}" for j in range(cfg["coarseBits"] - 8)]
-                names += [f"{o}/P{a}/F{j}" for j in range(cfg["fineBits"] - 8)]
-                assert_(one_driver_has(rung_block(text, lay), names),
-                        f"{o}/P{a}: all {len(names)} words in one commit driver")
-                if multi:
-                    assert_(commit_routed(lay, o),
-                            f"{lay}: every rung into Commit_{o} requires "
-                            f"Slice/{o}")
-            mode = ob["rotation"]
-            if mode == "none":
-                continue
-            # The heading pair is one VALUE: all 24 bits of A/X + A/Z leave in
-            # one driver (the pair layer's commit), or a client reconstructs an
-            # angle from two measure cycles. Single-object full mode keeps a
-            # walk per component instead — six independent readings.
-            if multi or mode == "y":
-                names = []
-                for comp in Y_COMPS:
-                    names.append(f"{o}/R{comp}")
-                    names += [f"{o}/R{comp}/B{j}"
-                              for j in range(cfg["rotBits"] - 8)]
-                lay = f"{pf}/Enc/{scr}/Ry"
-                assert_(one_driver_has(rung_block(text, lay), names),
-                        f"{o}: all {len(names)} heading words in the pair "
-                        "layer's one commit driver")
-                if multi:
-                    assert_(commit_routed(lay, o),
-                            f"{lay}: every rung into Commit_{o} requires "
-                            f"Slice/{o}")
-            if mode == "full":
-                comps = full_only_comps(cfg) if multi else FULL_COMPS
-                for comp in comps:
-                    names = [f"{o}/R{comp}"]
-                    names += [f"{o}/R{comp}/B{j}"
-                              for j in range(cfg["rotBits"] - 8)]
-                    lay = f"{pf}/Enc/{scr}/R{comp}"
-                    assert_(one_driver_has(rung_block(text, lay), names),
-                            f"{o}/R{comp}: all {len(names)} words in one "
-                            "commit driver")
-                    if multi:
-                        assert_(commit_routed(lay, o),
-                                f"{lay}: every rung into Commit_{o} requires "
-                                f"Slice/{o}")
-
-        # Coherent SAMPLING, the half of heading coherence a barrier never
-        # bought and a naive serialization loses: the pair layer's Start copies
-        # BOTH residuals in its single driver, so the Z ladder walks a value
-        # frozen in the same frame as X's — no state between Start and the
-        # commit reads a sense param.
-        if any(ob["rotation"] != "none" for ob in cfg["objects"]) \
-                and (multi or cfg["objects"][0]["rotation"] == "y"):
-            start = state_block(rung_block(text, f"{pf}/Enc/{scr}/Ry"), "Start")
-            assert_(all(f"{pf}/R/{scr}/R{x}: {{ source: {pf}/Sense/{scr}/R{x}"
-                        in start for x in Y_COMPS),
-                    "pair layer Start samples BOTH heading residuals in one "
-                    "driver frame")
-            body_after = rung_block(text, f"{pf}/Enc/{scr}/Ry")
-            n_copies = body_after.count(f"source: {pf}/Sense/{scr}/R")
-            assert_(n_copies == 2,
-                    f"pair layer reads its senses exactly once each at Start "
-                    f"({n_copies} sense copies) — no mid-ladder resample")
-
-        # Decode coherence: every word limb — bytes included — reaches the
-        # decode through the SAME Floatify copy, so an axis's assembled pair
-        # flips in one frame. A tree weight read straight off a byte word is a
-        # fast path the copy does not delay, and that mixed-latency assembly
-        # was a measured one-frame display excursion: 2 m per cell crossing,
-        # ±62 m across a coarse byte boundary (emulator + shipping client).
-        # The copy line is asserted VERBATIM (`B/<word>: <word>`) in BOTH
-        # Floatify states, so neither a wrong source nor an Even/Odd divergence
-        # can pass; and the raw-weight negative sweeps the WHOLE document, so a
-        # future layer cannot reopen the fast path outside Decode.
-        word_names = [w["name"] for w in facts["numberWords"]] + \
-                     [w["name"] for w in facts["boolWords"]]
-        flo = rung_block(text, f"{pf}/Floatify")
-        for st in ("Even", "Odd"):
-            blk = state_block(flo, st)
-            assert_(all(f"{pf}/B/{n}: {n}" in blk for n in word_names),
-                    f"Floatify {st} copies all {len(word_names)} word params "
-                    "(bytes and bools), each from its own word")
-            assert_(f"{pf}/B/Acquired: {cfg['channel']}/Acquired" in blk,
-                    f"Floatify {st} copies {cfg['channel']}/Acquired — the "
-                    "engage gate rides the decode's own latency path")
-        dec = rung_block(text, f"{pf}/Decode")
-        assert_(all(f"directWeight: {pf}/B/{n} }}" in dec
-                    for n in (w["name"] for w in facts["numberWords"])),
-                "every decode byte weight reads the Floatify copy")
-        assert_(not any(f"directWeight: {n} }}" in text for n in word_names),
-                "no tree weight anywhere reads a raw word param (the fast "
-                "path that skews the assembly)")
-
-        # Negative control for every one_driver_has probe (the commit-driver
-        # assertions above): it must be able to fail.
-        assert_(not one_driver_has(text, [cfg["objects"][0]["name"] + "/PX/C",
-                                          "NoSuchWord/Never"]),
-                "commit-driver probe rejects a word that is not there")
-
-        # A driver reads 0 from an AAP — measured, and the defect that forced
-        # y-mode's redesign. This is the assertion that would have caught it.
-        aaps = aap_params(text)
-        bad_src = [(op, dst, src) for op, dst, src in driver_ops(text)
-                   if src in aaps]
-        bad_dst = [(op, dst, src) for op, dst, src in driver_ops(text)
-                   if dst in aaps]
-        assert_(bool(aaps), f"{len(aaps)} AAP params declared (probe has teeth)")
-        assert_(not bad_src, f"no driver reads an AAP param {bad_src[:2]}")
-        assert_(not bad_dst, f"no driver writes an AAP param {bad_dst[:2]}")
-
-        assert_("ObjectUp" not in text,
-                "no bare ObjectUp anywhere (it degenerates to world-up)")
-        # The scaled-source-offset defect class: the shipping client multiplies a constraint
-        # SOURCE's offset by the avatar's per-client scale factor (asset-source
-        # pins included), so a park on one becomes a cross-client displacement.
-        # The document must never animate a source-space offset, and the two
-        # world-frame bases must fold the park so the prefab's pin can stay at
-        # zero source offset.
-        assert_("ParentPositionOffset" not in text,
-                "no source-space offset is animated anywhere — the client "
-                "scales those by per-client avatar scale")
-        for ob in cfg["objects"]:
-            bases = f["clips"][f"disp_{safe(ob['name'])}_base"][0]
-            anchb = f["clips"][f"anch_{safe(ob['name'])}_base"][0]
-            assert_(all(str(v) == num(d0["posBase"] + d0["rigOffset"][i])
-                        for i, v in enumerate(bases.values()))
-                    and all(str(v) == num(-cfg["range"] + cfg["cellSize"] / 2
-                                          + d0["rigOffset"][i])
-                            for i, v in enumerate(anchb.values())),
-                    f"{ob['name']}: display and anchor bases fold the rig park "
-                    "(world-frame offsets against the origin-pinned Rig)")
-        assert_("freeformDirectional" not in text,
-                "no freeform-directional tree anywhere (the angle lookup is gone)")
-        assert_(text.count("motion: ~") > 0 and "tree: direct" in text,
-                "document carries both ladder states and Direct trees")
-        assert_(all(f"  - name: {cfg['prefix']}/Enc/{scr}/P{a}" in text
-                    for a in AXES)
-                and text.count(f"  - name: {cfg['prefix']}/Enc/") ==
-                len([1 for a in AXES]) + (
-                    (1 if rot_names else 0) +
-                    (len(full_only_comps(cfg)) if full_names else 0)
-                    if multi else
-                    (1 if cfg["objects"][0]["rotation"] == "y" else 0) +
-                    (len(FULL_COMPS)
-                     if cfg["objects"][0]["rotation"] == "full" else 0)),
-                "exactly the planned encode layers: one per axis plus the "
-                "rotation set — shared once for multi, per-object for one")
-
-        # Rotation reconstruction: `y` is `full` minus marker B, so its decode
-        # drives ProxyA's X and Z and never mentions ProxyB.
-        for ob in cfg["objects"]:
-            o = ob["name"]
-            pa = f"Rig/{o}/Recon/ProxyA/Transform.m_LocalPosition"
-            if ob["rotation"] == "y":
-                assert_(all(f"{pa}.{ax}" in text for ax in "xyz")
-                        and f"Rig/{o}/Recon/ProxyB" not in text,
-                        f"{o}: single-marker aim chain — ProxyA driven, no ProxyB")
-                assert_(f"directWeight: {cfg['prefix']}/D/{o}/RA/X" in text
-                        and f"directWeight: {cfg['prefix']}/D/{o}/RA/Z" in text,
-                        f"{o}: ProxyA rides the received X and Z components")
-            elif ob["rotation"] == "full":
-                assert_(f"Rig/{o}/Recon/ProxyB/Transform.m_LocalPosition" in text,
-                        f"{o}: full mode drives both marker proxies")
-
-        # The enable: a lone synced bit, a bare Toggle on it, and a Parked state
-        # in every layer that measures — which clears what a deactivated sensing
-        # component would otherwise leave frozen at its last live reading.
-        assert_(f"  {pf}/Enable: {{ type: float, default: 0, "
-                "vrc: { type: bool, synced: true, saved: false }" in text,
-                "Enable is a float in the animator and a synced unsaved bool on the wire")
-        assert_(f"  - toggle: {cfg['menuLabel']}" in text
-                and f"    param: {pf}/Enable" in text,
-                "menu block carries one Toggle bound to Enable")
-        enc = [ln.split("- name: ")[1] for ln in text.splitlines()
-               if "  - name: " + pf in ln and ("/Enable" not in ln)]
-        measuring = [n for n in enc if "/Enc/" in n or n.endswith("/Slice")]
-        assert_(text.count("- { to: Parked, when: [ " + pf + "/Enable less 0.5 ], "
-                           "canTransitionToSelf: false }") == len(measuring),
-                f"all {len(measuring)} measuring layers park on Enable false")
-        assert_("Off:" not in text and "to: Off" not in text,
-                "the parked state is not named Off (a bare Off infers as false)")
-        cleared = parked_clears(text, f"{pf}/Enc/{scr}/PX")
-        want = {f"{pf}/Sense/{scr}/CX", f"{pf}/Sense/{scr}/FX",
-                f"{pf}/S/{scr}/PX/C", f"{pf}/S/{scr}/PX/F",
-                f"{pf}/R/{scr}/PX/C", f"{pf}/R/{scr}/PX/F",
-                f"{pf}/K/{scr}/PX", f"{pf}/S/{scr}/PX/Kacc"}
-        assert_(want <= cleared,
-                f"{scr}/PX Parked clears staging, residual, cell index and both "
-                f"sense params ({len(cleared)} params; missing {want - cleared})")
-        # The barrier's Enable-drop property, re-homed: the pair layer parks on
-        # Enable/Live like every walk, and its Parked driver clears the very
-        # staging its commits read — so the frame Enable drops cannot publish
-        # cleared staging (the AnyState rung outranks the commit rung, same
-        # layer, no cross-layer flag race left to have).
-        if rot_names and (multi or cfg["objects"][0]["rotation"] == "y"):
-            pc = parked_clears(text, f"{pf}/Enc/{scr}/Ry")
-            pwant = set()
-            for x in Y_COMPS:
-                pwant |= {f"{pf}/S/{scr}/R{x}", f"{pf}/R/{scr}/R{x}",
-                          f"{pf}/Sense/{scr}/R{x}"}
-                pwant |= {f"{pf}/S/{scr}/R{x}/B{j}"
-                          for j in range(cfg["rotBits"] - 8)}
-            assert_(pwant <= pc,
-                    f"pair layer Parked clears both components' staging, "
-                    f"residuals and senses (missing {pwant - pc})")
-
-        # Defect B and its single-object twin: a Commit must be reachable ONLY
-        # by walking every bit, and the one road out of Parked runs through the
-        # re-acquisition dwell. Neither a slice entry nor an unpark may reach a
-        # Commit whose staging was cleared and never recomputed. In the pair
-        # layer the final pair is the SECOND ladder's (`Z…`) — a commit
-        # reachable off the X ladder would publish a heading half-walked.
-        plan = []
-        for a in AXES:
-            plan.append((f"{pf}/Enc/{scr}/P{a}", f"F{cfg['fineBits'] - 1}",
-                         [f"Commit_{o}" for o in
-                          (x["name"] for x in cfg["objects"])] if multi
-                         else ["Commit"]))
-        if rot_names and (multi or cfg["objects"][0]["rotation"] == "y"):
-            plan.append((f"{pf}/Enc/{scr}/Ry", f"Z{cfg['rotBits'] - 1}",
-                         [f"Commit_{o}" for o in rot_names] if multi
-                         else ["Commit"]))
-        if full_names:
-            comps = full_only_comps(cfg) if multi else FULL_COMPS
-            for comp in comps:
-                plan.append((f"{pf}/Enc/{scr}/R{comp}", f"R{cfg['rotBits'] - 1}",
-                             [f"Commit_{o}" for o in full_names] if multi
-                             else ["Commit"]))
-        for lay, last, ends in plan:
-            tr = transitions_of(text, lay)
-            for end in ends:
-                into = {s for s, tg in tr.items() if end in tg}
-                assert_(into == {last + "A", last + "R"},
-                        f"{lay}: {end} reachable only from the final walk pair "
-                        f"({sorted(into)})")
-            assert_(tr.get("Parked") == ["Idle"],
-                    f"{lay}: Parked exits only to Idle ({tr.get('Parked')})")
-            # The abandon guard that replaced the per-object slice rung: every
-            # shared walk layer bails to Parked the frame `Slice/Live` drops.
-            if multi:
-                assert_(any("to: Parked" in r and f"{pf}/Slice/Live less 0.5" in r
-                            and "canTransitionToSelf: false" in r
-                            for r in any_rungs(text, lay)),
-                        f"{lay}: AnyState abandon rung on Slice/Live")
-
-        # Driver hygiene over the sense params, all configs: receivers are the
-        # ONLY live writers — every driver write naming a /Sense/ param is a
-        # clear (`set` to 0), in a slice Enter/Parked or a walk's Parked. A
-        # driver COPY into a sense param would fake liveness; with the params
-        # shared, faked liveness walks one object's position into another's
-        # words.
-        bad_sense = [(op, dst, v) for op, dst, v in driver_ops(text)
-                     if "/Sense/" in dst and not (op == "set" and v == "0")]
-        assert_(not bad_sense,
-                f"every driver write to a sense param is a clear-to-0 "
-                f"({bad_sense[:2]})")
-
-        # Liveness: every transition that leads a walk into sampling a sense
-        # param carries that param's own liveness condition. A reactivated
-        # receiver reads exactly 0, 0 quantizes to cell 0, and cell 0 is the
-        # corner of the range — so this is the assertion standing between a
-        # graceful wait and a confident wrong answer.
-        eps = f"greater {num(d0['livenessEps'])}"
-        audit = liveness_audit(cfg, d0)
-        for row in audit:
-            rungs = rung_text(text, row["layer"], row["state"])
-            assert_(all(f"{q} {eps}" in rungs for q in row["params"]),
-                    f"{row['layer']}/{row['state']}: waits on "
-                    f"{len(row['params'])} receiver reading(s)")
-            # The audit's whole point: a wait whose condition it cannot restore
-            # must have a way out, or an in-venue teleport stalls it forever.
-            if row["escape"]:
-                assert_(f"to: {row['escape']}, when: [], exitTime:" in rungs,
-                        f"{row['layer']}/{row['state']}: bounded escape to "
-                        f"{row['escape']} ({row['why'][:40]}...)")
-            else:
-                assert_("exitTime:" not in rungs,
-                        f"{row['layer']}/{row['state']}: no escape needed — "
-                        f"{row['why'][:60]}...")
-        # Completeness: no liveness condition anywhere the audit does not name.
-        named = {(r["layer"], r["state"]) for r in audit}
-        assert_(liveness_sites(text, num(d0["livenessEps"])) == named,
-                "every liveness wait in the document is an audited one "
-                f"({sorted(liveness_sites(text, num(d0['livenessEps'])) - named)})")
-        assert_(all(d0["livenessEps"] < d0[k]
-                    for k in ("coarseMin", "fineMin", "rotMin")),
-                f"liveness threshold {d0['livenessEps']} sits below every legal "
-                f"reading (lowest is {min(d0['coarseMin'], d0['fineMin'], d0['rotMin']):.4f})")
-
-        # Defect A: the slice must deactivate a rig, not merely stop reading it.
-        # Plus the shared-walk additions: the ring is read off the EMITTED text
-        # (weighted, interleaved, counts exact), every Enter and Parked clear
-        # covers the whole shared sense union (the assertion standing between a
-        # graceful wait and a cross-object publish), and Run is the sole writer
-        # of Live/FullLive.
-        if multi:
-            tr = transitions_of(text, f"{pf}/Slice")
-            slice_block = rung_block(text, f"{pf}/Slice")
-            ring = [s.split("Enter_", 1)[1].rsplit("_", 1)[0]
-                    for s in tr if s.startswith("Enter_")]
-            want_counts = {ob["name"]: ob.get("slices", 1)
-                           for ob in cfg["objects"]}
-            assert_({o: ring.count(o) for o in want_counts} == want_counts,
-                    f"ring carries each object exactly its weight ({ring})")
-            assert_(all(ring[i] != ring[(i + 1) % len(ring)]
-                        for i in range(len(ring))),
-                    f"no object holds two consecutive slices, ring-wise ({ring})"
-                    " — an adjacent repeat's Enter would tear down its own walk")
-            union = set(sense_union(cfg))
-            labels, seen = [], {}
-            for o in ring:
-                j = seen.get(o, 0)
-                labels.append((o, j))
-                seen[o] = j + 1
-            full_modes = {ob["name"]: ob["rotation"] for ob in cfg["objects"]}
-            any_full = "full" in full_modes.values()
-            for i, (o, j) in enumerate(labels):
-                gate_clip = f["clips"][f"slice_gate_{safe(o)}"][0]
-                assert_(all(str(gate_clip[f"Rig/{x['name']}/{s}/GameObject.m_IsActive"])
-                            == ("1" if x["name"] == o else "0")
-                            for x in cfg["objects"]
-                            for s in ("Coarse", "Fine", "Rot")),
-                        f"slice {o}: its three subtrees live, every other object's dead")
-                no, nj = labels[(i + 1) % len(labels)]
-                assert_(tr.get(f"Enter_{o}_{j}") == [f"Run_{o}_{j}",
-                                                     f"Enter_{no}_{nj}"],
-                        f"slice {o}#{j}: entry waits for live, then yields "
-                        "rather than starving")
-                entry = rung_text(text, f"{pf}/Slice", f"Enter_{o}_{j}")
-                assert_(all(f"{q} {eps}" in entry for q in slice_wake_params(cfg, o)),
-                        f"slice {o}#{j}: unblocks only once all "
-                        f"{len(slice_wake_params(cfg, o))} of its coarse and marker "
-                        "receivers read live")
-                esets = state_sets(slice_block, f"Enter_{o}_{j}")
-                assert_(union <= set(esets) and
-                        all(esets[k] == "0" for k in union),
-                        f"slice {o}#{j}: Enter clears the WHOLE shared sense "
-                        f"union (missing {union - set(esets)})")
-                rsets = state_sets(slice_block, f"Run_{o}_{j}")
-                want_run = {f"{pf}/Slice/Live": "1",
-                            f"{pf}/Slice/{o}": "1"}
-                if any_full:
-                    want_run[f"{pf}/Slice/FullLive"] = \
-                        "1" if full_modes[o] == "full" else "0"
-                assert_(all(rsets.get(k) == v for k, v in want_run.items())
-                        and all(rsets.get(f"{pf}/Slice/{x['name']}") ==
-                                ("1" if x["name"] == o else "0")
-                                for x in cfg["objects"]),
-                        f"slice {o}#{j}: Run raises Live + exactly its own "
-                        "Slice flag" + (" + FullLive per mode" if any_full else ""))
-                # The completion gate: Run hands off when every walk THIS
-                # slice's mode runs has stamped Done — the frame-true exit —
-                # with the wall-clock escape as the dead-slice bound only. A
-                # fixed dwell here is the beheading defect: frames vs seconds,
-                # so any fps under the assumed one cut the position walk
-                # mid-fine-ladder while the shorter heading pair still fit.
-                run_rungs = rung_text(text, f"{pf}/Slice", f"Run_{o}_{j}")
-                mode_done = [slice_done_param(cfg, w)
-                             for w in slice_done_walks(cfg, full_modes[o])]
-                assert_(all(f"{q} is true" in run_rungs for q in mode_done)
-                        and "exitTime:" in run_rungs,
-                        f"slice {o}#{j}: Run exits on its mode's "
-                        f"{len(mode_done)} Done stamps, escape-bounded")
-                done_all = {slice_done_param(cfg, w)
-                            for w in slice_done_walks(cfg)}
-                stray = [q for q in done_all - set(mode_done)
-                         if q in run_rungs]
-                assert_(not stray,
-                        f"slice {o}#{j}: Run waits on no walk its mode never "
-                        f"runs ({stray}) — that wait would only ever end by "
-                        "escape")
-                assert_(done_all <= set(esets)
-                        and all(esets[k] == "0" for k in done_all),
-                        f"slice {o}#{j}: Enter clears every Done stamp "
-                        f"(missing {done_all - set(esets)})")
-            psets = state_sets(slice_block, "Parked")
-            assert_(union <= set(psets),
-                    f"Slice Parked clears the whole shared sense union "
-                    f"(missing {union - set(psets)})")
-            done_all = {slice_done_param(cfg, w)
-                        for w in slice_done_walks(cfg)}
-            assert_(done_all <= set(psets)
-                    and all(psets[k] == "0" for k in done_all),
-                    f"Slice Parked clears every Done stamp "
-                    f"(missing {done_all - set(psets)})")
-            # The stamps' write side: every shared walk's every Commit_<o>
-            # sets that walk's own Done bit — a commit that forgets it turns
-            # every slice of that mode into an escape-length wait.
-            walk_commits = {f"P{a}": [ob["name"] for ob in cfg["objects"]]
-                            for a in AXES}
-            if rot_names:
-                walk_commits["Ry"] = rot_names
-            if full_names:
-                for comp in full_only_comps(cfg):
-                    walk_commits[f"R{comp}"] = full_names
-            for w, objs in walk_commits.items():
-                blk = rung_block(text, f"{pf}/Enc/Sh/{w}")
-                for o in objs:
-                    assert_(state_sets(blk, f"Commit_{o}")
-                            .get(slice_done_param(cfg, w)) == "1",
-                            f"Enc/Sh/{w}: Commit_{o} stamps "
-                            f"{slice_done_param(cfg, w)}")
-            assert_("enable_park" not in f["clips"],
-                    "no enable clips at all with several objects — the Slice layer "
-                    "owns m_IsActive (one property, one writer)")
-            assert_(all("m_IsActive" in k
-                        for k in f["clips"]["slice_gate_park"][0]),
-                    "the Slice layer's parked clip is what Enable reaches the subtrees through")
-            assert_(all(str(v) == "0" for v in
-                        f["clips"]["slice_gate_park"][0].values()),
-                    "parking the Slice layer deactivates every object's rig")
-
-        # Per-object collision tags: two objects on one tag set is measured-broken.
+    # Per-object collision tags land in the HAND-MAINTAINED prefabs, and two
+    # objects on one tag set is measured-broken — a config edit that collides
+    # them regenerates green and ships a defect regeneration cannot fix.
+    for label, cfg in committed_configs().items():
         tags = [tag_set(cfg, ob["name"]) for ob in cfg["objects"]]
         flat = [t for group in tags for t in group]
         assert_(len(set(flat)) == len(flat),
-                f"collision tags are unique across objects and stages ({flat})")
-
-        if len(cfg["objects"]) == 1:
-            assert_("/Slice/Done/" not in text,
-                    "single-object build carries no Done stamps — there is no "
-                    "Slice layer to read them")
-            park = f["clips"]["enable_park"][0]
-            live_c = f["clips"]["enable_live"][0]
-            assert_(set(park) == set(live_c) and park and
-                    all(str(park[k]) != str(live_c[k]) for k in park),
-                    f"enable_park / enable_live cover the same {len(park)} bindings "
-                    "with opposite values")
-            for ob in cfg["objects"]:
-                assert_(all(str(park[f"Rig/{ob['name']}/{s}/GameObject.m_IsActive"]) == "0"
-                            for s in ("Coarse", "Fine", "Rot")),
-                        f"{ob['name']}: parking deactivates all three measure subtrees")
-            # Scoped to the single-object branch where enable_park EXISTS: on a
-            # multi config the old document-level spelling read `.get(...)`'s
-            # empty fallback and passed vacuously.
-            assert_(not any(k.startswith(("Sync", "Sync_Target"))
-                            for k in park),
-                    "the enable's tree reaches the measure rig only — Sync is "
-                    "the Follow layer's alone, and Sync_Target is the consumer's")
-
-        # THE FENCE, and it stays a pure negative because the correct answer
-        # here really is "nothing": Sync_Target is the consumer's node — their
-        # carry constraint owns its source list, a composed Drop toggle owns its
-        # FreezeToWorld — and anything UNDER Sync is the consumer's own subtree.
-        # Two systems animating one component is the defect the split prevents.
-        surface = [k for _, (bs, _s) in f["clips"].items() for k in bs
-                   if k.split("/")[0].startswith("Sync")]
-        targets = {sync_target_path(cfg, ob["name"]) for ob in cfg["objects"]}
-        syncs = {sync_path(cfg, ob["name"]) for ob in cfg["objects"]}
-        trespass = [k for k in surface
-                    if k.split("/")[0] in targets
-                    or (k.split("/")[0] in syncs and "/" in k
-                        and not k.split("/", 1)[1].startswith("VRCParentConstraint."))]
-        assert_(not trespass,
-                f"no clip binding touches Sync_Target or anything under Sync "
-                f"({trespass[:2]})")
-
-        # AN ALLOWLIST, not a blocklist. The old fence could be a pure negative
-        # because the entry drove nothing on the surface; now it drives Sync's
-        # two weights, so a blocklist cannot express the boundary and any
-        # binding a later edit adds would pass in silence. Pin the exact set.
-        want = {f"{sync_path(cfg, ob['name'])}/VRCParentConstraint.Sources."
-                f"source{i}.Weight"
-                for ob in cfg["objects"] for i in (0, 1)}
-        assert_(set(surface) == want,
-                f"the document binds EXACTLY Sync's two source weights "
-                f"({sorted(set(surface) ^ want)[:2]})")
-
-        # Totality and exclusivity over the weight pair, in one assertion: a
-        # partial clip lets WD-ON strand a stale weight, and a both-zero state
-        # reintroduces the measured weight-0 write (a VRCParentConstraint at
-        # weight 0 writes the captured rest every frame rather than releasing).
-        rides_t = f["clips"]["follow_target"][0]
-        rides_r = f["clips"]["follow_recon"][0]
-        assert_(set(rides_t) == set(rides_r) == want,
-                "both Follow clips are total over the weight vector")
-        for ob in cfg["objects"]:
-            con = f"{sync_path(cfg, ob['name'])}/VRCParentConstraint.Sources"
-            assert_(str(rides_t[f"{con}.source0.Weight"]) == "1"
-                    and str(rides_t[f"{con}.source1.Weight"]) == "0"
-                    and str(rides_r[f"{con}.source0.Weight"]) == "0"
-                    and str(rides_r[f"{con}.source1.Weight"]) == "1",
-                    f"{ob['name']}: exactly one source holds weight 1 in either "
-                    "clip — never both zero")
-            assert_(f"{con[:-8]}.GlobalWeight" not in text
-                    and f"{con[:-8]}.IsActive" not in text,
-                    f"{ob['name']}: Sync is never released by GlobalWeight or "
-                    "IsActive — it is always active and always driven")
-
-        # Each state rides the clip its name claims, and none of them drives a
-        # validity param: the transport certifies `<channel>/Acquired` itself,
-        # and a second writer here would be a second thing to keep true.
-        fol = rung_block(text, f"{pf}/Follow")
-        for st, clip in (("Release", "follow_target"),
-                         ("Local", "follow_target"),
-                         ("Follow", "follow_recon")):
-            body = state_block(fol, st)
-            rides = "the reconstruction" if clip.endswith("recon") else "Sync_Target"
-            assert_(f"motion: {{ clip: {clip} }}" in body
-                    and "behaviours:" not in body,
-                    f"{st} rides {rides} and drives nothing")
-        assert_("Sync_Valid" not in text,
-                "no Sync_Valid anywhere: the retired name is not re-declared "
-                "beside the transport's Acquired")
-        acq = f"{cfg['channel']}/Acquired"
-        assert_(f"  {acq}: {{ type: float, default: 0, "
-                "vrc: { type: bool, synced: false, saved: false } }" in text,
-                f"{acq} is declared unsynced and default false — a synced copy "
-                "would carry the wearer's decode state to every client")
-
-        rungs = any_rungs(text, f"{pf}/Follow")
-        engaging = [r for r in rungs if r.startswith("- { to: Follow")]
-        assert_(len(engaging) == 1
-                and "IsLocal is false" in engaging[0]
-                and f"{pf}/Enable greater 0.5" in engaging[0]
-                and f"{pf}/B/Acquired greater 0.5" in engaging[0]
-                and f"{acq} greater" not in engaging[0],
-                "the one rung into Follow requires !IsLocal AND Enable AND the "
-                "FLOATIFY COPY of Ch/Acquired — raw Acquired certifies in the "
-                "same driver frame that writes the final batch's words, one "
-                "frame ahead of their copies, so engaging on it would render "
-                "the last group stale on a head-landing cold join")
-        exits = [r for r in rungs if r.startswith("- { to: Release")]
-        assert_(len(exits) == 1 and "Acquired" not in exits[0]
-                and "Cycle" not in exits[0],
-                "the one rung out of Follow tests Enable alone — with the "
-                "engage rung's canTransitionToSelf: false, that is what makes "
-                "Follow latch rather than drop the prop on a receiver hiccup")
-        assert_(any(r.startswith("- { to: Local") and "IsLocal is true" in r
-                    for r in rungs)
-                and any(r.startswith("- { to: Release")
-                        and f"{pf}/Enable less 0.5" in r for r in rungs),
-                "the wearer takes Local on IsLocal alone, and Enable-off takes "
-                "a remote to Release")
-        assert_(f"    default: Release" in rung_block(text, f"{pf}/Follow"),
-                "Follow's default state is Release — hands off until proven remote")
-        assert_("Home" not in text,
-                "no Home anywhere: no path, no clip, no park pose (stow belongs "
-                "to a composed system, not to this entry)")
-
-        d = facts["geometry"]
-        assert_(d["fineSpan"] >= cfg["cellSize"] + 2 * d["coarseWorldError"],
-                "fine field spans the cell plus twice the coarse world error "
-                f"({d['coarseWorldError']:.3f} m)")
-        assert_(d["faceGuard"] >= cfg["edgeGuard"],
-                f"fine field sits {d['faceGuard']:.2f} m off each face edge")
-        print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
-              f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.2f}s refresh")
+                f"{label}: collision tags are unique across objects and stages ({flat})")
 
     # `globalParams` is a VRCFury field with no CompileController spelling, so
     # the document cannot carry it and the README is where it is specified for
@@ -2612,8 +1969,6 @@ def check():
         assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
                 "README pins the two Sync sources in the order the Follow layer "
                 "indexes them")
-        assert_("Home" not in body,
-                "README carries no home/park concept either")
         # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
         # cannot see the second term — Enable is this entry's param, not the
         # transport's. Both figures are quoted in the lead and the Wire bullet,
@@ -2752,6 +2107,9 @@ def check():
         else:
             assert_(False, f"{label}: controller.yaml is missing "
                            f"({os.path.relpath(on_disk, HERE)})")
+
+    print("scope: reproducibility and hand-maintained wiring only — document "
+          "structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 
@@ -2759,209 +2117,6 @@ def preset_dir(label):
     """The committed full build owns the entry root; the two variants each own
     a subdirectory, so a human download can take exactly one build whole."""
     return () if label == "committed" else (label,)
-
-
-def driver_ops(text):
-    """Every (op, destination, source) a parameter driver performs, read off the
-    emitted document. `driver()` and word-channel's emitter share these indents,
-    so one scan covers both."""
-    ops, op = [], None
-    for ln in text.splitlines():
-        s = ln.strip()
-        if s == "- driver:":
-            op = None
-        elif ln.startswith("              ") and not ln.startswith("               ") \
-                and s.endswith(":"):
-            op = s[:-1]
-        elif op and ln.startswith("                ") and ":" in s:
-            dst, val = s.split(":", 1)
-            val = val.strip()
-            src = val.split("source:", 1)[1].split(",")[0].strip() \
-                if val.startswith("{") and "source:" in val else val
-            ops.append((op, dst.strip(), src if op == "copy" else val))
-        elif s and not ln.startswith("              "):
-            op = None
-    return ops
-
-
-def liveness_sites(text, eps):
-    """(layer, state) for every rung that waits on a receiver reading.
-
-    The discriminator is a `/Sense/` param compared against the liveness
-    threshold: a walk's own bit rungs compare residuals, never sense params."""
-    out, layer, st = set(), None, None
-    for ln in text.splitlines():
-        if ln.startswith("  - name: "):
-            layer, st = ln.split("- name: ", 1)[1].strip(), None
-        elif ln.startswith("      ") and not ln.startswith("       ") \
-                and ln.rstrip().endswith(":"):
-            st = ln.strip()[:-1]
-        elif layer and st and "/Sense/" in ln and f"greater {eps}" in ln:
-            out.add((layer, st))
-    return out
-
-
-def rung_text(text, layer, state_name):
-    """The raw transition lines of one state — the surface the liveness
-    assertions read, since a condition list is what they are about."""
-    lines = text.splitlines()
-    try:
-        i = lines.index(f"  - name: {layer}")
-    except ValueError:
-        return ""
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("  - name: ")), len(lines))
-    body = lines[i:end]
-    try:
-        s = body.index(f"      {state_name}:")
-    except ValueError:
-        return ""
-    out = []
-    for ln in body[s + 1:]:
-        if ln.startswith("      ") and not ln.startswith("       "):
-            break
-        if ln.strip().startswith("- { to: "):
-            out.append(ln)
-    return "\n".join(out)
-
-
-def rung_block(text, layer):
-    """One layer's whole emitted block, for the assertions whose claim is about
-    the machine rather than about any one state."""
-    lines = text.splitlines()
-    try:
-        i = lines.index(f"  - name: {layer}")
-    except ValueError:
-        return ""
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("  - name: ")), len(lines))
-    return "\n".join(lines[i:end])
-
-
-def state_block(layer_text, name):
-    """One state's own lines out of a layer block — its motion, driver and
-    transitions, and nothing of the state after it."""
-    lines = layer_text.splitlines()
-    try:
-        i = lines.index(f"      {name}:")
-    except ValueError:
-        return ""
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("      ") and not lines[j].startswith("       ")),
-               len(lines))
-    return "\n".join(lines[i:end])
-
-
-def any_rungs(text, layer):
-    """One layer's AnyState rungs, raw. The conditions ARE the claim wherever a
-    gate is what makes a branch unreachable, so these are read as text rather
-    than reduced to destinations the way `transitions_of` does."""
-    body = rung_block(text, layer).splitlines()
-    try:
-        s = body.index("    any:")
-    except ValueError:
-        return []
-    out = []
-    for ln in body[s + 1:]:
-        if not ln.startswith("      "):
-            break
-        out.append(ln.strip())
-    return out
-
-
-def transitions_of(text, layer):
-    """state name -> its transition targets, in ladder order, for one layer.
-
-    Deliberately structural: what a state can reach is the property the walk's
-    integrity rests on, and it is not something a timing argument can stand in
-    for."""
-    lines = text.splitlines()
-    try:
-        i = lines.index(f"  - name: {layer}")
-    except ValueError:
-        return {}
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("  - name: ")), len(lines))
-    out, cur = {}, None
-    for ln in lines[i:end]:
-        if ln.startswith("    ") and not ln.startswith("     "):
-            # A layer-level key (`any:`, `default:`, `layout:`) — its rungs
-            # belong to the machine, not to the state that happened to precede it.
-            cur = None
-        elif ln.startswith("      ") and not ln.startswith("       ") \
-                and ln.rstrip().endswith(":"):
-            cur = ln.strip()[:-1]
-            out[cur] = []
-        elif cur and ln.strip().startswith("- { to: "):
-            out[cur].append(ln.strip().split("to: ", 1)[1].split(",")[0]
-                            .replace("}", "").strip())
-    return {k: v for k, v in out.items() if v or k in out}
-
-
-def parked_clears(text, layer):
-    """The params one layer's Parked state sets, read off the emitted text."""
-    lines = text.splitlines()
-    try:
-        i = lines.index(f"  - name: {layer}")
-    except ValueError:
-        return set()
-    end = next((j for j in range(i + 1, len(lines))
-                if lines[j].startswith("  - name: ")), len(lines))
-    body = lines[i:end]
-    try:
-        s = body.index("      Parked:")
-    except ValueError:
-        return set()
-    out = set()
-    for ln in body[s + 1:]:
-        if ln.startswith("      ") and not ln.startswith("       "):
-            break
-        if ln.startswith("                ") and ":" in ln:
-            out.add(ln.strip().split(":", 1)[0])
-    return out
-
-
-def state_sets(layer_text, name):
-    """One state's driver `set:` writes, key -> raw value string — the surface
-    the clear-totality probes read (parked_clears collapses values away; these
-    need them)."""
-    body = state_block(layer_text, name)
-    out, in_set = {}, False
-    for ln in body.splitlines():
-        s = ln.strip()
-        if ln.startswith("              ") and not ln.startswith("               ") \
-                and s.endswith(":"):
-            in_set = s == "set:"
-        elif in_set and ln.startswith("                ") and ":" in s:
-            k, v = s.split(":", 1)
-            out[k.strip()] = v.strip()
-        elif s and not ln.startswith("              "):
-            in_set = False
-    return out
-
-
-def aap_params(text):
-    return {ln.split(":", 1)[0].strip() for ln in text.splitlines()
-            if "aap: true" in ln and ln.startswith("  ")}
-
-
-def one_driver_has(text, names):
-    """True when some single `copy:` block in the document lists every name."""
-    blocks, cur = [], None
-    for ln in text.splitlines():
-        s = ln.strip()
-        if s == "copy:":
-            cur = []
-            blocks.append(cur)
-        elif cur is not None:
-            if s.endswith(":") or not s or ln.startswith("          -") or ln.startswith("        "):
-                if ":" in s and ln.startswith("                "):
-                    cur.append(s.split(":", 1)[0].strip())
-                else:
-                    cur = None
-            else:
-                cur = None
-    return any(all(n in b for n in names) for b in blocks)
 
 
 def main():

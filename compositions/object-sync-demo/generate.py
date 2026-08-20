@@ -214,23 +214,11 @@ def main():
             ok = ok and cond
 
         assert_(demo_document(mod, cfg)[0] == text, "regeneration is byte-identical")
-        assert_(f"  {cfg['prefix']}/Enable: {{ type: float, default: 1, " in text,
-                "Enable defaults TRUE (demo-local deviation; see demo_document)")
-        # The one property the widened slots could break: word-channel first-fits
-        # runs into batches, so a wider batch pulls more groups into it and each
-        # of those groups' bools have to fit alongside. `check_slots` refuses the
-        # unplaceable case; this asserts the placement actually landed.
-        nb, bb, gb = facts["numberBatches"], facts["boolBatches"], facts["groupBatch"]
-        for g in facts["groups"]:
-            i = gb.get(g)
-            want_n = [w["name"] for w in facts["numberWords"] if w["group"] == g]
-            want_b = [w["name"] for w in facts["boolWords"] if w["group"] == g]
-            got_n = [w["name"] for w in (nb[i] if i is not None and i < len(nb) else [])]
-            got_b = [w["name"] for w in (bb[i] if i is not None and i < len(bb) else [])]
-            assert_(i is not None and all(n in got_n for n in want_n)
-                    and all(n in got_b for n in want_b),
-                    f"group {g}: {len(want_n)} number + {len(want_b)} bool words "
-                    f"co-batched at batch {(i or 0) + 1}")
+        # The Enable-default deviation and the slot packing are NOT re-asserted
+        # here: demo_document() refuses a build where its transform found no line
+        # to rewrite, check_slots refuses an unpackable config, and the REFUSE
+        # above pins the settled 3-batch/50-bit wire — an assert restating any of
+        # those could only pass (CONVENTIONS.md §Per-entry checks).
         if os.path.exists(OUT):
             with open(OUT, encoding="utf-8", newline="") as fh:
                 assert_(fh.read().replace("\r\n", "\n") == text,
@@ -317,6 +305,8 @@ def main():
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
+        print("scope: reproducibility and hand-maintained wiring only — document "
+              "structure, prefab behavior and runtime are unverified here")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

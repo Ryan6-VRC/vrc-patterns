@@ -647,6 +647,8 @@ def check_files(document_fn, c, here, prefabs, extra=()):
     for cond, msg in extra:
         assert_(cond, msg)
 
+    print("scope: reproducibility and hand-maintained wiring only — document "
+          "structure, prefab behavior and runtime are unverified here")
     print("OK" if ok else "FAILED")
     return ok
 

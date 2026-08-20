@@ -94,6 +94,14 @@ Pattern tier has no seam and so no install: it carries a **Behavior** slot inste
 
 Study/reference entries name every non-leaf blend-tree node (`name:`) and name clips by the value they write.
 
+## Per-entry checks (`generate.py --check`)
+
+A generated entry may ship a `--check` beside its generator. Nothing runs it automatically — it is the contributor's tool for the edit-regenerate loop, and "gates green" never includes it. What it may assert is bounded by one test: **only what regeneration cannot fix.** Three classes qualify: reproducibility (the committed document and manifest are byte-identical to what the CONFIG emits today, and the emit is deterministic — the pin that makes "never hand-edit generated output" enforceable on a document too large to review); hand-maintained surfaces no compile or gate reads (prefab wiring, `globalParams` lists, cross-asset references); and cross-artifact identity (a README-quoted figure, a manifest address, a registry id, each pinned to the generator's own output rather than to a reviewer's arithmetic).
+
+Never the shape of the generated document. The document is a pure function of the generator, so a structural assert shadows the code it reads and is rewritten by the very edit it would catch — a class measured, across a full composition build, at zero of five shipped defects found while its green output was cited as verification evidence. What such an assert would encode lives instead as a comment at the emission site, or as a refusal in the generator itself, which fails the build rather than narrating it. A rule that generalizes beyond one entry belongs in `ControllerRules`, never a second Python home: `CompileController` runs that lint as a pipeline stage and error-tier findings fail the compile, and the gate compiles every entry, so the shared rule already fires at admission.
+
+Every check prints its scope negatively before exiting — "reproducibility and hand-maintained wiring only; document structure, prefab behavior and runtime are unverified here" — so a green run cannot be cited as more than it is. A composition's check follows the same rule and stays small: a handful of pins on its hand-edited prefab, never a suite.
+
 ## Provenance / PII
 
 Entries generalized from real assets record their origin and what was abstracted away. This repo is **public**: scrub project specifics, paths, and real names — including persona and private-project names in provenance lines. Cite an upstream open-source ancestor by name; refer to a private source avatar generically.
