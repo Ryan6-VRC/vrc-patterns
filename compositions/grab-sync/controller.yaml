@@ -91,9 +91,17 @@ layers:
         transitions:
           - { to: LocalDisabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: LocalGrabbed, when: [ Grab0_IsGrabbed is true ] }
-      RemoteWait:      # grab-prop's remote settle dwell, verbatim
+      RemoteWait:      # grab-prop's remote settle dwell, verbatim. The IsLocal escapes
+                       # are LEVEL transitions, first in the ladder: entry rungs evaluate at
+                       # playable frame 0, before the runtime has written IsLocal, so an
+                       # entry-only IsLocal route strands the wearer in the remote branch
+                       # (measured; vanilla grab-prop's Timer routes the same way).
         motion: { clip: Prop0_remote_wait }
         transitions:
+          - { to: LocalDisabled, when: [ IsLocal is true, ObjectSync/Enable less 0.5 ] }
+          - { to: LocalGrabbed, when: [ IsLocal is true, Grab0_IsGrabbed is true ] }
+          - { to: LocalPlaced, when: [ IsLocal is true, Placed0 is true ] }
+          - { to: LocalHome, when: [ IsLocal is true ] }
           - { to: RemoteGrabbed, when: [ Grab0_IsGrabbed is true ], exitTime: 1.0 }
           - { to: RemotePlaced, when: [ Placed0 is true, GS/Engaged is true ], exitTime: 1.0 }
           - { to: RemoteHome, when: [ ObjectSync/Enable greater 0.5, GS/Engaged is true ], exitTime: 1.0 }
