@@ -7,7 +7,7 @@ Doctrine an entry *embodies* — seams, build order, gimmick packaging, the bind
 ## An entry is a folder
 
     <entry-name>/
-      README.md          # prose + the Interface stanza + provenance
+      README.md          # human lead + provenance + Ground truth + traps + measured (§The README); routes to source, never restates it
       controller.yaml    # the YAML source (CompileController); declares basis, role, parameters, menu
       built/             # committed when a GUID references it, or for a declared study entry: .controller + *_Parameters.asset (+ *_Menu.asset) + .meta
       assets/            # owned, self-contained assets the entry ships
@@ -36,15 +36,25 @@ A composition is a runnable arrangement of two or more entries, committed as a p
 
 ## The README
 
-One document ordered by depth — a human lead (what a consumer *gets*, the packaged novelty, its synced-bit cost; describe, don't sell), then the agent detail; each fact once. Existing entries are the exemplar; the catalog row's "Build this" cell is the lead's one-line compression, and the title carries the bare tier in parens.
+One document, two readers, one direction of trust: the lead is for a human deciding whether to build this; everything after exists only because the artifacts cannot say it. **An agent must never be able to satisfy from this file a lookup the source could answer** — if `controller.yaml`, `generate.py`, or the prefab can answer the question, the README routes there and stops. The catalog row's "Build this" cell is the lead's one-line compression, and the title carries the bare tier in parens.
 
-Fixed slots: the **Interface stanza** — Params (in/out, synced/saved), Seam (merge framework, anchor, and the binding frame the merge resolves, since CompileController is frame-blind; `animator.md` owns frame mechanics, `gimmicks.md` §Packaging the anchor idiom), Dependencies, Required assets — then optional **Before you compose it**, **How it works** carrying the empirical-constants table, and **Verifying the install** (Module: the cheapest observable distinguishing a correct install from a plausible broken one, plus what the emulator cannot show for this entry) or **Behavior** (Pattern: the numeric contract and how to re-measure it).
+Slots, in order:
 
-Three standing traps:
+- **Lead** — what a consumer *gets*, the packaged novelty, its synced-bit cost; describe, don't sell. Human register.
+- **Provenance** — ancestry and attribution (§Provenance / PII; mandatory).
+- **Ground truth** — a few lines naming which artifact owns what: parameters and behavior in `controller.yaml` (where the YAML is generator-emitted, `generate.py` owns it and its docstring is the design record), the published set in the prefab's `globalParams`, wiring in the prefab. Seam facts no artifact can state — a binding-frame pairing, an anchor rule, a consumer wiring step that ships as an empty reference — are stated here as facts with their failure signatures, and never behind a leading "none": a bullet that opens with "none" must also end there.
+- **Traps** (or **Before you compose it**) — the agent-facing slot: what goes wrong, its symptom, and the site to check. Also the sanctioned home for domain knowledge demoted from `docs/` (`tool-design.md`'s ladder routes a measured surface to the entry that measured it).
+- **Measured** — empirical constants and behavior figures. Every figure carries its method and venue, and is either pinned by the entry's `--check` or replaced by a route to its authoring site (name the knob, the direction, the relation): pinned or routed, no third state.
+- **Verifying the install** (Module) or **Behavior** (Pattern) — unchanged remit: the cheapest observable distinguishing a correct install from a plausible broken one, plus what the emulator cannot show. For a Structural Module this section is the entry's only standing check, and says so.
 
-- **No gate reads a README.** Author every row from the artifact, never from the entry's own prose, and quote the handle the component serializes (a `LayerMask` stores an index, a reference a GUID — a friendly name asserts something about the host project).
-- **Route values, keep relations.** A tuned number lives once at its authoring site; the README names the knob, the direction, and the relation. Quote only what the rig *produces*, a structural constant whose re-derivation is the design (named as an echo of its source), and a `Rig` section a hand-maintained prefab is kept against; when a clone physically copies a value, the canon names its copy sites.
+No slot may carry: a parameter-by-parameter interface enumeration, prose narration of the state machine or solver, or transcriptions of serialized component values. A **Rig** section, where a hand-maintained prefab warrants one, is topology and rationale — the tree, and why each node is shaped the way it is — never the digit strings, which the prefab owns.
+
+Two standing traps:
+
+- **Route values, keep relations.** A tuned number lives once at its authoring site; the README names the knob, the direction, and the relation. Quote only what the rig *produces*, a structural constant whose re-derivation is the design (named as an echo of its source); when a clone physically copies a value, the canon names its copy sites.
 - **Never append a verification run.** A sound re-verification leaves the README alone; a broken one fixes the entry and edits the line that was wrong.
+
+And one rule is enforced rather than stated: **prose never speaks for the checks.** A README sentence attributing coverage to `--check` or the gate ("`--check` asserts/holds/refuses …") fails the gate's README lint — the check prints its own scope, and the README may say only "run `generate.py --check`". Figure pins live as asserts inside `--check`, never as claims in the README.
 
 A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
