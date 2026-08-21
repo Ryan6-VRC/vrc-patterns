@@ -41,8 +41,7 @@ So: the socket ships in-prefab, and **"point the socket at your gimmick" is the 
 
 ## Interface
 
-- **Params:** `HeadProxy/MoveHead` (bool, in) — synced, unsaved: ventriloquism is remotely visible. `MirrorDetection/IsMirror` (float, consumed from the mirror-detect row; declared default 0 = fail-safe park).
-- **Seam:** VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `built/HeadProxy_Fx.controller` + `mirror-detect`'s `built/MirrorDetect_Fx.controller` — and a Toggle fronting `MoveHead` via `globalParams`. `FixWriteDefaults` ships alongside. This entry *is* an avatar, not a mergeable — composing its ideas onto another avatar means rebuilding the rig per the Blender recipe, not dropping the prefab.
+- **Params, seam:** `HeadProxy/MoveHead` (synced/unsaved — remotely visible) and the consumed `MirrorDetection/IsMirror` (parks at 0 = fail-safe) are declared in `controller.yaml`. The seam is a VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `HeadProxy_Fx` + `mirror-detect`'s `MirrorDetect_Fx` — a Toggle fronting `MoveHead` via `globalParams`, plus `FixWriteDefaults`. This entry *is* an avatar, not a mergeable — composing its ideas means rebuilding the rig per the Blender recipe, not dropping the prefab.
 - **Dependencies:** VRCFury.
 - **Required assets:** `assets/HeadProxyRig.fbx` — owned bare armature, primitives only, no vendor content.
 
@@ -52,7 +51,7 @@ Play mode with Av3Emulator, avatar **at the world origin**, `EnableHeadScaling` 
 
 - deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1, in place.
 - `MoveHead` on → `Head_Proxy` lands at `VoiceTarget`; the exempt slot (+ any occupant) follows it — the head-anchored re-place, observed directly. `Chopping` engaging at all is the `IsMirror = −1` proof (hard transition condition).
-- `MoveHead` off → a ≥0.25 s restore pulse returns the deform head to scale 1 (so it never sticks at ~0 for a photo) before the constraint deactivates at rest weights.
+- `MoveHead` off → a restore pulse (shipped 0.5 s; the ≥0.25 s floor is the low-FPS constraint) returns the deform head to scale 1 before the constraint deactivates at rest weights, so it never sticks at ~0 for a photo.
 
 What the emulator structurally cannot show: **any mirror-side visual** (its clones copy transforms instead of stripping VRCHeadChop — runtime.md §VRCHeadChop), the **root-distance release gate** (no capsule model — the very thing the fake chop exists for), and in-game ordering of client chop vs animator writes. Hand those to an in-game tester, in that order.
 
