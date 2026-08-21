@@ -149,6 +149,24 @@ def demo_document(mod, cfg):
 def global_params(cfg):
     """The demo prefab's `globalParams`, as a match grammar rather than a list.
 
+    Three positive wildcards and no exclusions. The entry now keeps its published
+    interface (`<prefix>/*` — Enable and the transport's Acquired) disjoint from
+    its internals (`<internal>/*`), so a consumer names the internal namespaces it
+    reaches into instead of publishing the whole prefix and subtracting. That
+    inverts the failure mode in the safe direction: an entry this list forgets is
+    under-exposed and the tablet reads a name that does not exist, which is loud,
+    where a stale `!` silently WIDENED the list and handed the wire slots to the
+    first host avatar that declared them.
+
+    What this avatar reaches for, and why each is not part of the entry's
+    interface: `<internal>/D/*`, the six decoded coarse/fine AAPs the tablet
+    displays; and `<internal>/Ch/Wire/Idx*`, the index bools the Counter slot
+    walks through a state ladder (synced Bools a blend tree cannot read, so a
+    `blendtree-math` sum is not available). The wire's Num/Bool slots and
+    `Ch/Cycle` are NOT named here and now cannot be reached by accident — they
+    carry state across frames or the network, and a captured one takes the host's
+    own synced/saved flags (`../../../docs/gimmicks.md` §Packaging).
+
     A composition scopes its own namespace once instead of enumerating every name
     its two FullControllers share: VRCFury matches a trailing `*` by prefix and
     lets a leading `!` exclude, winning wherever it sits in the list. Enumerating
@@ -188,8 +206,8 @@ def global_params(cfg):
     stays 1 through an Enable-off, so the consumer predicate is
     `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what the
     damper's rungs carry."""
-    p, ch = cfg["prefix"], cfg["channel"]
-    return [f"{p}/*", f"!{ch}/Cycle", f"!{ch}/Wire/Num*", f"!{ch}/Wire/Bool*"]
+    p, i = cfg["prefix"], cfg["internal"]
+    return [f"{p}/*", f"{i}/D/*", f"{i}/Ch/Wire/Idx*"]
 
 
 def main():
@@ -230,18 +248,47 @@ def main():
         print("  globalParams for the demo prefab:")
         for n in want_gp:
             print(f"    {n}")
-        # A stale exclusion fails the OPPOSITE way to a stale enumeration, so it
-        # needs its own assert. An enumeration going stale under-exposes and the
-        # break is loud in behaviour; a `!` whose stem no longer names anything
-        # silently WIDENS the list, handing the wire slots to the first host
-        # avatar that declares them. Zero matches is the whole failure mode.
-        for entry in [e for e in want_gp if e.startswith("!")]:
-            stem = entry[1:].rstrip("*")
-            assert_(stem in text,
-                    f"exclusion `{entry}` still names a declared param — the stem "
-                    f"`{stem}` appears in the emitted document (a rename upstream "
-                    f"leaves this matching nothing, and the exclusion widens to "
-                    f"expose what it was written to withhold)")
+        # The grammar is positive now, so the failure mode to assert is
+        # under-exposure: a name the tablet's own document binds that the list
+        # does not publish stays instance-prefixed on the entry's controller, and
+        # the two merged controllers are severed with the build still green.
+        # Matching is VRCFury's own rule, ported from
+        # FullControllerBuilder.RewriteParamNameUncached: trailing `*` is a raw
+        # StartsWith in which `/` is not special, and a `!` wins wherever it sits.
+        def published(name, grammar):
+            hit = False
+            for g in grammar:
+                neg = g.startswith("!")
+                if neg:
+                    g = g[1:]
+                wild = g.endswith("*")
+                if wild:
+                    g = g[:-1]
+                if name == g or (wild and name.startswith(g)):
+                    if neg:
+                        return False
+                    hit = True
+            return hit
+
+        # Comments stripped first: a comment naming an unpublished entry-owned
+        # param (`OS/Ch/Cycle`, a `Wire/Num*` slot — the exact strings the
+        # exclusions this list replaced used to carry) would fail the assert below
+        # on prose alone, which is a false positive nobody could act on.
+        own = open(os.path.join(HERE, "controller.yaml"), encoding="utf-8").read()
+        own = _re.sub(r"#.*", "", own)
+        reached = sorted({n for n in _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
+                          if n.split("/")[0] in (cfg["prefix"], cfg["internal"])})
+        missing = [n for n in reached if not published(n, want_gp)]
+        assert_(not missing,
+                f"every entry-owned name this avatar's own document binds is "
+                f"published by the grammar ({len(reached)} names) — unpublished: "
+                f"{missing}")
+        # The converse, cheaply: a wildcard naming a namespace this avatar never
+        # reads is exposure bought for nothing.
+        unused = [g for g in want_gp
+                  if not any(published(n, [g]) for n in reached)]
+        assert_(not unused,
+                f"no globalParams entry is dead weight — unused: {unused}")
         pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
         if os.path.exists(pf_path):
             body = open(pf_path, encoding="utf-8").read()

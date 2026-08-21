@@ -37,44 +37,45 @@ defaults:
 parameters:
   IsLocal: bool              # VRC built-in
   IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in
-  WordChannel/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
+  WC/True: { type: bool, default: true, scratch: true }   # constant for +1-frame hops
   # Interface — the word table. Producers write these on the wearer; consumers read
   # them on every client. Unsynced (the wire below carries them); in the params asset
   # for legibility and OSC reach.
-  Pos/Hi: float            # byte word: integral 0..255
-  Pos/Lo: float            # byte word: integral 0..255
-  Level: float            # float word: [-1,1], 255 wire steps
-  Flag/A: bool
-  Flag/B: bool
-  Flag/C: bool
-  Flag/D: bool
+  WDemo/Pos/Hi: float            # byte word: integral 0..255
+  WDemo/Pos/Lo: float            # byte word: integral 0..255
+  WDemo/Level: float            # float word: [-1,1], 255 wire steps
+  WDemo/Flag/A: bool
+  WDemo/Flag/B: bool
+  WDemo/Flag/C: bool
+  WDemo/Flag/D: bool
   # Correctness: false on load, false after a distance-cull pause, true once THIS
   # client's receiver has applied a complete word table since then. The interface
   # output a consumer gates on; false on the wearer forever (sender layers only).
   WordChannel/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
-  WordChannel/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
-  WordChannel/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
-  # receiver, so a rate distinguishes running from wedged where Acquired cannot. Off
-  # globalParams (a host avatar declaring the name would capture it). Float because a
+  WC/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
+  WC/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
+  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits
+  # under the internal prefix, so no published wildcard reaches it and a host avatar
+  # declaring the name cannot capture it — structural, not a list entry. Float because a
   # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that
   # reaches synced Ints only and this is unsynced.
   # Wire — the only synced params.
-  WordChannel/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Idx2: { type: bool, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Num0: { type: int, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Num1: { type: int, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Bool0: { type: bool, vrc: { synced: true, saved: false } }
-  WordChannel/Wire/Bool1: { type: bool, vrc: { synced: true, saved: false } }
+  WC/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
+  WC/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
+  WC/Wire/Idx2: { type: bool, vrc: { synced: true, saved: false } }
+  WC/Wire/Num0: { type: int, vrc: { synced: true, saved: false } }
+  WC/Wire/Num1: { type: int, vrc: { synced: true, saved: false } }
+  WC/Wire/Bool0: { type: bool, vrc: { synced: true, saved: false } }
+  WC/Wire/Bool1: { type: bool, vrc: { synced: true, saved: false } }
   # Latches — the double buffer, both directions. Scratch: internal residue.
-  WordChannel/Latch/Pos/Hi: { type: float, scratch: true }
-  WordChannel/Latch/Pos/Lo: { type: float, scratch: true }
-  WordChannel/Latch/Level: { type: float, scratch: true }
-  WordChannel/Latch/Flag/A: { type: bool, scratch: true }
-  WordChannel/Latch/Flag/B: { type: bool, scratch: true }
-  WordChannel/Latch/Flag/C: { type: bool, scratch: true }
-  WordChannel/Latch/Flag/D: { type: bool, scratch: true }
-  Pos/Assembled: { type: float, aap: true }   # hi*256+lo, one-frame lag
+  WC/Latch/WDemo/Pos/Hi: { type: float, scratch: true }
+  WC/Latch/WDemo/Pos/Lo: { type: float, scratch: true }
+  WC/Latch/WDemo/Level: { type: float, scratch: true }
+  WC/Latch/WDemo/Flag/A: { type: bool, scratch: true }
+  WC/Latch/WDemo/Flag/B: { type: bool, scratch: true }
+  WC/Latch/WDemo/Flag/C: { type: bool, scratch: true }
+  WC/Latch/WDemo/Flag/D: { type: bool, scratch: true }
+  WDemo/Pos/Assembled: { type: float, aap: true }   # hi*256+lo, one-frame lag
 
 layers:
   - name: WordChannel/Sync
@@ -84,96 +85,96 @@ layers:
         transitions:
           - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
-      # counter 1/4 = batch 1/2: Pos/Hi, Pos/Lo, Flag/A, Flag/B
+      # counter 1/4 = batch 1/2: WDemo/Pos/Hi, WDemo/Pos/Lo, WDemo/Flag/A, WDemo/Flag/B
       Send0:
         motion: ~
         behaviours:
           # coherent snapshot: latch every word this batch does not itself send
           - driver:
               copy:
-                WordChannel/Latch/Level: Level
-                WordChannel/Latch/Flag/C: Flag/C
-                WordChannel/Latch/Flag/D: Flag/D
+                WC/Latch/WDemo/Level: WDemo/Level
+                WC/Latch/WDemo/Flag/C: WDemo/Flag/C
+                WC/Latch/WDemo/Flag/D: WDemo/Flag/D
           - driver:
               set:
-                WordChannel/Wire/Idx0: 0
-                WordChannel/Wire/Idx1: 0
-                WordChannel/Wire/Idx2: 1
+                WC/Wire/Idx0: 0
+                WC/Wire/Idx1: 0
+                WC/Wire/Idx2: 1
               copy:
-                WordChannel/Wire/Num0: Pos/Hi
-                WordChannel/Wire/Num1: Pos/Lo
-                WordChannel/Wire/Bool0: Flag/A
-                WordChannel/Wire/Bool1: Flag/B
+                WC/Wire/Num0: WDemo/Pos/Hi
+                WC/Wire/Num1: WDemo/Pos/Lo
+                WC/Wire/Bool0: WDemo/Flag/A
+                WC/Wire/Bool1: WDemo/Flag/B
         transitions:
           - { to: Extra0, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra0:
         motion: ~
         transitions:
-          - { to: Send1, when: [ WordChannel/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 2/4 = batch 2/2: Level, Flag/C, Flag/D
+          - { to: Send1, when: [ WC/True is true ] }   # conditional hop = the guaranteed +1 frame
+      # counter 2/4 = batch 2/2: WDemo/Level, WDemo/Flag/C, WDemo/Flag/D
       Send1:
         motion: ~
         behaviours:
           - driver:
               set:
-                WordChannel/Wire/Idx0: 0
-                WordChannel/Wire/Idx1: 1
-                WordChannel/Wire/Idx2: 0
+                WC/Wire/Idx0: 0
+                WC/Wire/Idx1: 1
+                WC/Wire/Idx2: 0
               copy:
-                WordChannel/Wire/Num0: { source: WordChannel/Latch/Level, sourceMin: -1, sourceMax: 1, destMin: 0, destMax: 254 }
-                WordChannel/Wire/Bool0: WordChannel/Latch/Flag/C
-                WordChannel/Wire/Bool1: WordChannel/Latch/Flag/D
+                WC/Wire/Num0: { source: WC/Latch/WDemo/Level, sourceMin: -1, sourceMax: 1, destMin: 0, destMax: 254 }
+                WC/Wire/Bool0: WC/Latch/WDemo/Flag/C
+                WC/Wire/Bool1: WC/Latch/WDemo/Flag/D
         transitions:
           - { to: Extra1, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra1:
         motion: ~
         transitions:
-          - { to: Send2, when: [ WordChannel/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 3/4 = batch 1/2: Pos/Hi, Pos/Lo, Flag/A, Flag/B
+          - { to: Send2, when: [ WC/True is true ] }   # conditional hop = the guaranteed +1 frame
+      # counter 3/4 = batch 1/2: WDemo/Pos/Hi, WDemo/Pos/Lo, WDemo/Flag/A, WDemo/Flag/B
       Send2:
         motion: ~
         behaviours:
           # coherent snapshot: latch every word this batch does not itself send
           - driver:
               copy:
-                WordChannel/Latch/Level: Level
-                WordChannel/Latch/Flag/C: Flag/C
-                WordChannel/Latch/Flag/D: Flag/D
+                WC/Latch/WDemo/Level: WDemo/Level
+                WC/Latch/WDemo/Flag/C: WDemo/Flag/C
+                WC/Latch/WDemo/Flag/D: WDemo/Flag/D
           - driver:
               set:
-                WordChannel/Wire/Idx0: 0
-                WordChannel/Wire/Idx1: 1
-                WordChannel/Wire/Idx2: 1
+                WC/Wire/Idx0: 0
+                WC/Wire/Idx1: 1
+                WC/Wire/Idx2: 1
               copy:
-                WordChannel/Wire/Num0: Pos/Hi
-                WordChannel/Wire/Num1: Pos/Lo
-                WordChannel/Wire/Bool0: Flag/A
-                WordChannel/Wire/Bool1: Flag/B
+                WC/Wire/Num0: WDemo/Pos/Hi
+                WC/Wire/Num1: WDemo/Pos/Lo
+                WC/Wire/Bool0: WDemo/Flag/A
+                WC/Wire/Bool1: WDemo/Flag/B
         transitions:
           - { to: Extra2, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra2:
         motion: ~
         transitions:
-          - { to: Send3, when: [ WordChannel/True is true ] }   # conditional hop = the guaranteed +1 frame
-      # counter 4/4 = batch 2/2: Level, Flag/C, Flag/D
+          - { to: Send3, when: [ WC/True is true ] }   # conditional hop = the guaranteed +1 frame
+      # counter 4/4 = batch 2/2: WDemo/Level, WDemo/Flag/C, WDemo/Flag/D
       Send3:
         motion: ~
         behaviours:
           - driver:
               set:
-                WordChannel/Wire/Idx0: 1
-                WordChannel/Wire/Idx1: 0
-                WordChannel/Wire/Idx2: 0
+                WC/Wire/Idx0: 1
+                WC/Wire/Idx1: 0
+                WC/Wire/Idx2: 0
               copy:
-                WordChannel/Wire/Num0: { source: WordChannel/Latch/Level, sourceMin: -1, sourceMax: 1, destMin: 0, destMax: 254 }
-                WordChannel/Wire/Bool0: WordChannel/Latch/Flag/C
-                WordChannel/Wire/Bool1: WordChannel/Latch/Flag/D
+                WC/Wire/Num0: { source: WC/Latch/WDemo/Level, sourceMin: -1, sourceMax: 1, destMin: 0, destMax: 254 }
+                WC/Wire/Bool0: WC/Latch/WDemo/Flag/C
+                WC/Wire/Bool1: WC/Latch/WDemo/Flag/D
         transitions:
           - { to: Extra3, when: [], exitTime: 0.1 }   # empty state: exitTime is literal seconds
       Extra3:
         motion: ~
         transitions:
-          - { to: Send0, when: [ WordChannel/True is true ] }   # conditional hop = the guaranteed +1 frame
+          - { to: Send0, when: [ WC/True is true ] }   # conditional hop = the guaranteed +1 frame
       Lost:
         motion: ~
         behaviours:
@@ -183,88 +184,88 @@ layers:
           # zeroes the pair (docstring).
           - driver:
               copy:
-                WordChannel/SawHead: WordChannel/Acquired
+                WC/SawHead: WordChannel/Acquired
         transitions:
-          - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }   # re-lock only at a loop head
-          - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }   # re-lock only at a loop head
+          - { to: Recv0, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is false, WC/Wire/Idx2 is true ] }   # re-lock only at a loop head
+          - { to: Recv2, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is true, WC/Wire/Idx2 is true ] }   # re-lock only at a loop head
       Recv0:
         motion: ~
         behaviours:
           - driver:
               set:
-                WordChannel/SawHead: 1   # head of a batch walk
+                WC/SawHead: 1   # head of a batch walk
               copy:
-                WordChannel/Latch/Pos/Hi: WordChannel/Wire/Num0
-                WordChannel/Latch/Pos/Lo: WordChannel/Wire/Num1
-                WordChannel/Latch/Flag/A: WordChannel/Wire/Bool0
-                WordChannel/Latch/Flag/B: WordChannel/Wire/Bool1
+                WC/Latch/WDemo/Pos/Hi: WC/Wire/Num0
+                WC/Latch/WDemo/Pos/Lo: WC/Wire/Num1
+                WC/Latch/WDemo/Flag/A: WC/Wire/Bool0
+                WC/Latch/WDemo/Flag/B: WC/Wire/Bool1
         transitions:
-          - { to: Recv1, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }
+          - { to: Recv1, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is true, WC/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is false, WC/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is true, WC/Wire/Idx2 is true ] }
       Recv1:
         motion: ~
         behaviours:
           - driver:
               copy:
-                Level: { source: WordChannel/Wire/Num0, sourceMin: 0, sourceMax: 254, destMin: -1, destMax: 1 }
-                Flag/C: WordChannel/Wire/Bool0
-                Flag/D: WordChannel/Wire/Bool1
+                WDemo/Level: { source: WC/Wire/Num0, sourceMin: 0, sourceMax: 254, destMin: -1, destMax: 1 }
+                WDemo/Flag/C: WC/Wire/Bool0
+                WDemo/Flag/D: WC/Wire/Bool1
                 # atomic apply: the earlier batches' buffered words land with this batch's
-                Pos/Hi: WordChannel/Latch/Pos/Hi
-                Pos/Lo: WordChannel/Latch/Pos/Lo
-                Flag/A: WordChannel/Latch/Flag/A
-                Flag/B: WordChannel/Latch/Flag/B
+                WDemo/Pos/Hi: WC/Latch/WDemo/Pos/Hi
+                WDemo/Pos/Lo: WC/Latch/WDemo/Pos/Lo
+                WDemo/Flag/A: WC/Latch/WDemo/Flag/A
+                WDemo/Flag/B: WC/Latch/WDemo/Flag/B
           - driver:
-              add: { WordChannel/Cycle: 1 }
+              add: { WC/Cycle: 1 }
               copy:
-                WordChannel/Acquired: WordChannel/SawHead   # tail of a walk that began at a head
+                WordChannel/Acquired: WC/SawHead   # tail of a walk that began at a head
         transitions:
-          - { to: Recv2, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is false ] }
+          - { to: Recv2, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is true, WC/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is false ] }
       Recv2:
         motion: ~
         behaviours:
           - driver:
               set:
-                WordChannel/SawHead: 1   # head of a batch walk
+                WC/SawHead: 1   # head of a batch walk
               copy:
-                WordChannel/Latch/Pos/Hi: WordChannel/Wire/Num0
-                WordChannel/Latch/Pos/Lo: WordChannel/Wire/Num1
-                WordChannel/Latch/Flag/A: WordChannel/Wire/Bool0
-                WordChannel/Latch/Flag/B: WordChannel/Wire/Bool1
+                WC/Latch/WDemo/Pos/Hi: WC/Wire/Num0
+                WC/Latch/WDemo/Pos/Lo: WC/Wire/Num1
+                WC/Latch/WDemo/Flag/A: WC/Wire/Bool0
+                WC/Latch/WDemo/Flag/B: WC/Wire/Bool1
         transitions:
-          - { to: Recv3, when: [ WordChannel/Wire/Idx0 is true, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is true, WordChannel/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is true, WordChannel/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is true, WordChannel/Wire/Idx2 is false ] }
+          - { to: Recv3, when: [ WC/Wire/Idx0 is true, WC/Wire/Idx1 is false, WC/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is true, WC/Wire/Idx1 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is true, WC/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is false, WC/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is true, WC/Wire/Idx2 is false ] }
       Recv3:
         motion: ~
         behaviours:
           - driver:
               copy:
-                Level: { source: WordChannel/Wire/Num0, sourceMin: 0, sourceMax: 254, destMin: -1, destMax: 1 }
-                Flag/C: WordChannel/Wire/Bool0
-                Flag/D: WordChannel/Wire/Bool1
+                WDemo/Level: { source: WC/Wire/Num0, sourceMin: 0, sourceMax: 254, destMin: -1, destMax: 1 }
+                WDemo/Flag/C: WC/Wire/Bool0
+                WDemo/Flag/D: WC/Wire/Bool1
                 # atomic apply: the earlier batches' buffered words land with this batch's
-                Pos/Hi: WordChannel/Latch/Pos/Hi
-                Pos/Lo: WordChannel/Latch/Pos/Lo
-                Flag/A: WordChannel/Latch/Flag/A
-                Flag/B: WordChannel/Latch/Flag/B
+                WDemo/Pos/Hi: WC/Latch/WDemo/Pos/Hi
+                WDemo/Pos/Lo: WC/Latch/WDemo/Pos/Lo
+                WDemo/Flag/A: WC/Latch/WDemo/Flag/A
+                WDemo/Flag/B: WC/Latch/WDemo/Flag/B
           - driver:
-              add: { WordChannel/Cycle: 1 }
+              add: { WC/Cycle: 1 }
               copy:
-                WordChannel/Acquired: WordChannel/SawHead   # tail of a walk that began at a head
+                WordChannel/Acquired: WC/SawHead   # tail of a walk that began at a head
         transitions:
-          - { to: Recv0, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx1 is false, WordChannel/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is false, WordChannel/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ WordChannel/Wire/Idx0 is true, WordChannel/Wire/Idx2 is true ] }
+          - { to: Recv0, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx1 is false, WC/Wire/Idx2 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx1 is true ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is false, WC/Wire/Idx2 is false ] }
+          - { to: Lost, when: [ WC/Wire/Idx0 is true, WC/Wire/Idx2 is true ] }
     default: Split
     layout:
       nodes:
@@ -303,7 +304,7 @@ layers:
           - driver:
               set:
                 WordChannel/Acquired: 0
-                WordChannel/SawHead: 0
+                WC/SawHead: 0
         transitions:
           - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
     default: Enabled
@@ -321,12 +322,12 @@ layers:
           tree: direct
           name: AssembleSum
           children:
-            - { clip: asm_pos_assembled_hi, directWeight: Pos/Hi }
-            - { clip: asm_pos_assembled_lo, directWeight: Pos/Lo }
+            - { clip: asm_wdemo_pos_assembled_hi, directWeight: WDemo/Pos/Hi }
+            - { clip: asm_wdemo_pos_assembled_lo, directWeight: WDemo/Pos/Lo }
     default: Assemble
 
 # Reassembly endpoints: each writes the AAP scaled per limb; the Direct tree's
 # weight (the limb param, 0..255) multiplies it, so the sum is hi*256 + lo.
 clips:
-  asm_pos_assembled_hi: { set: { Pos/Assembled: 256 } }
-  asm_pos_assembled_lo: { set: { Pos/Assembled: 1 } }
+  asm_wdemo_pos_assembled_hi: { set: { WDemo/Pos/Assembled: 256 } }
+  asm_wdemo_pos_assembled_lo: { set: { WDemo/Pos/Assembled: 1 } }

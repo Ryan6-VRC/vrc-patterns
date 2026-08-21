@@ -203,7 +203,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FX
+  parameter: OS/Sense/Sh/FX
   minVelocity: 0.05
 --- !u!1 &380509603778352238
 GameObject:
@@ -264,7 +264,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FY
+  parameter: OS/Sense/Sh/FY
   minVelocity: 0.05
 --- !u!1 &388732306959810178
 GameObject:
@@ -471,7 +471,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FZ
+  parameter: OS/Sense/Sh/FZ
   minVelocity: 0.05
 --- !u!1 &505009885508393919
 GameObject:
@@ -913,7 +913,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/RA/Z
+  parameter: OS/Sense/Sh/RA/Z
   minVelocity: 0.05
 --- !u!1 &1196488328518822189
 GameObject:
@@ -974,7 +974,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CY
+  parameter: OS/Sense/Sh/CY
   minVelocity: 0.05
 --- !u!1 &1267886830358827759
 GameObject:
@@ -1268,7 +1268,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FY
+  parameter: OS/Sense/Sh/FY
   minVelocity: 0.05
 --- !u!1 &1951246834510718634
 GameObject:
@@ -1648,7 +1648,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CZ
+  parameter: OS/Sense/Sh/CZ
   minVelocity: 0.05
 --- !u!1 &3005240642484327637
 GameObject:
@@ -1709,7 +1709,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CX
+  parameter: OS/Sense/Sh/CX
   minVelocity: 0.05
 --- !u!1 &3510756716298267777
 GameObject:
@@ -1770,7 +1770,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FX
+  parameter: OS/Sense/Sh/FX
   minVelocity: 0.05
 --- !u!1 &3542571680953161783
 GameObject:
@@ -2210,7 +2210,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CZ
+  parameter: OS/Sense/Sh/CZ
   minVelocity: 0.05
 --- !u!1 &4900948582535465470
 GameObject:
@@ -2436,7 +2436,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/RA/Z
+  parameter: OS/Sense/Sh/RA/Z
   minVelocity: 0.05
 --- !u!1 &4933787717315686622
 GameObject:
@@ -2827,7 +2827,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/RA/X
+  parameter: OS/Sense/Sh/RA/X
   minVelocity: 0.05
 --- !u!1 &4975031652180982860
 GameObject:
@@ -3190,7 +3190,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/RA/X
+  parameter: OS/Sense/Sh/RA/X
   minVelocity: 0.05
 --- !u!1 &5895765116103522105
 GameObject:
@@ -3306,7 +3306,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CX
+  parameter: OS/Sense/Sh/CX
   minVelocity: 0.05
 --- !u!1 &6799395925174289988
 GameObject:
@@ -3536,8 +3536,7 @@ MonoBehaviour:
             objRef: {fileID: 11400000, guid: f9355100e0802e6448afe87e2c28b61a, type: 2}
         smoothedPrms: []
         globalParams:
-        - ObjectSync/Enable
-        - ObjectSync/Ch/Acquired
+        - ObjectSync/*
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -4346,7 +4345,7 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/CY
+  parameter: OS/Sense/Sh/CY
   minVelocity: 0.05
 --- !u!1 &8525349765655749585
 GameObject:
@@ -4759,5 +4758,5 @@ MonoBehaviour:
   allowOthers: 0
   useFaceProximity: 1
   receiverType: 2
-  parameter: ObjectSync/Sense/Sh/FZ
+  parameter: OS/Sense/Sh/FZ
   minVelocity: 0.05

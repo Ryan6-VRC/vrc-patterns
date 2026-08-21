@@ -87,6 +87,7 @@ decode here is a blend tree that holds no state across frames. The transport is
 
 import hashlib
 import importlib.util
+import re
 import os
 import sys
 
@@ -96,10 +97,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------- CONFIG ----
 
 CONFIG = {
-    # Param prefix for everything this entry declares. The channel prefix must
-    # sit under it but differ, or word-channel's own internals collide.
+    # PUBLISHED prefix. Exactly two names live under it — the wearer-facing
+    # `Enable` and the transport's `<channel>/Acquired` — so a consumer publishes
+    # this entry's whole interface with the single wildcard `ObjectSync/*`.
+    # Nothing internal may sit here; `internal` below is where those go.
     "prefix": "ObjectSync",
     "channel": "ObjectSync/Ch",
+    # INTERNAL prefix, required. Every param a consumer must not bind — the
+    # staging walks, the decoded AAPs, the sense receivers, the slice ring, and
+    # (at `<internal>/Ch`) word-channel's wire and latches. It matches no
+    # published wildcard, so all of it keeps the VRCFury instance prefix, which
+    # is what lets two instances coexist (docs/nondestructive.md rule 2) and
+    # what stops a host avatar capturing a name it happened to declare.
+    "internal": "OS",
     # The wearer-facing control's label in the expression menu.
     "menuLabel": "Object Sync",
 
@@ -659,20 +669,38 @@ def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_rungs):
 
 
 def exit_when_true(c, exit_to):
-    return [f"{{ to: {exit_to}, when: [ {c['prefix']}/True is true ] }}"]
+    return [f"{{ to: {exit_to}, when: [ {c['internal']}/True is true ] }}"]
 
 
 # ------------------------------------------------------------- the build ----
 
 def build(c):
     d = derive(c)
-    p = c["prefix"]
+    # Through the transport's refusal, not `c["internal"]` raw: an empty string
+    # reads as a prefix everywhere below while matching no published wildcard, so
+    # it would emit `/Sense/...` and `/Ch/Wire/...` with every guard here blind to
+    # it (check_namespaces sees root "" in no published root; the prefab assert
+    # degenerates to startswith("/")). A missing key raised KeyError rather than
+    # naming the fix. Every other `c["internal"]` read below is reached only
+    # through this function, so refusing once here covers them.
+    wcm = load_word_channel()
+    p, pub = wcm.internal_prefix(c), c["prefix"]
     numbers, bools, groups = word_table(c)
     check_slots(c, numbers, bools)
 
     wire_config = dict(c["wire"])
     wire_config.update({
         "channel": c["channel"],
+        # The channel's internals nest under THIS entry's internal prefix, so one
+        # `<internal>/*` covers both. Its published side stays `channel`, which is
+        # why `Ch/Acquired` needs no rename to reach the published wildcard.
+        "internal": f"{c['internal']}/Ch",
+        # The word table is this entry's internal staging, not an interface a
+        # consumer binds: object-sync publishes a decoded pose, never wire limbs.
+        # Left at its bare `<object>/…` root, where no published wildcard reaches
+        # it — moving it under `internal` would make word_float compose
+        # `<internal>/B/<internal>/…` across every float twin.
+        "publishWords": False,
         # FIXED, not a knob: the coherence unit a grouped measurement wants is
         # the batch, and set-atomic's pause residual buys nothing here.
         "atomic": "batch",
@@ -680,7 +708,7 @@ def build(c):
         "bools": bools,
         "assemble": [],
     })
-    wc = load_word_channel().build(wire_config)
+    wc = wcm.build(wire_config)
     facts = wc["facts"]
     # This entry merges the fragment's header, params and layers, and builds the
     # document's `clips:` section from `Doc` alone — so a clip line the fragment
@@ -711,8 +739,8 @@ def build(c):
     # one synced bit, and the schema's sanctioned spelling for a toggle a blend
     # tree has to weigh. Unsaved: off is the reset, and the prop never resurrects
     # "on" at avatar load.
-    doc.param(f"  {p}/Enable: {{ type: float, default: 0, "
-              "vrc: { type: bool, synced: true, saved: false } }", f"{p}/Enable")
+    doc.param(f"  {pub}/Enable: {{ type: float, default: 0, "
+              "vrc: { type: bool, synced: true, saved: false } }", f"{pub}/Enable")
     # This entry declares NO validity param of its own. The transport already
     # emits one — `<channel>/Acquired`, false until this client's receiver has
     # applied a complete word table — and it is on word-channel's globalParams,
@@ -751,13 +779,26 @@ def build(c):
                 layers.append(component_walk(doc, c, d, comp, ob=ob))
     state_count = refuse_duplicate_states(layers)
 
+    params = [ln for ln in wc["params"] if ln.strip() != "IsLocal: bool"
+              and not ln.strip().startswith("IsLocal:")] + doc.params
+    # The fragment's own refusal saw only the fragment's params. This one runs
+    # over the WHOLE merged document, which is the population a consumer's
+    # globalParams actually matches against.
+    declared = [m.group(1) for m in
+                (re.match(r"\s*([^\s#:]+):", ln) for ln in params
+                 if ln.strip() and not ln.strip().startswith("#"))
+                if m and m.group(1) not in wcm.BUILTINS]
+    published = [f"{c['prefix']}/Enable", f"{c['channel']}/Acquired"]
+    wcm.check_namespaces(published, declared)
+
     return {
         "header": header(c, d, facts, numbers, bools),
-        "params": [ln for ln in wc["params"] if ln.strip() != "IsLocal: bool"
-                   and not ln.strip().startswith("IsLocal:")] + doc.params,
+        "params": params,
         "layers": layers,
         "clips": doc.clips,
         "facts": dict(facts, **{
+            "published": published,
+            "globalParams": wcm.published_wildcards(published),
             "geometry": d,
             "groups": groups,
             "numberWords": numbers,
@@ -848,7 +889,7 @@ def floatify_layer(doc, c, numbers, bools):
     and on a head-landing cold join the Follow engage would render the last
     group fully stale for that frame. Engaging on the copy keeps the gate and
     the decode's inputs on one latency path."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     copies = {}
     for w in numbers + bools:
         f = word_float(p, w["name"])
@@ -857,7 +898,7 @@ def floatify_layer(doc, c, numbers, bools):
     acq_copy = f"{p}/B/Acquired"
     doc.param(f"  {acq_copy}: {{ type: float, scratch: true }}", acq_copy)
     copies[acq_copy] = f"{c['channel']}/Acquired"
-    out = [f"  - name: {p}/Floatify", "    states:"]
+    out = [f"  - name: {pub}/Floatify", "    states:"]
     for cur, nxt in (("Even", "Odd"), ("Odd", "Even")):
         out.extend(state(cur, driver(copies=copies),
                          [f"{{ to: {nxt}, when: [ {p}/True is true ] }}"]))
@@ -873,7 +914,7 @@ def assemble_children(doc, c, dest, byte_word, bool_words, nbits):
     """One value reassembled from its byte word and bool tail: the generalized
     form of word-channel's hi*256+lo idiom. Every addend is an integer times an
     integral weight below 2^24, so the sum is exact."""
-    p = c["prefix"]
+    p = c["internal"]
     nb = nbits - 8
     bw, bws = decode_weights(nbits, nb)
     kids = []
@@ -906,7 +947,7 @@ def decode_display_layer(doc, c, d):
     Display: the base clip is the FIRST child of each axis's run so the
     running sum never leaves the working range — float32's ulp at range is
     this design's precision floor already."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     multi = len(c["objects"]) > 1
     kids = []
     for ob in c["objects"]:
@@ -1002,7 +1043,7 @@ def decode_display_layer(doc, c, d):
     sub = enable_subtree(doc, c)
     if sub:
         kids.append(sub)
-    out = [f"  - name: {p}/Decode", "    states:"]
+    out = [f"  - name: {pub}/Decode", "    states:"]
     out.extend(tree_state("Decode", "DecodeDisplay", kids))
     out.append("    default: Decode")
     return out
@@ -1021,7 +1062,7 @@ def enable_subtree(doc, c):
     clip. The wire is not gated either way: it is the transport, its bits are
     allocated whether or not the prop is out, and a receiver that kept decoding
     through the toggle is what makes re-enabling instant."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     if len(c["objects"]) > 1:
         return None
     park, live = {}, {}
@@ -1030,7 +1071,7 @@ def enable_subtree(doc, c):
         park[b], live[b] = 0, 1
     return ["- tree: 1d",
             "  name: EnableGate",
-            f"  param: {p}/Enable",
+            f"  param: {pub}/Enable",
             f"  directWeight: {p}/One",
             "  children:",
             f"    - {{ clip: {doc.clip('enable_park', park)}, threshold: 0 }}",
@@ -1095,7 +1136,7 @@ def follow_layer(doc, c):
     table already acquired snaps immediately instead of waiting a cycle —
     `Enable` never gated the wire, so the receiver keeps decoding through the
     toggle and `Acquired` stays true across it. Intended."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     rides_target, rides_recon = {}, {}
     for ob in c["objects"]:
         s = f"{sync_path(c, ob['name'])}/VRCParentConstraint.Sources"
@@ -1105,7 +1146,7 @@ def follow_layer(doc, c):
         rides_recon[f"{s}.source1.Weight"] = 1
     target_clip = doc.clip("follow_target", rides_target)
     recon_clip = doc.clip("follow_recon", rides_recon)
-    out = [f"  - name: {p}/Follow", "    states:"]
+    out = [f"  - name: {pub}/Follow", "    states:"]
     out.extend(state("Release", None, None, motion=f"{{ clip: {target_clip} }}"))
     out.extend(state("Local", None, None, motion=f"{{ clip: {target_clip} }}"))
     out.extend(state("Follow", None, None, motion=f"{{ clip: {recon_clip} }}"))
@@ -1113,11 +1154,11 @@ def follow_layer(doc, c):
         "    any:",
         "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
         "   # the wearer's pose is authoritative from frame 1",
-        f"      - {{ to: Follow, when: [ IsLocal is false, {p}/Enable greater 0.5, "
+        f"      - {{ to: Follow, when: [ IsLocal is false, {pub}/Enable greater 0.5, "
         f"{p}/B/Acquired greater 0.5 ], canTransitionToSelf: false }}"
         "   # a complete word table has landed on THIS client, read through the"
         " Floatify copy so the gate and the decode inputs share one latency path",
-        f"      - {{ to: Release, when: [ IsLocal is false, {p}/Enable less 0.5 ], "
+        f"      - {{ to: Release, when: [ IsLocal is false, {pub}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
     out.extend(["    layout:", "      nodes:",
@@ -1136,7 +1177,7 @@ def sense_union(c):
     outgoing and incoming rigs in one evaluation (no co-active frame). The
     slice's Enter clear must cover this whole union or a y slice's untouched
     full-only component would hand the next full slice a frozen reading."""
-    p = c["prefix"]
+    p = c["internal"]
     out = {}
     for a in AXES:
         out[f"{p}/Sense/Sh/C{a}"] = 0
@@ -1159,7 +1200,7 @@ def slice_wake_params(c, o):
     which is parked at cell 0 until that object's coarse walk has run, so it
     legitimately reads 0 here — its liveness is checked later, inside the walk,
     where the anchor is already placed."""
-    p = c["prefix"]
+    p = c["internal"]
     ob = next(x for x in c["objects"] if x["name"] == o)
     return ([f"{p}/Sense/Sh/C{a}" for a in AXES] +
             [f"{p}/Sense/Sh/R{comp}" for comp in rot_comps(ob["rotation"])])
@@ -1169,7 +1210,7 @@ def slice_done_param(c, walk):
     """The completion stamp one shared walk leaves for the Slice layer —
     written 1 by that walk's Commit_<o> drivers, cleared by every slice Enter
     and by the Slice layer's Parked."""
-    return f"{c['prefix']}/Slice/Done/{walk}"
+    return f"{c['internal']}/Slice/Done/{walk}"
 
 
 def slice_done_walks(c, mode=None):
@@ -1246,7 +1287,7 @@ def slice_layer(doc, c):
     objects), so Live=1 always means exactly one `Slice/<o>`=1, with an Enter
     frame between any two — which is what the walks' abandon rung and the
     `Commit_<o>` routing conditions rest on."""
-    p, d = c["prefix"], derive(c)
+    p, pub, d = c["internal"], c["prefix"], derive(c)
     names = [ob["name"] for ob in c["objects"]]
     mode = {ob["name"]: ob["rotation"] for ob in c["objects"]}
     for o in names:
@@ -1290,7 +1331,7 @@ def slice_layer(doc, c):
     for o in slots:
         labels.append((o, seen[o]))
         seen[o] += 1
-    out = [f"  - name: {p}/Slice", "    states:"]
+    out = [f"  - name: {pub}/Slice", "    states:"]
     for i, (o, j) in enumerate(labels):
         motion = f"{{ clip: {gates[o]} }}"
         no, nj = labels[(i + 1) % len(labels)]
@@ -1324,7 +1365,7 @@ def slice_layer(doc, c):
             motion=motion))
     first_o, first_j = labels[0]
     out.extend(state("Parked", driver(sets=blocked),
-                     [f"{{ to: Enter_{first_o}_{first_j}, when: [ {p}/Enable greater 0.5 ] }}"],
+                     [f"{{ to: Enter_{first_o}_{first_j}, when: [ {pub}/Enable greater 0.5 ] }}"],
                      motion=f"{{ clip: {parked_clip} }}"))
     out.extend(off_ladder(c))
     out.append("    default: Parked")
@@ -1368,9 +1409,9 @@ def gate(c, shared, full_only=False):
     Enter dropped Live."""
     g = ["IsLocal is true", f"{c['prefix']}/Enable greater 0.5"]
     if shared:
-        g.append(f"{c['prefix']}/Slice/Live greater 0.5")
+        g.append(f"{c['internal']}/Slice/Live greater 0.5")
     if full_only:
-        g.append(f"{c['prefix']}/Slice/FullLive greater 0.5")
+        g.append(f"{c['internal']}/Slice/FullLive greater 0.5")
     return g
 
 
@@ -1396,9 +1437,9 @@ def off_ladder(c, shared=False):
     live and it is still the one I started against' (Run's single driver makes
     Live=1 equivalent to exactly one Slice/<o>=1, with an Enter frame between
     any two)."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     out = ["    any:",
-           f"      - {{ to: Parked, when: [ {p}/Enable less 0.5 ], "
+           f"      - {{ to: Parked, when: [ {pub}/Enable less 0.5 ], "
            "canTransitionToSelf: false }"]
     if shared:
         out.append(f"      - {{ to: Parked, when: [ {p}/Slice/Live "
@@ -1410,7 +1451,7 @@ def wake_up(c, shared):
     """The conditions that let a Parked encode layer start climbing again."""
     up = [f"{c['prefix']}/Enable greater 0.5"]
     if shared:
-        up.append(f"{c['prefix']}/Slice/Live greater 0.5")
+        up.append(f"{c['internal']}/Slice/Live greater 0.5")
     return up
 
 
@@ -1495,11 +1536,11 @@ def position_walk(doc, c, d, a, ob=None):
     the shared sense params (at most one live writer — the slice gate clip
     flips rigs in one evaluation), and a per-object `Commit_<o>` fan-out
     routing the finished words to whichever object's slice is live."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     shared = ob is None
     scr = "Sh" if shared else ob["name"]
     commit_objs = c["objects"] if shared else [ob]
-    lay = f"{p}/Enc/{scr}/P{a}"
+    lay = f"{pub}/Enc/{scr}/P{a}"
     sc = sense_param(doc, c, f"{p}/Sense/{scr}/C{a}")
     sf = sense_param(doc, c, f"{p}/Sense/{scr}/F{a}")
     st = f"{p}/S/{scr}/P{a}"
@@ -1629,11 +1670,11 @@ def pair_layer(doc, c, d, shared):
     their two readings are independent values, but sharing one sample frame and
     one commit driver costs an independent pair nothing — each component's word
     group still lands whole in one frame."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     scr = "Sh" if shared else c["objects"][0]["name"]
     rot_obs = ([x for x in c["objects"] if x["rotation"] != "none"]
                if shared else [c["objects"][0]])
-    lay = f"{p}/Enc/{scr}/Ry"
+    lay = f"{pub}/Enc/{scr}/Ry"
     sts, ress, senses, clear = {}, {}, {}, {}
     for comp in Y_COMPS:
         sts[comp] = f"{p}/S/{scr}/R{comp}"
@@ -1706,12 +1747,12 @@ def component_walk(doc, c, d, comp, ob=None):
     out per full-mode object only — a y object declares no words for these
     components, so a commit routed to it would copy into params that do not
     exist."""
-    p = c["prefix"]
+    p, pub = c["internal"], c["prefix"]
     shared = ob is None
     scr = "Sh" if shared else ob["name"]
     commit_objs = ([x for x in c["objects"] if x["rotation"] == "full"]
                    if shared else [ob])
-    lay = f"{p}/Enc/{scr}/R{comp}"
+    lay = f"{pub}/Enc/{scr}/R{comp}"
     st, res = f"{p}/S/{scr}/R{comp}", f"{p}/R/{scr}/R{comp}"
     doc.param(f"  {st}: {{ type: float, scratch: true }}", st)
     doc.param(f"  {res}: {{ type: float, scratch: true }}", res)
@@ -1961,10 +2002,10 @@ def check():
     readme = os.path.join(HERE, "README.md")
     if os.path.exists(readme):
         body = open(readme, encoding="utf-8").read()
-        assert_(f"`globalParams` is exactly `{CONFIG['prefix']}/Enable` and "
-                f"`{CONFIG['channel']}/Acquired`" in body,
-                "README specifies both globalParams entries — without the second "
-                "a consumer cannot bind the transport's validity bool by name")
+        want_gp = document(CONFIG)[1]["facts"]["globalParams"]
+        assert_(f"`globalParams` is exactly `{'`, `'.join(want_gp)}`" in body,
+                f"README quotes the derived globalParams list ({', '.join(want_gp)}) "
+                "— a consumer reads it from there to bind the interface")
         assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
                 "README pins the two Sync sources in the order the Follow layer "
                 "indexes them")
@@ -2039,6 +2080,76 @@ def check():
             return [own], "variant of an unknown base"
         return [own, open(os.path.join(HERE, "ObjectSync.prefab"), encoding="utf-8").read()], \
                "variant, so counted with the base it inherits"
+
+    # `globalParams` is a VRCFury field with no CompileController spelling, so no
+    # compile and no gate reads it, and a wrong entry lands in silence. The
+    # expectation is DERIVED from the published set (build() has already refused a
+    # layout the wildcards cannot express exactly), so adding an internal param
+    # never needs a prefab edit.
+    print("[prefab globalParams]")
+    for label, cfg in committed_configs().items():
+        pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+        if not os.path.exists(pf_path):
+            assert_(False, f"{label}: ObjectSync.prefab is missing")
+            continue
+        body_pf = open(pf_path, encoding="utf-8").read()
+        want = document(cfg)[1]["facts"]["globalParams"]
+        got, inside = [], False
+        for ln in body_pf.splitlines():
+            if ln.strip() == "globalParams:":
+                inside = True
+            elif inside:
+                if ln.strip().startswith("- "):
+                    got.append(ln.strip()[2:].strip().strip("'"))
+                else:
+                    break
+        assert_(got == want,
+                f"{label}: globalParams == the published prefix wildcards "
+                f"({', '.join(want)}) — got {got}")
+        assert_(not any(x.startswith(cfg["internal"] + "/") for x in got),
+                f"{label}: no {cfg['internal']}/ entry reaches globalParams — the "
+                "walks, the wire and the sense receivers stay instance-prefixed")
+
+    # The sense receivers are SDK components whose `parameter` field is
+    # hand-maintained in the prefab, and VRCFury rewrites one only when the name
+    # is a declared param of the merged controller
+    # (FullControllerBuilder.RewriteParamName). So a receiver left on a stale name
+    # is not renamed, writes a bare orphan, and the walk reads zero — no build
+    # error, and a symptom indistinguishable from a contact that never fires.
+    # Subset rather than equality per build: `y` serialises none of its own and
+    # inherits the root's, removing the rig nodes for the components it does not
+    # use, while the root is an exact match and so covers the inherited set.
+    print("[prefab sense receivers]")
+    for label, cfg in committed_configs().items():
+        pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+        if not os.path.exists(pf_path):
+            continue      # the missing-prefab FAIL is already reported above
+        own = open(pf_path, encoding="utf-8").read()
+        # UNFILTERED: anchoring this scan on the current internal prefix made it
+        # blind to exactly the defect it exists to catch — a receiver left on a
+        # stale name simply fell out of the scan and reported no stray. Every
+        # `parameter:` field is read, and the test is membership in the whole
+        # declared param set, so a receiver naming anything the document does not
+        # declare fails whatever prefix it carries.
+        raw = re.findall(r"parameter: (\S+)", own)
+        declared_all = set(re.findall(r"^  ([^\s#:]+):", document(cfg)[0], re.M))
+        strays = sorted(set(raw) - declared_all)
+        assert_(not strays,
+                f"{label}: every contact receiver names a param this build "
+                f"declares ({len(raw)} fields, {len(set(raw))} distinct) — "
+                f"undeclared: {strays}")
+        # Coverage, the other direction: the root authors one receiver per declared
+        # sense param, so a param that gained no receiver is caught here. Only the
+        # root — a variant serialises a subset and removes the rig nodes for the
+        # rest, which makes equality dishonest there (`y` authors none at all).
+        pre = f"{cfg['internal']}/Sense/"
+        if label == "committed":
+            sense_fields = set(x for x in raw if x.startswith(pre))
+            sense_declared = set(x for x in declared_all if x.startswith(pre))
+            assert_(sense_fields == sense_declared,
+                    f"the root prefab's receivers cover its declared sense set "
+                    f"({len(sense_declared)}) — missing "
+                    f"{sorted(sense_declared - sense_fields)}")
 
     # The prefabs are hand-maintained, so the document pin cannot see a park
     # creeping back onto a constraint source offset — and the emulator cannot
