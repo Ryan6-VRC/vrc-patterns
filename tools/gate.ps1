@@ -19,6 +19,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
+# README lint first — pure text, no Unity, so a budget/attribution failure refuses before the
+# batchmode boot instead of after it. Wave-scoped: this block and readme-lint.ps1 leave with the csv.
+$readmeLint = Join-Path $PSScriptRoot 'readme-lint.ps1'
+if (Test-Path -LiteralPath $readmeLint) {
+  & pwsh -NoProfile -File $readmeLint -Root $root
+  if ($LASTEXITCODE -ne 0) { Write-Host "gate exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+}
+
 # Default AtelierRoot from the repo's MAIN checkout (git worktree list line 1), whose parent is the
 # Atelier workspace root — correct from the main checkout and from any git-worktree slice, where a
 # fixed ../.. hop would land in the worktrees dir instead.
