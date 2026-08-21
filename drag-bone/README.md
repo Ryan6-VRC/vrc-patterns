@@ -9,12 +9,11 @@ Two prefabs, one mechanism:
 - `DragBone_Yaw.prefab` — yaw only; the default. `Follower` never passes vertical motion (`AffectsPositionY` off), so yaw stays defined everywhere.
 - `DragBone_Full.prefab` — all axes; the aim pitches too. Degenerate at the pole: yaw/roll there is arbitrary. Only for props that genuinely need pitch.
 
-## Interface
+## Ground truth
 
+- **Seam:** two constraint-reference wiring points. **Input** — add your prop's container as the single source (weight 1, zero offset) on `Follower`'s position constraint. **Output** — source your prop's rotation constraint at `Drag_Rotation` (yaw-only consumers keep their own X/Z axes unaffected). Both are object references, path-immune, so drop the prefab anywhere under the avatar; nothing merges into any controller.
 - **Params:** none.
-- **Seam:** none — nothing merges into any controller. Two constraint-reference wiring points: **input** — add your prop's container as the single source (weight 1, zero offset) on `Follower`'s position constraint; **output** — source your prop's rotation constraint at `Drag_Rotation` (yaw-only consumers keep their own X/Z axes unaffected). Both are object references, path-immune; drop the prefab anywhere under the avatar.
-- **Dependencies:** VRCFury (the `FreezeToWorld` ApplyDuringUpload).
-- **Required assets:** none.
+- **Dependencies:** VRCFury (the `FreezeToWorld` ApplyDuringUpload). No required assets.
 
 ## Before you compose it
 
@@ -29,12 +28,7 @@ Degenerate cases, and what fences each:
 - **Trail length → 0** (aim target on the constraint origin): fenced by `maxSquish 0` — the solver holds bone length exactly. `maxStretch` only lengthens the trail (feel, not validity).
 - **Trail goes vertical** (yaw undefined): fenced structurally by the yaw variant's planar follower — the bone root never moves vertically and nothing else (gravity 0, collision off) can move the tip, at zero colliders. Keep `limitType None`.
 
-Empirical constants (90% rule — test before changing):
-
-| Constant | Value |
-|---|---|
-| Trail length | `DragBone_End`'s local −Z offset (see **Rig**) — drag it to retune. Lengthen for calmer, laggier heading |
-| `maxSquish` | 0 |
+The one tuned value is the trail length — `DragBone_End`'s local −Z offset (see **Rig**); drag it to retune. Lengthen for calmer, laggier heading. Test before changing (90% rule).
 
 ## Combinations
 
@@ -53,9 +47,8 @@ Identical trees; the two variants differ only in which axes `Follower` and `Drag
     DragBone_Yaw                     root
     ├─ Follower                      VRCPositionConstraint, X/Z only (Full: XYZ), sources empty —
     │  │                             the consumer adds their container here
-    │  ├─ DragBone                   VRCPhysBone: pull 0, spring 0, stiffness 0, gravity 0,
-    │  │  │                          immobile 0, limitType None, maxStretch 0, maxSquish 0,
-    │  │  │                          no grab/pose/collision, resetWhenDisabled on
+    │  ├─ DragBone                   VRCPhysBone, force-free (see How it works): limitType None,
+    │  │  │                          maxStretch/maxSquish 0, no grab/pose/collision, resetWhenDisabled on
     │  │  └─ DragBone_End (0,0,−0.1) the trailing tip — drag to retune trail length
     │  └─ Drag_Rotation              VRCAimConstraint → DragBone_End; aim +Z, offset (0,180,0),
     │                                yaw-only (Full: all axes) — the consumer output
