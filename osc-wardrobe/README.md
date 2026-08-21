@@ -6,9 +6,11 @@ Press a button on your expression menu and your avatar changes. The menu sends a
 
 This entry is **half of a system and inert on its own.** It ships the avatar side; the swap is performed by [`vrc-bridge`](https://github.com/Ryan6-VRC/vrc-bridge)'s `osc_wardrobe` mapping, which is where the avatar-id table lives. Nothing here has any effect without that running.
 
-## Interface
+## Ground truth
 
-- **Params:** `OscWardrobe/Manifest` (Int, unsynced, **not saved**, ships at 0 — set it to your manifest id) — the marker the host reads to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (Int, unsynced, **not saved**, default 0) — the button press. Both are declared for OSC's sake only: nothing on the avatar reads either one.
+No `controller.yaml`; the prefab's MA components are the source (params on MA Parameters, menu on MA Menu Items — **Rig**).
+
+- **Params:** `OscWardrobe/Manifest` (ships at **0** — set it to your manifest id) — the marker the host reads over OSCQuery to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (default 0) — the button press. Both are MA-declared Ints (flags under **Verifying**), declared for OSC's sake only: nothing on the avatar reads either one.
 - **Seam:** none. No merge, no anchor, no binding frame, no controller — an MA Parameters component and a menu, so the prefab drops anywhere under the avatar and no path can break.
 - **Dependencies:** Modular Avatar.
 - **Required assets:** an OSC host running `vrc-bridge`'s `osc_wardrobe`, with a manifest whose `id` matches this avatar's `OscWardrobe/Manifest` default. Without it the buttons do nothing at all.
@@ -34,7 +36,7 @@ Then write the matching manifest on the bridge side. Delete buttons you do not w
 
 ## How it works
 
-There is no mechanism on the avatar, which is the point. A menu Button writes `OscWardrobe/Slot`, VRChat emits the change over OSC, and the host maps the value to an avatar id and sends `/avatar/change` back. `OscWardrobe/Manifest` is never written at runtime — only its *default* matters, because the host reads it over OSCQuery to decide which table applies. That indirection is what lets two avatars carry different wardrobes: give each its own manifest and its own marker default.
+There is no mechanism on the avatar, which is the point (the lead has the wire path). `OscWardrobe/Manifest` is never written at runtime — only its *default* matters, because the host reads it over OSCQuery to decide which table applies, which is what lets two avatars carry different wardrobes.
 
 Four consequences worth knowing:
 
@@ -45,7 +47,7 @@ Four consequences worth knowing:
 
 ## Verifying the install
 
-Read the **baked** parameters, not the authored ones — MA rewrites flags at build, and the OR-merge above only shows up post-build. Enter play mode (or bake) and check the generated `VRCExpressionParameters` for:
+This install check is the entry's only standing check. Read the **baked** parameters, not the authored ones — MA rewrites flags at build, and the OR-merge above only shows up post-build. Enter play mode (or bake) and check the generated `VRCExpressionParameters` for:
 
 | | |
 |---|---|
