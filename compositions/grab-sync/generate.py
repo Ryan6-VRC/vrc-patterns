@@ -481,6 +481,275 @@ VANILLA_TO_LOCAL = {"anchored": "local_home", "grabbed": "local_grabbed",
                     "released": "local_released", "dropped": "local_placed"}
 
 
+# ---------------------------------------------------------- prefab checks ----
+# Property-level wiring asserts on the committed prefabs (spec §Deliverable).
+# The audits attempt 1 shipped resolved paths to GameObjects, never bindings to
+# properties, and an emptied source list left `…source0.Weight` nonexistent with
+# every check green — these read the serialized slots themselves.
+
+GRABSYNC_PREFAB = os.path.join(HERE, "GrabSync.prefab")
+OBJECTSYNC_PREFAB = os.path.join(HERE, "object-sync", "ObjectSync.prefab")
+
+# VRC constraint MonoScript fileIDs inside the SDK dynamics assembly (guid
+# 58e2f01a…): the type identity of each pinned component, so a swapped
+# component class fails loudly instead of matching by GameObject name alone.
+SCRIPT_POSITION, SCRIPT_ROTATION = "1116338486", "1788371120"
+SCRIPT_PARENT, SCRIPT_SCALE = "575728033", "41250163"
+
+ZERO3 = "{x: 0, y: 0, z: 0}"
+
+
+def _guid_of(asset_path):
+    m = _re.search(r"^guid: ([0-9a-f]{32})$",
+                   open(asset_path + ".meta", encoding="utf-8").read(), _re.M)
+    if not m:
+        raise SystemExit(f"REFUSE: no guid in {asset_path}.meta")
+    return m.group(1)
+
+
+def _docs(text):
+    out, hdr, cur = [], None, []
+    for ln in text.splitlines():
+        if ln.startswith("--- !u!"):
+            if hdr:
+                out.append((hdr, cur))
+            hdr, cur = ln, []
+        elif hdr:
+            cur.append(ln)
+    if hdr:
+        out.append((hdr, cur))
+    return out
+
+
+def _field(body, name):
+    for ln in body:
+        m = _re.match(rf"  {name}: (.*)", ln)
+        if m:
+            return m.group(1)
+    return None
+
+
+def prefab_model(text):
+    """GameObject names, transform<->GameObject maps, VRC constraint docs with
+    their fixed 16 source slots, PrefabInstance modification lists, and stripped
+    transforms — everything the wiring asserts read."""
+    model = {"go_names": {}, "tf_go": {}, "constraints": [], "instances": [], "stripped_tf": {}}
+    for hdr, body in _docs(text):
+        m = _re.match(r"--- !u!(\d+) &(-?\d+)( stripped)?", hdr)
+        cls, fid, stripped = m.group(1), m.group(2), bool(m.group(3))
+        if cls == "1" and not stripped:
+            model["go_names"][fid] = _field(body, "m_Name")
+        elif cls == "4":
+            if stripped:
+                cso = _field(body, "m_CorrespondingSourceObject") or ""
+                mm = _re.search(r"fileID: (-?\d+), guid: ([0-9a-f]{32})", cso)
+                pin = _re.search(r"fileID: (-?\d+)", _field(body, "m_PrefabInstance") or "")
+                if mm and pin:
+                    model["stripped_tf"][fid] = (mm.group(1), mm.group(2), pin.group(1))
+            else:
+                go = _re.search(r"fileID: (-?\d+)", _field(body, "m_GameObject") or "")
+                if go:
+                    model["tf_go"][fid] = go.group(1)
+        elif cls == "114" and not stripped:
+            if not any(ln == "  Sources:" for ln in body):
+                continue
+            go = _re.search(r"fileID: (-?\d+)", _field(body, "m_GameObject") or "")
+            script = _re.search(r"fileID: (-?\d+), guid: ([0-9a-f]{32})", _field(body, "m_Script") or "")
+            slots, cur = [], None
+            for ln in body:
+                if _re.match(r"    source\d+:$", ln):
+                    cur = {}
+                    slots.append(cur)
+                elif cur is not None:
+                    mm = _re.match(r"      (SourceTransform|Weight|ParentPositionOffset|ParentRotationOffset): (.*)", ln)
+                    if mm:
+                        cur[mm.group(1)] = mm.group(2)
+            fields = {k: _field(body, k) for k in
+                      ("IsActive", "Locked", "PositionOffset", "RotationOffset", "PositionAtRest")}
+            model["constraints"].append({
+                "fid": fid,
+                "go": go.group(1) if go else None,
+                "script": (script.group(1), script.group(2)) if script else None,
+                "slots": slots,
+                "used": [s for s in slots if "fileID: 0}" not in s.get("SourceTransform", "{fileID: 0}")],
+                "fields": fields,
+            })
+        elif cls == "1001":
+            mods, src = [], None
+            for ln in body:
+                mm = _re.match(r"    - target: \{fileID: (-?\d+), guid: ([0-9a-f]{32})", ln)
+                if mm:
+                    mods.append({"target": mm.group(1), "guid": mm.group(2), "path": None, "value": None, "objref": None})
+                mm = _re.match(r"      propertyPath: (.*)", ln)
+                if mm and mods:
+                    mods[-1]["path"] = mm.group(1)
+                mm = _re.match(r"      value: (.*)", ln)
+                if mm and mods:
+                    mods[-1]["value"] = mm.group(1)
+                mm = _re.match(r"      objectReference: \{fileID: (-?\d+)", ln)
+                if mm and mods:
+                    mods[-1]["objref"] = mm.group(1)
+                mm = _re.match(r"  m_SourcePrefab: \{fileID: \d+, guid: ([0-9a-f]{32})", ln)
+                if mm:
+                    src = mm.group(1)
+            model["instances"].append({"fid": fid, "src": src, "mods": mods})
+    return model
+
+
+def _tf_by_name(model, name):
+    for tf, go in model["tf_go"].items():
+        if model["go_names"].get(go) == name:
+            return tf
+    return None
+
+
+def _constraints_on(model, go_name, script_fid):
+    return [c for c in model["constraints"]
+            if model["go_names"].get(c["go"]) == go_name and c["script"] and c["script"][0] == script_fid]
+
+
+def _fid_in(s):
+    m = _re.search(r"fileID: (-?\d+)", s or "")
+    return m.group(1) if m else None
+
+
+def _slot_zero_offsets(slot):
+    return (slot.get("ParentPositionOffset") == ZERO3 and slot.get("ParentRotationOffset") == ZERO3)
+
+
+def _fields_zero(c):
+    return all(v in (None, ZERO3) for k, v in c["fields"].items()
+               if k in ("PositionOffset", "RotationOffset", "PositionAtRest"))
+
+
+def global_params_blocks(text):
+    blocks, cur, inside = [], None, False
+    for ln in text.splitlines():
+        if ln.strip() == "globalParams:":
+            inside, cur = True, []
+        elif inside:
+            if _re.match(r"\s*- ", ln):
+                cur.append(ln.split("- ", 1)[1].strip().strip("'\""))
+            else:
+                blocks.append(cur)
+                inside = False
+    if inside:
+        blocks.append(cur)
+    return blocks
+
+
+def check_prefabs(assert_):
+    gs_text = open(GRABSYNC_PREFAB, encoding="utf-8").read()
+    os_text = open(OBJECTSYNC_PREFAB, encoding="utf-8").read()
+    model = prefab_model(gs_text)
+    world_guid = _guid_of(os.path.join(REPO, "object-sync", "assets", "World.prefab"))
+    dragbone_path = os.path.join(REPO, "drag-bone", "DragBone_Yaw.prefab")
+    dragbone_guid = _guid_of(dragbone_path)
+    objectsync_guid = _guid_of(OBJECTSYNC_PREFAB)
+
+    # both FullControllers publish exactly the entry's own namespace — a bare
+    # name here collapses four cloned assemblies onto one param at N=4
+    # (gimmicks.md §Packaging owns the discipline)
+    for label, text in (("GrabSync.prefab", gs_text), ("object-sync/ObjectSync.prefab", os_text)):
+        blocks = global_params_blocks(text)
+        assert_(len(blocks) == 1 and blocks[0] == ["ObjectSync/*"],
+                f"{label} has exactly one globalParams block, exactly ['ObjectSync/*'] — got {blocks}")
+
+    lp_tf = _tf_by_name(model, "LocalPose")
+    src_tf = _tf_by_name(model, "SourcePosition")
+    assert_(lp_tf is not None and src_tf is not None,
+            "GrabSync.prefab resolves LocalPose and SourcePosition transforms by name")
+
+    # root pins: parent + scale -> the object-sync entry's World.prefab, weight 1,
+    # zero offsets everywhere (a baked offset is scale-multiplied in the shipping
+    # client and not in the emulator — passes every emulator check, misplaces
+    # cross-client)
+    for label, script in (("parent", SCRIPT_PARENT), ("scale", SCRIPT_SCALE)):
+        pins = _constraints_on(model, "GrabSync", script)
+        ok_pin = (len(pins) == 1 and len(pins[0]["used"]) == 1
+                  and world_guid in pins[0]["used"][0].get("SourceTransform", "")
+                  and pins[0]["used"][0].get("Weight") == "1"
+                  and _slot_zero_offsets(pins[0]["used"][0]) and _fields_zero(pins[0]))
+        assert_(ok_pin, f"root {label} pin: one used source -> object-sync World.prefab, weight 1, zero offsets")
+
+    # Container, both channels: exactly [LocalPose w=1, <ObjectSync-instance
+    # transform> w=0], zero offsets. The second source is the instance's Sync
+    # node: two-level nesting composes its fileID, so it is identified
+    # structurally (a stripped transform of the ObjectSync instance, the same
+    # one on both channels) — its name-level identity is play-verified (stage
+    # A/B: the encoder measured the display and the clone converged on it).
+    os_inst = next((i for i in model["instances"] if i["src"] == objectsync_guid), None)
+    assert_(os_inst is not None, "GrabSync.prefab composes object-sync/ObjectSync.prefab as a nested instance")
+    sync_tfs = set()
+    for label, script in (("position", SCRIPT_POSITION), ("rotation", SCRIPT_ROTATION)):
+        cs = _constraints_on(model, "Container", script)
+        ok_c = False
+        if len(cs) == 1 and len(cs[0]["used"]) == 2:
+            s0, s1 = cs[0]["used"]
+            s1_tf = _fid_in(s1.get("SourceTransform"))
+            stripped = model["stripped_tf"].get(s1_tf)
+            ok_c = (f"fileID: {lp_tf}}}" in s0.get("SourceTransform", "")
+                    and s0.get("Weight") == "1" and s1.get("Weight") == "0"
+                    and stripped is not None and os_inst and stripped[2] == os_inst["fid"]
+                    and _slot_zero_offsets(s0) and _slot_zero_offsets(s1) and _fields_zero(cs[0]))
+            if ok_c:
+                sync_tfs.add(s1_tf)
+        assert_(ok_c, f"Container {label}: sources exactly [LocalPose w=1, ObjectSync-instance node w=0], zero offsets")
+    assert_(len(sync_tfs) == 1, "Container's position and rotation ride the SAME instance node (Sync)")
+
+    # LocalPose: position <- [SourcePosition] alone; rotation <- [Drag_Rotation]
+    # alone (resolved by name through the single-level DragRig instance)
+    lps = _constraints_on(model, "LocalPose", SCRIPT_POSITION)
+    ok_lp = (len(lps) == 1 and len(lps[0]["used"]) == 1
+             and f"fileID: {src_tf}}}" in lps[0]["used"][0].get("SourceTransform", "")
+             and lps[0]["used"][0].get("Weight") == "1"
+             and _slot_zero_offsets(lps[0]["used"][0]) and _fields_zero(lps[0]))
+    assert_(ok_lp, "LocalPose position: sources exactly [SourcePosition w=1], zero offsets")
+    lprs = _constraints_on(model, "LocalPose", SCRIPT_ROTATION)
+    ok_lpr, rot_name = False, None
+    if len(lprs) == 1 and len(lprs[0]["used"]) == 1:
+        s0 = lprs[0]["used"][0]
+        s0_tf = _fid_in(s0.get("SourceTransform"))
+        stripped = model["stripped_tf"].get(s0_tf)
+        if stripped and stripped[1] == dragbone_guid:
+            drag_model = prefab_model(open(dragbone_path, encoding="utf-8").read())
+            rot_name = drag_model["go_names"].get(drag_model["tf_go"].get(stripped[0]))
+        ok_lpr = (rot_name == "Drag_Rotation" and s0.get("Weight") == "1"
+                  and _slot_zero_offsets(s0) and _fields_zero(lprs[0]))
+    assert_(ok_lpr, f"LocalPose rotation: sources exactly [drag-bone Drag_Rotation w=1], zero offsets (resolved '{rot_name}')")
+
+    # Follower and Sync_Target live inside nested instances, so their consumer
+    # source lists are PrefabInstance modifications — the exact surface attempt
+    # 1's audits could not reach. Each must be exactly {totalLength: 1,
+    # source0.Weight: 1, source0.SourceTransform: LocalPose} with no offset mods.
+    def source_mods(inst):
+        return [m2 for m2 in inst["mods"] if m2["path"] and m2["path"].startswith("Sources.")]
+
+    drag_inst = next((i for i in model["instances"] if i["src"] == dragbone_guid), None)
+    assert_(drag_inst is not None, "GrabSync.prefab composes drag-bone/DragBone_Yaw.prefab as a nested instance")
+
+    for label, inst, want_target in (
+        ("Follower (DragRig instance)", drag_inst, "follower-by-name"),
+        ("Sync_Target (ObjectSync instance)", os_inst, None),
+    ):
+        if inst is None:
+            assert_(False, f"{label}: instance missing")
+            continue
+        sm = source_mods(inst)
+        targets = {m2["target"] for m2 in sm}
+        by_path = {m2["path"]: m2 for m2 in sm}
+        ok_m = (len(targets) == 1 and set(by_path) == {"Sources.totalLength", "Sources.source0.Weight", "Sources.source0.SourceTransform"}
+                and by_path["Sources.totalLength"]["value"] == "1"
+                and by_path["Sources.source0.Weight"]["value"] == "1"
+                and by_path["Sources.source0.SourceTransform"]["objref"] == lp_tf)
+        if ok_m and want_target == "follower-by-name":
+            drag_model = prefab_model(open(dragbone_path, encoding="utf-8").read())
+            tname = drag_model["go_names"].get(
+                next((c["go"] for c in drag_model["constraints"] if c["fid"] == next(iter(targets))), None))
+            ok_m = tname == "Follower"
+        assert_(ok_m, f"{label}: source mods exactly {{totalLength 1, source0 = LocalPose w=1}}, no offset mods")
+
+
 def main():
     mod = entry_module()
     cfg = carried_config(mod)
@@ -550,12 +819,14 @@ def main():
                     bad.append(cname)
             assert_(not bad, f"every {p} remote chord binds all four Container weights — missing in: {bad}")
 
+        check_prefabs(assert_)
+
         print(f"  bridge: {bridge_seconds(mod, cfg, facts)[0]}s; crossfade: {CROSSFADE_SECONDS}s; "
               f"wire {facts['wireBits']} bits / {facts['batchCount']} batches")
         print(f"  globalParams for BOTH FullControllers (the entry's own discipline): ['ObjectSync/*']")
-        print("scope: emit determinism, the carried-document pin, the mapped chord superset and")
-        print("  the chord law only — prefab wiring asserts land with the prefab (see --check-prefab");
-        print("  section below when present); runtime behavior is the play session's, never this check's")
+        print("scope: emit determinism, the carried-document pin, the mapped chord superset, the")
+        print("  chord law, and the prefabs' serialized wiring (source slots, offsets, globalParams);")
+        print("  runtime behavior is the play session's, never this check's")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT_CARRIED), exist_ok=True)
