@@ -28,7 +28,7 @@ parameters:
   ObjectSync/Ch/Acquired: { type: bool,  scratch: true }
   IsLocal:                bool     # VRC built-in (bool, matching the emulator's typing)
   GS/Engaged:             bool     # the visibility latch (spec §Visibility); driver-written
-  Grab0_IsGrabbed:       bool     # sensing — minted by Prop0's grab physbone (parameter: Grab0); never synced
+  Grab0_IsGrabbed:       { type: bool, scratch: true }   # sensing — minted by Prop0's grab physbone (parameter: Grab0). Scratch, deliberately: a baked-asset param is rewritten into the playable every frame by the emulator, which defeats direct playable drive (the forced remote-state matrix); a controller-only param is pushed on change alone.
   Placed0:               { type: bool, default: false, vrc: { synced: true, saved: false } }
 
 layers:
@@ -189,7 +189,7 @@ clips:
       "Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Prop0/LocalPose/VRCPositionConstraint.m_Enabled": 1
       "Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive": 1
-      "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.IsActive": 1
       "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
   Prop0_local_released:   # the pulse [EMPIRICAL: sample window [0.25,0.50)s — grab-prop's, verbatim]
@@ -280,7 +280,7 @@ clips:
       "Prop0/GrabRig/GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Prop0/LocalPose/VRCPositionConstraint.m_Enabled": 1
       "Prop0/GrabRig/SourcePosition/VRCPositionConstraint.IsActive": 1
-      "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.IsActive": 1
       "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "Prop0/GrabRig/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
       "Prop0/Container/VRCPositionConstraint.Sources.source0.Weight": 1

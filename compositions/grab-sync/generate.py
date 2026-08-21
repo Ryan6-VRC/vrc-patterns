@@ -147,12 +147,34 @@ def weights(p):
 
 # vanilla grab-prop chord values (clip table, not prose): vis, boneGO, lpEn,
 # srcAct, gpAct, gpW0, gpW1. `released` carries the srcAct pulse instead of a
-# constant. The four choreography rows are asserted against grab-prop's yaml.
+# constant. The four choreography rows are asserted against grab-prop's yaml —
+# except `grabbed`'s ONE deliberate deviation (below), asserted at its own value.
+#
+# THE ROOT-ANCHORED GRAB (operator-ruled 2026-08-20, "Your recommendation is
+# approved" on this session's stop-report; the route handoff-3 §restart reserved
+# as the operator's pre-build call). Vanilla freezes the chain root while
+# grabbed (gpAct 0) and its display survives the release frame only by reading
+# the sample one frame STALE — a solve-order property of its cyclic grab cell
+# that nothing serialized pins, and this composition's mid-chain freeze cell
+# measured reading the same edge FRESH: the freeze captured home, gap 1.53 m,
+# invariant across two isolation spikes (ring broken; co-located rotation
+# constraint removed). So `grabbed` here keeps the root ANCHORED to LocalPose
+# (gpAct 1, weights already 0/1): the tip's release rest IS the drop, nothing
+# snaps, and the freeze catches the drop on fresh and stale edges alike —
+# order-independent by construction. During carry the loop is signal-dead
+# (immobile 1 AllMotion cancels root-induced motion); after the freeze it is
+# broken (lpEn 0, srcAct 0), so no live-integrator path survives a drop.
 CHOREO = {
     "anchored": dict(vis=1, boneGO=1, lpEn=1, srcAct=1, gpAct=1, gpW0=1, gpW1=0),
-    "grabbed":  dict(vis=1, boneGO=1, lpEn=1, srcAct=1, gpAct=0, gpW0=0, gpW1=1),
+    "grabbed":  dict(vis=1, boneGO=1, lpEn=1, srcAct=1, gpAct=1, gpW0=0, gpW1=1),
     "released": dict(vis=1, boneGO=1, lpEn=0,           gpAct=1, gpW0=0, gpW1=1),
     "dropped":  dict(vis=1, boneGO=1, lpEn=0, srcAct=0, gpAct=1, gpW0=0, gpW1=1),
+}
+
+# vanilla binding -> (our value, why) where the superset assert must expect a
+# DIFFERENT value than grab-prop ships; everything else must match verbatim.
+CHOREO_DEVIATIONS = {
+    ("grabbed", "GrabPosition/VRCPositionConstraint.IsActive"): ("1", "root-anchored grab (header)"),
 }
 
 
@@ -216,7 +238,7 @@ def own_document(mod, cfg, facts):
     L.append("  IsLocal:                bool     # VRC built-in (bool, matching the emulator's typing)")
     L.append("  GS/Engaged:             bool     # the visibility latch (spec §Visibility); driver-written")
     for i, p in enumerate(PROPS):
-        L.append(f"  Grab{i}_IsGrabbed:       bool     # sensing — minted by {p}'s grab physbone (parameter: Grab{i}); never synced")
+        L.append(f"  Grab{i}_IsGrabbed:       {{ type: bool, scratch: true }}   # sensing — minted by {p}'s grab physbone (parameter: Grab{i}). Scratch, deliberately: a baked-asset param is rewritten into the playable every frame by the emulator, which defeats direct playable drive (the forced remote-state matrix); a controller-only param is pushed on change alone.")
         L.append(f"  Placed{i}:               {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}")
     L.append("")
     L.append("layers:")
@@ -482,7 +504,9 @@ def main():
             assert_(carried_text == entry_y,
                     "at one prop the carried build IS the entry's committed y/ document, byte-identical")
 
-        # the mapped binding-superset: grab-prop's four choreography clips
+        # the mapped binding-superset: grab-prop's four choreography clips.
+        # A binding in CHOREO_DEVIATIONS is asserted at ITS OWN value — a
+        # deviation is pinned, never silently exempted.
         vanilla = parse_clips(open(GRABPROP_YAML, encoding="utf-8").read())
         ours = parse_clips(own_text)
         for i, p in enumerate(PROPS):
@@ -491,8 +515,11 @@ def main():
                 missing = []
                 for b, v in vanilla[vclip]["set"].items():
                     mb = map_vanilla_binding(b, p)
-                    if ours.get(oclip, {}).get("set", {}).get(mb) != v:
-                        missing.append(f"{b} -> {mb} (want {v}, have {ours.get(oclip, {}).get('set', {}).get(mb)})")
+                    dev = CHOREO_DEVIATIONS.get((vclip, b))
+                    want = dev[0] if dev else v
+                    if ours.get(oclip, {}).get("set", {}).get(mb) != want:
+                        missing.append(f"{b} -> {mb} (want {want}{' DEVIATION: ' + dev[1] if dev else ''}, "
+                                       f"have {ours.get(oclip, {}).get('set', {}).get(mb)})")
                 for b, keys in vanilla[vclip]["curves"].items():
                     mb = map_vanilla_binding(b, p)
                     if ours.get(oclip, {}).get("curves", {}).get(mb) != keys:
