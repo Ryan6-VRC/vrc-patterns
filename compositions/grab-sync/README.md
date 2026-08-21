@@ -13,7 +13,7 @@ Grab a prop off your chest, carry it live on the native physbone sync, drop it a
 
 ## Ground truth
 
-`generate.py` owns everything derivable: the carried object-sync document (the entry's generator run unmodified — at one prop byte-identical to `object-sync/y/`, and `--check` pins that), the composition's chord document, the bridge-timer formula, and the crossfade length. Its module docstring is the design record for the chord law; `docs/local/g5-attempt2-spec.md` argued the architecture. Run `generate.py --check`.
+`generate.py` owns everything derivable: the carried object-sync document (the entry's generator run unmodified — at one prop byte-identical to `object-sync/y/`, and `--check` pins that), the composition's chord document, the bridge-timer formula, and the crossfade length. `--check` also reads both prefabs' serialized wiring — every consumer source slot (`Sync_Target`, `Container`, `LocalPose`, `Follower`, the root pins), zero offsets on all of them (a baked source offset is scale-multiplied in the shipping client but not in the emulator, so it passes every emulator check and misplaces cross-client), and both `globalParams` blocks — the property-level surface a path-resolving audit cannot see. Its module docstring is the design record for the chord law; `docs/local/g5-attempt2-spec.md` argued the architecture. Run `generate.py --check`.
 
 The rig's shape, stated once (the prefab owns the values):
 
