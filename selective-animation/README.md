@@ -4,16 +4,10 @@ Point at someone and hold the tag button: everyone whose capsule your aim line c
 
 **Provenance:** VRLabs' MIT [`Selective-Animation`](https://github.com/VRLabs/Selective-Animation) is the direct ancestor; native `VRCRaycast` replaces its FinalIK-based hit reconstruction.
 
-## Interface
+## Ground truth
 
-- **Params:**
-  - `SelectiveAnimation/Tag` (bool, in) — synced, **unsaved**; a menu Button sets it while pressed. Declared **float on the animator and bool on the params asset** — one synced bit, and a blend tree can still read the weight.
-  - `SelectiveAnimation/Gen` (bool, in/out) — synced, **unsaved**. The erase generation, not a command: each erase flips it, and a latch made under the other value drops. Written only by the wearer's `localOnly` drivers.
-  - `SelectiveAnimation/Erase` (bool, in) — **unsynced**, unsaved: the erase Button; being unsynced parks every remote in the flip machine's idle state without needing an `IsLocal` condition.
-  - `SelectiveAnimation/SelfTag` (bool, in) — **unsynced**, unsaved. Tags your own copy. Being unsynced is load-bearing, not an economy — see **Before you compose it**.
-  - `SelectiveAnimation/Ray_Hit`, `Ray_Ratio`, `Wall_Ratio` (sensing) — the two rays' outputs, never synced: a natively-driven param re-drives locally every frame, and a synced copy would read the wearer's replicated value on a clone instead of that clone's own ray.
-  - `SelectiveAnimation/Tagged` (bool, out) — animator-local on each client, the consumption point for gating your own layers; `Clear`, `Casting`/`Armed`, and `One` are its internal supporting params (see **How it works**).
-  - `IsLocal` (VRC built-in) — declared **float**, so the wearer-only beam is a tree branch rather than a state gate; every condition on it reads `greater 0.5` rather than `is true`.
+Parameters and the FX layers live in `controller.yaml` (compiled to `built/`); the prefab owns the wiring and `globalParams` (**Seam**). Two facts a consumer cannot read off those artifacts: `IsLocal` is declared **float**, not bool, so the wearer-only beam is a blend-tree branch and every condition on it reads `greater 0.5` rather than `is true` — a bool-`IsLocal` state gate would not compose here. And `SelectiveAnimation/Tagged`, the exported per-client latch, is the one consumption point for gating your own layers; it also carries the latch onto a mirror clone (which runs no drivers of its own), so a consumer that drops or renames it reads a tagged avatar as untagged in the observer's mirror.
+
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), merging `built/SelectiveAnimation_Fx_Parameters.asset` and `built/SelectiveAnimation_Fx_Menu.asset` at prefix `Selective Animation`. `globalParams` exports **one** name, `SelectiveAnimation/Tagged`. The hand anchor is a VRCFury `ArmatureLink` (`Aim` → Right Hand, non-recursive) and **must not become an MA `BoneProxy`**: this module animates *through* that anchor, so one framework must own both the move and the animation, or the bindings are dropped from the merged FX — warned, but with the warning naming the clip and the layer rather than the anchor (`nondestructive.md` owns the build-order mechanism; `CONVENTIONS.md`: *only object-referenced, never path-animated, nodes may be proxied*). A second anchor of a different framework anywhere above an animated node in this subtree re-breaks the rig the same way.
 - **Dependencies:** VRC SDK + VRCFury, and a **humanoid** avatar (the `ArmatureLink` resolves Right Hand through the humanoid mapping). No Modular Avatar. Composes well with `anti-cull` — see below.
 - **Required assets:** `assets/SelectiveAnimationBeam.mat` (Unity Standard, self-contained — no Poiyomi or lilToon dependency) and `built/SelectiveAnimation_Fx_Menu.asset`, the shipped menu, regenerated from the `menu:` block in `controller.yaml` like the rest of `built/`. The material carries the beam's colour; nothing animates it. `Payload` is a placeholder sphere on the built-in default material.
@@ -35,7 +29,7 @@ The **player ray** is masked to `PlayerLocal` **alone**: the local capsule must 
 
 The raycasts cast only while `Tag` is held, and a disabled `VRCRaycast` freezes its parameters instead of zeroing them, so a press would otherwise commit the previous press's stale hit. A two-frame gate on `Clear` (`Casting` → `Armed`) exists to stop that — this gate is the entry's one real safety mechanism and must not be removed.
 
-The latch is a **state, not a parameter**, invalidated by the `Gen` generation rather than by a driver: erasing flips `Gen`, and every latch made under the old value exits on that client's next evaluation. The exported `SelectiveAnimation/Tagged` also carries the latch onto a mirror clone, which runs no drivers of its own — drop or rename that export and a tagged avatar reads as untagged in the observer's mirror.
+The latch is a **state, not a parameter**, invalidated by the `Gen` generation rather than by a driver — its mechanism is `controller.yaml`, its export consequence is **Ground truth**.
 
 **Durability is `runtime.md`'s cull table.** View cull and distance-hide pause an observer's animator without rebuilding it, so the latch survives both; manual hide/show, an avatar switch, or a reload drop it. Re-pointing is the only repair.
 
@@ -78,9 +72,7 @@ What the emulator cannot show for this entry is **selectivity itself** — that 
     │                                would sit at the avatar's feet and drag the beam down with them
     └─ Payload                      placeholder sphere, built-in default material — swap this
 
-A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic.
-
-The `resultTransform` is **oriented as well as placed**: its `up` is the hit surface normal. This entry reads position only — `PlayerHit` and `WallHit` feed the beam's length, nothing reads their rotation — but an entry that wants to sit something flat against whatever it hits gets that from the same transform.
+A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic. (It is oriented as well as placed — its `up` is the hit surface normal — though this entry reads position only.)
 
 ## Rebuilding
 
