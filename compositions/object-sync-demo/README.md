@@ -24,13 +24,13 @@ Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anc
 ## The arrangement, which is the point
 
     ObjectSyncDemo         a PREFAB VARIANT of ../../object-sync/ObjectSync.prefab
-                           inherited: VRCParentConstraint + VRCScaleConstraint -> World, both disabled in
-                             the editor; [VF ApplyDuringUpload = ../../object-sync/assets/PinEnable.anim];
-                             and the entry's own nodes Rig / Sync_Target / Sync
-                           removed:  the entry's 27-bit [VF FullController], its menu [VF Toggle], and
-                             Sync_Target's Drop [VF Toggle] — this composition drives placement itself
-                           added:    [VF FullController = object-sync/built] this build's 50-bit entry,
-                             [VF FullController = Demo_Fx] everything below
+                           inherited: the entry's World pin (two constraints, disabled in the editor,
+                             re-enabled at upload by ApplyDuringUpload → PinEnable.anim) and its own
+                             nodes Rig / Sync_Target / Sync
+                           removed:  the entry's FullController and menu Toggle, and Sync_Target's Drop
+                             toggle — this composition drives placement itself
+                           added:    the demo's own 50-bit object-sync build, and a FullController for
+                             everything below
     |- Rig Sync_Target Sync  the entry's, inherited
     |- Display_Source      src0 = Sync, src1 = Rig/Prop/Display
     |- Prop_Damped         src0 = Display_Source, src1 = self
@@ -43,7 +43,7 @@ Drop `ObjectSyncDemo.prefab` under your avatar root. Nothing else — `HandR_Anc
     |- HandL_Anchor        [VF ArmatureLink -> LeftHand]   `- Panel   the debug-shaders tablet
     `- AntiCull
 
-This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law), with the pin supplied by the entry rather than built here: the variant root **is** the entry's pinned root, `Display_Source` is the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. The damper sits under a pinned parent because a damper whose parent moves is dragged by its parent's motion. Read it by role: `Rig` is the measurement tree, riding the root's pin; the `Display_Source → Prop_Damped → Cube` chain is the content the measurement drives. There is one pinned frame now, not a composition pin above an entry pin — the entry carries it, and every consumer gets it.
+This is `object-sync`'s `pin -> mux -> damper -> content` idiom (its README §Composing against Sync owns the law), with the pin supplied by the entry rather than built here: the variant root **is** the entry's pinned root, `Display_Source` is the multiplexer with `Sync` as one source, `Prop_Damped` the damper, `Cube` the content. Read it by role: `Rig` is the measurement tree, riding the root's pin; the `Display_Source → Prop_Damped → Cube` chain is the content the measurement drives. There is one pinned frame now, not a composition pin above an entry pin — the entry carries it, and every consumer gets it.
 
 **`PinEnable.anim` is the entry's asset, not this composition's** — `../../object-sync/assets/PinEnable.anim`, inherited with the pin, and `../../object-sync/README.md` §Required assets is where its content is specified. It is reached here through inheritance and is not yours to edit; a curve dropped or retargeted there leaves every check green and surfaces only as a mislinked hand on someone else's avatar.
 

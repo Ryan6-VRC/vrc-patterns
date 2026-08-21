@@ -4,16 +4,13 @@ Touch zones on the avatar that react when someone touches them — a headpat, a 
 
 **Provenance:** a private production avatar's headpat mechanism, generalized (sync-only-the-divergent-outcome + level-handshake rearm, `gimmicks.md` §Contacts). Audio variant selection (parameter-indexed `VRCAnimatorPlayAudio`) is deliberately not shipped; the headpat is the worked example to copy when you add sound.
 
-## Interface
+## Ground truth
 
-- **Params:**
-  - `ZoneTouch/Enable` (bool, in) — synced, **unsaved**. The menu front (VRCFury Toggle) — must stay synced; unsynced would leave every remote's sensing alive while the wearer believes the module is off.
-  - `ZoneTouch/Special` (bool, out) — synced, **unsaved**. The divergent outcome. Written only by the wearer's `localOnly` drivers (set on Special entry, cleared on Cooldown/Disabled entry — the falling edge is the remote rearm signal).
-  - `ZoneTouch/Zone1..3` (float, sensing) — proximity receivers, never synced/saved.
-  - `ZoneTouch/RollHit` (bool, scratch) — local roll residue, excluded from the params asset.
-- **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), merging `built/ZoneTouch_Fx_Parameters.asset`; `globalParams: [ZoneTouch/Enable]`, Toggle drives it. Pure VRCFury — no MA half: the zone GOs are plain children the consumer moves or constrains (they are receiver roots only, safe to reparent).
-- **Dependencies:** VRC SDK + VRCFury.
-- **Required assets:** none — `ReactProxy` is a unit-scale wrapper the reaction clips animate (clip scale values read as multipliers of rest); the placeholder sphere is its child. Replace the child (keep it under the wrapper) or the `zt_react`/`zt_special` clip content with your real reaction.
+`controller.yaml` owns the parameters, the state machine, and the clips. What the artifacts cannot state:
+
+- **`ZoneTouch/Enable` must stay synced.** It is the menu front (a VRCFury Toggle) and it gates **remote** sensing too — unsynced would leave every remote's receivers alive while the wearer believes the module is off. `globalParams` is exactly `[ZoneTouch/Enable]`.
+- **`ZoneTouch/Special` is the one divergent bit**, written only by the wearer's `localOnly` drivers; its falling edge — dropped on Cooldown/Disabled entry — is the signal a remote rearms on. `ZoneTouch/RollHit` is local roll residue, excluded from the params asset.
+- **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`). Pure VRCFury, no MA half. Dependencies: VRC SDK + VRCFury. No required assets — `ReactProxy` is a unit-scale wrapper the reaction clips scale (values read as multipliers of rest); swap its placeholder-sphere child or the `zt_react`/`zt_special` clip content for your reaction.
 
 ## Before you compose it
 
@@ -23,7 +20,7 @@ Touch zones on the avatar that react when someone touches them — a headpat, a 
 
 ## How it works
 
-`Disabled` (default, fail-safe) disables every zone receiver GO. `Idle` arbitrates by the ladder; a touch enters that zone's `React`, rolls the special odds once on entry (`localOnly` Random driver), plays the reaction, and **holds while the touch persists** — no self-retrigger. Release enters `Cooldown` (the debounce dwell), which also drops `Special` — the falling edge that lets a remote rearm. A local roll routes to `Special`; remotes follow the synced bool in and out, including a late joiner arriving mid-special.
+`Disabled` (default, fail-safe) disables every zone receiver GO, and a second **non-`localOnly`** driver zeroes `Zone1..3` on every client. A disabled receiver freezes its float at its last reading, so without that zeroing a touch held at disable time would replay a spurious React on re-enable. `Idle` arbitrates by the ladder; a touch enters that zone's `React`, rolls the special odds once on entry (`localOnly` Random driver), plays the reaction, and holds while the touch persists — no self-retrigger. Release enters `Cooldown` (the debounce dwell), which also drops `Special`. A local roll routes to `Special`; remotes follow the synced bool in and out, including a late joiner arriving mid-special.
 
 Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
@@ -43,12 +40,12 @@ That remotes' own receivers fire for a real toucher is in-game-only — emulator
 
     ZoneTouch                        root — VRCFury FullController + Toggle
     ├─ Zones
-    │  ├─ Zone1                      VRCContactReceiver proximity r=0.1, tags [Hand, Finger],
+    │  ├─ Zone1                      VRCContactReceiver proximity, tags [Hand, Finger],
     │  │                             allowSelf+allowOthers, localOnly:0 → ZoneTouch/Zone1
     │  ├─ Zone2                      (same, → ZoneTouch/Zone2)
     │  └─ Zone3                      (same, → ZoneTouch/Zone3)
-    └─ ReactProxy                    unit-scale wrapper — the clips animate this transform
-       └─ Sphere        (0.06)      placeholder sphere, built-in default material — swap this
+    └─ ReactProxy                    unit-scale wrapper — the clips scale this transform
+       └─ Sphere                     placeholder sphere, built-in default material — swap this
 
 ## Rebuilding
 
