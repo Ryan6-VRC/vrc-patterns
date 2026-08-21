@@ -676,7 +676,15 @@ def exit_when_true(c, exit_to):
 
 def build(c):
     d = derive(c)
-    p, pub = c["internal"], c["prefix"]
+    # Through the transport's refusal, not `c["internal"]` raw: an empty string
+    # reads as a prefix everywhere below while matching no published wildcard, so
+    # it would emit `/Sense/...` and `/Ch/Wire/...` with every guard here blind to
+    # it (check_namespaces sees root "" in no published root; the prefab assert
+    # degenerates to startswith("/")). A missing key raised KeyError rather than
+    # naming the fix. Every other `c["internal"]` read below is reached only
+    # through this function, so refusing once here covers them.
+    wcm = load_word_channel()
+    p, pub = wcm.internal_prefix(c), c["prefix"]
     numbers, bools, groups = word_table(c)
     check_slots(c, numbers, bools)
 
@@ -700,7 +708,6 @@ def build(c):
         "bools": bools,
         "assemble": [],
     })
-    wcm = load_word_channel()
     wc = wcm.build(wire_config)
     facts = wc["facts"]
     # This entry merges the fragment's header, params and layers, and builds the
@@ -2118,19 +2125,31 @@ def check():
         if not os.path.exists(pf_path):
             continue      # the missing-prefab FAIL is already reported above
         own = open(pf_path, encoding="utf-8").read()
-        pre = f"{cfg['internal']}/Sense/"
-        fields = set(re.findall(rf"parameter: ({re.escape(pre)}\S+)", own))
-        declared = set(re.findall(rf"^  ({re.escape(pre)}[^\s:]+):",
-                                  document(cfg)[0], re.M))
-        strays = sorted(fields - declared)
+        # UNFILTERED: anchoring this scan on the current internal prefix made it
+        # blind to exactly the defect it exists to catch — a receiver left on a
+        # stale name simply fell out of the scan and reported no stray. Every
+        # `parameter:` field is read, and the test is membership in the whole
+        # declared param set, so a receiver naming anything the document does not
+        # declare fails whatever prefix it carries.
+        raw = re.findall(r"parameter: (\S+)", own)
+        declared_all = set(re.findall(r"^  ([^\s#:]+):", document(cfg)[0], re.M))
+        strays = sorted(set(raw) - declared_all)
         assert_(not strays,
-                f"{label}: every sense receiver names a declared param "
-                f"({len(fields)} fields) — undeclared: {strays}")
+                f"{label}: every contact receiver names a param this build "
+                f"declares ({len(raw)} fields, {len(set(raw))} distinct) — "
+                f"undeclared: {strays}")
+        # Coverage, the other direction: the root authors one receiver per declared
+        # sense param, so a param that gained no receiver is caught here. Only the
+        # root — a variant serialises a subset and removes the rig nodes for the
+        # rest, which makes equality dishonest there (`y` authors none at all).
+        pre = f"{cfg['internal']}/Sense/"
         if label == "committed":
-            assert_(fields == declared,
-                    f"the root prefab's receivers are exactly its declared sense "
-                    f"set ({len(declared)}) — missing "
-                    f"{sorted(declared - fields)}")
+            sense_fields = set(x for x in raw if x.startswith(pre))
+            sense_declared = set(x for x in declared_all if x.startswith(pre))
+            assert_(sense_fields == sense_declared,
+                    f"the root prefab's receivers cover its declared sense set "
+                    f"({len(sense_declared)}) — missing "
+                    f"{sorted(sense_declared - sense_fields)}")
 
     # The prefabs are hand-maintained, so the document pin cannot see a park
     # creeping back onto a constraint source offset — and the emulator cannot

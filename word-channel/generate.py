@@ -326,13 +326,21 @@ def internal_prefix(c):
     instance prefix. A default would make the collapsed shape reachable by
     omission — `channel` carrying both, where `<channel>/*` publishes the wire
     and every consumer has to enumerate instead."""
-    ip = c.get("internal")
+    ip = (c.get("internal") or "").strip()
     if not ip:
         raise SystemExit(
             "REFUSE: `internal` is required. It is the prefix for Wire/Latch/"
             "True/SawHead/Cycle; without it they share `channel` with the "
             "published Acquired, and no wildcard can publish the interface "
             "without also publishing the wire.")
+    # A value that is not usable AS a prefix is worse than a missing one: it
+    # reads as present at every emission site while the names it composes fall
+    # outside every wildcard by accident rather than by design.
+    if ip.startswith("/") or ip.endswith("/") or "*" in ip:
+        raise SystemExit(
+            f"REFUSE: `internal` is {c.get('internal')!r} — a prefix carries no "
+            "leading or trailing `/` and no `*`. A leading slash is what an empty "
+            "string composes into once a caller nests its own channel under it.")
     return ip
 
 
@@ -835,7 +843,7 @@ def check():
         assert_(got_gp == want,
                 f"the prefab carries exactly the published prefix wildcards "
                 f"({', '.join(want)}) — got {got_gp}")
-        assert_(not any(g.startswith(c["internal"]) for g in got_gp),
+        assert_(not any(g.startswith(c["internal"] + "/") for g in got_gp),
                 f"no {c['internal']}/ entry reaches globalParams — the wire, the "
                 "latches and Cycle stay instance-prefixed")
     else:

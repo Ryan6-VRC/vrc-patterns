@@ -270,7 +270,12 @@ def main():
                     hit = True
             return hit
 
+        # Comments stripped first: a comment naming an unpublished entry-owned
+        # param (`OS/Ch/Cycle`, a `Wire/Num*` slot — the exact strings the
+        # exclusions this list replaced used to carry) would fail the assert below
+        # on prose alone, which is a false positive nobody could act on.
         own = open(os.path.join(HERE, "controller.yaml"), encoding="utf-8").read()
+        own = _re.sub(r"#.*", "", own)
         reached = sorted({n for n in _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
                           if n.split("/")[0] in (cfg["prefix"], cfg["internal"])})
         missing = [n for n in reached if not published(n, want_gp)]
