@@ -4,12 +4,13 @@ and two of its states fail silently.
 
     python solve-order-pin/generate.py --check   # asserts, writes nothing
 
-`Ladder` ACTIVE in the serialized prefab: its constraints join the solver on the
-object's first activation, so shipped inactive they never join and the module pins
-nothing while looking identical in every static inspection.
+The ROOT ACTIVE in the serialized prefab: the constraints join the solver on their
+first activation, so shipped inactive they never join and the module pins nothing
+while looking identical in every static inspection.
 
-`Ladder` holding more than a Transform: AAO merges a bare-Transform holder and
-reparents the whole chain.
+The off-write PATH-LESS: an empty path is what resolves to the module's own root
+under any consumer name. A path that misses does not fail loud - VRCFury climbs to
+the parent and retries, so a stale one lands on an unrelated node.
 
 These pins read the ladder where it now lives; they were in
 `compositions/grab-sync/generate.py` while it was inline there.
@@ -39,6 +40,8 @@ def prefab_pins(assert_):
     name = {a: re.search(r"m_Name: (.*)", b).group(1).strip() for a, b in go.items()}
     tf_go = {a: int(re.search(r"m_GameObject: \{fileID: (\d+)", b).group(1))
              for c, a, b in docs if c == 4}
+    tf_parent = {a: int(re.search(r"m_Father: \{fileID: (\d+)", b).group(1))
+                 for c, a, b in docs if c == 4}
     by_name = {n: a for a, n in name.items()}
 
     # the ladder: DEPTH nodes, each chained to its predecessor at weight 0, none solving
@@ -69,25 +72,29 @@ def prefab_pins(assert_):
         chained += 1
     assert_(chained == DEPTH - 1, f"ladder chain continuous ({DEPTH - 1} links)")
 
-    # the holder: active at load, and not a bare Transform
-    ladder = by_name.get("Ladder")
-    assert_(ladder is not None, "prefab carries a Ladder holder")
-    if ladder is not None:
-        assert_(re.search(r"m_IsActive: 1", go[ladder]) is not None,
-                "Ladder ACTIVE in the serialized prefab - inactive never joins the solver")
-        comps = re.findall(r"component: \{fileID: (\d+)\}", go[ladder])
-        assert_(len(comps) > 1,
-                f"Ladder holds more than a Transform ({len(comps)} components) - "
-                "AAO merges a Transform-only holder and reparents the chain")
+    # the root the off-write targets: active at load, and the ladder's actual parent
+    root_tf = next((a for c, a, b in docs
+                    if c == 4 and re.search(r"m_Father: \{fileID: 0\}", b)), None)
+    root = tf_go.get(root_tf)
+    assert_(root is not None, "prefab has a single unparented root")
+    if root is not None:
+        assert_(re.search(r"m_IsActive: 1", go[root]) is not None,
+                f"{name[root]} ACTIVE in the serialized prefab - inactive never joins the solver")
+        stray = sorted(n for t, n in ((a, name.get(tf_go.get(a, 0), "")) for a in tf_parent)
+                       if re.fullmatch(r"Depth\d\d", n) and tf_parent[t] != root_tf)
+        assert_(not stray,
+                "every ladder node hangs directly off the root - the off-write deactivates the "
+                f"ladder BY deactivating the root, so an intervening holder breaks it ({stray})")
 
-    # the off-write's binding path must name the holder. Renaming the node compiles clean,
-    # passes the gate, and animates nothing - the ladder then never switches off.
+    # the off-write must stay PATH-LESS: that empty path is what resolves to this module's own
+    # root whatever a consumer renames the instance to. A path here compiles clean and passes the
+    # gate, and VRCFury CLIMBS on a miss rather than failing - it would land somewhere arbitrary.
     yaml_src = open(os.path.join(HERE, "controller.yaml"), encoding="utf-8").read()
-    bind = re.search(r'"([^"]+)/GameObject\.m_IsActive"', yaml_src)
+    bind = re.search(r'"([^"]*)GameObject\.m_IsActive"', yaml_src)
     assert_(bind is not None, "controller.yaml carries a GameObject.m_IsActive binding")
     if bind is not None:
-        assert_(bind.group(1) == "Ladder",
-                f"off-write binds the holder by name (binds '{bind.group(1)}', node is 'Ladder')")
+        assert_(bind.group(1) == "",
+                f"off-write binding is path-less (carries path '{bind.group(1).rstrip('/')}')")
 
     # the animator half is wired to this entry's own build
     meta = os.path.join(HERE, "built", "SolveOrderPin_Fx.controller.meta")

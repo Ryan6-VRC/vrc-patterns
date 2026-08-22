@@ -1,9 +1,9 @@
 # solve-order-pin — pins where the VRC constraint solver cuts a cyclic group, by handing one
 # constraint a dependency path deeper than any other in the avatar. The ladder itself is the
-# prefab's 16 chained weight-0 constraints; this controller exists only to switch the ladder
-# GameObject off once it has registered, so the rig costs nothing per frame after load.
+# prefab's 16 chained weight-0 constraints; this controller exists only to switch the module's
+# own root off once they have registered, so the rig costs nothing per frame after load.
 #
-# THE LADDER MUST SHIP ACTIVE, and this controller is the only reason it can stop costing
+# THE ROOT MUST SHIP ACTIVE, and this controller is the only reason it can stop costing
 # anything. Constraints join the solver on OnEnable at instantiation and stay joined when the
 # object is later deactivated; deactivated BEFORE load they never join and the pin is absent.
 # OnEnable precedes any animation of them, so no delay machinery is needed here and none exists.
@@ -40,9 +40,12 @@ layers:
       any:   [50, 40]
       exit:  [50, 80]
 
-# The one binding. `Ladder` is active in the serialized prefab so its 16 constraints register at
-# load; this write takes it off from the animator's first evaluation onward.
+# The one binding, deliberately PATH-LESS: VRCFury resolves an empty path to the GameObject
+# carrying the FullController — this module's own root — so the write follows the mount wherever
+# a consumer puts it and whatever they rename it to. Naming a path here instead would be worse
+# than wrong: a path that misses does not fail, it CLIMBS to the parent and retries, so a stale
+# one silently lands on some unrelated node of the consumer's avatar.
 clips:
   ladder_off:
     set:
-      "Ladder/GameObject.m_IsActive": 0
+      "GameObject.m_IsActive": 0

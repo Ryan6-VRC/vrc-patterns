@@ -8,9 +8,9 @@ When VRC constraints form a cycle — a sample-and-hold cell, a capture-on-relea
 
 The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact states:
 
-- **The tip edge is yours to wire, and it lands on your constraint, not ours.** Add `Ladder/Depth16`'s Transform as an additional source at **weight 0** on the constraint that must solve last, and never remove or reorder that constraint's existing sources.
+- **The tip edge is yours to wire, and it lands on your constraint, not ours.** Add `Depth16`'s Transform as an additional source at **weight 0** on the constraint that must solve last, and never remove or reorder that constraint's existing sources.
 - **Wire it through the inspector or `SerializedObject`.** A reflection or `execute_code` write to a VRC constraint's `Sources` serializes nothing while every field reads back correct in edit mode (`../../docs/runtime.md` §Constraints owns the trap).
-- **`Ladder` ships active, and no timing protects it.** Its constraints join the solver on `OnEnable` at instantiation, which precedes any animation of them, so the off-write cannot land first. Switching the object off afterwards leaves them joined — that is what makes the module free per frame. Shipped inactive, or tidied off in edit mode, they never join and the rig pins nothing while looking identical.
+- **The prefab root ships active, and no timing protects it.** Its constraints join the solver on `OnEnable` at instantiation, which precedes any animation of them, so the off-write cannot land first. Switching the root off afterwards leaves them joined — that is what makes the module free per frame. Shipped inactive, or tidied off in edit mode, they never join and the rig pins nothing while looking identical. The off-write owns the **instance root's** `m_IsActive`, so park nothing under the instance and never aim a consumer toggle at it.
 
 ## Traps
 
@@ -26,7 +26,7 @@ The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact
 
 **Do not strip, shorten, or re-parent.** Depth rides the source edges, not the hierarchy: the nodes are flat siblings, so an anchor move by Modular Avatar or VRCFury is safe and re-nesting them into a chain buys nothing.
 
-**Optimizers**, measured against the shipped rig: d4rk leaves it intact including under Full, its protection being that the nodes stay active with components enabled — so disabling either invites removal. AAO leaves it intact twice over: it will not merge a transform that is an animation target, which `Ladder` is by virtue of the off-write, and `Ladder` also carries an otherwise-pointless inactive constraint so it is never a bare Transform. Either alone suffices; the constraint stays as the half that survives someone retargeting the animation. Without both, the chain is silently reparented and renamed. Never tag any of this `EditorOnly` — that deletes the subtree.
+**Optimizers**, measured against the shipped rig: d4rk leaves it intact including under Full, its protection being that the nodes stay active with components enabled — so disabling either invites removal. AAO's auto-merge takes only a Transform-only, non-animated node, so nothing here qualifies: every `Depth` node carries a constraint, and the root is the off-write's animation target. Never tag any of this `EditorOnly` — that deletes the subtree.
 
 **Extending past 16:** duplicate the tip node, then **repoint the duplicate's source to the node it now follows** — a duplicate keeps the original's source, giving a fan-out rather than a longer chain, with no added depth and no error. Re-wire your tip edge to the new last node. On a composed avatar this is an added-object override on the instance; do not apply it back to this package.
 

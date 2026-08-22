@@ -28,8 +28,8 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
                            Toggle and the FullController playing built/GrabSync_Fx
     ├─ ObjectSync          nested instance of ../../object-sync/y/ (heading-only), consumed through its
     │                      published interface (ObjectSync/*); its own FullController stays
-    ├─ CaptureOrderPin     nested instance of ../../solve-order-pin/, keeping its own FullController;
-    │                      its Ladder/Depth16 tip is a weight-0 source on the cell's SourcePosition
+    ├─ SolveOrderPin       nested instance of ../../solve-order-pin/, keeping its own FullController;
+    │                      its Depth16 tip is a weight-0 source on the cell's SourcePosition
     │                      (§Capture order)
     └─ Prop/
        ├─ GrabProp         nested grab-prop instance: rig untouched, grab physbone parameter → `Grab`
@@ -45,7 +45,7 @@ Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab 
 
 The glue's state graph, its value-sets, the engage-on-`ObjectSync/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
 
-## Capture order — why CaptureOrderPin exists
+## Capture order — why the pin is here
 
 The cell's release capture survives only when `GrabProp/Container` reads `SourcePosition` one frame stale, and which edge of the cell's cycle carries that stale read is authored nowhere — the same serialized prefab has play-tested good and bad with no edit between. Duplicate-swaps, re-saves, and per-build play certification were each tried and only re-roll it. `../../solve-order-pin/` is the fix and owns the mechanism, the sizing measurement, and the install seam.
 
