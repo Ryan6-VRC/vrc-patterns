@@ -3,21 +3,15 @@
 # prefab's 16 chained weight-0 constraints; this controller exists only to switch the ladder
 # GameObject off once it has registered, so the rig costs nothing per frame after load.
 #
-# THE TIMING IS THE WHOLE DESIGN, and it is the opposite of what it looks like.
-# Measured in play: a constraint registers with the solver on its GameObject's OnEnable at load,
-# and deactivating that GameObject afterwards does NOT unregister it — the constraints stay live
-# members of their execution groups and the pin holds. Deactivating BEFORE load (an inactive
-# object in the serialized prefab, or an edit-mode toggle) never registers them at all and the
-# pin is simply absent. So the ladder must ship ACTIVE and be switched off by animation; shipping
-# it inactive to save the same cost silently produces a rig that looks identical and does nothing.
+# THE LADDER MUST SHIP ACTIVE, and this controller is the only reason it can stop costing
+# anything. Constraints join the solver on OnEnable at instantiation and stay joined when the
+# object is later deactivated; deactivated BEFORE load they never join and the pin is absent.
+# OnEnable precedes any animation of them, so no delay machinery is needed here and none exists.
+# ../README.md carries the consequences for anyone editing the rig.
 #
-# The ordering is structural rather than timed: OnEnable runs during instantiation, before anything
-# can animate the object, so the write cannot land before the join. Hence no delay machinery here —
-# one state, one direct blend tree, one clip, no conditions, no synced bits.
-#
-# The direct-tree shape is load-bearing and not a style choice: d4rk's FX-layer pass folds a
-# single-state layer whose only disqualifier is "blend tree" into the combined direct tree, so this
-# module ships no extra layer on an optimized avatar. A state-machine layer would not merge.
+# The direct-tree shape is load-bearing, not stylistic: d4rk's FX-layer pass folds a single-state
+# layer whose only disqualifier is "blend tree" into the combined direct tree, so this module ships
+# no extra layer on an optimized avatar. A state-machine layer would not merge.
 
 schema: 1
 controller: SolveOrderPin_Fx

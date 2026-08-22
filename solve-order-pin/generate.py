@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-"""Check-only: this entry generates nothing, but its prefab is hand-maintained and
-carries several states whose failure is silent.
+"""Check-only: this entry generates nothing, but its prefab is hand-maintained
+and two of its states fail silently.
 
     python solve-order-pin/generate.py --check   # asserts, writes nothing
 
-These pins previously lived in `compositions/grab-sync/generate.py`, which read the
-ladder while it was inline there. They belong to the rig, so they moved with it.
+`Ladder` ACTIVE in the serialized prefab: its constraints join the solver on the
+object's first activation, so shipped inactive they never join and the module pins
+nothing while looking identical in every static inspection.
 
-The two that matter most, because nothing else would ever say a word:
+`Ladder` holding more than a Transform: AAO merges a bare-Transform holder and
+reparents the whole chain.
 
-  * `Ladder` is ACTIVE in the serialized prefab. Its constraints join the solver when
-    the object first becomes active and stay joined when animation switches it off;
-    shipped inactive they never join, and the module silently pins nothing while
-    looking identical in every static inspection.
-  * `Ladder` carries a second component. AAO merges away any transform holding
-    nothing but a Transform, which would reparent and rename the whole chain.
+These pins read the ladder where it now lives; they were in
+`compositions/grab-sync/generate.py` while it was inline there.
 """
 
 import os
