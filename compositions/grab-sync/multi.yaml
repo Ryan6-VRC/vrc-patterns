@@ -1,0 +1,1450 @@
+# MultiGrabSync glue controller — GrabSync's document at four props: one layer and clip set per prop,
+# suffixed _0.._3, each pair identical to controller.yaml's modulo the suffix and the mux's SyncProp{N}.
+# Every design ruling lives in controller.yaml's header and is not restated here; keep the two documents
+# in lockstep — an edit to one is an edit to both, and the transcription diff in the PR is the check.
+# Bridge timer [EMPIRICAL, re-derived at N=4 — never copied from N=1]: the regenerated build's documents
+# give a 4-slice measure ring of ~3.07 s and a ~1.87 s wire refresh, so the post-drop worst case is
+# ~4.9 s end to end; pulse 0.5 + bridge 6.0 = 6.5 s keeps the N=1 buffer (~1.6 s). Over-waiting holds the
+# witnessed capture longer (cosmetic); under-waiting shows the pre-drop trail as a damped glide (defect).
+
+schema: 1
+controller: MultiGrabSync_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  Detached_0:            { type: bool, default: false, vrc: { synced: true, saved: false } }
+  Detached_1:            { type: bool, default: false, vrc: { synced: true, saved: false } }
+  Detached_2:            { type: bool, default: false, vrc: { synced: true, saved: false } }
+  Detached_3:            { type: bool, default: false, vrc: { synced: true, saved: false } }
+  Grab_0_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: Grab_0)
+  Grab_1_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: Grab_1)
+  Grab_2_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: Grab_2)
+  Grab_3_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: Grab_3)
+  ObjectSync/Enable:   { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
+  ObjectSync/Ready:    { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  IsLocal:             bool               # VRC built-in
+
+layers:
+  - name: Prop_0
+    states:
+      # Boot dwell — all routing is level transitions here (entry rungs evaluate before IsLocal lands).
+      Timer:
+        motion: { clip: timer_0 }
+        transitions:
+          - { to: Disabled, when: [ IsLocal is true ] }
+          - { to: Waiting,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Disabled:
+        motion: { clip: disabled_0 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_0: 0 } }   # off-is-reset: recall home
+        transitions:
+          - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ] }
+      Anchored:
+        motion: { clip: anchored_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_0_IsGrabbed is true ] }
+          # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
+          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
+          # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
+          - { to: Synced,   when: [ IsLocal is false, Detached_0 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+      Grabbed:
+        motion: { clip: grabbed_0 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_0: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_0_IsGrabbed is false ] }
+      # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
+      Released:
+        motion: { clip: released_0 }
+        transitions:
+          - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
+          - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Dropped:
+        motion: { clip: dropped_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_0_IsGrabbed is true ] }
+      Waiting:
+        motion: { clip: waiting_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_0_IsGrabbed is true ] }
+          # the late-join level path
+          - { to: Acquire,  when: [ Detached_0 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          - { to: Anchored, when: [ Detached_0 is false ] }
+      Acquire:
+        motion: { clip: acquire_0 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_0_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_0 is false ] }
+          - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
+      Bridge:
+        motion: { clip: bridge_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_0_IsGrabbed is true ] }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_0 is true ], exitTime: 1.0 }
+          - { to: Waiting,  when: [ Detached_0 is false ], exitTime: 1.0 }
+      Synced:
+        motion: { clip: synced_0 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_0_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_0 is false ] }
+      # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
+      Reacquire:
+        motion: { clip: reacquire_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_0_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+    default: Timer
+    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # DecompileController, take the layout block, recompile — never regenerate over it.
+    layout:
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
+  - name: Prop_1
+    states:
+      # Boot dwell — all routing is level transitions here (entry rungs evaluate before IsLocal lands).
+      Timer:
+        motion: { clip: timer_1 }
+        transitions:
+          - { to: Disabled, when: [ IsLocal is true ] }
+          - { to: Waiting,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Disabled:
+        motion: { clip: disabled_1 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_1: 0 } }   # off-is-reset: recall home
+        transitions:
+          - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ] }
+      Anchored:
+        motion: { clip: anchored_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_1_IsGrabbed is true ] }
+          # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
+          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
+          # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
+          - { to: Synced,   when: [ IsLocal is false, Detached_1 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+      Grabbed:
+        motion: { clip: grabbed_1 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_1: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_1_IsGrabbed is false ] }
+      # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
+      Released:
+        motion: { clip: released_1 }
+        transitions:
+          - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
+          - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Dropped:
+        motion: { clip: dropped_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_1_IsGrabbed is true ] }
+      Waiting:
+        motion: { clip: waiting_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_1_IsGrabbed is true ] }
+          # the late-join level path
+          - { to: Acquire,  when: [ Detached_1 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          - { to: Anchored, when: [ Detached_1 is false ] }
+      Acquire:
+        motion: { clip: acquire_1 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_1_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_1 is false ] }
+          - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
+      Bridge:
+        motion: { clip: bridge_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_1_IsGrabbed is true ] }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_1 is true ], exitTime: 1.0 }
+          - { to: Waiting,  when: [ Detached_1 is false ], exitTime: 1.0 }
+      Synced:
+        motion: { clip: synced_1 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_1_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_1 is false ] }
+      # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
+      Reacquire:
+        motion: { clip: reacquire_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_1_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+    default: Timer
+    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # DecompileController, take the layout block, recompile — never regenerate over it.
+    layout:
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
+  - name: Prop_2
+    states:
+      # Boot dwell — all routing is level transitions here (entry rungs evaluate before IsLocal lands).
+      Timer:
+        motion: { clip: timer_2 }
+        transitions:
+          - { to: Disabled, when: [ IsLocal is true ] }
+          - { to: Waiting,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Disabled:
+        motion: { clip: disabled_2 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_2: 0 } }   # off-is-reset: recall home
+        transitions:
+          - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ] }
+      Anchored:
+        motion: { clip: anchored_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_2_IsGrabbed is true ] }
+          # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
+          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
+          # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
+          - { to: Synced,   when: [ IsLocal is false, Detached_2 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+      Grabbed:
+        motion: { clip: grabbed_2 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_2: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_2_IsGrabbed is false ] }
+      # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
+      Released:
+        motion: { clip: released_2 }
+        transitions:
+          - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
+          - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Dropped:
+        motion: { clip: dropped_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_2_IsGrabbed is true ] }
+      Waiting:
+        motion: { clip: waiting_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_2_IsGrabbed is true ] }
+          # the late-join level path
+          - { to: Acquire,  when: [ Detached_2 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          - { to: Anchored, when: [ Detached_2 is false ] }
+      Acquire:
+        motion: { clip: acquire_2 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_2_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_2 is false ] }
+          - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
+      Bridge:
+        motion: { clip: bridge_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_2_IsGrabbed is true ] }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_2 is true ], exitTime: 1.0 }
+          - { to: Waiting,  when: [ Detached_2 is false ], exitTime: 1.0 }
+      Synced:
+        motion: { clip: synced_2 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_2_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_2 is false ] }
+      # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
+      Reacquire:
+        motion: { clip: reacquire_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_2_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+    default: Timer
+    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # DecompileController, take the layout block, recompile — never regenerate over it.
+    layout:
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
+  - name: Prop_3
+    states:
+      # Boot dwell — all routing is level transitions here (entry rungs evaluate before IsLocal lands).
+      Timer:
+        motion: { clip: timer_3 }
+        transitions:
+          - { to: Disabled, when: [ IsLocal is true ] }
+          - { to: Waiting,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Disabled:
+        motion: { clip: disabled_3 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_3: 0 } }   # off-is-reset: recall home
+        transitions:
+          - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ] }
+      Anchored:
+        motion: { clip: anchored_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_3_IsGrabbed is true ] }
+          # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
+          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
+          # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
+          - { to: Synced,   when: [ IsLocal is false, Detached_3 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+      Grabbed:
+        motion: { clip: grabbed_3 }
+        behaviours:
+          - driver: { localOnly: true, set: { Detached_3: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_3_IsGrabbed is false ] }
+      # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
+      Released:
+        motion: { clip: released_3 }
+        transitions:
+          - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
+          - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
+      Dropped:
+        motion: { clip: dropped_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_3_IsGrabbed is true ] }
+      Waiting:
+        motion: { clip: waiting_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_3_IsGrabbed is true ] }
+          # the late-join level path
+          - { to: Acquire,  when: [ Detached_3 is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          - { to: Anchored, when: [ Detached_3 is false ] }
+      Acquire:
+        motion: { clip: acquire_3 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_3_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_3 is false ] }
+          - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
+      Bridge:
+        motion: { clip: bridge_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grabbed,  when: [ Grab_3_IsGrabbed is true ] }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_3 is true ], exitTime: 1.0 }
+          - { to: Waiting,  when: [ Detached_3 is false ], exitTime: 1.0 }
+      Synced:
+        motion: { clip: synced_3 }
+        transitions:
+          - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Reacquire, when: [ Grab_3_IsGrabbed is true ] }
+          - { to: Waiting,   when: [ Detached_3 is false ] }
+      # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
+      Reacquire:
+        motion: { clip: reacquire_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Released, when: [ Grab_3_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+    default: Timer
+    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # DecompileController, take the layout block, recompile — never regenerate over it.
+    layout:
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
+# Every clip = 7 cell bindings (verbatim values) + 13 glue bindings (value-set).
+clips:
+  timer_0:        # cell `timer` + HOME hidden  [EMPIRICAL: dwell = clip length]
+    seconds: 1.0
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 0
+  disabled_0:     # cell `disabled` + HOME hidden
+    set:
+      "Prop_0/GameObject.m_IsActive": 0
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 0
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 0
+  anchored_0:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    # Delayed show, same mechanism as acquire's: with Prop frozen through Disabled, re-enable needs
+    # 2-3 frames for the rotation ring to flush; Anchored is only ever entered from hidden states, so
+    # this hide can never blink a visible prop.
+    curves:
+      "Prop_0/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  grabbed_0:      # cell `grabbed` + CARRY
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  released_0:     # cell `released` (pulse verbatim) + CARRY  [EMPIRICAL: sample window [0.25, 0.50) s]
+    length: 0.5
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+    curves:
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+  dropped_0:      # cell `dropped` + CARRY
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  waiting_0:      # cell `waiting` + HOME hidden (fail-visible: never show at a guessed spot)
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 0
+  acquire_0:      # cell `dropped` + ACQUIRE (rigid word flush); GrabPosition (1,0) — root rides the word
+    # Delayed show: the rotation ring is one CYCLIC constraint group (grouping ignores weights), so the
+    # word yaw propagates one hop per frame — 2-3 frames. Display stays hidden while it flushes; 0.1 s
+    # covers 3 frames at 30 fps. The Display child is what makes hidden-but-solving possible.
+    seconds: 0.15
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    curves:
+      "Prop_0/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  bridge_0:       # cell `dropped` + CARRY  [EMPIRICAL: bridge timer = clip length; pulse+bridge = 6.5 s (header derivation)]
+    seconds: 6.0
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  synced_0:       # cell `dropped` + SYNC (damped word); GrabPosition (1,0) — root rides the word
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  reacquire_0:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
+    seconds: 0.1
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  timer_1:        # cell `timer` + HOME hidden  [EMPIRICAL: dwell = clip length]
+    seconds: 1.0
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 0
+  disabled_1:     # cell `disabled` + HOME hidden
+    set:
+      "Prop_1/GameObject.m_IsActive": 0
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 0
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 0
+  anchored_1:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    # Delayed show, same mechanism as acquire's: with Prop frozen through Disabled, re-enable needs
+    # 2-3 frames for the rotation ring to flush; Anchored is only ever entered from hidden states, so
+    # this hide can never blink a visible prop.
+    curves:
+      "Prop_1/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  grabbed_1:      # cell `grabbed` + CARRY
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  released_1:     # cell `released` (pulse verbatim) + CARRY  [EMPIRICAL: sample window [0.25, 0.50) s]
+    length: 0.5
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+    curves:
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+  dropped_1:      # cell `dropped` + CARRY
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  waiting_1:      # cell `waiting` + HOME hidden (fail-visible: never show at a guessed spot)
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 0
+  acquire_1:      # cell `dropped` + ACQUIRE (rigid word flush); GrabPosition (1,0) — root rides the word
+    # Delayed show: the rotation ring is one CYCLIC constraint group (grouping ignores weights), so the
+    # word yaw propagates one hop per frame — 2-3 frames. Display stays hidden while it flushes; 0.1 s
+    # covers 3 frames at 30 fps. The Display child is what makes hidden-but-solving possible.
+    seconds: 0.15
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    curves:
+      "Prop_1/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  bridge_1:       # cell `dropped` + CARRY  [EMPIRICAL: bridge timer = clip length; pulse+bridge = 6.5 s (header derivation)]
+    seconds: 6.0
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  synced_1:       # cell `dropped` + SYNC (damped word); GrabPosition (1,0) — root rides the word
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  reacquire_1:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
+    seconds: 0.1
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  timer_2:        # cell `timer` + HOME hidden  [EMPIRICAL: dwell = clip length]
+    seconds: 1.0
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 0
+  disabled_2:     # cell `disabled` + HOME hidden
+    set:
+      "Prop_2/GameObject.m_IsActive": 0
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 0
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 0
+  anchored_2:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    # Delayed show, same mechanism as acquire's: with Prop frozen through Disabled, re-enable needs
+    # 2-3 frames for the rotation ring to flush; Anchored is only ever entered from hidden states, so
+    # this hide can never blink a visible prop.
+    curves:
+      "Prop_2/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  grabbed_2:      # cell `grabbed` + CARRY
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  released_2:     # cell `released` (pulse verbatim) + CARRY  [EMPIRICAL: sample window [0.25, 0.50) s]
+    length: 0.5
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+    curves:
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+  dropped_2:      # cell `dropped` + CARRY
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  waiting_2:      # cell `waiting` + HOME hidden (fail-visible: never show at a guessed spot)
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 0
+  acquire_2:      # cell `dropped` + ACQUIRE (rigid word flush); GrabPosition (1,0) — root rides the word
+    # Delayed show: the rotation ring is one CYCLIC constraint group (grouping ignores weights), so the
+    # word yaw propagates one hop per frame — 2-3 frames. Display stays hidden while it flushes; 0.1 s
+    # covers 3 frames at 30 fps. The Display child is what makes hidden-but-solving possible.
+    seconds: 0.15
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    curves:
+      "Prop_2/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  bridge_2:       # cell `dropped` + CARRY  [EMPIRICAL: bridge timer = clip length; pulse+bridge = 6.5 s (header derivation)]
+    seconds: 6.0
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  synced_2:       # cell `dropped` + SYNC (damped word); GrabPosition (1,0) — root rides the word
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  reacquire_2:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
+    seconds: 0.1
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  timer_3:        # cell `timer` + HOME hidden  [EMPIRICAL: dwell = clip length]
+    seconds: 1.0
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 0
+  disabled_3:     # cell `disabled` + HOME hidden
+    set:
+      "Prop_3/GameObject.m_IsActive": 0
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 0
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 0
+  anchored_3:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    # Delayed show, same mechanism as acquire's: with Prop frozen through Disabled, re-enable needs
+    # 2-3 frames for the rotation ring to flush; Anchored is only ever entered from hidden states, so
+    # this hide can never blink a visible prop.
+    curves:
+      "Prop_3/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  grabbed_3:      # cell `grabbed` + CARRY
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1
+  released_3:     # cell `released` (pulse verbatim) + CARRY  [EMPIRICAL: sample window [0.25, 0.50) s]
+    length: 0.5
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1
+    curves:
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+  dropped_3:      # cell `dropped` + CARRY
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1
+  waiting_3:      # cell `waiting` + HOME hidden (fail-visible: never show at a guessed spot)
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 0
+  acquire_3:      # cell `dropped` + ACQUIRE (rigid word flush); GrabPosition (1,0) — root rides the word
+    # Delayed show: the rotation ring is one CYCLIC constraint group (grouping ignores weights), so the
+    # word yaw propagates one hop per frame — 2-3 frames. Display stays hidden while it flushes; 0.1 s
+    # covers 3 frames at 30 fps. The Display child is what makes hidden-but-solving possible.
+    seconds: 0.15
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+    curves:
+      "Prop_3/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
+  bridge_3:       # cell `dropped` + CARRY  [EMPIRICAL: bridge timer = clip length; pulse+bridge = 6.5 s (header derivation)]
+    seconds: 6.0
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 1
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 0
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1
+  synced_3:       # cell `dropped` + SYNC (damped word); GrabPosition (1,0) — root rides the word
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1
+  reacquire_3:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
+    seconds: 0.1
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 0.2
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 1

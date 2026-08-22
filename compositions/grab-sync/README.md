@@ -1,6 +1,6 @@
-# grab-sync — a grabbable prop whose drop is shared truth (Composition)
+# grab-sync — grabbable props whose drops are shared truth (Composition)
 
-Grab the prop off your hip, carry it, set it down anywhere: everyone in the instance sees it in that spot — a player who joins later included — and a re-grab picks it up from where it rests with no snap, from any join state. Grabbing is a physbone (natively networked, so remotes see the carry live), heading comes from a drag bone trailing the motion, and the drop's absolute position and yaw ride `object-sync`'s 28-bit word so placement is exact rather than replayed. One synced bit of its own (`Detached`) on top of the entry's wire.
+Grab a prop off your hip, carry it, set it down anywhere: everyone in the instance sees it in that spot — a player who joins later included — and a re-grab picks it up from where it rests with no snap, from any join state. Grabbing is a physbone (natively networked, so remotes see the carry live), heading comes from a drag bone trailing the motion, and the drop's absolute position and yaw ride `object-sync`'s word so placement is exact rather than replayed. Two prefabs ship: **`GrabSync.prefab`** (one prop, the entry's stock `y/` build, one `Detached` bit on top of its 28-wire) and **`MultiGrabSync.prefab`** (four props on this composition's own regenerated four-object build — 29 wire bits time-sliced across the props, plus `Detached_0..3`).
 
 ## What it composes
 
@@ -17,7 +17,7 @@ Its own contribution, belonging to no entry: the ten-state glue layer arbitratin
 
 Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BoneProxy` targeting **Hips**, so it resolves on any humanoid; drag `Prop/GrabProp/HomeAnchor/Offset` to place the rest position, and swap your mesh in for the sphere under `Prop/GrabProp/Container/Payload`, keeping it under `Container` (`../../grab-prop/README.md` owns the cell's rig rules). The menu Toggle **GrabSync** fronts `ObjectSync/Enable`, declared default-**on**; off recalls the prop home on every client.
 
-**One instance per avatar, and never beside any other `object-sync` build** — every configuration of that entry shares the parameter prefix and the collision tags (`../../object-sync/README.md` §Seam owns the rule).
+**One prefab per avatar — GrabSync or MultiGrabSync, never both, and never beside any other `object-sync` build** — every configuration of that entry shares the parameter prefix, and a second live build's contact clusters park at the same point (`../../object-sync/README.md` §Seam owns the rule).
 
 **Do not enable the two constraints on the prefab root** to make the editor view look pinned — they ship disabled and a VRCFury `ApplyDuringUpload` enables them at build, so seams under them capture poses authored on the body rather than origin-parked ones (`../../../docs/gimmicks.md` §Constraint patterns). Their correct serialized state is all-zero offsets; if one has been disturbed, Zero it, never Activate.
 
@@ -41,6 +41,12 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
 Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because nothing validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller), `object-sync`'s shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
 
 The glue's state graph, its value-sets, the engage-on-`ObjectSync/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
+
+## MultiGrabSync — the same composition at four props
+
+`MultiGrabSync.prefab` is `GrabSync` with the `Prop` subtree and its glue layer four times over (`Prop_0..3`, `Grab_0..3`, `Detached_0..3`, homes spread along hip X) and the sync child swapped for **this composition's own four-object build**: `generate.py` drives the entry's generator unmodified at `Prop0..Prop3`, heading-only, one slice each, emitting `object-sync/controller.yaml` beside this file — its header carries the wire, ring, and per-object collision-tag facts the rig prefab is kept against. The rig prefab (`object-sync/ObjectSync.prefab`) is the entry's hand-maintained `y_double/` shape extended to four objects — standalone rather than a variant, because every object is renamed and doubled, which is exactly the delta class variants propagate badly. The glue document is `multi.yaml`: `controller.yaml` at four suffixed layers, kept in lockstep with it — an edit to one is an edit to both. Its one own number is the Bridge timer, **re-derived from the four-object build's measure ring + wire refresh, never copied from the one-prop value** — the derivation is in `multi.yaml`'s header, and it re-derives again if the object count or slice weights change.
+
+`Enable` stays module-wide: off recalls **all four** props, and the two menu items (`GrabSync` / `MultiGrabSync`) are the same toggle under different names — whichever prefab is worn fronts `ObjectSync/Enable`.
 
 ## Verifying it
 
