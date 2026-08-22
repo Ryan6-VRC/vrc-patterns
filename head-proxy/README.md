@@ -51,7 +51,7 @@ Play mode with Av3Emulator, avatar **at the world origin**, `EnableHeadScaling` 
 
 - deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1, in place.
 - `MoveHead` on → `Head_Proxy` lands at `VoiceTarget`; the exempt slot (+ any occupant) follows it — the head-anchored re-place, observed directly. `Chopping` engaging at all is the `IsMirror = −1` proof (hard transition condition).
-- `MoveHead` off → a restore pulse (shipped 0.5 s; the ≥0.25 s floor is the low-FPS constraint) returns the deform head to scale 1 before the constraint deactivates at rest weights, so it never sticks at ~0 for a photo.
+- `MoveHead` off → a restore pulse (shipped 0.5 s; the ≥0.25 s floor is the low-FPS clip-sampling constraint — `../../docs/runtime.md` §Animator evaluation is canon) returns the deform head to scale 1 before the constraint deactivates at rest weights, so it never sticks at ~0 for a photo.
 
 What the emulator structurally cannot show: **any mirror-side visual** (its clones copy transforms instead of stripping VRCHeadChop — runtime.md §VRCHeadChop), the **root-distance release gate** (no capsule model — the very thing the fake chop exists for), and in-game ordering of client chop vs animator writes. Hand those to an in-game tester, in that order.
 

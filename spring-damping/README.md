@@ -42,7 +42,7 @@ The effect is defined **entirely by two transforms and their frames** — get th
 
 The fraction closed each frame is a **per-frame** constant, so these rigs are framerate-dependent — settle time is measured in frames, not seconds. If you need framerate-stable timing, drive the weight from `smooth-frametime`.
 
-**The number is `τ = 1/ln(1 + w_target/w_self)` frames**, the time constant of a one-pole lag, and what makes the weight table retunable. `PositionDamping`'s shipped 1 : 0.05 is τ ≈ 20 frames, settling within ~3τ. Halving `Target`'s weight does not double the settle — τ moves as the log — and the same τ scales the steady drag under a moving parent (§Parent-transform dependency). A displacement that completes in far fewer frames than τ passes through nearly unattenuated, so one unchanged rig makes a fast move look undamped and a slow one heavily damped.
+**The number is `τ = 1/ln(1 + w_target/w_self)` frames**, the time constant of a one-pole lag, and what makes the weight table retunable. `PositionDamping`'s shipped 1 : 0.05 is τ ≈ 20 frames, settling within ~3τ. Halving `Target`'s weight does not double the settle — τ moves as the log — and the same τ scales the steady drag under a moving parent (§Parent-transform dependency). A displacement that completes in far fewer frames than τ passes through nearly unattenuated, so one unchanged rig makes a fast move look undamped and a slow one heavily damped. Under a moving parent that same τ sets a steady drag of roughly `τ × speed / framerate` — the law §Parent-transform dependency defers to, and why a rig's strength is quoted as a rate rather than a distance.
 
 ## Traps
 
