@@ -136,8 +136,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 2
     overflowList: []
-  cachedExecutionGroupIndex: 12
-  latestValidExecutionGroupIndex: 12
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   PositionAtRest: {x: 0, y: 0, z: 0}
   PositionOffset: {x: 0, y: 0, z: 0}
   AffectsPositionX: 1
@@ -245,8 +245,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 2
     overflowList: []
-  cachedExecutionGroupIndex: 12
-  latestValidExecutionGroupIndex: 12
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   RotationAtRest: {x: 0, y: 0, z: 0}
   RotationOffset: {x: 0, y: 0, z: 0}
   AffectsRotationX: 1
@@ -1980,7 +1980,7 @@ MonoBehaviour:
     totalLength: 1
     overflowList: []
   cachedExecutionGroupIndex: -1
-  latestValidExecutionGroupIndex: 0
+  latestValidExecutionGroupIndex: -1
   PositionAtRest: {x: 0, y: 0, z: 0}
   AffectsPositionX: 1
   AffectsPositionY: 1
@@ -2092,7 +2092,7 @@ MonoBehaviour:
     totalLength: 1
     overflowList: []
   cachedExecutionGroupIndex: -1
-  latestValidExecutionGroupIndex: 0
+  latestValidExecutionGroupIndex: -1
   ScaleAtRest: {x: 1, y: 1, z: 1}
   ScaleOffset: {x: 1, y: 1, z: 1}
   AffectsScaleX: 1
@@ -3155,8 +3155,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 3
     overflowList: []
-  cachedExecutionGroupIndex: 11
-  latestValidExecutionGroupIndex: 11
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   PositionAtRest: {x: 0, y: 0, z: 0}
   PositionOffset: {x: 0, y: 0, z: 0}
   AffectsPositionX: 1
@@ -3264,8 +3264,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 3
     overflowList: []
-  cachedExecutionGroupIndex: 9
-  latestValidExecutionGroupIndex: 9
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   RotationAtRest: {x: 0, y: 0, z: 0}
   RotationOffset: {x: 0, y: 0, z: 0}
   AffectsRotationX: 1
@@ -3441,14 +3441,6 @@ PrefabInstance:
       value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 1562167692814069794, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 11
-      objectReference: {fileID: 0}
-    - target: {fileID: 1562167692814069794, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 11
-      objectReference: {fileID: 0}
-    - target: {fileID: 1562167692814069794, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: Sources.source0.SourceTransform
       value: 
       objectReference: {fileID: 6186453127755064859}
@@ -3476,14 +3468,6 @@ PrefabInstance:
       propertyPath: m_LocalRotation.y
       value: 0.9396926
       objectReference: {fileID: 0}
-    - target: {fileID: 3720271507950841024, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 7
-      objectReference: {fileID: 0}
-    - target: {fileID: 3720271507950841024, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 7
-      objectReference: {fileID: 0}
     - target: {fileID: 3928322497919830609, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.000001296401
@@ -3499,14 +3483,6 @@ PrefabInstance:
     - target: {fileID: 4462206639406320095, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_Name
       value: GrabProp
-      objectReference: {fileID: 0}
-    - target: {fileID: 5110335216189517466, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 10
-      objectReference: {fileID: 0}
-    - target: {fileID: 5110335216189517466, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 6076709758708900613, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3560,14 +3536,6 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8404312361304297762, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 8404312361304297762, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 8
-      objectReference: {fileID: 0}
     - target: {fileID: 8923969901500064813, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.0000003631289
@@ -3597,17 +3565,13 @@ PrefabInstance:
       value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 8981389196556675743, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 9
-      objectReference: {fileID: 0}
-    - target: {fileID: 8981389196556675743, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 9
-      objectReference: {fileID: 0}
-    - target: {fileID: 8981389196556675743, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: Sources.source1.SourceTransform
       value: 
       objectReference: {fileID: 8257881884418412233}
+    - target: {fileID: 8981389196556675743, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
+      propertyPath: Sources.source1.Weight
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 3513548472707984526, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
     - {fileID: 1926521021784116912, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
@@ -3654,14 +3618,6 @@ PrefabInstance:
     - target: {fileID: 2726732143119936680, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
       propertyPath: Sources.source0.Weight
       value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2726732143119936680, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 7
-      objectReference: {fileID: 0}
-    - target: {fileID: 2726732143119936680, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 2726732143119936680, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
       propertyPath: Sources.source0.SourceTransform
@@ -3718,14 +3674,6 @@ PrefabInstance:
     - target: {fileID: 8088245696426461577, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
       propertyPath: m_Name
       value: DragBone_Yaw
-      objectReference: {fileID: 0}
-    - target: {fileID: 9207041102436718709, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 8
-      objectReference: {fileID: 0}
-    - target: {fileID: 9207041102436718709, guid: 63d6e794c02591a46af7704e04d69f00, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3847,8 +3795,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 1
     overflowList: []
-  cachedExecutionGroupIndex: 6
-  latestValidExecutionGroupIndex: 6
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   RotationAtRest: {x: 0, y: 0, z: 0}
   RotationOffset: {x: 0, y: 0, z: 0}
   AffectsRotationX: 1
@@ -3867,46 +3815,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 6600897635845165549}
     m_Modifications:
-    - target: {fileID: 10787965083198165, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 10787965083198165, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 257729005512919574, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 257729005512919574, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 287877552377229617, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 287877552377229617, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 2303422677199248291, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 2303422677199248291, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 3334307072879947486, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3334307072879947486, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 4057335833852050602, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -3947,14 +3855,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4987215563247127830, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
-    - target: {fileID: 4987215563247127830, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 13
-      objectReference: {fileID: 0}
     - target: {fileID: 5250760150324998021, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalRotation.y
       value: 0.00000004371139
@@ -3982,14 +3882,6 @@ PrefabInstance:
     - target: {fileID: 6123598056645090656, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalPosition.z
       value: -0.15619811
-      objectReference: {fileID: 0}
-    - target: {fileID: 7183284382849939705, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7183284382849939705, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7515109738777035798, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4042,14 +3934,6 @@ PrefabInstance:
     - target: {fileID: 8353938956194228265, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalRotation.y
       value: 0.00000004371139
-      objectReference: {fileID: 0}
-    - target: {fileID: 8356180283142852721, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8356180283142852721, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8498464259748430425, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: m_LocalRotation.w
@@ -4082,14 +3966,6 @@ PrefabInstance:
     - target: {fileID: 9073841052307361866, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: Sources.source0.Weight
       value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 9073841052307361866, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: cachedExecutionGroupIndex
-      value: 12
-      objectReference: {fileID: 0}
-    - target: {fileID: 9073841052307361866, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
-      propertyPath: latestValidExecutionGroupIndex
-      value: 12
       objectReference: {fileID: 0}
     - target: {fileID: 9073841052307361866, guid: b91e85c56bc85dd4eac69f97f1a22251, type: 3}
       propertyPath: Sources.source0.SourceTransform

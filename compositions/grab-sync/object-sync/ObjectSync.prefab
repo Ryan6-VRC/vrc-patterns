@@ -266,7 +266,7 @@ MonoBehaviour:
       type: {class: Toggle, ns: VF.Model.Feature, asm: VRCFury}
       data:
         version: 3
-        name: Drop PropA
+        name: Drop PropC
         state:
           actions:
           - rid: 6799781289943368023
@@ -6481,8 +6481,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 1
     overflowList: []
-  cachedExecutionGroupIndex: 0
-  latestValidExecutionGroupIndex: 0
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   PositionAtRest: {x: 0, y: 0, z: 0}
   AffectsPositionX: 1
   AffectsPositionY: 1
@@ -6593,8 +6593,8 @@ MonoBehaviour:
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     totalLength: 1
     overflowList: []
-  cachedExecutionGroupIndex: 1
-  latestValidExecutionGroupIndex: 1
+  cachedExecutionGroupIndex: -1
+  latestValidExecutionGroupIndex: -1
   ScaleAtRest: {x: 1, y: 1, z: 1}
   ScaleOffset: {x: 1, y: 1, z: 1}
   AffectsScaleX: 1
@@ -7706,7 +7706,7 @@ MonoBehaviour:
       type: {class: Toggle, ns: VF.Model.Feature, asm: VRCFury}
       data:
         version: 3
-        name: Drop PropA
+        name: Drop PropD
         state:
           actions:
           - rid: 6799781289943368023
