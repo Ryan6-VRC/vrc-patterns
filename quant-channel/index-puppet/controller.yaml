@@ -9,7 +9,7 @@
 # Frametime-compensated keep = 1/(1 + dt/τ) (backward Euler — probe-
 # measured over forward Euler, which turns into a passthrough at dt ≥ τ); τ tunable via
 # the QC/InvTau/* param defaults. Sentinel QuantChannel/Manifest default = manifest id 2
-# (revision 1); built/manifest.json is the sender-side contract.
+# (revision 2); built/manifest.json is the sender-side contract.
 
 schema: 1
 controller: QuantChannelIndexPuppet_Fx
