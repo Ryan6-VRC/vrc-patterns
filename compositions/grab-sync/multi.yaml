@@ -1,7 +1,10 @@
 # MultiGrabSync glue controller — GrabSync's document at four props: one layer and clip set per prop,
-# suffixed _0.._3, each pair identical to controller.yaml's modulo the suffix and the mux's SyncProp{N}.
+# suffixed _0.._3, each identical to controller.yaml's modulo the suffix (the SyncProp{N} mux repoint is
+# a prefab fact — the mux swaps by source index, so nothing here names it).
 # Every design ruling lives in controller.yaml's header and is not restated here; keep the two documents
-# in lockstep — an edit to one is an edit to both, and the transcription diff in the PR is the check.
+# in lockstep — an edit to one is an edit to both, and the check is reproducible: strip the _N suffixes
+# from any one prop's layer and diff it against controller.yaml's (the Bridge timer below is the one
+# intended difference).
 # Bridge timer [EMPIRICAL, re-derived at N=4 — never copied from N=1]: the regenerated build's documents
 # give a 4-slice measure ring of ~3.07 s and a ~1.87 s wire refresh, so the post-drop worst case is
 # ~4.9 s end to end; pulse 0.5 + bridge 6.0 = 6.5 s keeps the N=1 buffer (~1.6 s). Over-waiting holds the
