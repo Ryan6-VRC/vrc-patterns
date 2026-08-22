@@ -28,6 +28,9 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
                            Toggle and the FullController playing built/GrabSync_Fx
     ├─ ObjectSync          nested instance of ../../object-sync/y/ (heading-only), consumed through its
     │                      published interface (ObjectSync/*); its own FullController stays
+    ├─ CaptureOrderPin     Depth01..16, a chain of inactive constraints whose tip is a weight-0 source
+    │                      on the cell's SourcePosition — pins the release capture's solve order
+    │                      (§Capture order); not scaffolding, do not strip
     └─ Prop/
        ├─ GrabProp         nested grab-prop instance: rig untouched, grab physbone parameter → `Grab`
        ├─ DragBone_Yaw     nested drag-bone instance + the park glue (a yaw-only rotation constraint on
@@ -41,6 +44,12 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
 Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because nothing validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller), `object-sync`'s shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
 
 The glue's state graph, its value-sets, the engage-on-`ObjectSync/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
+
+## Capture order — why CaptureOrderPin exists
+
+The cell's release capture survives only when `GrabProp/Container` reads `SourcePosition` one frame stale, and which edge of the cell's constraint cycle carries that stale read is authored nowhere: the same serialized prefab has play-tested good and bad with no edit between — the placement re-rolls with serialization **and** session context, so duplicate-swaps, re-saves, and per-build play certification all just re-roll it (each was tried). The ladder pins it structurally: solve order follows dependency depth (`../../grab-prop/README.md` §How it works carries the measured observable), so a chain of sixteen constraints ending in a weight-0 source on `SourcePosition` hands the sample cell a dependency path deeper than any other in the avatar, and `SourcePosition` solves after `Container` on every roll. The ladder constraints are inactive and never solve; that is not a loophole, because grouping consults sources and targets only, never activity (§Constraint idiom facts are the entry's and `docs/runtime.md`'s). `MultiGrabSync` carries one ladder with a tip edge into each prop's `SourcePosition`.
+
+The pass observable, per prop in play mode: cell `Container`'s `LatestValidExecutionGroupIndex` **less than** `SourcePosition`'s. Measured 4/4 predictive of drop behavior, and with the ladder in, the group placement is identical across domain reloads, scene reloads, and fresh play entries. Re-read it after any change to the module's constraint graph — an added source or constraint anywhere in the module can reshape the graph the ladder must out-depth. Do not shorten the ladder or strip its weight-0 tip source as cleanup; d4rkAvatarOptimizer leaves it intact (measured).
 
 ## MultiGrabSync — the same composition at four props
 
