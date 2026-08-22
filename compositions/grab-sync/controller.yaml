@@ -109,25 +109,13 @@ layers:
           - { to: Released, when: [ Grab_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Arrangement extends grab-prop's: boot spine Timer->Disabled; remote lane left (Waiting, Acquire
-    # outboard); carry band Anchored|Grabbed|Released with Dropped above; sync outcomes right lane
-    # (Bridge under Synced).
+    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
-      nodes:
-        Timer:    [30, 180]
-        Waiting:  [-210, 250]
-        Acquire:  [-450, 320]
-        Disabled: [30, 250]
-        Dropped:  [270, 320]
-        Anchored: [-210, 390]
-        Grabbed:  [30, 390]
-        Released: [270, 390]
-        Bridge:   [510, 390]
-        Synced:   [510, 250]
-        Reacquire: [270, 250]
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
       entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      any: [50, 40]
+      exit: [50, 80]
 
 # Every clip = 7 cell bindings (verbatim values) + 13 glue bindings (value-set).
 clips:
