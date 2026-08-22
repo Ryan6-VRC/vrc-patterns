@@ -97,9 +97,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------- CONFIG ----
 
 CONFIG = {
-    # PUBLISHED prefix. Exactly two names live under it — the wearer-facing
-    # `Enable` and the transport's `<channel>/Acquired` — so a consumer publishes
-    # this entry's whole interface with the single wildcard `ObjectSync/*`.
+    # PUBLISHED prefix. Three names live under it — `Enable`, the transport's
+    # `<channel>/Acquired` and `Ready` — so a consumer publishes this entry's
+    # whole interface with the single wildcard `ObjectSync/*`.
     # Nothing internal may sit here; `internal` below is where those go.
     "prefix": "ObjectSync",
     "channel": "ObjectSync/Ch",
@@ -112,6 +112,10 @@ CONFIG = {
     "internal": "OS",
     # The wearer-facing control's label in the expression menu.
     "menuLabel": "Object Sync",
+    # `Enable`'s declared default, 0 or 1: at 1 the enable tree evaluates armed
+    # from frame one, where a driver forcing it true leaves the one-frame off->on
+    # that deafens every receiver (README §Rig, Enable row).
+    "enableDefault": 0,
 
     # The synced objects. `rotation` is per-object and resolved at generation
     # time — full (6 components, two markers, aim pair), y (2 components, one
@@ -668,6 +672,24 @@ def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_rungs):
     return layout
 
 
+def enable_default(c):
+    """`Enable`'s declared default, refused to the int 0 or 1 — the wire type is
+    bool, so a fractional value blends two exclusive clips and a bool or float
+    spelling emits a `default:` token the schema does not have."""
+    v = c["enableDefault"]
+    if v.__class__ is not int or v not in (0, 1):
+        raise SystemExit(
+            f"REFUSE: `enableDefault` is {v!r} — it must be the int 0 or 1, "
+            "since `Enable` is a bool on the wire and default-on is `1`.")
+    return v
+
+
+# The reconstruction node, named by BOTH the emitted display bindings and the
+# README assert below — which is what makes README §Ground truth's published read
+# rename-stable rather than merely documented.
+DISPLAY_NODE = "Display"
+
+
 def exit_when_true(c, exit_to):
     return [f"{{ to: {exit_to}, when: [ {c['internal']}/True is true ] }}"]
 
@@ -739,17 +761,12 @@ def build(c):
     # one synced bit, and the schema's sanctioned spelling for a toggle a blend
     # tree has to weigh. Unsaved: off is the reset, and the prop never resurrects
     # "on" at avatar load.
-    doc.param(f"  {pub}/Enable: {{ type: float, default: 0, "
+    doc.param(f"  {pub}/Enable: {{ type: float, default: {enable_default(c)}, "
               "vrc: { type: bool, synced: true, saved: false } }", f"{pub}/Enable")
-    # This entry declares NO validity param of its own. The transport already
-    # emits one — `<channel>/Acquired`, false until this client's receiver has
-    # applied a complete word table — and it is on word-channel's globalParams,
-    # so a consumer binds it by name without help from here. A second name
-    # restating it would be a second thing to keep true. The trap worth naming
-    # here: Acquired reads 0 on the WEARER forever, because the wearer runs
-    # sender layers only and its own pose never touches the decode. "Is the
-    # pose on screen trustworthy" is therefore `IsLocal OR Ch/Acquired`, which
-    # is what Follow's own rungs evaluate.
+    # `Ready` is minted in `floatify_layer`, not here: it is that layer's copy of
+    # `<channel>/Acquired`, published so a consumer's engage and Follow's read
+    # one param. Both read 0 on the WEARER forever, so "is the pose on screen
+    # trustworthy" is `IsLocal OR Ready`, which is what Follow's rungs evaluate.
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, numbers, bools))
@@ -788,7 +805,11 @@ def build(c):
                 (re.match(r"\s*([^\s#:]+):", ln) for ln in params
                  if ln.strip() and not ln.strip().startswith("#"))
                 if m and m.group(1) not in wcm.BUILTINS]
-    published = [f"{c['prefix']}/Enable", f"{c['channel']}/Acquired"]
+    # Three names, one wildcard: `Ready` is required here because
+    # check_namespaces refuses a name declared under a published root the list
+    # omits, and `<channel>/Acquired` stays for the earliest-invalidation edge.
+    published = [f"{c['prefix']}/Enable", f"{c['prefix']}/Ready",
+                 f"{c['channel']}/Acquired"]
     wcm.check_namespaces(published, declared)
 
     return {
@@ -888,16 +909,24 @@ def floatify_layer(doc, c, numbers, bools):
     gate reading it raw fires one frame before the copies of those words land —
     and on a head-landing cold join the Follow engage would render the last
     group fully stale for that frame. Engaging on the copy keeps the gate and
-    the decode's inputs on one latency path."""
+    the decode's inputs on one latency path.
+
+    That copy is `<prefix>/Ready`, PUBLISHED and the one limb here that is not
+    internal scratch, so a consumer's engage and Follow's own read the same
+    driver write and cannot drift."""
     p, pub = c["internal"], c["prefix"]
     copies = {}
     for w in numbers + bools:
         f = word_float(p, w["name"])
         doc.param(f"  {f}: {{ type: float, scratch: true }}", f)
         copies[f] = w["name"]
-    acq_copy = f"{p}/B/Acquired"
-    doc.param(f"  {acq_copy}: {{ type: float, scratch: true }}", acq_copy)
-    copies[acq_copy] = f"{c['channel']}/Acquired"
+    # NOT scratch and NOT under `p`: the published certification has to reach the
+    # params asset and match no internal wildcard, and a consumer binding it
+    # declares THESE flags or VRCFury throws at build.
+    ready = f"{pub}/Ready"
+    doc.param(f"  {ready}: {{ type: float, default: 0, "
+              "vrc: { type: bool, synced: false, saved: false } }", ready)
+    copies[ready] = f"{c['channel']}/Acquired"
     out = [f"  - name: {pub}/Floatify", "    states:"]
     for cur, nxt in (("Even", "Odd"), ("Odd", "Even")):
         out.extend(state(cur, driver(copies=copies),
@@ -998,7 +1027,7 @@ def decode_display_layer(doc, c, d):
             kids.append("{ clip: " + doc.clip(f"anch_{safe(o)}_{LOWER[a]}_cell", cell) +
                         f", directWeight: {kacc_w} }}")
 
-        disp = f"Rig/{o}/Display/VRCPositionConstraint.PositionOffset"
+        disp = f"Rig/{o}/{DISPLAY_NODE}/VRCPositionConstraint.PositionOffset"
         base = {f"{disp}.{LOWER[a]}": num(d["posBase"] + d["rigOffset"][i])
                 for i, a in enumerate(AXES)}
         kids.append("{ clip: " + doc.clip(f"disp_{safe(o)}_base", base) +
@@ -1120,12 +1149,16 @@ def follow_layer(doc, c):
     than that test and is one loop faster on the head phase; it is the mode
     independence that is the reason to prefer it, not a latency win.
 
-    The engage rung reads `Acquired` through its Floatify copy (`B/Acquired`),
-    never raw. The receiver certifies `Acquired` in the same driver that applies
-    the final batch's words, so the raw param leads the decode's `B/` inputs by
-    one frame — engaging on it renders the last group stale for the certifying
-    frame of a head-landing cold join. The copy puts the gate on the decode's
-    own latency path; `floatify_layer`'s docstring carries the mechanism.
+    The engage rung reads `Acquired` through its Floatify copy, never raw. The
+    receiver certifies `Acquired` in the same driver that applies the final
+    batch's words, so the raw param leads the decode's `B/` inputs by one frame
+    — engaging on it renders the last group stale for the certifying frame of a
+    head-landing cold join. The copy puts the gate on the decode's own latency
+    path; `floatify_layer`'s docstring carries the mechanism.
+
+    That copy is `<prefix>/Ready` and PUBLISHED, so a consumer's engage reads the
+    same param — at the price that one spurious true frame on this AnyState rung
+    latches for the session, the driver's every-frame rewrite notwithstanding.
 
     Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
     the engage rung is an AnyState rung with `canTransitionToSelf: false`, which
@@ -1155,9 +1188,10 @@ def follow_layer(doc, c):
         "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
         "   # the wearer's pose is authoritative from frame 1",
         f"      - {{ to: Follow, when: [ IsLocal is false, {pub}/Enable greater 0.5, "
-        f"{p}/B/Acquired greater 0.5 ], canTransitionToSelf: false }}"
+        f"{pub}/Ready greater 0.5 ], canTransitionToSelf: false }}"
         "   # a complete word table has landed on THIS client, read through the"
-        " Floatify copy so the gate and the decode inputs share one latency path",
+        " published Floatify copy so the gate, a consumer's gate and the decode"
+        " inputs all share one latency path",
         f"      - {{ to: Release, when: [ IsLocal is false, {pub}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
@@ -2006,9 +2040,18 @@ def check():
         assert_(f"`globalParams` is exactly `{'`, `'.join(want_gp)}`" in body,
                 f"README quotes the derived globalParams list ({', '.join(want_gp)}) "
                 "— a consumer reads it from there to bind the interface")
-        assert_("`source0 = Sync_Target`, `source1 = Rig/<obj>/Display`" in body,
+        assert_(f"`source0 = Sync_Target`, `source1 = Rig/<obj>/{DISPLAY_NODE}`"
+                in body,
                 "README pins the two Sync sources in the order the Follow layer "
                 "indexes them")
+        # The assert above reads DISPLAY_NODE, so renaming the node breaks it —
+        # which is what lets README §Ground truth publish that path as a read.
+        # Below: the Rig table states the default in prose no figure reaches.
+        want_ed = ("unsaved and default-off" if enable_default(CONFIG) == 0
+                   else "unsaved and default-on")
+        assert_(f"**{want_ed}**" in body,
+                f"README's Rig table states the shipped Enable default "
+                f"(`enableDefault` = {enable_default(CONFIG)} -> {want_ed})")
         # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
         # cannot see the second term — Enable is this entry's param, not the
         # transport's. Both figures are quoted in the lead and the Wire bullet,
