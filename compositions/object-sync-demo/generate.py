@@ -18,9 +18,9 @@ the entry's generator from outside instead: `object-sync/generate.py` is
 imported unmodified and the entry stays byte-identical. `CONVENTIONS.md`
 §compositions/ is the rule this implements.
 
-The demo carries exactly one post-generation deviation from the entry's emitted
-document — `Enable` defaults true — applied in `demo_document()`, which owns the
-reason. Every emission path goes through it, `--check` included.
+The demo carries NO post-generation deviation: the entry's document is emitted
+and committed unmodified, and its one departure from the entry's shipped posture
+— `Enable` defaults true — is `enableDefault: 1` in `demo_config()`.
 
 THE WIRE
 --------
@@ -97,61 +97,19 @@ def entry_module():
 def demo_config(mod):
     cfg = dict(mod.CONFIG)
     cfg["wire"] = dict(mod.CONFIG["wire"], **WIRE)
+    # This demo removes the menu control (m3-brief.md §Menu), so with the entry's
+    # shipped default-off nothing would ever turn sync on.
+    cfg["enableDefault"] = 1
     return cfg
-
-
-def demo_document(mod, cfg):
-    """The entry's document with the demo's one post-generation deviation applied.
-
-    EVERY caller goes through here, `--check`'s byte-identical assertion
-    included — a transform applied outside the regeneration path would make that
-    assertion prove something other than what it says.
-
-    THE DEVIATION: `Enable` defaults TRUE on this avatar.
-    The shipped entry defaults it off, and that is the right posture for a
-    composed avatar — a prop that resurrects itself on every avatar load is a
-    worse failure than one that needs a toggle. This demo removes the menu
-    control (m3-brief.md §Menu), so with the shipped default nothing would ever
-    turn sync on: unsaved params re-default on every avatar load and every swap.
-
-    A driver layer that stamped `Enable=1` on state entry was tried first and is
-    the reason this deviation exists rather than that one. It leaves an OFF
-    window exactly one frame wide, and one frame is the width that kills the
-    measure rig: a VRChat contact receiver disabled and re-enabled WITHIN one
-    frame, with its sender still inside its volume, is permanently deaf —
-    `OnDisable` disposes the manager-side collision list that alone feeds
-    `paramValue`, and `OnEnter` re-fires only on a sender RE-entering. The
-    fingerprint is `IsColliding()` true, `paramValue` exactly 0,
-    `restoreParamValue` holding the last real reading, and the whole rig reads
-    zeros for the session. Defaulting the param true removes the OFF window
-    instead of timing around it, so the trap is unreachable here rather than
-    merely avoided.
-
-    `vrc-patterns` is NOT touched: the entry keeps `default: 0` and its own
-    `--check` keeps asserting that string. This is a consumer artifact in our
-    project, which is what `CompileController` actually consumes.
-    """
-    text, f = mod.document(cfg)
-    p = cfg["prefix"]
-    shipped = (f"  {p}/Enable: {{ type: float, default: 0, "
-               "vrc: { type: bool, synced: true, saved: false } }")
-    ours = shipped.replace("default: 0", "default: 1")
-    if text.count(shipped) != 1:
-        raise SystemExit(
-            f"REFUSE: the demo's Enable-default transform expected exactly one "
-            f"occurrence of\n    {shipped}\nand found {text.count(shipped)}. The "
-            "entry's declaration moved (generate.py emits it near the other "
-            "wearer-facing params); re-derive the line before accepting a build "
-            "whose sync silently never arms.")
-    return text.replace(shipped, ours), f
 
 
 def global_params(cfg):
     """The demo prefab's `globalParams`, as a match grammar rather than a list.
 
     Three positive wildcards and no exclusions. The entry now keeps its published
-    interface (`<prefix>/*` — Enable and the transport's Acquired) disjoint from
-    its internals (`<internal>/*`), so a consumer names the internal namespaces it
+    interface (`<prefix>/*` — Enable, the transport's raw Acquired, and the
+    entry's certified-lagged `Ready`) disjoint from its internals
+    (`<internal>/*`), so a consumer names the internal namespaces it
     reaches into instead of publishing the whole prefix and subtracting. That
     inverts the failure mode in the safe direction: an entry this list forgets is
     under-exposed and the tablet reads a name that does not exist, which is loud,
@@ -199,13 +157,13 @@ def global_params(cfg):
     interface".
 
     Entry-side exposure is unchanged by scoping — the six decoded AAPs the tablet
-    displays and `<channel>/Acquired` all sit under the prefix. Gate the
-    reconstruction view, the damper and any stand-in on `Acquired`, never on a
-    `Ch/Cycle` threshold: the counter's thresholds are apply-discipline-dependent
-    and it never leaves 0 on the wearer. `Acquired` reads 0 on the wearer and
-    stays 1 through an Enable-off, so the consumer predicate is
-    `IsLocal OR (Enable AND Ch/Acquired)` — all three terms, which is what the
-    damper's rungs carry."""
+    displays, `<channel>/Acquired` and `<prefix>/Ready` all sit under the prefix.
+    Gate the reconstruction view, the damper and any stand-in on `Ready`, never
+    on a `Ch/Cycle` threshold: the counter's thresholds are
+    apply-discipline-dependent and it never leaves 0 on the wearer. `Ready`
+    reads 0 on the wearer and stays 1 through an Enable-off, so the consumer
+    predicate is `IsLocal OR (Enable AND Ready)` — all three terms, which is what
+    the damper's engage rung carries."""
     p, i = cfg["prefix"], cfg["internal"]
     return [f"{p}/*", f"{i}/D/*", f"{i}/Ch/Wire/Idx*"]
 
@@ -213,7 +171,7 @@ def global_params(cfg):
 def main():
     mod = entry_module()
     cfg = demo_config(mod)
-    text, f = demo_document(mod, cfg)
+    text, f = mod.document(cfg)
     facts = f["facts"]
 
     if facts["batchCount"] != 3 or facts["wireBits"] != 50:
@@ -231,11 +189,11 @@ def main():
             print(("  ok   " if cond else "  FAIL ") + msg)
             ok = ok and cond
 
-        assert_(demo_document(mod, cfg)[0] == text, "regeneration is byte-identical")
-        # The Enable-default deviation, the slot packing, and the on-disk
-        # document are NOT re-asserted here: demo_document() refuses a build
-        # where its transform found no line to rewrite, check_slots refuses an
-        # unpackable config, the REFUSE above pins the settled 3-batch/50-bit
+        assert_(mod.document(cfg)[0] == text, "regeneration is byte-identical")
+        # The Enable default, the slot packing, and the on-disk document are
+        # NOT re-asserted here: the entry's generator refuses `enableDefault`
+        # outside 0/1, check_slots refuses an unpackable config, the REFUSE
+        # above pins the settled 3-batch/50-bit
         # wire, and freshness of the committed document is regenerate-and-read-
         # git-diff (CONVENTIONS.md §Per-entry checks).
         # Printing the list left the prefab unpinned, and the prefab is the
