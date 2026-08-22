@@ -1,0 +1,50 @@
+# solve-order-pin — pins where the VRC constraint solver cuts a cyclic group, by handing one
+# constraint a dependency path deeper than any other in the avatar. The ladder itself is the
+# prefab's 16 chained weight-0 constraints; this controller exists only to switch the ladder
+# GameObject off once it has registered, so the rig costs nothing per frame after load.
+#
+# THE TIMING IS THE WHOLE DESIGN, and it is the opposite of what it looks like.
+# Measured in play: a constraint registers with the solver on its GameObject's OnEnable at load,
+# and deactivating that GameObject afterwards does NOT unregister it — the constraints stay live
+# members of their execution groups and the pin holds. Deactivating BEFORE load (an inactive
+# object in the serialized prefab, or an edit-mode toggle) never registers them at all and the
+# pin is simply absent. So the ladder must ship ACTIVE and be switched off by animation; shipping
+# it inactive to save the same cost silently produces a rig that looks identical and does nothing.
+#
+# Hence: one state, one direct blend tree, one clip, no conditions, no synced bits. Direct-tree
+# shape is deliberate — it is the form avatar optimizers fold into an existing layer, so the
+# module costs no additional layer on a composed avatar.
+
+schema: 1
+controller: SolveOrderPin_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  One: { type: float, default: 1.0 }   # constant, never driven — carries the direct child at full weight
+
+layers:
+  - name: SolveOrderPin
+    states:
+      Park:
+        motion:
+          tree: direct
+          children:
+            - { clip: ladder_off, directWeight: One }
+    default: Park
+    layout:
+      nodes: { Park: [30, 180] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# The one binding. `Ladder` is active in the serialized prefab so its 16 constraints register at
+# load; this write takes it off from the animator's first evaluation onward.
+clips:
+  ladder_off:
+    set:
+      "Ladder/GameObject.m_IsActive": 0
