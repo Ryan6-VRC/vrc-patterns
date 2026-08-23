@@ -1,6 +1,6 @@
 # GrabSync glue controller — the ONE controller of the grab-sync composition; the README owns the arc, this header owns only what the graph cannot say.
 # Copy site: multi.yaml is this document at four suffixed layers — an edit here is an edit there.
-# Cell bindings transcribed VERBATIM from ../../grab-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/GrabProp/ prefix. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grabbed→grabbed, Released→released (pulse curve included), Dropped→dropped, Waiting→waiting, Acquire/Bridge/Synced/Resume→dropped, Reacquire/Resume_Grab→grabbed.
+# Cell bindings transcribed VERBATIM from ../../grab-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/GrabProp/ prefix — the cell IsActive writes that are inert while Container's GameObject is off included; the entry's header owns why they stay at 1. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grabbed→grabbed, Released→released (pulse curve included), Dropped→dropped, Waiting→waiting, Acquire/Bridge/Synced/Resume→dropped, Reacquire/Resume_Grab→grabbed.
 # Glue value-sets (operator-ruled: home slot on BOTH mux channels; Anchored parks):
 #   HOME    = mux w (0,0,1) both channels, damper passthrough, park ON   (Timer/Disabled/Waiting hidden; Anchored visible)
 #   CARRY   = mux w (1,0,0) both channels, damper passthrough, park OFF  (Grabbed/Released/Dropped/Bridge)

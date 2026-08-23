@@ -5,11 +5,21 @@
 # a grab.
 #
 # Constraint cells (paths are prefab-root relative; the VRCFury FullController sits on that root):
-#   Container       — payload mount; position constraint follows SourcePosition. Its component
-#                     m_Enabled OFF = the freeze (a disabled constraint holds its transform).
-#   SourcePosition  — sample-and-hold cell; constraint samples DropPosition (the bone tip in a
-#                     world-frozen rotation frame) while IsActive, holds while not.
-#   GrabPosition    — the bone chain's rest home; multiplexes [HomeAnchor, Container].
+#   Container                 — payload mount; position constraint follows Container/SourcePosition.
+#                               Its component m_Enabled OFF = the freeze (a disabled constraint
+#                               holds its transform).
+#   Container/SourcePosition  — sample-and-hold cell; constraint samples DropPosition (the bone tip
+#                               in a world-frozen rotation frame) while IsActive, holds while not.
+#                               The nesting under Container authors the solve order the release
+#                               capture rides (README §How it works) — never flatten it.
+#   GrabPosition              — the bone chain's rest home; multiplexes [HomeAnchor, Container].
+#
+# Because the cell lives under Container, its IsActive write is inert in any clip that also sets
+# Container/GameObject.m_IsActive 0 (disabled, timer, waiting) — the child GameObject is off, so the
+# constraint does not run regardless of the value. The write is kept at 1 there because it takes
+# effect the frame Container reactivates, and no live sample is lost meanwhile: in exactly those
+# states the cell's own source (DropPosition) is parked too, which is why the reactivation trace
+# measures identical to the pre-nesting rig (frame-measured, stock-vs-nested, enable-cycle).
 #
 # The tuned constants are the README's Empirical-constants table — what each knob does, and which of
 # these clips authors it. Values live at those sites only; the inline comments below carry each one's
