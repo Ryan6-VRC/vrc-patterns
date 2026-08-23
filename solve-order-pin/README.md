@@ -1,6 +1,8 @@
 # solve-order-pin — deterministic solve order inside a cyclic constraint group (Module)
 
-When VRC constraints form a cycle — a sample-and-hold cell, a capture-on-release freeze, any feedback web — which edge the solver treats as the stale one is not something authoring controls, and the same prefab bytes can play good on one session and bad on the next. This module makes that choice deterministic: a chain of 16 inactive constraints whose tip you wire as a weight-0 source onto the constraint that must solve *last*, giving it a dependency path deeper than anything else on the avatar. Zero synced bits, drives nothing, and switches itself off after load so it costs nothing per frame.
+When VRC constraints form a cycle — a sample-and-hold cell, a capture-on-release freeze, any feedback web — which edge the solver treats as the stale one is not something authoring controls, and the same prefab bytes can play good on one session and bad on the next. This module aims at that choice: a chain of 16 inactive constraints whose tip you wire as a weight-0 source onto the constraint that must solve *last*, giving it a dependency path deeper than anything else on the avatar. Zero synced bits, drives nothing, and switches itself off after load so it costs nothing per frame.
+
+**It biases an ambiguous cut. It will not repair a rig that breaks every session — check which you have before installing.** Depth is longest-path, so deepening a node drags everything downstream of it down too and a ladder can never invert two constraints joined by a source edge — tipping a cycle's source node raised it 13 groups and raised the constraint reading it one group further still. Measured 5/5 against behaviour on a cell broken by an added in-ring source: every ring member tipped in turn, both starting states, the cut never moved and the broken cell stayed broken. So the symptom that indicates this module is **intermittency** — good one session, bad the next, no edit between. A deterministic break has a structural cause, and the fix is to remove the offending in-ring edge (`../grab-prop/README.md` §How it works owns the repoint), not to out-weigh it from outside.
 
 **Provenance:** derived here, generalized out of this repo's own `compositions/grab-sync`. No external ancestor.
 
@@ -14,13 +16,13 @@ The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact
 
 ## Traps
 
-**The graph reads backwards.** Tracing it naively suggests the constraint that *reads* should be the deeper one. It is the other way round: the ladder does not make your constraint later in any ordinary sense, it biases where the solver cuts the ring.
+**Depth is not the cut.** The ladder moves a constraint's group index; where the solver cuts the ring is decided separately, and on a pair joined by an in-ring source edge no tip has been measured to move it. Never reason from a changed index to a changed behaviour.
 
-**Sizing is a measurement, not a judgement.** Read the group index of the constraint the tipped one must solve *after* — that number is the depth already feeding it, and the ladder has to beat it. 16 is what one consumer measured sufficient, not a constant this module claims.
+**Sizing is a measurement, not a judgement.** Read the group index of the constraint the tipped one must solve *after* — that number is the depth already feeding it, and the ladder has to beat it. Take that read in play, past frame 1: `latestValidExecutionGroupIndex` serializes and retains its last valid value, so an edit-mode or entry-frame read reports the previous session and looks entirely plausible. 16 is what one consumer measured sufficient, not a constant this module claims.
 
-**It cannot tell you which side must be late.** That is a property of the consuming rig, and if that rig's own docs do not say, the only way to find out is to tip one side, test, and flip if wrong. A wrong-side tip inverts the order rather than failing, and reads as a clean pass.
+**It cannot tell you which side must be late.** That is a property of the consuming rig, and if that rig's own docs do not say, the only way to find out is to tip one side, test behaviourally, and flip if wrong. **Read "no change" as the wrong diagnosis, not the wrong side** — a tip that moves the indices and nothing else is the signature of a cut fixed by an in-ring edge, which no tip on any member will lift.
 
-**A pin is a global reorder.** Everything downstream of the tipped constraint moves with it. Re-read the indices on any other order-sensitive rig on the avatar.
+**A pin is a global reorder.** Everything downstream of the tipped constraint moves with it. Re-test the behaviour of any other order-sensitive rig on the avatar — re-reading their indices does not cover it, since an index can move while the cut holds and vice versa.
 
 **The tip is an *added* source — the operation measured as behaviour-changing** (`../grab-prop/README.md` §How it works carries that measurement and the safer *repoint* alternative). This module aims that change deliberately; the install check is what licenses it.
 
@@ -32,13 +34,15 @@ The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact
 
 ## Verifying the install
 
-`generate.py --check` and the gate cover the shipped rig and its build. Neither can see whether the tip edge you wired actually moved the order, which is the only thing that matters on your avatar.
+`generate.py --check` and the gate cover the shipped rig and its build. Neither can see whether the tip edge you wired changed your rig's behaviour, which is the only thing that matters on your avatar.
 
-On a **fresh play entry**, on the built avatar, read `LatestValidExecutionGroupIndex` on both constraints (`../grab-prop/README.md` §How it works owns the observable). The pin is correct when the constraint that must read stale holds an index **both `>= 0` and strictly less than** the tipped constraint's. Neither half is decoration: a never-solved constraint reports `-1`, and the field retains its last valid value, so a bare comparison — or a reading taken after changing the rig mid-session — passes on a rig doing nothing at all (measured: a ladder deleted mid-session still read as a clean pass).
+**Verify by frame lag, never by comparing group indices.** The index is a depth; the cut is decided separately, and the two disagree — measured across six `grab-prop` cells on one avatar, against behaviour confirmed by grabbing, an index comparison predicted behaviour 5/6 and the relative frame lag 6/6. The miss was a cell holding an inverted index and behaving correctly, which the index check calls mis-pinned and sends you to break a working avatar.
 
-Re-read after any change to the avatar's constraint graph; a new deep chain feeding the other side of the cycle is what defeats a ladder, and it can arrive from anywhere.
+**The lag method:** in play, ramp a transform upstream of the cycle a fixed step per frame and record how many frames behind each node lands. Lag above the cycle is common-mode and cancels, so only the step across the contested edge counts, and the node reading across the stale edge lands exactly one frame further back than its own source. Lag is in frames, so halving the ramp rate must not change the reading — that invariance is what separates it from an artifact of the drive.
 
-This shows the order, never the consuming rig's behaviour. Anything a remote observer sees needs two clients in-game.
+Re-verify after any change to the avatar's constraint graph; a new edge inside the cycle is what moves a cut, and it can arrive from anywhere.
+
+The lag read predicts the consuming rig's local behaviour and has been measured to track it. Anything a **remote** observer sees still needs two clients in-game.
 
 ## Rebuilding
 
