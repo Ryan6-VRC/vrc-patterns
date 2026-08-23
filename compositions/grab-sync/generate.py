@@ -198,12 +198,32 @@ def main():
         assert_(len(flat) == len(set(flat)),
                 f"collision tags unique across objects and stages ({len(flat)} tags)")
         prefab_pins(assert_)
+
+        # The nested object-sync rig prefab is hand-authored (generate.py emits only the controller),
+        # so its node names and collision tags must track OBJECTS by hand. A drift silently breaks
+        # every binding the regenerated controller writes through Rig/<name> and Sync<name>, and the
+        # contact tags it references -- and nothing else reads the prefab against the controller, so
+        # a rename that updates OBJECTS but forgets a node here compiles and gates clean while the
+        # avatar's sync is dead. Pin both against the generator's own naming.
+        import re as _re
+        sync_prefab = os.path.join(HERE, "object-sync", "ObjectSync.prefab")
+        sync_text = open(sync_prefab, encoding="utf-8").read()
+        sync_names = set(_re.findall(r"m_Name: (.+)", sync_text))
+        missing_nodes = [nm for ob in cfg["objects"]
+                         for nm in (ob["name"], mod.sync_path(cfg, ob["name"]),
+                                    mod.sync_target_path(cfg, ob["name"]))
+                         if nm not in sync_names]
+        assert_(not missing_nodes,
+                f"ObjectSync.prefab node names track OBJECTS (missing {missing_nodes})")
+        missing_tags = [t for t in flat if t not in sync_text]
+        assert_(not missing_tags,
+                f"ObjectSync.prefab collision tags track OBJECTS (missing {missing_tags})")
+
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
-        print("scope: emit determinism plus the prefab pins above - freshness of "
-              "the committed document is regenerate-and-read-git-diff; the sync "
-              "rig prefab's node/tag lists are verified against the document's "
-              "printed header, not here")
+        print("scope: emit determinism, the prefab pins above, and the object-sync rig prefab's "
+              "node names + collision tags against OBJECTS; freshness of the committed document is "
+              "regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
