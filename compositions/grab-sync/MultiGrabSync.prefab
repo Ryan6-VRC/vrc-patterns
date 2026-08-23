@@ -261,7 +261,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7045076222807427200}
   m_Layer: 0
-  m_Name: Prop_0
+  m_Name: PropA
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -656,9 +656,9 @@ Transform:
   m_Children:
   - {fileID: 2277846101001989943}
   - {fileID: 7045076222807427200}
-  - {fileID: 613070641621238751}
-  - {fileID: 826256267273517007}
   - {fileID: 2628807647282533125}
+  - {fileID: 826256267273517007}
+  - {fileID: 613070641621238751}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &176450385854832350
@@ -1423,7 +1423,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2628807647282533125}
   m_Layer: 0
-  m_Name: Prop_1
+  m_Name: PropB
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1458,7 +1458,7 @@ GameObject:
   m_Component:
   - component: {fileID: 613070641621238751}
   m_Layer: 0
-  m_Name: Prop_3
+  m_Name: PropD
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1608,7 +1608,7 @@ GameObject:
   m_Component:
   - component: {fileID: 826256267273517007}
   m_Layer: 0
-  m_Name: Prop_2
+  m_Name: PropC
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3084,7 +3084,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 696729565383297913, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: parameter
-      value: Grab_2
+      value: GrabC
       objectReference: {fileID: 0}
     - target: {fileID: 1400795601648815004, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3671,7 +3671,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 696729565383297913, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: parameter
-      value: Grab_3
+      value: GrabD
       objectReference: {fileID: 0}
     - target: {fileID: 1400795601648815004, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4308,7 +4308,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 696729565383297913, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: parameter
-      value: Grab_1
+      value: GrabB
       objectReference: {fileID: 0}
     - target: {fileID: 1400795601648815004, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4471,7 +4471,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 696729565383297913, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: parameter
-      value: Grab_0
+      value: GrabA
       objectReference: {fileID: 0}
     - target: {fileID: 1400795601648815004, guid: db55e9757e8f1c84f8b780b59d9b4687, type: 3}
       propertyPath: m_LocalPosition.x

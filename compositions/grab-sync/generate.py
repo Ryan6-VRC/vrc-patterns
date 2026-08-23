@@ -20,9 +20,10 @@ Four objects, heading-only, one slice each — `MultiGrabSync.prefab`'s four
 props, none hotter than another. Everything else is the entry's shipped CONFIG:
 the wire block, the shipped default-off `Enable` (the glue controller's
 host-capture declaration is what arms it, same as GrabSync at N=1), no menu.
-Object names `Prop0..Prop3` follow the entry's own multi-object example; the
-emitted surface is the `SyncProp{N}` / `SyncProp{N}_Target` pairs and a
-per-object collision-tag set, both printed in the document header.
+Object names `PropA..PropD` (one letter per slot, matching the glue controller's
+layers and the prefab's four prop GameObjects); the emitted surface is the
+`SyncProp{X}` / `SyncProp{X}_Target` pairs and a per-object collision-tag set,
+both printed in the document header.
 
 The composition's glue reaches only the published interface
 (`ObjectSync/Enable`, `ObjectSync/Ready`), so its `globalParams` needs no
@@ -38,7 +39,7 @@ ENTRY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "object-sync", "generate.py"))
 OUT = os.path.join(HERE, "object-sync", "controller.yaml")
 
-OBJECTS = [{"name": f"Prop{i}", "rotation": "y"} for i in range(4)]
+OBJECTS = [{"name": n, "rotation": "y"} for n in ("PropA", "PropB", "PropC", "PropD")]
 
 
 def entry_module():
@@ -122,7 +123,7 @@ def prefab_pins(assert_):
     sp_fid = sp[0] if len(sp) == 1 else None
 
     for prefab, props in (("GrabSync.prefab", [""]),
-                          ("MultiGrabSync.prefab", ["_0", "_1", "_2", "_3"])):
+                          ("MultiGrabSync.prefab", ["A", "B", "C", "D"])):
         path = os.path.join(HERE, prefab)
         raw = open(path, encoding="utf-8").read()
         docs = prefab_docs(path)
