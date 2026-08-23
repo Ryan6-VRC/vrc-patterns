@@ -36,27 +36,30 @@ def load_base():
 
 CONFIG = {
     "manifestId": 2,
-    "revision": 1,
+    "revision": 2,
     # bits/signed/floatTau mirror vrbridge's PuppetSettings defaults
-    # (quant_level=3, signed hardcoded, float_smooth_tau_secs=0.12): the
+    # (quant_level=3, signed hardcoded, float_smooth_tau_secs=0.05): the
     # cross-check compares field-for-field and refuses the arm on any drift.
+    # floatTau is sender-side and an avatar-side no-op, so moving it is a manifest
+    # revision with no rebuild and no re-upload -- but it must move with vrbridge's
+    # default in the same breath, or the cross-check refuses the arm.
     "channels": [
         {"name": "IndexPuppet/Left_X", "bits": 3, "signed": True,
          "local": {"frametime": False, "lambda": 0.0},
          "remote": {"frametime": True, "tau": 0.15},
-         "floatTau": 0.12},
+         "floatTau": 0.05},
         {"name": "IndexPuppet/Left_Y", "bits": 3, "signed": True,
          "local": {"frametime": False, "lambda": 0.0},
          "remote": {"frametime": True, "tau": 0.15},
-         "floatTau": 0.12},
+         "floatTau": 0.05},
         {"name": "IndexPuppet/Right_X", "bits": 3, "signed": True,
          "local": {"frametime": False, "lambda": 0.0},
          "remote": {"frametime": True, "tau": 0.15},
-         "floatTau": 0.12},
+         "floatTau": 0.05},
         {"name": "IndexPuppet/Right_Y", "bits": 3, "signed": True,
          "local": {"frametime": False, "lambda": 0.0},
          "remote": {"frametime": True, "tau": 0.15},
-         "floatTau": 0.12},
+         "floatTau": 0.05},
     ],
     # The sender drops it after idle (touch_active_idle_secs); consumers weight
     # their trees on it, same contract as the base config's gate.
