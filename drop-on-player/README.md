@@ -57,7 +57,11 @@ The prefab is the shipped artifact and ships no builder — edit it in place; po
     │  ├─ Payload                  placeholder sphere — swap for your prop, keep under Container
     │  └─ TrackingOffset           self receiver (Head tag, allowSelf ON / allowOthers OFF, localOnly)
     │                              → SelfDetect; also the cage's park source
-    ├─ SourcePosition              the sample-and-hold cell; samples the cage while Tracked
+    ├─ SourcePosition              the sample-and-hold cell; samples the cage while Tracked — still a
+    │                              root-level sibling, so its stale edge rides the unauthored solver
+    │                              roll grab-prop has since retired by nesting the cell under Container
+    │                              (that entry's §How it works owns the rule); port the nesting before
+    │                              chasing any intermittent capture failure here
     ├─ HeadMount                   MA BoneProxy → Head (AsChildAtRoot) + VRCHeadChop: the local head
     │  │                           zero-scales in first person, which would collapse AnchorOffset
     │  └─ AnchorOffset             anchored rest point, in the head-bone frame

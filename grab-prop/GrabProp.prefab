@@ -77,6 +77,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42581d8044b64899834d3d515ab3a144, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _modularAvatarVersionTag:
+    UpdatedAtVersion: 
+    MinimumVersion: 
   boneReference: 0
   subPath: 
   attachmentMode: 1
@@ -143,6 +146,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8411050857439604675}
+  - {fileID: 2814589900216844070}
   m_Father: {fileID: 6076709758708900613}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &5110335216189517466
@@ -369,7 +373,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3928322497919830609}
-  - {fileID: 2814589900216844070}
   - {fileID: 8923969901500064813}
   - {fileID: 1400795601648815004}
   - {fileID: 7568897623830943642}
@@ -390,7 +393,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -468,7 +471,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -686,7 +689,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -1010,7 +1013,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   version: 3
   unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1371.0
+  vrcfuryVersion: 1.1414.0
   somethingIsBroken: 0
   config:
     features: []
@@ -1234,12 +1237,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8787224302221537304}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.8, z: 0.25}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 6076709758708900613}
+  m_Father: {fileID: 3928322497919830609}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &8981389196556675743
 MonoBehaviour:
