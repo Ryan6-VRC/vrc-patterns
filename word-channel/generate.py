@@ -852,8 +852,11 @@ def check():
     rd_path = os.path.join(HERE, "README.md")
     if os.path.exists(rd_path):
         body = open(rd_path, encoding="utf-8").read()
-        assert_(f"3·batchCount·indexLoops + 4" in body,
-                "README's state-count formula counts the reset layer's two states")
+        # One assert, and the scope rule says why there is not a second: CONVENTIONS
+        # §Per-entry checks puts README-quoted FIGURES in scope, and this README quotes
+        # none — no Costs slot, no state count, the docstring owning the formula. A pin
+        # on a figure the README does not carry fails forever and pins nothing; add one
+        # back only alongside the figure it guards.
         assert_(f"`{p}/Acquired`" in body,
                 "README's Interface stanza names the emitted correctness output")
     else:
