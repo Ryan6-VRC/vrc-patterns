@@ -28,9 +28,6 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
                            Toggle and the FullController playing built/GrabSync_Fx
     ├─ ObjectSync          nested instance of ../../object-sync/y/ (heading-only), consumed through its
     │                      published interface (ObjectSync/*); its own FullController stays
-    ├─ SolveOrderPin       nested instance of ../../solve-order-pin/, keeping its own FullController;
-    │                      its Depth16 tip is a weight-0 source on the cell's SourcePosition
-    │                      (§Capture order)
     └─ Prop/
        ├─ GrabProp         nested grab-prop instance: rig untouched, grab physbone parameter → `Grab`
        ├─ DragBone_Yaw     nested drag-bone instance + the park glue (a yaw-only rotation constraint on
@@ -41,17 +38,15 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
                            visibility gate and GrabPosition's rest-anchor frame (the two-source repoint
                            ../../grab-prop/README.md §How it works sanctions)
 
-Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because nothing validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller) along with its placeholder `Payload` sphere on every nested instance (the visible payload lives under `Prop/Container/Display`); `object-sync`'s shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), as are its root's own menu `Toggle` and `ApplyDuringUpload` (the composition fronts Enable and arms the one pin itself); and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate. The nested `solve-order-pin` instance is the one whose `FullController` is deliberately **kept** — it carries the off-write, and removing it as `grab-prop`'s was leaves the ladder running forever.
+Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because nothing validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller) along with its placeholder `Payload` sphere on every nested instance (the visible payload lives under `Prop/Container/Display`); `object-sync`'s shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), as are its root's own menu `Toggle` and `ApplyDuringUpload` (the composition fronts Enable and arms the one pin itself); and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
 
 The glue's state graph, its value-sets, the engage-on-`ObjectSync/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
 
-## Capture order — why the pin is here
+## Capture order
 
-The cell's release capture survives only when `GrabProp/Container` reads `SourcePosition` one frame stale, and which edge of the cell's cycle carries that stale read is authored nowhere — the same serialized prefab has play-tested good and bad with no edit between. Duplicate-swaps, re-saves, and per-build play certification were each tried and only re-roll it. `../../solve-order-pin/` is the fix and owns the mechanism, the sizing measurement, and the install seam.
+The cell's release capture survives only when `GrabProp/Container` reads `Container/SourcePosition` one frame stale, and that edge is fixed by the cell's own hierarchy — the sample node is a child of the node whose constraint reads it, which puts that reader in the earlier solve group by construction (`../../grab-prop/README.md` §How it works owns the rule and its measurement). Nothing outside the cell arranges it, and no source added anywhere on this composition reaches it.
 
-What is this composition's alone, and what the entry says it cannot work out for itself: **`SourcePosition` is the constraint that must solve last**, so the tip edge lands there. `MultiGrabSync` runs one ladder with a tip edge into each of its four props' `SourcePosition`. The entry's pass criterion applies per prop, with `Container` as the constraint that must read stale.
-
-One idiom collision this composition is uniquely exposed to, because it holds both: the root pins ship `m_Enabled` off and are flipped on at build by `ApplyDuringUpload`, while the pin's ladder ships **active** and is switched off by its own animation after load. They look like one "disabled thing enabled later" pattern and are opposites — normalizing either to match the other breaks that side.
+What this composition holds that the entry cannot see is five nested copies of that cell, each one an instance override away from losing the relation: a nested modification that re-parents or re-poses `SourcePosition`, or adds a source to its constraint, drops the capture with every clip and every compiled value identical. Run `generate.py --check`. The entry's pass criterion then applies per prop — `Container` reads stale, verified by frame lag — `MultiGrabSync`'s four included, with nothing per-prop left to wire.
 
 ## MultiGrabSync — the same composition at four props
 
