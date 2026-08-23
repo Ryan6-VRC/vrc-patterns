@@ -55,13 +55,14 @@ The prefab is the shipped artifact and ships no builder — edit it in place; po
     ├─ Container                   VRCPositionConstraint, 3 sources: AnchorOffset (anchored),
     │  │                           SourcePosition (grabbed/dropped), TrackedPoint/RideOffset (tracked)
     │  ├─ Payload                  placeholder sphere — swap for your prop, keep under Container
-    │  └─ TrackingOffset           self receiver (Head tag, allowSelf ON / allowOthers OFF, localOnly)
-    │                              → SelfDetect; also the cage's park source
-    ├─ SourcePosition              the sample-and-hold cell; samples the cage while Tracked — still a
-    │                              root-level sibling, so its stale edge rides the unauthored solver
-    │                              roll grab-prop has since retired by nesting the cell under Container
-    │                              (that entry's §How it works owns the rule); port the nesting before
-    │                              chasing any intermittent capture failure here
+    │  ├─ TrackingOffset           self receiver (Head tag, allowSelf ON / allowOthers OFF, localOnly)
+    │  │                           → SelfDetect; also the cage's park source
+    │  └─ SourcePosition           the sample-and-hold cell; samples the cage while Tracked. Nesting it
+    │                              under Container is load-bearing: Container's own constraint reads it
+    │                              (source1), so Container solves in the earlier group and reads the
+    │                              sample one frame stale — the capture authored by the hierarchy, not
+    │                              the solver's roll (grab-prop §How it works owns the rule and the
+    │                              measurement; runtime.md §Constraints owns the invariant). Never flatten it.
     ├─ HeadMount                   MA BoneProxy → Head (AsChildAtRoot) + VRCHeadChop: the local head
     │  │                           zero-scales in first person, which would collapse AnchorOffset
     │  └─ AnchorOffset             anchored rest point, in the head-bone frame

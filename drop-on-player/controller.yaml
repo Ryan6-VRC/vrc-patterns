@@ -257,10 +257,14 @@ layers:
 # re-enabled bone republishes. Accepted: this is a library sample, not a module whose off must
 # interrupt an action. A consumer that needs a clean force-release adds a driver clearing the param
 # to Disabled — the write sticks precisely because the bone GO is inactive (`verify.md`).
-# Constraint source maps (box-tracker cage):
-#   Container/VRCPositionConstraint:      source0 HeadMount/AnchorOffset, source1 SourcePosition,
-#                                         source2 TrackedPoint/RideOffset
-#   SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
+# Constraint source maps (box-tracker cage). SourcePosition is a CHILD of Container, and Container's
+# own constraint reads it (source1) — so Container solves in the strictly earlier group and reads the
+# sample one frame stale, which is the sample-and-hold capture, authored by the hierarchy relation
+# rather than left to the solver's roll (../grab-prop/README.md §How it works owns the rule and the
+# measurement; runtime.md §Constraints owns the target-hierarchy invariant). Never flatten it.
+#   Container/VRCPositionConstraint:               source0 HeadMount/AnchorOffset, source1 SourcePosition,
+#                                                  source2 TrackedPoint/RideOffset
+#   Container/SourcePosition/VRCPositionConstraint: source0 DropPosition, source1 TrackingPoints
 #   GrabPosition/VRCPositionConstraint:   source0 HeadMount/AnchorOffset, source1 Container
 #   TrackingPoints/VRCPositionConstraint: source0 Output (own child), source1 self — the crawl
 #                                         feedback loop, gain eased in at acquisition (box-tracker)
@@ -276,9 +280,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -318,9 +322,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -359,9 +363,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 1
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
@@ -400,9 +404,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -442,8 +446,8 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 1
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -474,7 +478,7 @@ clips:
       "TrackingPoints/Output/Transform.m_LocalPosition.y": 0
       "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
     curves:
-      "SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
 
   dropped:      # also the Lost pose (remote loss freeze)
     set:
@@ -484,9 +488,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 1
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 0
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 1
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -525,9 +529,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 0
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/VRCPositionConstraint.Sources.source2.Weight": 1
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 0
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 1
       "GrabPosition/VRCPositionConstraint.IsActive": 1
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
@@ -571,9 +575,9 @@ clips:
       "Container/VRCPositionConstraint.Sources.source0.Weight": 1
       "Container/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "SourcePosition/VRCPositionConstraint.IsActive": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
       "GrabPosition/VRCPositionConstraint.IsActive": 1
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
