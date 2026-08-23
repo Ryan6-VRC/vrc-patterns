@@ -70,104 +70,99 @@ def prefab_docs(path):
     return docs
 
 
-def stripped_transforms(path):
-    """Anchor -> (source fileID, source guid, owning PrefabInstance anchor) for every
-    `stripped` Transform document — the only handle a composition has on a node that
-    lives inside a nested prefab. `prefab_docs` cannot see these: a stripped header
-    carries a trailing word where it expects the newline."""
-    import re
-    out = {}
-    for m in re.finditer(
-            r"^--- !u!4 &(\d+) stripped\nTransform:\n"
-            r"  m_CorrespondingSourceObject: \{fileID: (\d+), guid: (\w+), type: 3\}\n"
-            r"  m_PrefabInstance: \{fileID: (\d+)\}",
-            open(path, encoding="utf-8").read(), re.M):
-        out[int(m.group(1))] = (int(m.group(2)), m.group(3), int(m.group(4)))
-    return out
+def cell_nodes():
+    """`grab-prop`'s prefab read as (guid, transforms, components), where transforms
+    maps a Transform fileID -> (own name, parent name) and components map a component
+    fileID -> its owning GameObject's name.
 
-
-def pin_transform_names():
-    """fileID -> GameObject name for every Transform in `solve-order-pin`'s prefab,
-    so a tip edge's cross-prefab reference can be named rather than trusted."""
+    Two things this composition needs it for. It names the target of any instance
+    modification reaching into a nested `GrabProp`, so the pins below can say which
+    node an override lands on rather than trusting a bare fileID. And it carries the
+    `Container` <- `SourcePosition` parent edge: the cell's stale read is that
+    hierarchy relation now, so a composition that re-parented the sample cell back
+    out from under `Container` would lose the capture with every clip identical."""
     import re
-    entry = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir, "solve-order-pin"))
-    prefab = os.path.join(entry, "SolveOrderPin.prefab")
+    entry = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir, "grab-prop"))
+    prefab = os.path.join(entry, "GrabProp.prefab")
     meta = prefab + ".meta"
     if not (os.path.exists(prefab) and os.path.exists(meta)):
         raise SystemExit(
-            f"REFUSE: the solve-order-pin entry is not at {entry} — this composition "
-            "nests its prefab, and the tip edges cannot be resolved without it.")
+            f"REFUSE: the grab-prop entry is not at {entry} — this composition nests "
+            "its prefab, and the cell's nodes cannot be resolved without it.")
     guid = re.search(r"guid: (\w+)", open(meta, encoding="utf-8").read()).group(1)
     docs = prefab_docs(prefab)
     go_name = {a: re.search(r"m_Name: (.*)", b).group(1).strip()
                for c, a, b in docs if c == 1 and "m_Name:" in b}
-    names = {a: go_name.get(int(re.search(r"m_GameObject: \{fileID: (\d+)", b).group(1)), "?")
-             for c, a, b in docs if c == 4}
-    return guid, names
+    owner = {a: go_name.get(int(re.search(r"m_GameObject: \{fileID: (\d+)", b).group(1)), "?")
+             for c, a, b in docs if c in (4, 114) and "m_GameObject:" in b}
+    father = {a: int(re.search(r"m_Father: \{fileID: (\d+)", b).group(1))
+              for c, a, b in docs if c == 4}
+    transforms = {a: (owner[a], owner.get(father[a], "<root>")) for a in father}
+    return guid, transforms, {a: owner[a] for a in owner if a not in father}
 
 
 def prefab_pins(assert_):
     """The handful of prefab pins CONVENTIONS assigns a composition's check:
-    the drift classes nothing else reads (tip edges, physbone params, Payload
-    removals, controller wiring, the nested pin instance).
+    the drift classes nothing else reads (the cell's untouched sample edge,
+    physbone params, Payload removals, controller wiring).
 
-    The ladder's own shape is NOT here — that rig is `solve-order-pin`'s prefab,
-    nested rather than inline, and `solve-order-pin/generate.py --check` pins it
-    at its owner. What survives here is the half no entry can see: the tip edge,
-    which lives on this composition's own nested `grab-prop` instance and reaches
-    across the boundary into the pin instance's ladder."""
+    The cell's own rig is NOT here — that is `grab-prop`'s prefab, nested rather
+    than inline. What survives here is the half no entry can see: this composition
+    holds four nested copies of that cell and can override any of them, and the
+    capture order is now the `Container` <- `SourcePosition` hierarchy relation,
+    which an instance override could re-parent or out-rank without touching a clip
+    (`../../grab-prop/README.md` §How it works owns the measurement)."""
     import re
-    pin_guid, pin_names = pin_transform_names()
+    cell_guid, cell_tf, cell_comp = cell_nodes()
+    sp = [n for n, (nm, par) in cell_tf.items() if nm == "SourcePosition"]
+    assert_(len(sp) == 1 and cell_tf[sp[0]][1] == "Container",
+            "grab-prop cell: SourcePosition is a child of Container "
+            f"(parent is {cell_tf[sp[0]][1]!r})" if len(sp) == 1
+            else f"grab-prop cell: one SourcePosition node ({len(sp)} found)")
+    sp_fid = sp[0] if len(sp) == 1 else None
+
     for prefab, props in (("GrabSync.prefab", [""]),
                           ("MultiGrabSync.prefab", ["_0", "_1", "_2", "_3"])):
         path = os.path.join(HERE, prefab)
         raw = open(path, encoding="utf-8").read()
         docs = prefab_docs(path)
-        stripped = stripped_transforms(path)
 
-        # the nested SolveOrderPin instance: exactly one, resolved by GUID
-        pin_instances = [a for c, a, b in docs if c == 1001
-                         and re.search(r"m_SourcePrefab: \{fileID: \d+, guid: " + pin_guid, b)]
-        assert_(len(pin_instances) == 1,
-                f"{prefab}: one nested instance of solve-order-pin/SolveOrderPin.prefab "
-                f"({len(pin_instances)} found)")
-        pin_instance = pin_instances[0] if len(pin_instances) == 1 else None
-
-        # tip edges: per prop, source1 -> the ladder tip + explicit weight 0 + totalLength 2.
         # Group modifications per PrefabInstance document — the four nested GrabProp
         # instances share one base fileID+guid, so a global grouping collapses them.
         mod_re = re.compile(
             r"- target: \{fileID: (\d+), guid: (\w+), type: 3\}\n"
             r"      propertyPath: ([^\n]+)\n      value: ([^\n]*)\n"
             r"      objectReference: \{fileID: (\d+)\}")
-        params, tips = [], []
+        params, added_sources, moved_cells = [], [], []
         for c, a, b in docs:
             if c != 1001:
                 continue
             by_target = {}
             for fid, guid, pp, val, ref in mod_re.findall(b):
-                by_target.setdefault((fid, guid), {})[pp] = (val, ref)
-            for t, m in by_target.items():
-                if "Sources.source1.SourceTransform" in m:
-                    ref = int(m["Sources.source1.SourceTransform"][1])
-                    tips.append(ref)
-                    assert_(m.get("Sources.source1.Weight", ("?",))[0] == "0",
-                            f"{prefab}: tip weight 0 recorded (instance &{a})")
-                    assert_(m.get("Sources.totalLength", ("?",))[0] == "2",
-                            f"{prefab}: tip totalLength 2 (instance &{a})")
-                    src_fid, src_guid, owner = stripped.get(ref, (0, "", 0))
-                    assert_(src_guid == pin_guid and owner == pin_instance,
-                            f"{prefab}: tip resolves into the nested SolveOrderPin "
-                            f"instance (instance &{a})")
-                    assert_(pin_names.get(src_fid) == "Depth16",
-                            f"{prefab}: tip resolves to a transform named Depth16, got "
-                            f"{pin_names.get(src_fid, '<unresolved>')!r} (instance &{a})")
+                by_target.setdefault((int(fid), guid), {})[pp] = (val, ref)
+            for (fid, guid), m in by_target.items():
+                if guid != cell_guid:
+                    continue
+                # An added source on the sample cell reorders the solve — the
+                # operation measured as behaviour-changing even at weight 0, and
+                # the shape the retired depth ladder wired in.
+                if cell_comp.get(fid) == "SourcePosition" and any(
+                        p.startswith("Sources.") for p in m):
+                    added_sources.append(f"&{a} ({sorted(p for p in m if p.startswith('Sources.'))})")
+                # A re-parent or a re-position of the sample cell breaks the
+                # hierarchy relation the capture rests on.
+                if fid == sp_fid and any(
+                        p.startswith(("m_Father", "m_LocalPosition", "m_LocalRotation"))
+                        for p in m):
+                    moved_cells.append(f"&{a}")
                 if m.get("parameter", ("",))[0].startswith("Grab"):
                     params.append(m["parameter"][0])
-        assert_(len(tips) == len(props), f"{prefab}: {len(props)} tip edge(s)")
-        assert_(len(set(tips)) == 1,
-                f"{prefab}: every tip edge lands on the one ladder tip "
-                f"({len(set(tips))} distinct target(s))")
+        assert_(not added_sources,
+                f"{prefab}: no added source on the cell SourcePosition constraint "
+                f"(found on {added_sources})")
+        assert_(not moved_cells,
+                f"{prefab}: no nested instance re-parents or re-poses SourcePosition "
+                f"(found on {moved_cells})")
         params = sorted(params)
         assert_(params == sorted("Grab" + s for s in props),
                 f"{prefab}: physbone parameters {params}")
