@@ -20,9 +20,10 @@ Four objects, heading-only, one slice each — `MultiGrabSync.prefab`'s four
 props, none hotter than another. Everything else is the entry's shipped CONFIG:
 the wire block, the shipped default-off `Enable` (the glue controller's
 host-capture declaration is what arms it, same as GrabSync at N=1), no menu.
-Object names `Prop0..Prop3` follow the entry's own multi-object example; the
-emitted surface is the `SyncProp{N}` / `SyncProp{N}_Target` pairs and a
-per-object collision-tag set, both printed in the document header.
+Object names `PropA..PropD` (one letter per slot, matching the glue controller's
+layers and the prefab's four prop GameObjects); the emitted surface is the
+`SyncProp{X}` / `SyncProp{X}_Target` pairs and a per-object collision-tag set,
+both printed in the document header.
 
 The composition's glue reaches only the published interface
 (`ObjectSync/Enable`, `ObjectSync/Ready`), so its `globalParams` needs no
@@ -38,7 +39,7 @@ ENTRY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "object-sync", "generate.py"))
 OUT = os.path.join(HERE, "object-sync", "controller.yaml")
 
-OBJECTS = [{"name": f"Prop{i}", "rotation": "y"} for i in range(4)]
+OBJECTS = [{"name": n, "rotation": "y"} for n in ("PropA", "PropB", "PropC", "PropD")]
 
 
 def entry_module():
@@ -122,7 +123,7 @@ def prefab_pins(assert_):
     sp_fid = sp[0] if len(sp) == 1 else None
 
     for prefab, props in (("GrabSync.prefab", [""]),
-                          ("MultiGrabSync.prefab", ["_0", "_1", "_2", "_3"])):
+                          ("MultiGrabSync.prefab", ["A", "B", "C", "D"])):
         path = os.path.join(HERE, prefab)
         raw = open(path, encoding="utf-8").read()
         docs = prefab_docs(path)
@@ -197,12 +198,32 @@ def main():
         assert_(len(flat) == len(set(flat)),
                 f"collision tags unique across objects and stages ({len(flat)} tags)")
         prefab_pins(assert_)
+
+        # The nested object-sync rig prefab is hand-authored (generate.py emits only the controller),
+        # so its node names and collision tags must track OBJECTS by hand. A drift silently breaks
+        # every binding the regenerated controller writes through Rig/<name> and Sync<name>, and the
+        # contact tags it references -- and nothing else reads the prefab against the controller, so
+        # a rename that updates OBJECTS but forgets a node here compiles and gates clean while the
+        # avatar's sync is dead. Pin both against the generator's own naming.
+        import re as _re
+        sync_prefab = os.path.join(HERE, "object-sync", "ObjectSync.prefab")
+        sync_text = open(sync_prefab, encoding="utf-8").read()
+        sync_names = set(_re.findall(r"m_Name: (.+)", sync_text))
+        missing_nodes = [nm for ob in cfg["objects"]
+                         for nm in (ob["name"], mod.sync_path(cfg, ob["name"]),
+                                    mod.sync_target_path(cfg, ob["name"]))
+                         if nm not in sync_names]
+        assert_(not missing_nodes,
+                f"ObjectSync.prefab node names track OBJECTS (missing {missing_nodes})")
+        missing_tags = [t for t in flat if t not in sync_text]
+        assert_(not missing_tags,
+                f"ObjectSync.prefab collision tags track OBJECTS (missing {missing_tags})")
+
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
-        print("scope: emit determinism plus the prefab pins above - freshness of "
-              "the committed document is regenerate-and-read-git-diff; the sync "
-              "rig prefab's node/tag lists are verified against the document's "
-              "printed header, not here")
+        print("scope: emit determinism, the prefab pins above, and the object-sync rig prefab's "
+              "node names + collision tags against OBJECTS; freshness of the committed document is "
+              "regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
