@@ -16,9 +16,9 @@ The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact
 
 ## Traps
 
-**Depth is not the cut.** The ladder moves a constraint's group index and nothing else; where the solver cuts the ring is decided separately, and on a source-linked pair the ladder has been measured never to move it. Do not reason from a changed index to a changed behaviour — that inference is the module's original error.
+**Depth is not the cut.** The ladder moves a constraint's group index; where the solver cuts the ring is decided separately, and on a pair joined by an in-ring source edge no tip has been measured to move it. Never reason from a changed index to a changed behaviour.
 
-**Sizing is a measurement, not a judgement.** Read the group index of the constraint the tipped one must solve *after* — that number is the depth already feeding it, and the ladder has to beat it. 16 is what one consumer measured sufficient, not a constant this module claims.
+**Sizing is a measurement, not a judgement.** Read the group index of the constraint the tipped one must solve *after* — that number is the depth already feeding it, and the ladder has to beat it. Take that read in play, past frame 1: `latestValidExecutionGroupIndex` serializes and retains its last valid value, so an edit-mode or entry-frame read reports the previous session and looks entirely plausible. 16 is what one consumer measured sufficient, not a constant this module claims.
 
 **It cannot tell you which side must be late.** That is a property of the consuming rig, and if that rig's own docs do not say, the only way to find out is to tip one side, test behaviourally, and flip if wrong. **Read "no change" as the wrong diagnosis, not the wrong side** — a tip that moves the indices and nothing else is the signature of a cut fixed by an in-ring edge, which no tip on any member will lift.
 
@@ -36,11 +36,9 @@ The prefab owns the rig, `controller.yaml` the off-write. Seam facts no artifact
 
 `generate.py --check` and the gate cover the shipped rig and its build. Neither can see whether the tip edge you wired changed your rig's behaviour, which is the only thing that matters on your avatar.
 
-**Verify by frame lag, never by comparing group indices.** The index is a depth; the cut is a separate output, and a cell can hold an inverted index and behave correctly — the index comparison this section used to prescribe reports such a rig as mis-pinned, which sends you to break a working avatar. `../../docs/runtime.md` §Constraints owns the lag method and the measurement behind it.
+**Verify by frame lag, never by comparing group indices.** The index is a depth; the cut is decided separately, and a cell can hold an inverted index and behave correctly — an index comparison calls that rig mis-pinned and sends you to break a working avatar. `../../docs/runtime.md` §Constraints owns the lag method and the measurement behind it.
 
-Read the lag on the built avatar in play, **past frame 1 and with `isPlaying` asserted**. `latestValidExecutionGroupIndex` serializes and retains its last valid value, so an edit-mode read, or a read on the entry frame, reports the previous session and looks entirely plausible.
-
-Re-read after any change to the avatar's constraint graph; a new edge inside the cycle is what moves a cut, and it can arrive from anywhere.
+Re-verify after any change to the avatar's constraint graph; a new edge inside the cycle is what moves a cut, and it can arrive from anywhere.
 
 The lag read predicts the consuming rig's local behaviour and has been measured to track it. Anything a **remote** observer sees still needs two clients in-game.
 
