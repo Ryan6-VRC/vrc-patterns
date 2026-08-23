@@ -3,12 +3,15 @@
 # a prefab fact — the mux swaps by source index, so nothing here names it).
 # Every design ruling lives in controller.yaml's header and is not restated here; keep the two documents
 # in lockstep — an edit to one is an edit to both, and the check is reproducible: strip the _N suffixes
-# from any one prop's layer and diff it against controller.yaml's (the Bridge timer below is the one
-# intended difference).
+# from any one prop's layer and diff it against controller.yaml's (the layers are identical; the Bridge
+# and Resume timers below are the only intended differences, both re-derived at N=4).
 # Bridge timer [EMPIRICAL, re-derived at N=4 — never copied from N=1]: the regenerated build's documents
 # give a 4-slice measure ring of ~3.07 s and a ~1.87 s wire refresh, so the post-drop worst case is
 # ~4.9 s end to end; pulse 0.5 + bridge 6.0 = 6.5 s keeps the N=1 buffer (~1.6 s). Over-waiting holds the
 # witnessed capture longer (cosmetic); under-waiting shows the pre-drop trail as a damped glide (defect).
+# Resume dwell [EMPIRICAL, re-derived at N=4]: pulse 0.5 + bridge 6.0 = 6.5 s, the same pulse+bridge rule
+# controller.yaml's header derives — Resume cannot know when the prop was last released, so it waits the
+# full release-to-committed-word latency from the resume, which at N=4 is this number and not 2.9 s.
 
 schema: 1
 controller: MultiGrabSync_Fx
@@ -31,6 +34,7 @@ parameters:
   ObjectSync/Enable:   { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
   ObjectSync/Ready:    { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal:             bool               # VRC built-in
+  IsAnimatorEnabled:   { type: bool, default: true }   # VRC built-in — longform default-true MATCHES the entry's declaration; the shorthand `bool` form defaults false and, first-wins, would send the entry's Ch/Reset to Disabling at startup
 
 layers:
   - name: Prop_0
@@ -63,11 +67,13 @@ layers:
           - driver: { localOnly: true, set: { Detached_0: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Released, when: [ Grab_0_IsGrabbed is false ] }
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
         motion: { clip: released_0 }
         transitions:
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
           - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
       Dropped:
@@ -88,6 +94,7 @@ layers:
         motion: { clip: acquire_0 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_0_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_0 is false ] }
           - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
@@ -95,6 +102,7 @@ layers:
         motion: { clip: bridge_0 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ Grab_0_IsGrabbed is true ] }
           - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_0 is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ Detached_0 is false ], exitTime: 1.0 }
@@ -102,6 +110,7 @@ layers:
         motion: { clip: synced_0 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_0_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_0 is false ] }
       # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
@@ -109,13 +118,33 @@ layers:
         motion: { clip: reacquire_0 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Released, when: [ Grab_0_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+      # The cull park. Entered on the pre-halt frame, so the pause BEGINS here and the clip's remaining
+      # dwell measures from the resume — the playhead freezes with the animator, which is what lets a
+      # clip length express "wait this long after coming back".
+      Resume:
+        motion: { clip: resume_0 }
+        transitions:
+          - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume_Grab, when: [ Grab_0_IsGrabbed is true ] }
+          - { to: Waiting,     when: [ Detached_0 is false ] }
+          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+      # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
+      # pre-pause pose is never rendered.
+      Resume_Grab:
+        motion: { clip: resume_grab_0 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
           - { to: Released, when: [ Grab_0_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
     # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
-      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -150,11 +179,13 @@ layers:
           - driver: { localOnly: true, set: { Detached_1: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Released, when: [ Grab_1_IsGrabbed is false ] }
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
         motion: { clip: released_1 }
         transitions:
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
           - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
       Dropped:
@@ -175,6 +206,7 @@ layers:
         motion: { clip: acquire_1 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_1_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_1 is false ] }
           - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
@@ -182,6 +214,7 @@ layers:
         motion: { clip: bridge_1 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ Grab_1_IsGrabbed is true ] }
           - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_1 is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ Detached_1 is false ], exitTime: 1.0 }
@@ -189,6 +222,7 @@ layers:
         motion: { clip: synced_1 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_1_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_1 is false ] }
       # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
@@ -196,13 +230,33 @@ layers:
         motion: { clip: reacquire_1 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Released, when: [ Grab_1_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+      # The cull park. Entered on the pre-halt frame, so the pause BEGINS here and the clip's remaining
+      # dwell measures from the resume — the playhead freezes with the animator, which is what lets a
+      # clip length express "wait this long after coming back".
+      Resume:
+        motion: { clip: resume_1 }
+        transitions:
+          - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume_Grab, when: [ Grab_1_IsGrabbed is true ] }
+          - { to: Waiting,     when: [ Detached_1 is false ] }
+          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+      # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
+      # pre-pause pose is never rendered.
+      Resume_Grab:
+        motion: { clip: resume_grab_1 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
           - { to: Released, when: [ Grab_1_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
     # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
-      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -237,11 +291,13 @@ layers:
           - driver: { localOnly: true, set: { Detached_2: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Released, when: [ Grab_2_IsGrabbed is false ] }
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
         motion: { clip: released_2 }
         transitions:
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
           - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
       Dropped:
@@ -262,6 +318,7 @@ layers:
         motion: { clip: acquire_2 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_2_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_2 is false ] }
           - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
@@ -269,6 +326,7 @@ layers:
         motion: { clip: bridge_2 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ Grab_2_IsGrabbed is true ] }
           - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_2 is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ Detached_2 is false ], exitTime: 1.0 }
@@ -276,6 +334,7 @@ layers:
         motion: { clip: synced_2 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_2_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_2 is false ] }
       # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
@@ -283,13 +342,33 @@ layers:
         motion: { clip: reacquire_2 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Released, when: [ Grab_2_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+      # The cull park. Entered on the pre-halt frame, so the pause BEGINS here and the clip's remaining
+      # dwell measures from the resume — the playhead freezes with the animator, which is what lets a
+      # clip length express "wait this long after coming back".
+      Resume:
+        motion: { clip: resume_2 }
+        transitions:
+          - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume_Grab, when: [ Grab_2_IsGrabbed is true ] }
+          - { to: Waiting,     when: [ Detached_2 is false ] }
+          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+      # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
+      # pre-pause pose is never rendered.
+      Resume_Grab:
+        motion: { clip: resume_grab_2 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
           - { to: Released, when: [ Grab_2_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
     # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
-      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -324,11 +403,13 @@ layers:
           - driver: { localOnly: true, set: { Detached_3: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Released, when: [ Grab_3_IsGrabbed is false ] }
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
         motion: { clip: released_3 }
         transitions:
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Dropped, when: [ IsLocal is true ],  exitTime: 1.0 }
           - { to: Bridge,  when: [ IsLocal is false ], exitTime: 1.0 }
       Dropped:
@@ -349,6 +430,7 @@ layers:
         motion: { clip: acquire_3 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_3_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_3 is false ] }
           - { to: Synced,    when: [], exitTime: 1.0 }   # damper transient zero — Container already on the word
@@ -356,6 +438,7 @@ layers:
         motion: { clip: bridge_3 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ Grab_3_IsGrabbed is true ] }
           - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, Detached_3 is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ Detached_3 is false ], exitTime: 1.0 }
@@ -363,6 +446,7 @@ layers:
         motion: { clip: synced_3 }
         transitions:
           - { to: Disabled,  when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Reacquire, when: [ Grab_3_IsGrabbed is true ] }
           - { to: Waiting,   when: [ Detached_3 is false ] }
       # Display holds the word while the woken cell flushes to the hand; swap lands only when populated.
@@ -370,13 +454,33 @@ layers:
         motion: { clip: reacquire_3 }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Released, when: [ Grab_3_IsGrabbed is false ] }
+          - { to: Grabbed,  when: [], exitTime: 1.0 }
+      # The cull park. Entered on the pre-halt frame, so the pause BEGINS here and the clip's remaining
+      # dwell measures from the resume — the playhead freezes with the animator, which is what lets a
+      # clip length express "wait this long after coming back".
+      Resume:
+        motion: { clip: resume_3 }
+        transitions:
+          - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume_Grab, when: [ Grab_3_IsGrabbed is true ] }
+          - { to: Waiting,     when: [ Detached_3 is false ] }
+          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+      # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
+      # pre-pause pose is never rendered.
+      Resume_Grab:
+        motion: { clip: resume_grab_3 }
+        transitions:
+          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
           - { to: Released, when: [ Grab_3_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
     # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
-      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460] }
+      nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -626,6 +730,58 @@ clips:
       "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "Prop_0/Container/Display/GameObject.m_IsActive": 1
+  resume_0:       # cell `dropped` + ACQUIRE, hidden; GrabPosition (1,0). `synced` with the damper at
+                # passthrough and Display off — five changed bindings, and the only five.
+                # [EMPIRICAL: dwell = clip length = pulse 0.5 + bridge 6.0, the header's N=4 derivation]
+    seconds: 6.5
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 0
+  resume_grab_0:  # cell `grabbed` + ACQUIRE, hidden — `reacquire` with the damper at passthrough
+                # and Display off, so the cell populates behind a hidden prop and Grabbed shows it
+                # at the hand. Park stays on here and Grabbed unparks.  [EMPIRICAL: reacquire's dwell]
+    seconds: 0.1
+    set:
+      "Prop_0/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_0/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_0/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_0/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_0/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_0/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_0/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_0/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_0/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_0/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_0/Container/Display/GameObject.m_IsActive": 0
   reacquire_0:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:
@@ -893,6 +1049,58 @@ clips:
       "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "Prop_1/Container/Display/GameObject.m_IsActive": 1
+  resume_1:       # cell `dropped` + ACQUIRE, hidden; GrabPosition (1,0). `synced` with the damper at
+                # passthrough and Display off — five changed bindings, and the only five.
+                # [EMPIRICAL: dwell = clip length = pulse 0.5 + bridge 6.0, the header's N=4 derivation]
+    seconds: 6.5
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 0
+  resume_grab_1:  # cell `grabbed` + ACQUIRE, hidden — `reacquire` with the damper at passthrough
+                # and Display off, so the cell populates behind a hidden prop and Grabbed shows it
+                # at the hand. Park stays on here and Grabbed unparks.  [EMPIRICAL: reacquire's dwell]
+    seconds: 0.1
+    set:
+      "Prop_1/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_1/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_1/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_1/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_1/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_1/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_1/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_1/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_1/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_1/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_1/Container/Display/GameObject.m_IsActive": 0
   reacquire_1:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:
@@ -1160,6 +1368,58 @@ clips:
       "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "Prop_2/Container/Display/GameObject.m_IsActive": 1
+  resume_2:       # cell `dropped` + ACQUIRE, hidden; GrabPosition (1,0). `synced` with the damper at
+                # passthrough and Display off — five changed bindings, and the only five.
+                # [EMPIRICAL: dwell = clip length = pulse 0.5 + bridge 6.0, the header's N=4 derivation]
+    seconds: 6.5
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 0
+  resume_grab_2:  # cell `grabbed` + ACQUIRE, hidden — `reacquire` with the damper at passthrough
+                # and Display off, so the cell populates behind a hidden prop and Grabbed shows it
+                # at the hand. Park stays on here and Grabbed unparks.  [EMPIRICAL: reacquire's dwell]
+    seconds: 0.1
+    set:
+      "Prop_2/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_2/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_2/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_2/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_2/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_2/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_2/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_2/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_2/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_2/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_2/Container/Display/GameObject.m_IsActive": 0
   reacquire_2:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:
@@ -1427,6 +1687,58 @@ clips:
       "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "Prop_3/Container/Display/GameObject.m_IsActive": 1
+  resume_3:       # cell `dropped` + ACQUIRE, hidden; GrabPosition (1,0). `synced` with the damper at
+                # passthrough and Display off — five changed bindings, and the only five.
+                # [EMPIRICAL: dwell = clip length = pulse 0.5 + bridge 6.0, the header's N=4 derivation]
+    seconds: 6.5
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 0
+  resume_grab_3:  # cell `grabbed` + ACQUIRE, hidden — `reacquire` with the damper at passthrough
+                # and Display off, so the cell populates behind a hidden prop and Grabbed shows it
+                # at the hand. Park stays on here and Grabbed unparks.  [EMPIRICAL: reacquire's dwell]
+    seconds: 0.1
+    set:
+      "Prop_3/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop_3/GrabProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop_3/GrabProp/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/GrabProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Prop_3/Source/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop_3/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop_3/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop_3/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop_3/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop_3/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
+      "Prop_3/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
+      "Prop_3/Container/Display/GameObject.m_IsActive": 0
   reacquire_3:    # cell `grabbed` (Container/SourcePosition wake; root frozen on the word) + SYNC glue  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:

@@ -11,7 +11,7 @@ Grab a prop off your hip, carry it, set it down anywhere: everyone in the instan
 | `object-sync` (`y/`) | absolute world position + heading for the drop, late-join included |
 | `word-channel` | the wire underneath (reached through `object-sync`) |
 
-Its own contribution, belonging to no entry: the ten-state glue layer arbitrating cell against word (`controller.yaml` — its header carries every design ruling), the park that force-aligns the drag heading to the synced yaw on every remote so re-grab is snap-free, and the `Reacquire` dwell that keeps a remote's re-grab from flashing the stale cell.
+Its own contribution, belonging to no entry: the thirteen-state glue layer arbitrating cell against word (`controller.yaml` — its header carries every design ruling), the park that force-aligns the drag heading to the synced yaw on every remote so re-grab is snap-free, and the `Reacquire` dwell that keeps a remote's re-grab from flashing the stale cell.
 
 ## Install
 

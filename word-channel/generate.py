@@ -68,15 +68,14 @@ Three load-bearing assumptions behind that emit:
 3. `Acquired` and `SawHead` are never clip-bound anywhere in the merged
    document — a driver on a clip-bound param is refused at compile
    (`animator-schema.md`). A Direct-tree *weight* is a read, not a binding.
-4. UNMEASURED, and the weakest link: that `IsAnimatorEnabled` goes false at
-   least one frame BEFORE the client halts the Animator, so the
-   `Enabled`->`Disabling` rung gets a frame to evaluate and its driver a frame
-   to run. `docs/runtime.md`'s coverage table records that distance-hide fires
-   the flag, not the ordering, and av3emu drives the flag by hand so it cannot
-   falsify this. If the client instead clears it on the same frame it halts,
-   the reset never runs and `Acquired` survives a distance-hide TRUE over a
-   stale table — the one path by which it can lie. Everything above rests on
-   this holding; a two-client in-game session is what would settle it.
+The reset layer additionally rests on `IsAnimatorEnabled` going false one
+frame BEFORE the client halts the Animator, which gives the
+`Enabled`->`Disabling` rung a frame to evaluate and its driver a frame to run.
+That ordering is VRChat's documented contract rather than an assumption of
+ours — `docs/runtime.md` §Parameters carries it and the citation — so it is
+not on the list above. It is load-bearing here and for any other rig that
+pre-arms on the same edge, so a session tempted to relitigate it should
+change `runtime.md` first, not this file.
 
 `Acquired` is receiver-scoped: false on the wearer forever, because the wearer
 runs sender layers only. That is correct rather than a gap — the wearer's own
@@ -853,8 +852,11 @@ def check():
     rd_path = os.path.join(HERE, "README.md")
     if os.path.exists(rd_path):
         body = open(rd_path, encoding="utf-8").read()
-        assert_(f"3·batchCount·indexLoops + 4" in body,
-                "README's state-count formula counts the reset layer's two states")
+        # One assert, and the scope rule says why there is not a second: CONVENTIONS
+        # §Per-entry checks puts README-quoted FIGURES in scope, and this README quotes
+        # none — no Costs slot, no state count, the docstring owning the formula. A pin
+        # on a figure the README does not carry fails forever and pins nothing; add one
+        # back only alongside the figure it guards.
         assert_(f"`{p}/Acquired`" in body,
                 "README's Interface stanza names the emitted correctness output")
     else:
