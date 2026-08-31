@@ -1,6 +1,6 @@
 # grab-sync — grabbable props whose drops are shared truth (Composition)
 
-Grab a prop off your hip, carry it, set it down anywhere: everyone in the instance sees it in that spot — a player who joins later included — and a re-grab picks it up from where it rests with no snap, from any join state. Grabbing is a physbone (natively networked, so remotes see the carry live), heading comes from a drag bone trailing the motion, and the drop's absolute position and yaw ride `object-sync`'s word so placement is exact rather than replayed. Two prefabs ship: **`GrabSync.prefab`** (one prop, the entry's stock `y/` build, one `Detached` bit on top of its 28-wire) and **`MultiGrabSync.prefab`** (four props on this composition's own regenerated four-object build — 29 wire bits time-sliced across the props, plus `Detached_0..3`).
+Grab a prop off your hip, carry it, set it down anywhere: everyone in the instance sees it in that spot — a player who joins later included — and a re-grab picks it up from where it rests with no snap, from any join state. Grabbing is a physbone (natively networked, so remotes see the carry live), heading comes from a drag bone trailing the motion, and the drop's absolute position and yaw ride `object-sync`'s word so placement is exact rather than replayed. Two prefabs ship: **`GrabSync.prefab`** (one prop, this composition's own single-prop `y` build at the mount prefix — `object-sync-single/` — one `Detached` bit on top of its 28-wire) and **`MultiGrabSync.prefab`** (four props on this composition's own regenerated four-object build — 29 wire bits time-sliced across the props, plus `Detached_0..3`).
 
 ## What it composes
 
@@ -17,7 +17,7 @@ Its own contribution, belonging to no entry: the thirteen-state glue layer arbit
 
 Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BoneProxy` targeting **Hips**, so it resolves on any humanoid; drag `Prop/GrabProp/HomeAnchor/Offset` to place the rest position, and swap your mesh in for the sphere at `Prop/Container/Display/Payload`, keeping it under `Display` — the node the clips gate for visibility and GrabPosition's rest-anchor frame; the cell's own `Payload` is removed on every nested `GrabProp` (`../../grab-prop/README.md` owns the cell's rig rules). The menu Toggle **GrabSync** fronts `ObjectSync/Enable`, declared default-**on**; off recalls the prop home on every client.
 
-**One prefab per avatar — GrabSync or MultiGrabSync, never both, and never beside any other `object-sync` build** — every configuration of that entry shares the parameter prefix, and a second live build's contact clusters park at the same point (`../../object-sync/README.md` §Seam owns the rule).
+**One prefab per avatar — GrabSync or MultiGrabSync, never both** — both generate at the entry's default `rigSeed`, so their contact clusters share tags and park. A *different* `object-sync` build can share the avatar: the entry's interface is sealed per FullController component, and coexistence needs only a distinct `rigSeed` on the other build (`../../object-sync/README.md` §Seam owns the rules). `ObjectSync/Enable` stays global and shared — the menu toggle here arms every sealed build on the avatar at once, by design.
 
 **Do not enable the two constraints on the prefab root** to make the editor view look pinned — they ship disabled and a VRCFury `ApplyDuringUpload` enables them at build, so seams under them capture poses authored on the body rather than origin-parked ones (`../../../docs/gimmicks.md` §Constraint patterns). Their correct serialized state is all-zero offsets; if one has been disturbed, Zero it, never Activate.
 
@@ -25,9 +25,13 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
 
     GrabSync               THE one pin: VRCParentConstraint + VRCScaleConstraint → World.prefab, zero
                            offsets, disabled in editor, ApplyDuringUpload enables at build; + the menu
-                           Toggle and the FullController playing built/GrabSync_Fx
-    ├─ ObjectSync          nested instance of ../../object-sync/y/ (heading-only), consumed through its
-    │                      published interface (ObjectSync/*); its own FullController stays
+                           Toggle and the SHARED FullController playing built/GrabSync_Fx and
+                           object-sync-single/built/ObjectSync_Fx, in that order (controller.yaml's
+                           header owns why the order is load-bearing)
+    ├─ ObjectSync          nested instance of ../../object-sync/y/ (heading-only), its FullController
+    │                      removed: the root's SHARED FullController plays this composition's own
+    │                      mounted single-prop build (object-sync-single/) beside the glue — the
+    │                      sealed-interface coupling, glue FIRST (first-wins arms Enable)
     └─ Prop/
        ├─ GrabProp         nested grab-prop instance: rig untouched, grab physbone parameter → `Grab`
        ├─ DragBone_Yaw     nested drag-bone instance + the park glue (a rotation constraint on
@@ -41,9 +45,9 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
                            visibility gate and GrabPosition's rest-anchor frame (the two-source repoint
                            ../../grab-prop/README.md §How it works sanctions)
 
-Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because nothing validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller) along with its placeholder `Payload` sphere on every nested instance (the visible payload lives under `Prop/Container/Display`); `object-sync`'s shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), as are its root's own menu `Toggle` and `ApplyDuringUpload` (the composition fronts Enable and arms the one pin itself); and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
+Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because prose is most of what validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller) along with its placeholder `Payload` sphere on every nested instance (the visible payload lives under `Prop/Container/Display`); `object-sync`'s own `FullController` is removed — the shared root component replaces it, and this removal alone has teeth (run `generate.py --check`); its shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), as are its root's own menu `Toggle` and `ApplyDuringUpload` (the composition fronts Enable and arms the one pin itself); and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
 
-The glue's state graph, its value-sets, the engage-on-`ObjectSync/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
+The glue's state graph, its value-sets, the engage-on-`OS/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
 
 ## Capture order
 

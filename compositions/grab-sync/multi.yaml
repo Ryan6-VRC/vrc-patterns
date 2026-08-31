@@ -33,7 +33,7 @@ parameters:
   GrabC_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: GrabC)
   GrabD_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: GrabD)
   ObjectSync/Enable:   { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
-  ObjectSync/Ready:    { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OS/Ready:    { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal:             bool               # VRC built-in
   IsAnimatorEnabled:   { type: bool, default: true }   # VRC built-in — longform default-true MATCHES the entry's declaration; the shorthand `bool` form defaults false and, first-wins, would send the entry's Ch/Reset to Disabling at startup
 
@@ -61,7 +61,7 @@ layers:
           # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
-          - { to: Synced,   when: [ IsLocal is false, DetachedA is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Synced,   when: [ IsLocal is false, DetachedA is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedA }
         behaviours:
@@ -88,7 +88,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabA_IsGrabbed is true ] }
           # the late-join level path
-          - { to: Acquire,  when: [ DetachedA is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Acquire,  when: [ DetachedA is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
           # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
           - { to: Anchored, when: [ DetachedA is false ] }
       Acquire:
@@ -105,7 +105,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ GrabA_IsGrabbed is true ] }
-          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, DetachedA is true ], exitTime: 1.0 }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, DetachedA is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ DetachedA is false ], exitTime: 1.0 }
       Synced:
         motion: { clip: syncedA }
@@ -131,7 +131,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume_Grab, when: [ GrabA_IsGrabbed is true ] }
           - { to: Waiting,     when: [ DetachedA is false ] }
-          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+          - { to: Synced,      when: [ OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
       # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
       # pre-pause pose is never rendered.
       Resume_Grab:
@@ -173,7 +173,7 @@ layers:
           # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
-          - { to: Synced,   when: [ IsLocal is false, DetachedB is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Synced,   when: [ IsLocal is false, DetachedB is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedB }
         behaviours:
@@ -200,7 +200,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabB_IsGrabbed is true ] }
           # the late-join level path
-          - { to: Acquire,  when: [ DetachedB is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Acquire,  when: [ DetachedB is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
           # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
           - { to: Anchored, when: [ DetachedB is false ] }
       Acquire:
@@ -217,7 +217,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ GrabB_IsGrabbed is true ] }
-          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, DetachedB is true ], exitTime: 1.0 }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, DetachedB is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ DetachedB is false ], exitTime: 1.0 }
       Synced:
         motion: { clip: syncedB }
@@ -243,7 +243,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume_Grab, when: [ GrabB_IsGrabbed is true ] }
           - { to: Waiting,     when: [ DetachedB is false ] }
-          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+          - { to: Synced,      when: [ OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
       # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
       # pre-pause pose is never rendered.
       Resume_Grab:
@@ -285,7 +285,7 @@ layers:
           # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
-          - { to: Synced,   when: [ IsLocal is false, DetachedC is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Synced,   when: [ IsLocal is false, DetachedC is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedC }
         behaviours:
@@ -312,7 +312,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabC_IsGrabbed is true ] }
           # the late-join level path
-          - { to: Acquire,  when: [ DetachedC is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Acquire,  when: [ DetachedC is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
           # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
           - { to: Anchored, when: [ DetachedC is false ] }
       Acquire:
@@ -329,7 +329,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ GrabC_IsGrabbed is true ] }
-          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, DetachedC is true ], exitTime: 1.0 }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, DetachedC is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ DetachedC is false ], exitTime: 1.0 }
       Synced:
         motion: { clip: syncedC }
@@ -355,7 +355,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume_Grab, when: [ GrabC_IsGrabbed is true ] }
           - { to: Waiting,     when: [ DetachedC is false ] }
-          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+          - { to: Synced,      when: [ OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
       # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
       # pre-pause pose is never rendered.
       Resume_Grab:
@@ -397,7 +397,7 @@ layers:
           # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
-          - { to: Synced,   when: [ IsLocal is false, DetachedD is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Synced,   when: [ IsLocal is false, DetachedD is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedD }
         behaviours:
@@ -424,7 +424,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabD_IsGrabbed is true ] }
           # the late-join level path
-          - { to: Acquire,  when: [ DetachedD is true, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ] }
+          - { to: Acquire,  when: [ DetachedD is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
           # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
           - { to: Anchored, when: [ DetachedD is false ] }
       Acquire:
@@ -441,7 +441,7 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Grabbed,  when: [ GrabD_IsGrabbed is true ] }
-          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5, DetachedD is true ], exitTime: 1.0 }
+          - { to: Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, DetachedD is true ], exitTime: 1.0 }
           - { to: Waiting,  when: [ DetachedD is false ], exitTime: 1.0 }
       Synced:
         motion: { clip: syncedD }
@@ -467,7 +467,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume_Grab, when: [ GrabD_IsGrabbed is true ] }
           - { to: Waiting,     when: [ DetachedD is false ] }
-          - { to: Synced,      when: [ ObjectSync/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+          - { to: Synced,      when: [ OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
       # Re-grab out of the park: hidden while the cell populates, so the prop appears at the hand and the
       # pre-pause pose is never rendered.
       Resume_Grab:

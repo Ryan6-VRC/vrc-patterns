@@ -20,6 +20,14 @@
 #   is the spec the prefab is kept against. The park is the object node's transform
 #   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,
 #   because the client scales a source's offset by the avatar's per-client scale factor.
+# Interface: SEALED — globalParams covers ObjectSync/Enable alone; every other param takes the
+#   VRCFury instance prefix. A consumer reading past it (Ready, the channel, the word
+#   table) merges its controller through the SAME FullController component as this build:
+#   one component prefixes identically, so the shared names unify; a second component is
+#   a second sealed instance (that is what two builds on one avatar are).
+# Mount: every binding is prefixed ObjectSync/ — the FullController carrying this
+#   document sits on that GO's PARENT (the shared merge component), and the GO's name
+#   and the prefix are a hand-maintained pairing the consumer's own --check pins.
 #
 # Per axis the coarse and fine words share one group, so word-channel pins them into one
 # batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary
@@ -28,10 +36,10 @@
 # Collision tags the prefab must carry, one set per object (measured: two objects sharing
 # a tag set leaves NEITHER converging, since every receiver reads the strongest sender in
 # range rather than its own):
-#   PropA: ObjectSyncPropACoarse, ObjectSyncPropAFine, ObjectSyncPropARotA
-#   PropB: ObjectSyncPropBCoarse, ObjectSyncPropBFine, ObjectSyncPropBRotA
-#   PropC: ObjectSyncPropCCoarse, ObjectSyncPropCFine, ObjectSyncPropCRotA
-#   PropD: ObjectSyncPropDCoarse, ObjectSyncPropDFine, ObjectSyncPropDRotA
+#   PropA: ObjectSyncde497bPropACoarse, ObjectSyncde497bPropAFine, ObjectSyncde497bPropARotA
+#   PropB: ObjectSyncde497bPropBCoarse, ObjectSyncde497bPropBFine, ObjectSyncde497bPropBRotA
+#   PropC: ObjectSyncde497bPropCCoarse, ObjectSyncde497bPropCFine, ObjectSyncde497bPropCRotA
+#   PropD: ObjectSyncde497bPropDCoarse, ObjectSyncde497bPropDFine, ObjectSyncde497bPropDRotA
 
 schema: 1
 controller: ObjectSync_Fx
@@ -211,7 +219,7 @@ parameters:
   # Correctness: false on load, false after a distance-cull pause, true once THIS
   # client's receiver has applied a complete word table since then. The interface
   # output a consumer gates on; false on the wearer forever (sender layers only).
-  ObjectSync/Ch/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OSCh/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   OS/Ch/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
   OS/Ch/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
   # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits
@@ -399,7 +407,7 @@ parameters:
   OS/B/PropD/RA/Z/B1: { type: float, scratch: true }
   OS/B/PropD/RA/Z/B2: { type: float, scratch: true }
   OS/B/PropD/RA/Z/B3: { type: float, scratch: true }
-  ObjectSync/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   OS/D/PropA/PX/C: { type: float, aap: true }
   OS/D/PropA/PX/F: { type: float, aap: true }
   OS/D/PropA/PY/C: { type: float, aap: true }
@@ -505,7 +513,7 @@ parameters:
   OS/S/Sh/RA/Z/B3: { type: bool, scratch: true }
 
 layers:
-  - name: ObjectSync/Ch/Sync
+  - name: OSCh/Sync
     states:
       Split:
         motion: ~
@@ -969,7 +977,7 @@ layers:
           # zeroes the pair (docstring).
           - driver:
               copy:
-                OS/Ch/SawHead: ObjectSync/Ch/Acquired
+                OS/Ch/SawHead: OSCh/Acquired
         transitions:
           - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }   # re-lock at any exact counter value (batch applies need no coherent loop)
           - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
@@ -1359,7 +1367,7 @@ layers:
           - driver:
               add: { OS/Ch/Cycle: 1 }
               copy:
-                ObjectSync/Ch/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
+                OSCh/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
         transitions:
           - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
           - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
@@ -1423,7 +1431,7 @@ layers:
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-  - name: ObjectSync/Ch/Reset
+  - name: OSCh/Reset
     # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
     # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
     # the animator instead, restarting Sync at Split -> Lost with both params at their
@@ -1440,7 +1448,7 @@ layers:
         behaviours:
           - driver:
               set:
-                ObjectSync/Ch/Acquired: 0
+                OSCh/Acquired: 0
                 OS/Ch/SawHead: 0
         transitions:
           - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
@@ -1619,7 +1627,7 @@ layers:
                 OS/B/PropD/RA/Z/B1: PropD/RA/Z/B1
                 OS/B/PropD/RA/Z/B2: PropD/RA/Z/B2
                 OS/B/PropD/RA/Z/B3: PropD/RA/Z/B3
-                ObjectSync/Ready: ObjectSync/Ch/Acquired
+                OS/Ready: OSCh/Acquired
         transitions:
           - { to: Odd, when: [ OS/True is true ] }
       Odd:
@@ -1787,7 +1795,7 @@ layers:
                 OS/B/PropD/RA/Z/B1: PropD/RA/Z/B1
                 OS/B/PropD/RA/Z/B2: PropD/RA/Z/B2
                 OS/B/PropD/RA/Z/B3: PropD/RA/Z/B3
-                ObjectSync/Ready: ObjectSync/Ch/Acquired
+                OS/Ready: OSCh/Acquired
         transitions:
           - { to: Even, when: [ OS/True is true ] }
     default: Even
@@ -2032,7 +2040,7 @@ layers:
         motion: { clip: follow_recon }
     any:
       - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative from frame 1
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the published Floatify copy so the gate, a consumer's gate and the decode inputs all share one latency path
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the Floatify copy so the gate, a same-component consumer's gate and the decode inputs all share one latency path
       - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:
@@ -4799,379 +4807,379 @@ clips:
   asm_os_d_propd_ra_z_1: { set: { OS/D/PropD/RA/Z: 1 } }
   anch_propa_base:
     set:
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
   anch_propa_x_cell:
     set:
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propa_y_cell:
     set:
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propa_z_cell:
     set:
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propa_base:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
   disp_propa_x_cell:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propa_x_lsb:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propa_y_cell:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propa_y_lsb:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propa_z_cell:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 2
   disp_propa_z_lsb:
     set:
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropA/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
   prox_propa_yaw_base:
     set:
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: -1
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: -1
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: -1
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: -1
   prox_propa_yaw_x:
     set:
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: 0
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: 0
   prox_propa_yaw_z:
     set:
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: 0
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.x: 0
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropA/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
   anch_propb_base:
     set:
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
   anch_propb_x_cell:
     set:
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propb_y_cell:
     set:
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propb_z_cell:
     set:
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propb_base:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
   disp_propb_x_cell:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propb_x_lsb:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propb_y_cell:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propb_y_lsb:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propb_z_cell:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 2
   disp_propb_z_lsb:
     set:
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropB/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
   prox_propb_yaw_base:
     set:
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: -1
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: -1
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: -1
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: -1
   prox_propb_yaw_x:
     set:
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: 0
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: 0
   prox_propb_yaw_z:
     set:
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: 0
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.x: 0
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropB/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
   anch_propc_base:
     set:
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
   anch_propc_x_cell:
     set:
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propc_y_cell:
     set:
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propc_z_cell:
     set:
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propc_base:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
   disp_propc_x_cell:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propc_x_lsb:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propc_y_cell:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propc_y_lsb:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propc_z_cell:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 2
   disp_propc_z_lsb:
     set:
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropC/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
   prox_propc_yaw_base:
     set:
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: -1
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: -1
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: -1
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: -1
   prox_propc_yaw_x:
     set:
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: 0
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: 0
   prox_propc_yaw_z:
     set:
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: 0
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.x: 0
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropC/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
   anch_propd_base:
     set:
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: -4022
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: -3163
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: -3862
   anch_propd_x_cell:
     set:
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propd_y_cell:
     set:
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 0
   anch_propd_z_cell:
     set:
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Fine/Anchor/VRCPositionConstraint.PositionOffset.z: 2
   disp_propd_base:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: -4023.6
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: -3164.6
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: -3863.6
   disp_propd_x_cell:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 2
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 2
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propd_x_lsb:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0.00078125
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propd_y_cell:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 2
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 2
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propd_y_lsb:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0.00078125
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0
   disp_propd_z_cell:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 2
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 2
   disp_propd_z_lsb:
     set:
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
-      Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.x: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.y: 0
+      ObjectSync/Rig/PropD/Display/VRCPositionConstraint.PositionOffset.z: 0.00078125
   prox_propd_yaw_base:
     set:
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: -1
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: -1
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: -1
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: -1
   prox_propd_yaw_x:
     set:
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: 0
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: 0.000488281
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: 0
   prox_propd_yaw_z:
     set:
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: 0
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
-      Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.x: 0
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.y: 0
+      ObjectSync/Rig/PropD/Recon/ProxyA/Transform.m_LocalPosition.z: 0.000488281
   follow_target:
     set:
-      SyncPropA/VRCParentConstraint.Sources.source0.Weight: 1
-      SyncPropA/VRCParentConstraint.Sources.source1.Weight: 0
-      SyncPropB/VRCParentConstraint.Sources.source0.Weight: 1
-      SyncPropB/VRCParentConstraint.Sources.source1.Weight: 0
-      SyncPropC/VRCParentConstraint.Sources.source0.Weight: 1
-      SyncPropC/VRCParentConstraint.Sources.source1.Weight: 0
-      SyncPropD/VRCParentConstraint.Sources.source0.Weight: 1
-      SyncPropD/VRCParentConstraint.Sources.source1.Weight: 0
+      ObjectSync/SyncPropA/VRCParentConstraint.Sources.source0.Weight: 1
+      ObjectSync/SyncPropA/VRCParentConstraint.Sources.source1.Weight: 0
+      ObjectSync/SyncPropB/VRCParentConstraint.Sources.source0.Weight: 1
+      ObjectSync/SyncPropB/VRCParentConstraint.Sources.source1.Weight: 0
+      ObjectSync/SyncPropC/VRCParentConstraint.Sources.source0.Weight: 1
+      ObjectSync/SyncPropC/VRCParentConstraint.Sources.source1.Weight: 0
+      ObjectSync/SyncPropD/VRCParentConstraint.Sources.source0.Weight: 1
+      ObjectSync/SyncPropD/VRCParentConstraint.Sources.source1.Weight: 0
   follow_recon:
     set:
-      SyncPropA/VRCParentConstraint.Sources.source0.Weight: 0
-      SyncPropA/VRCParentConstraint.Sources.source1.Weight: 1
-      SyncPropB/VRCParentConstraint.Sources.source0.Weight: 0
-      SyncPropB/VRCParentConstraint.Sources.source1.Weight: 1
-      SyncPropC/VRCParentConstraint.Sources.source0.Weight: 0
-      SyncPropC/VRCParentConstraint.Sources.source1.Weight: 1
-      SyncPropD/VRCParentConstraint.Sources.source0.Weight: 0
-      SyncPropD/VRCParentConstraint.Sources.source1.Weight: 1
+      ObjectSync/SyncPropA/VRCParentConstraint.Sources.source0.Weight: 0
+      ObjectSync/SyncPropA/VRCParentConstraint.Sources.source1.Weight: 1
+      ObjectSync/SyncPropB/VRCParentConstraint.Sources.source0.Weight: 0
+      ObjectSync/SyncPropB/VRCParentConstraint.Sources.source1.Weight: 1
+      ObjectSync/SyncPropC/VRCParentConstraint.Sources.source0.Weight: 0
+      ObjectSync/SyncPropC/VRCParentConstraint.Sources.source1.Weight: 1
+      ObjectSync/SyncPropD/VRCParentConstraint.Sources.source0.Weight: 0
+      ObjectSync/SyncPropD/VRCParentConstraint.Sources.source1.Weight: 1
   slice_gate_propa:
     seconds: 1   # declared length: the holding state exits on exitTime, in seconds
     set:
-      Rig/PropA/Coarse/GameObject.m_IsActive: 1
-      Rig/PropA/Fine/GameObject.m_IsActive: 1
-      Rig/PropA/Rot/GameObject.m_IsActive: 1
-      Rig/PropB/Coarse/GameObject.m_IsActive: 0
-      Rig/PropB/Fine/GameObject.m_IsActive: 0
-      Rig/PropB/Rot/GameObject.m_IsActive: 0
-      Rig/PropC/Coarse/GameObject.m_IsActive: 0
-      Rig/PropC/Fine/GameObject.m_IsActive: 0
-      Rig/PropC/Rot/GameObject.m_IsActive: 0
-      Rig/PropD/Coarse/GameObject.m_IsActive: 0
-      Rig/PropD/Fine/GameObject.m_IsActive: 0
-      Rig/PropD/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Coarse/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropA/Fine/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropA/Rot/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropB/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Rot/GameObject.m_IsActive: 0
   slice_gate_propb:
     seconds: 1   # declared length: the holding state exits on exitTime, in seconds
     set:
-      Rig/PropA/Coarse/GameObject.m_IsActive: 0
-      Rig/PropA/Fine/GameObject.m_IsActive: 0
-      Rig/PropA/Rot/GameObject.m_IsActive: 0
-      Rig/PropB/Coarse/GameObject.m_IsActive: 1
-      Rig/PropB/Fine/GameObject.m_IsActive: 1
-      Rig/PropB/Rot/GameObject.m_IsActive: 1
-      Rig/PropC/Coarse/GameObject.m_IsActive: 0
-      Rig/PropC/Fine/GameObject.m_IsActive: 0
-      Rig/PropC/Rot/GameObject.m_IsActive: 0
-      Rig/PropD/Coarse/GameObject.m_IsActive: 0
-      Rig/PropD/Fine/GameObject.m_IsActive: 0
-      Rig/PropD/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Coarse/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropB/Fine/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropB/Rot/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropC/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Rot/GameObject.m_IsActive: 0
   slice_gate_propc:
     seconds: 1   # declared length: the holding state exits on exitTime, in seconds
     set:
-      Rig/PropA/Coarse/GameObject.m_IsActive: 0
-      Rig/PropA/Fine/GameObject.m_IsActive: 0
-      Rig/PropA/Rot/GameObject.m_IsActive: 0
-      Rig/PropB/Coarse/GameObject.m_IsActive: 0
-      Rig/PropB/Fine/GameObject.m_IsActive: 0
-      Rig/PropB/Rot/GameObject.m_IsActive: 0
-      Rig/PropC/Coarse/GameObject.m_IsActive: 1
-      Rig/PropC/Fine/GameObject.m_IsActive: 1
-      Rig/PropC/Rot/GameObject.m_IsActive: 1
-      Rig/PropD/Coarse/GameObject.m_IsActive: 0
-      Rig/PropD/Fine/GameObject.m_IsActive: 0
-      Rig/PropD/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Coarse/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropC/Fine/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropC/Rot/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropD/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Rot/GameObject.m_IsActive: 0
   slice_gate_propd:
     seconds: 1   # declared length: the holding state exits on exitTime, in seconds
     set:
-      Rig/PropA/Coarse/GameObject.m_IsActive: 0
-      Rig/PropA/Fine/GameObject.m_IsActive: 0
-      Rig/PropA/Rot/GameObject.m_IsActive: 0
-      Rig/PropB/Coarse/GameObject.m_IsActive: 0
-      Rig/PropB/Fine/GameObject.m_IsActive: 0
-      Rig/PropB/Rot/GameObject.m_IsActive: 0
-      Rig/PropC/Coarse/GameObject.m_IsActive: 0
-      Rig/PropC/Fine/GameObject.m_IsActive: 0
-      Rig/PropC/Rot/GameObject.m_IsActive: 0
-      Rig/PropD/Coarse/GameObject.m_IsActive: 1
-      Rig/PropD/Fine/GameObject.m_IsActive: 1
-      Rig/PropD/Rot/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropA/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Coarse/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropD/Fine/GameObject.m_IsActive: 1
+      ObjectSync/Rig/PropD/Rot/GameObject.m_IsActive: 1
   slice_gate_park:
     seconds: 1   # declared length: the holding state exits on exitTime, in seconds
     set:
-      Rig/PropA/Coarse/GameObject.m_IsActive: 0
-      Rig/PropA/Fine/GameObject.m_IsActive: 0
-      Rig/PropA/Rot/GameObject.m_IsActive: 0
-      Rig/PropB/Coarse/GameObject.m_IsActive: 0
-      Rig/PropB/Fine/GameObject.m_IsActive: 0
-      Rig/PropB/Rot/GameObject.m_IsActive: 0
-      Rig/PropC/Coarse/GameObject.m_IsActive: 0
-      Rig/PropC/Fine/GameObject.m_IsActive: 0
-      Rig/PropC/Rot/GameObject.m_IsActive: 0
-      Rig/PropD/Coarse/GameObject.m_IsActive: 0
-      Rig/PropD/Fine/GameObject.m_IsActive: 0
-      Rig/PropD/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropA/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropB/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropC/Rot/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Coarse/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Fine/GameObject.m_IsActive: 0
+      ObjectSync/Rig/PropD/Rot/GameObject.m_IsActive: 0
 
 # One control, so a bare Toggle rather than a menu asset — and the module is
 # single-instance per avatar anyway, since its collision tags are fixed strings

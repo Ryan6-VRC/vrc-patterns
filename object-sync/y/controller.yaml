@@ -18,6 +18,11 @@
 #   is the spec the prefab is kept against. The park is the object node's transform
 #   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,
 #   because the client scales a source's offset by the avatar's per-client scale factor.
+# Interface: SEALED — globalParams covers ObjectSync/Enable alone; every other param takes the
+#   VRCFury instance prefix. A consumer reading past it (Ready, the channel, the word
+#   table) merges its controller through the SAME FullController component as this build:
+#   one component prefixes identically, so the shared names unify; a second component is
+#   a second sealed instance (that is what two builds on one avatar are).
 #
 # Per axis the coarse and fine words share one group, so word-channel pins them into one
 # batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary
@@ -26,7 +31,7 @@
 # Collision tags the prefab must carry, one set per object (measured: two objects sharing
 # a tag set leaves NEITHER converging, since every receiver reads the strongest sender in
 # range rather than its own):
-#   Prop: ObjectSyncCoarse, ObjectSyncFine, ObjectSyncRotA
+#   Prop: ObjectSyncde497bCoarse, ObjectSyncde497bFine, ObjectSyncde497bRotA
 
 schema: 1
 controller: ObjectSync_Fx
@@ -86,7 +91,7 @@ parameters:
   # Correctness: false on load, false after a distance-cull pause, true once THIS
   # client's receiver has applied a complete word table since then. The interface
   # output a consumer gates on; false on the wearer forever (sender layers only).
-  ObjectSync/Ch/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OSCh/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   OS/Ch/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
   OS/Ch/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
   # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits
@@ -152,7 +157,7 @@ parameters:
   OS/B/Prop/RA/Z/B1: { type: float, scratch: true }
   OS/B/Prop/RA/Z/B2: { type: float, scratch: true }
   OS/B/Prop/RA/Z/B3: { type: float, scratch: true }
-  ObjectSync/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   OS/D/Prop/PX/C: { type: float, aap: true }
   OS/D/Prop/PX/F: { type: float, aap: true }
   OS/D/Prop/PY/C: { type: float, aap: true }
@@ -225,7 +230,7 @@ parameters:
   OS/S/Prop/RA/Z/B3: { type: bool, scratch: true }
 
 layers:
-  - name: ObjectSync/Ch/Sync
+  - name: OSCh/Sync
     states:
       Split:
         motion: ~
@@ -345,7 +350,7 @@ layers:
           # zeroes the pair (docstring).
           - driver:
               copy:
-                OS/Ch/SawHead: ObjectSync/Ch/Acquired
+                OS/Ch/SawHead: OSCh/Acquired
         transitions:
           - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }   # re-lock at any exact counter value (batch applies need no coherent loop)
           - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ] }
@@ -433,7 +438,7 @@ layers:
           - driver:
               add: { OS/Ch/Cycle: 1 }
               copy:
-                ObjectSync/Ch/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
+                OSCh/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
         transitions:
           - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }
           - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
@@ -459,7 +464,7 @@ layers:
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-  - name: ObjectSync/Ch/Reset
+  - name: OSCh/Reset
     # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
     # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
     # the animator instead, restarting Sync at Split -> Lost with both params at their
@@ -476,7 +481,7 @@ layers:
         behaviours:
           - driver:
               set:
-                ObjectSync/Ch/Acquired: 0
+                OSCh/Acquired: 0
                 OS/Ch/SawHead: 0
         transitions:
           - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
@@ -535,7 +540,7 @@ layers:
                 OS/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 OS/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 OS/B/Prop/RA/Z/B3: Prop/RA/Z/B3
-                ObjectSync/Ready: ObjectSync/Ch/Acquired
+                OS/Ready: OSCh/Acquired
         transitions:
           - { to: Odd, when: [ OS/True is true ] }
       Odd:
@@ -583,7 +588,7 @@ layers:
                 OS/B/Prop/RA/Z/B1: Prop/RA/Z/B1
                 OS/B/Prop/RA/Z/B2: Prop/RA/Z/B2
                 OS/B/Prop/RA/Z/B3: Prop/RA/Z/B3
-                ObjectSync/Ready: ObjectSync/Ch/Acquired
+                OS/Ready: OSCh/Acquired
         transitions:
           - { to: Even, when: [ OS/True is true ] }
     default: Even
@@ -673,7 +678,7 @@ layers:
         motion: { clip: follow_recon }
     any:
       - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }   # the wearer's pose is authoritative from frame 1
-      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, ObjectSync/Ready greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the published Floatify copy so the gate, a consumer's gate and the decode inputs all share one latency path
+      - { to: Follow, when: [ IsLocal is false, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ], canTransitionToSelf: false }   # a complete word table has landed on THIS client, read through the Floatify copy so the gate, a same-component consumer's gate and the decode inputs all share one latency path
       - { to: Release, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ], canTransitionToSelf: false }
     default: Release
     layout:
