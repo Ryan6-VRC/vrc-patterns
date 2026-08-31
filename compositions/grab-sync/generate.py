@@ -201,7 +201,8 @@ def prefab_pins(assert_):
         assert_(parsed == want_rows,
                 f"{prefab}: the modification parser read every row "
                 f"({parsed} of {want_rows}) — a shortfall means the serialized "
-                "shape moved and every assert below it is vacuous")
+                "shape moved (or a row carries an external objectReference the "
+                "regex does not model) and every assert below it is vacuous")
         assert_(not added_sources,
                 f"{prefab}: no added source on the cell SourcePosition constraint "
                 f"(found on {added_sources})")
@@ -225,32 +226,65 @@ def prefab_pins(assert_):
 def shared_component_pins(assert_, mod):
     """The sealed-interface coupling, pinned per prefab. Everything here is a
     hand-maintained pairing only this check reads: the shared FullController's
-    controller ORDER (glue first — its Enable declaration wins the first-wins
-    param merge; controller.yaml's header owns the mechanism), its globalParams
-    (exactly the entry's derived list — the seal), the mount GO's name against
-    MOUNT (the emitted bindings prefix that string verbatim), and the absence
-    of any second FullController on the sync side (a split component un-unifies
-    every shared name with no build error — the per-builder rewrite memo is per
-    component, measured 2026-08-31)."""
+    controller AND prms order (glue first in both — the animator param merge
+    follows controllers order and the baked expression-parameter default
+    follows prms order, so either inversion disarms Enable; controller.yaml's
+    header owns the mechanism), its globalParams (exactly the entry's derived
+    list — the seal), the mount pairing (the sync instance, resolved by its
+    source-prefab guid, is named MOUNT and hangs directly under the component's
+    GO — the frame every emitted binding resolves from), the glue documents'
+    entry-rooted names against what each sync build declares (the seal made
+    those hard-coded couplings to the entry's CONFIG keys), and the absence of
+    any second FullController on the sync side (a split component un-unifies
+    every shared name with no build error — the per-builder rewrite memo is
+    per component, measured 2026-08-31)."""
     import re as _re
-    want_gp = mod.document(grabsync_config(mod))[1]["facts"]["globalParams"]
-    for prefab, glue_ctrl, sync_dir in (
-            ("GrabSync.prefab", "GrabSync_Fx", "object-sync-single"),
-            ("MultiGrabSync.prefab", "MultiGrabSync_Fx", "object-sync")):
-        raw = open(os.path.join(HERE, prefab), encoding="utf-8").read()
-        glue_ref = f"compositions/grab-sync/built/{glue_ctrl}.controller"
-        sync_ref = f"compositions/grab-sync/{sync_dir}/built/ObjectSync_Fx.controller"
-        gi, si = raw.find(glue_ref), raw.find(sync_ref)
-        assert_(gi != -1 and si != -1,
-                f"{prefab}: the shared FullController carries both the glue and "
-                f"the mounted sync build ({glue_ctrl} at {gi}, {sync_dir} at {si})")
-        assert_(gi == -1 or si == -1 or gi < si,
-                f"{prefab}: the glue controller sits BEFORE the sync build — "
-                "first-wins is what arms Enable (default 1)")
+
+    def meta_guid(rel):
+        return _re.search(r"guid: (\w+)",
+                          open(os.path.join(HERE, rel) + ".meta",
+                               encoding="utf-8").read()).group(1)
+
+    for (prefab, glue_ctrl, sync_dir, cfg_fn) in (
+            ("GrabSync.prefab", "GrabSync_Fx", "object-sync-single",
+             grabsync_single_config),
+            ("MultiGrabSync.prefab", "MultiGrabSync_Fx", "object-sync",
+             grabsync_config)):
+        # globalParams is asserted from the SAME config the prefab's sync
+        # build was generated with — equal across the two today, but only
+        # because the derivation ignores `objects`.
+        want_gp = mod.document(cfg_fn(mod))[1]["facts"]["globalParams"]
+        path = os.path.join(HERE, prefab)
+        raw = open(path, encoding="utf-8").read()
+        docs = prefab_docs(path)
         assert_(raw.count("class: FullController") == 1,
                 f"{prefab}: exactly ONE FullController authored here — a second "
                 f"component un-unifies every shared name "
                 f"(found {raw.count('class: FullController')})")
+        # Every ordering and membership read below is scoped to THAT
+        # component's own document — a whole-file find() would keep passing
+        # after a controller moved onto some other component.
+        fc = next((b for c2, a, b in docs
+                   if c2 == 114 and "class: FullController" in b), "")
+        glue_g = meta_guid(f"built/{glue_ctrl}.controller")
+        sync_g = meta_guid(f"{sync_dir}/built/ObjectSync_Fx.controller")
+        gi, si = fc.find(glue_g), fc.find(sync_g)
+        assert_(gi != -1 and si != -1,
+                f"{prefab}: the shared FullController carries both built "
+                f"controllers by GUID ({glue_ctrl} at {gi}, {sync_dir} at {si})")
+        assert_(gi == -1 or si == -1 or gi < si,
+                f"{prefab}: the glue controller sits BEFORE the sync build — "
+                "first-wins in controllers order is half of what arms Enable")
+        # The OTHER half: the baked expression-parameter default comes from
+        # the prms list's assets, merged in ITS order — reorder prms alone
+        # and Enable bakes default 0 with controllers order still green.
+        gp_g = meta_guid(f"built/{glue_ctrl}_Parameters.asset")
+        sp_g = meta_guid(f"{sync_dir}/built/ObjectSync_Fx_Parameters.asset")
+        gpi, spi = fc.find(gp_g), fc.find(sp_g)
+        assert_(gpi != -1 and spi != -1 and gpi < spi,
+                f"{prefab}: the glue params asset sits BEFORE the sync build's "
+                f"in prms — the baked Enable default merges in that order "
+                f"({gpi}, {spi})")
         if prefab == "GrabSync.prefab":
             # The nested y/ instance INHERITS the entry's own FullController,
             # which never appears as text here — only its m_RemovedComponents
@@ -269,18 +303,60 @@ def shared_component_pins(assert_, mod):
             assert_(y_fcs and gone == y_fcs,
                     f"{prefab}: the nested y/ instance removes the entry's own "
                     f"FullController ({y_fcs}) — removed rows carry {gone}")
-        blocks = _re.findall(r"globalParams:\n((?:        - .+\n)+)", raw)
+        blocks = _re.findall(r"globalParams:\n((?:        - .+\n)+)", fc)
         got = [[ln.split("- ", 1)[1].strip().strip("'\"")
                 for ln in b.splitlines()] for b in blocks]
-        assert_(got and all(b == want_gp for b in got),
-                f"{prefab}: every globalParams block is exactly the entry's "
-                f"derived list {want_gp} — got {got}")
-        # The mount pairing: the sync rig's root GO is named MOUNT, as an
-        # m_Name override on the nested instance (both prefabs rename theirs).
-        named = _re.findall(r"propertyPath: m_Name\n      value: (.+)", raw)
-        assert_(MOUNT in named,
-                f"{prefab}: a nested instance is named {MOUNT!r} — the mount "
-                f"prefix every sync binding carries (named: {sorted(set(named))})")
+        assert_(got == [want_gp],
+                f"{prefab}: the shared component's globalParams is exactly the "
+                f"entry's derived list {want_gp} — got {got}")
+        # The mount pairing, both halves: the SYNC INSTANCE (resolved by its
+        # source-prefab guid, never by scanning every m_Name in the file) is
+        # named MOUNT, and it is a DIRECT CHILD of the shared component's
+        # GameObject — the emitted `ObjectSync/…` bindings resolve from that
+        # GO, so one extra nesting level kills every binding silently.
+        nested_g = meta_guid(os.path.join("..", "..", "object-sync", "y",
+                                          "ObjectSync.prefab")
+                             if prefab == "GrabSync.prefab"
+                             else os.path.join("object-sync", "ObjectSync.prefab"))
+        inst = next((b for c2, a, b in docs if c2 == 1001
+                     and f"m_SourcePrefab: {{fileID: 100100000, guid: {nested_g}"
+                     in b), "")
+        iname = _re.search(r"propertyPath: m_Name\s*\n\s*value: (.+)", inst)
+        assert_(inst and iname and iname.group(1).strip() == MOUNT,
+                f"{prefab}: the sync instance (source {nested_g}) is named "
+                f"{MOUNT!r} — got {iname.group(1).strip() if iname else None!r}")
+        fc_go = _re.search(r"m_GameObject: \{fileID: (\d+)\}", fc)
+        root_tf = next((str(a) for c2, a, b in docs if c2 == 4 and fc_go
+                        and f"m_GameObject: {{fileID: {fc_go.group(1)}}}" in b),
+                       None)
+        parent = _re.search(r"m_TransformParent: \{fileID: (\d+)\}", inst)
+        assert_(root_tf and parent and parent.group(1) == root_tf,
+                f"{prefab}: the sync instance hangs directly under the shared "
+                f"component's GO (parent {parent.group(1) if parent else None}, "
+                f"component GO transform {root_tf})")
+    # The glue documents hard-code sealed entry names (`OS/Ready` today),
+    # which couples them to the entry's CONFIG keys with nothing else
+    # watching: rename `internal` or `channel` upstream and both glues
+    # recompile green while every engage rung gates forever on a param
+    # nothing writes. So: every entry-rooted name a glue binds must be a
+    # name its own sync build's document declares.
+    roots = {mod.CONFIG["prefix"].split("/")[0],
+             mod.CONFIG["internal"].split("/")[0],
+             mod.CONFIG["channel"].split("/")[0]}
+    for glue, cfg_fn in (("controller.yaml", grabsync_single_config),
+                         ("multi.yaml", grabsync_config)):
+        own = _re.sub(r"#.*", "",
+                      open(os.path.join(HERE, glue), encoding="utf-8").read())
+        reached = sorted({n for n in
+                          _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
+                          if n.split("/")[0] in roots})
+        declared = set(_re.findall(r"^  ([^\s#:]+):",
+                                   mod.document(cfg_fn(mod))[0], _re.M))
+        missing = [n for n in reached if n not in declared]
+        assert_(reached and not missing,
+                f"{glue}: every entry-rooted name it binds is declared by its "
+                f"sync build ({len(reached)} names) — undeclared: {missing}")
+
     # The sync side carries no FullController of its own anywhere: the rig
     # prefab used to own one, and a leftover builds the wire twice.
     rig = open(os.path.join(HERE, "object-sync", "ObjectSync.prefab"),
@@ -342,11 +418,23 @@ def main():
         missing_tags = [t for t in flat if t not in sync_text]
         assert_(not missing_tags,
                 f"ObjectSync.prefab collision tags track OBJECTS (missing {missing_tags})")
+        # Per-tag carrier counts, same reason as the entry's own check: a
+        # single retagged component keeps the tag SET intact and only the
+        # counts see it. The rig prefab is authored flat, so counts are honest.
+        tag_rows = _re.findall(r"^  - (\S+)$", sync_text, _re.M)
+        want_n = {t: n for ob in cfg["objects"]
+                  for t, n in mod.tag_carriers(cfg, ob["name"]).items()}
+        off = {t: (tag_rows.count(t), n) for t, n in want_n.items()
+               if tag_rows.count(t) != n}
+        assert_(not off,
+                f"ObjectSync.prefab: each tag sits on exactly its stage's "
+                f"components — off (got, want): {off}")
 
         print("scope: emit determinism, the prefab pins above, the shared-component "
-              "pins (order, seal, mount name), and the object-sync rig prefab's "
-              "node names + collision tags against OBJECTS; freshness of the "
-              "committed documents is regenerate-and-read-git-diff")
+              "pins (controllers+prms order, seal, mount name+parent, glue names), "
+              "and the object-sync rig prefab's node names + collision tags/counts "
+              "against OBJECTS; freshness of the committed documents is "
+              "regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     for label, (cfg, out) in builds.items():

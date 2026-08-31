@@ -33,7 +33,7 @@ parameters:
   GrabC_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: GrabC)
   GrabD_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: GrabD)
   ObjectSync/Enable:   { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
-  OS/Ready:    { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
+  OS/Ready:            { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal:             bool               # VRC built-in
   IsAnimatorEnabled:   { type: bool, default: true }   # VRC built-in — longform default-true MATCHES the entry's declaration; the shorthand `bool` form defaults false and, first-wins, would send the entry's Ch/Reset to Disabling at startup
 

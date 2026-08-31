@@ -425,12 +425,30 @@ def tag_digest(seed):
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:6]
 
 
+def tag_carriers(c, o):
+    """Expected contact-component count per tag of tag_set(c, o): each stage's
+    sender plus its receivers (Coarse and Fine read three axes; a rotation
+    marker reads three components in full mode, two in y mode). What makes a
+    per-tag COUNT the useful pin: a single retagged component moves two counts
+    while leaving the set of present tags intact, so a set comparison alone
+    passes the exact defect the tags exist to fence."""
+    mode = next(x for x in c["objects"] if x["name"] == o)["rotation"]
+    per_stage = {"Coarse": 4, "Fine": 4,
+                 "RotA": 4 if mode == "full" else 3, "RotB": 4}
+    return {tag: per_stage[stage]
+            for tag, stage in zip(tag_set(c, o),
+                                  ("Coarse", "Fine", "RotA", "RotB"))}
+
+
 def mnt(c, path):
     """A binding path in the frame the FullController resolves from. mountPath
     "" is the shipped shape (component on the rig root); set, every binding is
     prefixed so the same document merges through a component on the mount GO's
     PARENT — the sealed-interface shared component — with no walk-up in play."""
     mp = c.get("mountPath", "")
+    if not isinstance(mp, str):
+        raise SystemExit(f"REFUSE: mountPath {mp!r} — a string GO path, or \"\" "
+                         "for the unmounted shape (None is not a spelling of it).")
     if mp and (mp != mp.strip("/") or any(ch.isspace() for ch in mp)):
         # A leading "/" is CompileController's resolve-from-avatar-root escape
         # (docs/nondestructive.md): the binding would silently change frames
@@ -2338,6 +2356,21 @@ def check():
         assert_(not strays,
                 f"{label}: no contact carries a tag outside the derived set "
                 f"({len(set(found_tags))} distinct) — strays: {strays}")
+        # Per-tag CARRIER COUNTS, not just the set: a single retagged component
+        # (a Fine receiver moved onto the Coarse tag) keeps every derived tag
+        # present and adds no stray, so only the counts see it. Flat prefabs
+        # only — a variant's union scan counts the base's authored rows, which
+        # include stages the variant deletes, so its counts cannot be honest.
+        if how == "authored flat":
+            from collections import Counter
+            got_n = Counter(found_tags)
+            want_n = {t: n for ob in cfg["objects"]
+                      for t, n in tag_carriers(cfg, ob["name"]).items()}
+            off = {t: (got_n.get(t, 0), n) for t, n in want_n.items()
+                   if got_n.get(t, 0) != n}
+            assert_(not off,
+                    f"{label}: each tag sits on exactly its stage's components "
+                    f"(sender + receivers) — off (got, want): {off}")
         # The park: every object node's own transform sits at rig_offset, and a
         # variant may not override it — a modification row is a second author.
         want = tuple(float(v) for v in rig_offset(cfg["rigSeed"]))

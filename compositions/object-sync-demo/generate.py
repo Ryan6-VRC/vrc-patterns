@@ -102,29 +102,6 @@ def demo_config(mod):
     return cfg
 
 
-def global_params(cfg):
-    """The shared FullController's `globalParams`: exactly the entry's own
-    derived list (`ObjectSync/*`, matching `Enable` alone — the seal).
-
-    The three positive wildcards this function used to add (`<internal>/D/*`,
-    `<internal>/Ch/Wire/Idx*`) are retired with the exposure they existed to
-    scope: the tablet reaches those names through the same-component merge now,
-    where they unify without ever going bare, so a host avatar can no longer
-    capture a wire slot, a decoded AAP, or the counter — the whole
-    carried-state argument this docstring used to carry (`Ch/Cycle`
-    accumulates, the wire slots cross the network) is settled structurally
-    rather than per-entry. `Enable` alone stays published: the menu toggle
-    drives it by bare name and it is the entry's one OSC-reachable control.
-    Gate the reconstruction view, the damper and any stand-in on `OS/Ready`,
-    never on a `Ch/Cycle` threshold: the counter's thresholds are
-    apply-discipline-dependent and it never leaves 0 on the wearer. `Ready`
-    reads 0 on the wearer and stays 1 through an Enable-off, so the consumer
-    predicate is `IsLocal OR (Enable AND Ready)` — all three terms, which is
-    what the damper's engage rung carries."""
-    mod = entry_module()
-    return mod.document(cfg)[1]["facts"]["globalParams"]
-
-
 def main():
     mod = entry_module()
     cfg = demo_config(mod)
@@ -159,6 +136,25 @@ def main():
         want_gp = facts["globalParams"]
         print("  globalParams for the shared FullController (the entry's own "
               f"derived list): {want_gp}")
+        # Demo_Fx binds sealed entry names directly (`OS/D/*`,
+        # `OS/Ch/Wire/Idx*`, `OS/Ready`, `OSCh/Acquired`) — hard couplings to
+        # the entry's CONFIG keys that unify only when the entry actually
+        # declares the name. A rename upstream leaves this document binding a
+        # name the entry does not declare: VRCFury mints a second prefixed
+        # param, the tablet reads a flat zero, and no build errors. Comments
+        # stripped first, so prose naming an entry-owned param cannot fail it.
+        roots = {cfg["prefix"].split("/")[0], cfg["internal"].split("/")[0],
+                 cfg["channel"].split("/")[0]}
+        own = _re.sub(r"#.*", "", open(os.path.join(HERE, "controller.yaml"),
+                                       encoding="utf-8").read())
+        reached = sorted({n for n in
+                          _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
+                          if n.split("/")[0] in roots})
+        declared = set(_re.findall(r"^  ([^\s#:]+):", text, _re.M))
+        missing = [n for n in reached if n not in declared]
+        assert_(reached and not missing,
+                f"every entry-rooted name Demo_Fx binds is declared by this "
+                f"build's document ({len(reached)} names) — undeclared: {missing}")
         pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
         if os.path.exists(pf_path):
             body = open(pf_path, encoding="utf-8").read()
@@ -182,9 +178,10 @@ def main():
                     "Demo_Fx and the object-sync build share exactly ONE "
                     f"FullController (found in {len(ours)} components of "
                     f"{len(fc_blocks)} total)")
-            di = body.find("compositions/object-sync-demo/built/Demo_Fx.controller")
-            si = body.find("compositions/object-sync-demo/object-sync/built/"
-                           "ObjectSync_Fx.controller")
+            fc = ours[0] if ours else ""
+            di = fc.find("compositions/object-sync-demo/built/Demo_Fx.controller")
+            si = fc.find("compositions/object-sync-demo/object-sync/built/"
+                         "ObjectSync_Fx.controller")
             assert_(di != -1 and si != -1,
                     f"the shared component carries Demo_Fx ({di}) and the "
                     f"object-sync build ({si})")
