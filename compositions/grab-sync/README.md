@@ -30,10 +30,13 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
     │                      published interface (ObjectSync/*); its own FullController stays
     └─ Prop/
        ├─ GrabProp         nested grab-prop instance: rig untouched, grab physbone parameter → `Grab`
-       ├─ DragBone_Yaw     nested drag-bone instance + the park glue (a yaw-only rotation constraint on
-       │                   Follower ← Container, normally inactive)
+       ├─ DragBone_Yaw     nested drag-bone instance + the park glue (a rotation constraint on
+       │                   Follower ← Container, normally inactive — yaw-only transitively, via Source)
        ├─ Source           the mode mux: position [GrabProp/Container, Sync, HomeAnchor/Offset],
-       │                   rotation [Drag_Rotation, Sync, home] — weights are the glue's value-sets
+       │                   rotation [Drag_Rotation, Sync, home] — weights are the glue's value-sets;
+       │                   the rotation constraint affects Y only (drag-bone's yaw-only consumer
+       │                   contract): the home slot rides the hips, and a full-axis follow would tilt
+       │                   the anchored prop with the wearer's IK lean
        └─ Container        the display + damper (payload rides it); Display, a plain child, is both the
                            visibility gate and GrabPosition's rest-anchor frame (the two-source repoint
                            ../../grab-prop/README.md §How it works sanctions)
