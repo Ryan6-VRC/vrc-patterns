@@ -97,12 +97,24 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------- CONFIG ----
 
 CONFIG = {
-    # PUBLISHED prefix. Three names live under it — `Enable`, the transport's
-    # `<channel>/Acquired` and `Ready` — so a consumer publishes this entry's
-    # whole interface with the single wildcard `ObjectSync/*`.
-    # Nothing internal may sit here; `internal` below is where those go.
+    # PUBLISHED prefix — a FROZEN interface constant, never a per-build knob.
+    # One name lives under it — `Enable` — so the derived `globalParams` is the
+    # single wildcard `ObjectSync/*` matching exactly that. Everything else the
+    # entry declares is SEALED: it takes the VRCFury instance prefix, and a
+    # consumer that must read a sealed name (`Ready`, `<channel>/Acquired`, the
+    # word table) merges its own controller through the SAME FullController
+    # component as this build's — one component, identical prefixing, shared
+    # names unify (docs/gimmicks.md §Packaging and interface owns the idiom).
+    # A second build on one avatar varies `rigSeed` below, never this.
     "prefix": "ObjectSync",
-    "channel": "ObjectSync/Ch",
+    # The transport channel root, on its own PRIVATE root deliberately: it may
+    # not sit under `prefix` (word-channel certifies `<channel>/Acquired`, an
+    # unpublished name a published wildcard must not reach), and it may not
+    # nest under `internal` either — word-channel's fragment-level namespace
+    # check treats the channel's ROOT as published, so every `OS/*` internal
+    # would read as a leak to it. Sealed like `internal`: no published wildcard
+    # reaches it, so it keeps the instance prefix.
+    "channel": "OSCh",
     # INTERNAL prefix, required. Every param a consumer must not bind — the
     # staging walks, the decoded AAPs, the sense receivers, the slice ring, and
     # (at `<internal>/Ch`) word-channel's wire and latches. It matches no
@@ -112,6 +124,17 @@ CONFIG = {
     "internal": "OS",
     # The wearer-facing control's label in the expression menu.
     "menuLabel": "Object Sync",
+    # Where the rig sits relative to the GameObject carrying the FullController.
+    # "" is the shipped entry shape: the component rides the rig root and every
+    # binding is rig-relative (`Rig/…`, `Sync`). A consumer merging this build
+    # through a SHARED component (the sealed-interface coupling above) sets it
+    # to the nested GO's name — e.g. "ObjectSync" for a rig at
+    # `<component GO>/ObjectSync` — and every emitted binding is prefixed so it
+    # resolves from the component's own GameObject without leaning on VRCFury's
+    # ancestor walk-up (operator-ruled 2026-08-31: the walk-up resolves today
+    # and is still not a contract to build on). The GO name and this string are
+    # a hand-maintained pairing: the consumer's own --check pins them.
+    "mountPath": "",
     # `Enable`'s declared default, 0 or 1: at 1 the enable tree evaluates armed
     # from frame one, where a driver forcing it true leaves the one-frame off->on
     # that deafens every receiver (README §Rig, Enable row).
@@ -183,12 +206,19 @@ CONFIG = {
     # rather than a client figure.
     "sliceFloorFps": 12,
 
-    # Parks the contact cluster away from spawn-dense space. Any string; the
-    # offset it derives is a rig fact the README's Rig section declares. The
-    # prefab implements it as the object node's transform localPosition under
-    # the origin-pinned Rig, and this generator folds it into the world-frame
-    # display/anchor bases — NEVER as a constraint source offset, which the
-    # shipping client scales by the avatar's per-client scale factor.
+    # Parks the contact cluster away from spawn-dense space, and — since the
+    # published prefix froze — seeds the collision tags too (tag_set). ONE seed
+    # for both, deliberately: two builds on one avatar must vary tags AND park
+    # together — distinct tags with a shared park still stack ~24 receivers at
+    # one point, the cluster-summing bug (docs/runtime.md §Contacts) — so a
+    # separate tag seed would only make the half-varied broken state reachable.
+    # A second build is this one string changed, then a regeneration.
+    # Any string; the offset it derives is a rig fact the README's Rig section
+    # declares. The prefab implements it as the object node's transform
+    # localPosition under the origin-pinned Rig, and this generator folds it
+    # into the world-frame display/anchor bases — NEVER as a constraint source
+    # offset, which the shipping client scales by the avatar's per-client scale
+    # factor.
     "rigSeed": "object-sync/g3",
 
     # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
@@ -230,6 +260,9 @@ PRESETS = {
 # would silently drop `indexLoops: 1` back to word-channel's default of 2,
 # costing an index bit and three Sync states per batch with no diagnostic.
 DEMOS = {
+    # The mount emission the committed builds cannot reach (all three ship at
+    # mountPath "") — every prefixed binding site runs on every --check.
+    "mounted": {"mountPath": "ObjectSync"},
     "six": {
         "objects": [{"name": "Prop0", "rotation": "full", "slices": 3},
                     {"name": "Prop1", "rotation": "y"},
@@ -384,6 +417,47 @@ def rig_offset(seed):
     return (((h[0] << 8 | h[1]) % 1024) - 512,
             512 + ((h[2] << 8 | h[3]) % 512),
             ((h[4] << 8 | h[5]) % 1024) - 512)
+
+
+def tag_digest(seed):
+    """The collision tags' per-build discriminator, from the SAME seed as the
+    park (the CONFIG rigSeed comment owns why they may not vary separately)."""
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:6]
+
+
+def tag_carriers(c, o):
+    """Expected contact-component count per tag of tag_set(c, o): each stage's
+    sender plus its receivers (Coarse and Fine read three axes; a rotation
+    marker reads three components in full mode, two in y mode). What makes a
+    per-tag COUNT the useful pin: a single retagged component moves two counts
+    while leaving the set of present tags intact, so a set comparison alone
+    passes the exact defect the tags exist to fence."""
+    mode = next(x for x in c["objects"] if x["name"] == o)["rotation"]
+    per_stage = {"Coarse": 4, "Fine": 4,
+                 "RotA": 4 if mode == "full" else 3, "RotB": 4}
+    return {tag: per_stage[stage]
+            for tag, stage in zip(tag_set(c, o),
+                                  ("Coarse", "Fine", "RotA", "RotB"))}
+
+
+def mnt(c, path):
+    """A binding path in the frame the FullController resolves from. mountPath
+    "" is the shipped shape (component on the rig root); set, every binding is
+    prefixed so the same document merges through a component on the mount GO's
+    PARENT — the sealed-interface shared component — with no walk-up in play."""
+    mp = c.get("mountPath", "")
+    if not isinstance(mp, str):
+        raise SystemExit(f"REFUSE: mountPath {mp!r} — a string GO path, or \"\" "
+                         "for the unmounted shape (None is not a spelling of it).")
+    if mp and (mp != mp.strip("/") or any(ch.isspace() for ch in mp)):
+        # A leading "/" is CompileController's resolve-from-avatar-root escape
+        # (docs/nondestructive.md): the binding would silently change frames
+        # rather than fail, so a malformed mount is refused, never normalized.
+        raise SystemExit(
+            f"REFUSE: mountPath {mp!r} — a bare GO path, no leading/trailing "
+            "'/' and no whitespace (a leading '/' re-frames every binding to "
+            "the avatar root instead of the merge component).")
+    return f"{mp}/{path}" if mp else path
 
 
 AXES = ("X", "Y", "Z")
@@ -763,10 +837,12 @@ def build(c):
     # "on" at avatar load.
     doc.param(f"  {pub}/Enable: {{ type: float, default: {enable_default(c)}, "
               "vrc: { type: bool, synced: true, saved: false } }", f"{pub}/Enable")
-    # `Ready` is minted in `floatify_layer`, not here: it is that layer's copy of
-    # `<channel>/Acquired`, published so a consumer's engage and Follow's read
-    # one param. Both read 0 on the WEARER forever, so "is the pose on screen
-    # trustworthy" is `IsLocal OR Ready`, which is what Follow's rungs evaluate.
+    # `Ready` is minted in `floatify_layer`, not here: it is that layer's copy
+    # of `<channel>/Acquired`, at `<internal>/Ready` — sealed, so a consumer's
+    # engage reads it through the same-component merge and it and Follow's read
+    # stay one param. Both read 0 on the WEARER forever, so "is the pose on
+    # screen trustworthy" is `IsLocal OR Ready`, which is what Follow's rungs
+    # evaluate.
 
     layers = list(wc["layers"])
     layers.append(floatify_layer(doc, c, numbers, bools))
@@ -805,11 +881,13 @@ def build(c):
                 (re.match(r"\s*([^\s#:]+):", ln) for ln in params
                  if ln.strip() and not ln.strip().startswith("#"))
                 if m and m.group(1) not in wcm.BUILTINS]
-    # Three names, one wildcard: `Ready` is required here because
-    # check_namespaces refuses a name declared under a published root the list
-    # omits, and `<channel>/Acquired` stays for the earliest-invalidation edge.
-    published = [f"{c['prefix']}/Enable", f"{c['prefix']}/Ready",
-                 f"{c['channel']}/Acquired"]
+    # ONE name — the interface is sealed (operator, 2026-08-31). `Ready` and
+    # `<channel>/Acquired` are declared under sealed roots, so check_namespaces
+    # holds the published wildcard to exactly `Enable`: a consumer reading past
+    # it merges through the same FullController component instead (CONFIG's
+    # prefix comment), and an OSC consumer wanting `Ready` marks it global in
+    # their own install.
+    published = [f"{c['prefix']}/Enable"]
     wcm.check_namespaces(published, declared)
 
     return {
@@ -820,6 +898,10 @@ def build(c):
         "facts": dict(facts, **{
             "published": published,
             "globalParams": wcm.published_wildcards(published),
+            "mountPath": c.get("mountPath", ""),
+            "collisionTags": {ob["name"]: tag_set(c, ob["name"])
+                              for ob in c["objects"]},
+            "rigPark": rig_offset(c["rigSeed"]),
             "geometry": d,
             "groups": groups,
             "numberWords": numbers,
@@ -911,19 +993,20 @@ def floatify_layer(doc, c, numbers, bools):
     group fully stale for that frame. Engaging on the copy keeps the gate and
     the decode's inputs on one latency path.
 
-    That copy is `<prefix>/Ready`, PUBLISHED and the one limb here that is not
-    internal scratch, so a consumer's engage and Follow's own read the same
-    driver write and cannot drift."""
+    That copy is `<internal>/Ready` — sealed like everything but `Enable`, and
+    still the one limb here that is not scratch: a same-component consumer's
+    engage and Follow's own read the same driver write and cannot drift."""
     p, pub = c["internal"], c["prefix"]
     copies = {}
     for w in numbers + bools:
         f = word_float(p, w["name"])
         doc.param(f"  {f}: {{ type: float, scratch: true }}", f)
         copies[f] = w["name"]
-    # NOT scratch and NOT under `p`: the published certification has to reach the
-    # params asset and match no internal wildcard, and a consumer binding it
-    # declares THESE flags or VRCFury throws at build.
-    ready = f"{pub}/Ready"
+    # NOT scratch: the certification has to reach the params asset, and a
+    # same-component consumer binding it declares THESE flags or VRCFury throws
+    # at build. Under `p` since the seal — it shares the instance prefix with
+    # the consumer that merges beside it, and no wildcard may reach it.
+    ready = f"{p}/Ready"
     doc.param(f"  {ready}: {{ type: float, default: 0, "
               "vrc: { type: bool, synced: false, saved: false } }", ready)
     copies[ready] = f"{c['channel']}/Acquired"
@@ -1009,7 +1092,7 @@ def decode_display_layer(doc, c, d):
         # a source's offset by the avatar's per-client scale factor (asset
         # sources included; measured in-client), making such a park a
         # cross-client displacement of (s_local - s_remote) x park.
-        anch = f"Rig/{o}/Fine/Anchor/VRCPositionConstraint.PositionOffset"
+        anch = mnt(c, f"Rig/{o}/Fine/Anchor/VRCPositionConstraint.PositionOffset")
         abase = {f"{anch}.{LOWER[a]}": num(-c["range"] + c["cellSize"] / 2
                                            + d["rigOffset"][i])
                  for i, a in enumerate(AXES)}
@@ -1027,7 +1110,7 @@ def decode_display_layer(doc, c, d):
             kids.append("{ clip: " + doc.clip(f"anch_{safe(o)}_{LOWER[a]}_cell", cell) +
                         f", directWeight: {kacc_w} }}")
 
-        disp = f"Rig/{o}/{DISPLAY_NODE}/VRCPositionConstraint.PositionOffset"
+        disp = mnt(c, f"Rig/{o}/{DISPLAY_NODE}/VRCPositionConstraint.PositionOffset")
         base = {f"{disp}.{LOWER[a]}": num(d["posBase"] + d["rigOffset"][i])
                 for i, a in enumerate(AXES)}
         kids.append("{ clip: " + doc.clip(f"disp_{safe(o)}_base", base) +
@@ -1042,7 +1125,7 @@ def decode_display_layer(doc, c, d):
                         f", directWeight: {p}/D/{o}/P{a}/F }}")
         if ob["rotation"] == "full":
             for mk in ("A", "B"):
-                node = f"Rig/{o}/Recon/Proxy{mk}/Transform.m_LocalPosition"
+                node = mnt(c, f"Rig/{o}/Recon/Proxy{mk}/Transform.m_LocalPosition")
                 b = {f"{node}.{LOWER[x]}": num(-c["armLength"]) for x in AXES}
                 kids.append("{ clip: " + doc.clip(f"prox_{safe(o)}_{mk.lower()}_base", b) +
                             f", directWeight: {p}/One }}")
@@ -1058,7 +1141,7 @@ def decode_display_layer(doc, c, d):
             # in XZ, aimed at by a single constraint whose up comes from a world
             # vector rather than a second marker. Marker A's Y offset is
             # identically zero under yaw, so the proxy's Y is pinned there.
-            node = f"Rig/{o}/Recon/ProxyA/Transform.m_LocalPosition"
+            node = mnt(c, f"Rig/{o}/Recon/ProxyA/Transform.m_LocalPosition")
             b = {f"{node}.x": num(-c["armLength"]), f"{node}.y": 0,
                  f"{node}.z": num(-c["armLength"])}
             kids.append("{ clip: " + doc.clip(f"prox_{safe(o)}_yaw_base", b) +
@@ -1096,7 +1179,7 @@ def enable_subtree(doc, c):
         return None
     park, live = {}, {}
     for sub in ("Coarse", "Fine", "Rot"):
-        b = f"Rig/{c['objects'][0]['name']}/{sub}/GameObject.m_IsActive"
+        b = mnt(c, f"Rig/{c['objects'][0]['name']}/{sub}/GameObject.m_IsActive")
         park[b], live[b] = 0, 1
     return ["- tree: 1d",
             "  name: EnableGate",
@@ -1156,9 +1239,10 @@ def follow_layer(doc, c):
     head-landing cold join. The copy puts the gate on the decode's own latency
     path; `floatify_layer`'s docstring carries the mechanism.
 
-    That copy is `<prefix>/Ready` and PUBLISHED, so a consumer's engage reads the
-    same param — at the price that one spurious true frame on this AnyState rung
-    latches for the session, the driver's every-frame rewrite notwithstanding.
+    That copy is `<internal>/Ready` — sealed, read by a consumer through the
+    same-component merge, so their engage still reads the same param — at the
+    price that one spurious true frame on this AnyState rung latches for the
+    session, the driver's every-frame rewrite notwithstanding.
 
     Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
     the engage rung is an AnyState rung with `canTransitionToSelf: false`, which
@@ -1172,7 +1256,7 @@ def follow_layer(doc, c):
     p, pub = c["internal"], c["prefix"]
     rides_target, rides_recon = {}, {}
     for ob in c["objects"]:
-        s = f"{sync_path(c, ob['name'])}/VRCParentConstraint.Sources"
+        s = mnt(c, f"{sync_path(c, ob['name'])}/VRCParentConstraint.Sources")
         rides_target[f"{s}.source0.Weight"] = 1
         rides_target[f"{s}.source1.Weight"] = 0
         rides_recon[f"{s}.source0.Weight"] = 0
@@ -1188,10 +1272,10 @@ def follow_layer(doc, c):
         "      - { to: Local, when: [ IsLocal is true ], canTransitionToSelf: false }"
         "   # the wearer's pose is authoritative from frame 1",
         f"      - {{ to: Follow, when: [ IsLocal is false, {pub}/Enable greater 0.5, "
-        f"{pub}/Ready greater 0.5 ], canTransitionToSelf: false }}"
+        f"{p}/Ready greater 0.5 ], canTransitionToSelf: false }}"
         "   # a complete word table has landed on THIS client, read through the"
-        " published Floatify copy so the gate, a consumer's gate and the decode"
-        " inputs all share one latency path",
+        " Floatify copy so the gate, a same-component consumer's gate and the"
+        " decode inputs all share one latency path",
         f"      - {{ to: Release, when: [ IsLocal is false, {pub}/Enable less 0.5 ], "
         "canTransitionToSelf: false }"])
     out.append("    default: Release")
@@ -1508,11 +1592,15 @@ def tag_set(c, o):
     that object's rotation mode gives a carrier: a tag the prefab cannot carry
     is a spec-vs-artifact lie waiting for a reviewer.
 
-    Deterministic from the prefix and — when there is more than one object — the
-    object name, the same rule the `Sync` pair follows and for a sharper reason:
-    measured with two objects on one tag set, NEITHER converges, because every
-    receiver reads whichever sender is strongest rather than its own."""
-    base = c["prefix"].replace("/", "")
+    Deterministic from the frozen prefix plus `rigSeed`'s digest and — when
+    there is more than one object — the object name. The seed term is what lets
+    two sealed builds coexist on one avatar (the prefix froze, so it can no
+    longer discriminate), and it is the park's own seed on purpose: tags and
+    park must vary together (CONFIG's rigSeed comment). Per-object stays for a
+    sharper, measured reason: two objects on one tag set, NEITHER converges,
+    because every receiver reads whichever sender is strongest rather than its
+    own."""
+    base = c["prefix"].replace("/", "") + tag_digest(c["rigSeed"])
     mid = o if len(c["objects"]) > 1 else ""
     mode = next(x for x in c["objects"] if x["name"] == o)["rotation"]
     stages = ["Coarse", "Fine"]
@@ -1530,7 +1618,7 @@ def gate_bindings(c, live_object):
     for ob in c["objects"]:
         x = ob["name"]
         for sub in ("Coarse", "Fine", "Rot"):
-            b[f"Rig/{x}/{sub}/GameObject.m_IsActive"] = 1 if x == live_object else 0
+            b[mnt(c, f"Rig/{x}/{sub}/GameObject.m_IsActive")] = 1 if x == live_object else 0
     return b
 
 
@@ -1893,6 +1981,15 @@ def header(c, d, facts, numbers, bools):
     o("#   is the spec the prefab is kept against. The park is the object node's transform")
     o("#   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,")
     o("#   because the client scales a source's offset by the avatar's per-client scale factor.")
+    o(f"# Interface: SEALED — globalParams covers {p}/Enable alone; every other param takes the")
+    o("#   VRCFury instance prefix. A consumer reading past it (Ready, the channel, the word")
+    o("#   table) merges its controller through the SAME FullController component as this build:")
+    o("#   one component prefixes identically, so the shared names unify; a second component is")
+    o("#   a second sealed instance (that is what two builds on one avatar are).")
+    if c.get("mountPath"):
+        o(f"# Mount: every binding is prefixed {c['mountPath']}/ — the FullController carrying this")
+        o("#   document sits on that GO's PARENT (the shared merge component), and the GO's name")
+        o("#   and the prefix are a hand-maintained pairing the consumer's own --check pins.")
     o("#")
     o("# Per axis the coarse and fine words share one group, so word-channel pins them into one")
     o("# batch: an adjacent-cell coarse always arrives with its matched fine, and cell-boundary")
@@ -2193,6 +2290,122 @@ def check():
                     f"the root prefab's receivers cover its declared sense set "
                     f"({len(sense_declared)}) — missing "
                     f"{sorted(sense_declared - sense_fields)}")
+
+    # Under the sealed interface the park and the collision tags are the ONLY
+    # things that vary between two builds on one avatar (the parameters froze),
+    # and both are hand-maintained prefab↔config pairings nothing else reads:
+    # the tags are strings VRCFury's prefixing does not reach, and the park is
+    # a plain transform localPosition the document pin cannot see. A pairing
+    # that drifts regenerates green and ships the measured-broken states — two
+    # builds' receivers reading each other's senders (shared tag), or ~24
+    # receivers summing at one point (shared park, docs/runtime.md §Contacts).
+    import re as _re
+    print("[prefab park + collision tags]")
+
+    def prefab_blocks(body):
+        """(class-id, object-id, block-text) per serialized object."""
+        out = []
+        for part in body.split("--- !u!")[1:]:
+            m = _re.match(r"(\d+) &(-?\d+)", part)
+            if m:
+                out.append((m.group(1), m.group(2), part))
+        return out
+
+    def named_transform_positions(texts, name):
+        """Every m_LocalPosition of a GameObject named `name`, over the union
+        of a build's own text and its variant base's."""
+        found = []
+        for body in texts:
+            blks = prefab_blocks(body)
+            gids = [oid for cls, oid, blk in blks
+                    if cls == "1" and f"\n  m_Name: {name}\n" in blk]
+            for cls, oid, blk in blks:
+                if cls != "4":
+                    continue
+                gm = _re.search(r"m_GameObject: \{fileID: (-?\d+)\}", blk)
+                if gm and gm.group(1) in gids:
+                    pm = _re.search(r"m_LocalPosition: \{x: (\S+?), y: (\S+?), "
+                                    r"z: (\S+?)\}", blk)
+                    if pm:
+                        found.append(tuple(float(v) for v in pm.groups()))
+        return found
+
+    for label, cfg in committed_configs().items():
+        pf_path = os.path.join(HERE, *preset_dir(label), "ObjectSync.prefab")
+        if not os.path.exists(pf_path):
+            continue      # the missing-prefab FAIL is already reported above
+        texts, how = prefab_texts(label, pf_path)
+        derived = [t for ob in cfg["objects"] for t in tag_set(cfg, ob["name"])]
+        found_tags = []
+        for body in texts:
+            for m in _re.finditer(r"collisionTags:\n((?:  - .+\n)+)", body):
+                found_tags += _re.findall(r"  - (\S+)", m.group(1))
+        missing = [t for t in derived if t not in set(found_tags)]
+        assert_(not missing,
+                f"{label}: the prefab carries every tag tag_set() derives "
+                f"[{how}] — missing {missing}")
+        # A variant's union scan reads the base's authored contacts too (`y`
+        # deletes the RotB rig nodes but the base text keeps their components),
+        # so the honest stray population for a variant includes the base
+        # build's own derived set.
+        allowed = set(derived)
+        if how != "authored flat":
+            allowed |= {t for ob in CONFIG["objects"]
+                        for t in tag_set(CONFIG, ob["name"])}
+        strays = sorted(set(found_tags) - allowed)
+        assert_(not strays,
+                f"{label}: no contact carries a tag outside the derived set "
+                f"({len(set(found_tags))} distinct) — strays: {strays}")
+        # Per-tag CARRIER COUNTS, not just the set: a single retagged component
+        # (a Fine receiver moved onto the Coarse tag) keeps every derived tag
+        # present and adds no stray, so only the counts see it. Flat prefabs
+        # only — a variant's union scan counts the base's authored rows, which
+        # include stages the variant deletes, so its counts cannot be honest.
+        if how == "authored flat":
+            from collections import Counter
+            got_n = Counter(found_tags)
+            want_n = {t: n for ob in cfg["objects"]
+                      for t, n in tag_carriers(cfg, ob["name"]).items()}
+            off = {t: (got_n.get(t, 0), n) for t, n in want_n.items()
+                   if got_n.get(t, 0) != n}
+            assert_(not off,
+                    f"{label}: each tag sits on exactly its stage's components "
+                    f"(sender + receivers) — off (got, want): {off}")
+        # The park: every object node's own transform sits at rig_offset, and a
+        # variant may not override it — a modification row is a second author.
+        want = tuple(float(v) for v in rig_offset(cfg["rigSeed"]))
+        for ob in cfg["objects"]:
+            got = named_transform_positions(texts, ob["name"])
+            assert_(got and all(g == want for g in got),
+                    f"{label}: {ob['name']}'s transform parks at "
+                    f"rig_offset(rigSeed) {want} [{how}] — found {got}")
+        # A variant override is a second author the union scan above cannot
+        # see (it reads the base's authored value): flag a modification row
+        # repositioning an OBJECT NODE's transform — the park carriers,
+        # located by name in the base — or touching any tag list. The instance
+        # ROOT's own localPosition overrides are ordinary variant placement.
+        if how != "authored flat" and len(texts) > 1:
+            base_blks = prefab_blocks(texts[1])
+            park_gids = [oid for cls, oid, blk in base_blks if cls == "1"
+                         and any(f"\n  m_Name: {ob['name']}\n" in blk
+                                 for ob in cfg["objects"])]
+            park_tids = [oid for cls, oid, blk in base_blks if cls == "4"
+                         and (m2 := _re.search(
+                             r"m_GameObject: \{fileID: (-?\d+)\}", blk))
+                         and m2.group(1) in park_gids]
+            mods = _re.findall(r"target: \{fileID: (-?\d+)[^}]*\}\s*\n\s*"
+                               r"propertyPath: ([^\n]+)", texts[0])
+            bad_mods = [(t, pth) for t, pth in mods
+                        if (t in park_tids and pth.startswith("m_LocalPosition"))
+                        or pth.startswith("collisionTags")]
+            assert_(not bad_mods,
+                    f"{label}: the variant overrides no park or tag "
+                    f"(m_Modifications rows: {sorted(set(bad_mods))})")
+        # The committed builds ship the FullController on the rig root, so a
+        # committed config that grew a mount prefix has broken every binding.
+        assert_(cfg.get("mountPath", "") == "",
+                f"{label}: committed builds emit at mountPath \"\" — a mounted "
+                "build is a consumer generation, never committed here")
 
     # The prefabs are hand-maintained, so the document pin cannot see a park
     # creeping back onto a constraint source offset — and the emulator cannot

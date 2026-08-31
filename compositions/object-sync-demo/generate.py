@@ -35,27 +35,26 @@ synced system. `batchSeconds` 0.1 and `indexLoops` 1 are the shipped defaults
 and are deliberately not overridden. Three batches rather than two is what keeps
 the tablet's Index readout reading as a counter.
 
-WHAT STILL HAS TO HAPPEN ON THE DEMO'S PREFAB (stage 3/5, not here)
+THE SHARED COMPONENT (the prefab half this generator cannot author)
 -------------------------------------------------------------------
-The demo's copy of `ObjectSync.prefab` needs two edits this generator cannot
-make — `globalParams` is a VRCFury field with no `CompileController` spelling,
-and the `Drop` toggle is a component. **A VRCFury component cannot be edited in
-place on a prefab: remove it and add a modified copy.**
+The demo's `Demo_Fx` and its object-sync build merge through ONE FullController
+on the prefab root — the sealed-interface coupling (operator, 2026-08-31): the
+entry publishes `Enable` alone, and everything else the tablet reads (`OS/D/*`
+decoded AAPs, `OS/Ch/Wire/Idx*`, `OS/Ready`, `OSCh/Acquired`) is reachable only
+because one component prefixes both controllers identically and the shared
+names unify. The positive-wildcard `globalParams` grammar this file used to
+derive is retired with the exposure it existed to scope: the component's list
+is exactly the entry's derived `ObjectSync/*` (matching `Enable` alone), and
+`--check` pins it. Splitting the two controllers back onto two components
+un-unifies every shared name with no build error — the param-rewrite memo is
+per component (measured 2026-08-31) — so `--check` also refuses a second
+FullController. The `Drop` toggle stays deleted (its `FreezeToWorld` writer
+would fight the Freeze mode; the entry's two-writer rule).
 
-1. `globalParams` on the `FullController`, replaced by the scoped match list
-   `--check` prints. A match grammar, not an enumeration and not
-   `allNonsyncedAreGlobal`: VRCFury matches a trailing `*` by prefix and lets a
-   leading `!` exclude, so the composition scopes its own namespace and excludes
-   what must stay capturable-proof, in four entries that never need touching. An
-   enumeration is what rots — the stale name is dropped silently while the new
-   one takes a per-build prefix, and the tablet's blendtrees bind to names that
-   do not exist. The rationale for each entry is in `global_params()` below.
-   **Verify any change on the BUILT avatar, not the source asset**: an entry that
-   failed to land reads as prefixed post-bake and as fine everywhere else.
-2. Delete the shipped `Drop` VRCFury `Toggle`. Stage 4 builds Freeze as a mode
-   on `Sync_Target`'s own constraint animating the same `FreezeToWorld`, and two
-   writers on one property is what the entry's two-writer rule forbids.
-   Deleting it also reclaims its synced bit.
+Both controllers sit at the prefab ROOT (the demo is a variant of the entry's
+prefab, so the rig root IS the composition root) — bindings stay rig-relative
+and this build emits at the default `mountPath ""`, unlike `grab-sync`, whose
+rig is a nested child.
 """
 
 import glob
@@ -103,71 +102,6 @@ def demo_config(mod):
     return cfg
 
 
-def global_params(cfg):
-    """The demo prefab's `globalParams`, as a match grammar rather than a list.
-
-    Three positive wildcards and no exclusions. The entry now keeps its published
-    interface (`<prefix>/*` — Enable, the transport's raw Acquired, and the
-    entry's certified-lagged `Ready`) disjoint from its internals
-    (`<internal>/*`), so a consumer names the internal namespaces it
-    reaches into instead of publishing the whole prefix and subtracting. That
-    inverts the failure mode in the safe direction: an entry this list forgets is
-    under-exposed and the tablet reads a name that does not exist, which is loud,
-    where a stale `!` silently WIDENED the list and handed the wire slots to the
-    first host avatar that declared them.
-
-    What this avatar reaches for, and why each is not part of the entry's
-    interface: `<internal>/D/*`, the six decoded coarse/fine AAPs the tablet
-    displays; and `<internal>/Ch/Wire/Idx*`, the index bools the Counter slot
-    walks through a state ladder (synced Bools a blend tree cannot read, so a
-    `blendtree-math` sum is not available). The wire's Num/Bool slots and
-    `Ch/Cycle` are NOT named here and now cannot be reached by accident — they
-    carry state across frames or the network, and a captured one takes the host's
-    own synced/saved flags (`../../../docs/gimmicks.md` §Packaging).
-
-    A composition scopes its own namespace once instead of enumerating every name
-    its two FullControllers share: VRCFury matches a trailing `*` by prefix and
-    lets a leading `!` exclude, winning wherever it sits in the list. Enumerating
-    is what drifts — rename a param upstream and the stale entry is dropped in
-    silence while the new name takes an instance prefix, severing the link
-    between the two merged controllers with the build still green. That is not
-    hypothetical; it is what this list did before it was scoped.
-
-    `Ch/Wire/Idx*` stays exposed deliberately: the tablet's Counter slot
-    reconstructs a batch number from the index bools, and they are synced Bools a
-    blend tree cannot read, so the readout walks them through a state ladder
-    rather than a `blendtree-math` sum. Excluding the whole `Wire/` subtree would
-    kill that readout.
-
-    What the two exclusions have in common is **carried state**, not syncedness:
-    a `globalParams` name is capturable, and a host avatar declaring it wins with
-    *its* synced and saved flags (`../../../docs/gimmicks.md` §Packaging and interface). The
-    wire slots cross the network, so a captured one carries the host's `saved`
-    across avatar loads; `Ch/Cycle` accumulates (+1 per loop tail), so a host
-    capturing it as *synced* would put the wearer's count on every client — the
-    argument `../../word-channel/README.md` §Interface makes for keeping it off
-    every list. Note `Ch/Cycle` is itself unsynced, which is why "exclude the
-    synced ones" is the wrong reading of this list.
-
-    Everything else under the prefix goes bare and is meant to: the decoded AAPs
-    and `Acquired` because consumers read them, and the per-client scratch
-    (`Ch/SawHead`, `Ch/True`, `One`, the `B/…` floats) because it is recomputed
-    from the wire every frame — capture cannot corrupt what nothing accumulates.
-    That is the boundary to reason from when adding a param, not "is it
-    interface".
-
-    Entry-side exposure is unchanged by scoping — the six decoded AAPs the tablet
-    displays, `<channel>/Acquired` and `<prefix>/Ready` all sit under the prefix.
-    Gate the reconstruction view, the damper and any stand-in on `Ready`, never
-    on a `Ch/Cycle` threshold: the counter's thresholds are
-    apply-discipline-dependent and it never leaves 0 on the wearer. `Ready`
-    reads 0 on the wearer and stays 1 through an Enable-off, so the consumer
-    predicate is `IsLocal OR (Enable AND Ready)` — all three terms, which is what
-    the damper's engage rung carries."""
-    p, i = cfg["prefix"], cfg["internal"]
-    return [f"{p}/*", f"{i}/D/*", f"{i}/Ch/Wire/Idx*"]
-
-
 def main():
     mod = entry_module()
     cfg = demo_config(mod)
@@ -196,82 +130,100 @@ def main():
         # above pins the settled 3-batch/50-bit
         # wire, and freshness of the committed document is regenerate-and-read-
         # git-diff (CONVENTIONS.md §Per-entry checks).
-        # Printing the list left the prefab unpinned, and the prefab is the
-        # hand-edited half — a wrong entry there lands silently (VRCFury exposes
-        # nothing and says nothing) and no compile or gate reads globalParams.
-        # Scoping the list shortened it; it did not make it self-checking, and a
-        # mistyped wildcard fails exactly as quietly as a mistyped name once did.
-        # word-channel's generator carries the same assert for the same reason.
-        want_gp = global_params(cfg)
-        print("  globalParams for the demo prefab:")
-        for n in want_gp:
-            print(f"    {n}")
-        # The grammar is positive now, so the failure mode to assert is
-        # under-exposure: a name the tablet's own document binds that the list
-        # does not publish stays instance-prefixed on the entry's controller, and
-        # the two merged controllers are severed with the build still green.
-        # Matching is VRCFury's own rule, ported from
-        # FullControllerBuilder.RewriteParamNameUncached: trailing `*` is a raw
-        # StartsWith in which `/` is not special, and a `!` wins wherever it sits.
-        def published(name, grammar):
-            hit = False
-            for g in grammar:
-                neg = g.startswith("!")
-                if neg:
-                    g = g[1:]
-                wild = g.endswith("*")
-                if wild:
-                    g = g[:-1]
-                if name == g or (wild and name.startswith(g)):
-                    if neg:
-                        return False
-                    hit = True
-            return hit
-
-        # Comments stripped first: a comment naming an unpublished entry-owned
-        # param (`OS/Ch/Cycle`, a `Wire/Num*` slot — the exact strings the
-        # exclusions this list replaced used to carry) would fail the assert below
-        # on prose alone, which is a false positive nobody could act on.
-        own = open(os.path.join(HERE, "controller.yaml"), encoding="utf-8").read()
-        own = _re.sub(r"#.*", "", own)
-        reached = sorted({n for n in _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
-                          if n.split("/")[0] in (cfg["prefix"], cfg["internal"])})
-        missing = [n for n in reached if not published(n, want_gp)]
-        assert_(not missing,
-                f"every entry-owned name this avatar's own document binds is "
-                f"published by the grammar ({len(reached)} names) — unpublished: "
-                f"{missing}")
-        # The converse, cheaply: a wildcard naming a namespace this avatar never
-        # reads is exposure bought for nothing.
-        unused = [g for g in want_gp
-                  if not any(published(n, [g]) for n in reached)]
-        assert_(not unused,
-                f"no globalParams entry is dead weight — unused: {unused}")
+        # The prefab is the hand-edited half — a wrong globalParams entry or a
+        # split component lands silently (VRCFury exposes nothing and says
+        # nothing) and no compile or gate reads either.
+        want_gp = facts["globalParams"]
+        print("  globalParams for the shared FullController (the entry's own "
+              f"derived list): {want_gp}")
+        # Demo_Fx binds sealed entry names directly (`OS/D/*`,
+        # `OS/Ch/Wire/Idx*`, `OS/Ready`, `OSCh/Acquired`) — hard couplings to
+        # the entry's CONFIG keys that unify only when the entry actually
+        # declares the name. A rename upstream leaves this document binding a
+        # name the entry does not declare: VRCFury mints a second prefixed
+        # param, the tablet reads a flat zero, and no build errors. Comments
+        # stripped first, so prose naming an entry-owned param cannot fail it.
+        roots = {cfg["prefix"].split("/")[0], cfg["internal"].split("/")[0],
+                 cfg["channel"].split("/")[0]}
+        own = _re.sub(r"#.*", "", open(os.path.join(HERE, "controller.yaml"),
+                                       encoding="utf-8").read())
+        reached = sorted({n for n in
+                          _re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
+                          if n.split("/")[0] in roots})
+        declared = set(_re.findall(r"^  ([^\s#:]+):", text, _re.M))
+        missing = [n for n in reached if n not in declared]
+        assert_(reached and not missing,
+                f"every entry-rooted name Demo_Fx binds is declared by this "
+                f"build's document ({len(reached)} names) — undeclared: {missing}")
         pf_path = os.path.join(HERE, "ObjectSyncDemo.prefab")
         if os.path.exists(pf_path):
             body = open(pf_path, encoding="utf-8").read()
+            # The sealed coupling: Demo_Fx and the object-sync build on ONE
+            # FullController, authored on this variant root (the inherited
+            # entry component is removed — remove-and-add, the one redirect a
+            # VRCFury component supports). A second component holding either
+            # controller un-unifies every shared name with no build error: the
+            # param-rewrite memo is per component (measured 2026-08-31).
+            # Counted over FullController blocks that reference EITHER
+            # controller, not over all of them — the composed anti-cull ships
+            # its own component legitimately.
+            fc_blocks = [m.group(0) for m in
+                         _re.finditer(r"^--- !u!114 &-?\d+\n(.*?)(?=^--- |\Z)",
+                                      body, _re.M | _re.S)
+                         if "class: FullController" in m.group(0)]
+            ours = [b for b in fc_blocks
+                    if "Demo_Fx.controller" in b
+                    or "object-sync-demo/object-sync/built/" in b]
+            assert_(len(ours) == 1,
+                    "Demo_Fx and the object-sync build share exactly ONE "
+                    f"FullController (found in {len(ours)} components of "
+                    f"{len(fc_blocks)} total)")
+            fc = ours[0] if ours else ""
+            di = fc.find("compositions/object-sync-demo/built/Demo_Fx.controller")
+            si = fc.find("compositions/object-sync-demo/object-sync/built/"
+                         "ObjectSync_Fx.controller")
+            assert_(di != -1 and si != -1,
+                    f"the shared component carries Demo_Fx ({di}) and the "
+                    f"object-sync build ({si})")
+            # The demo is a VARIANT of the entry prefab, so the entry's own
+            # FullController arrives inherited and text-invisible; only its
+            # m_RemovedComponents row proves the double build is off.
+            entry_pf = os.path.join(REPO, "object-sync", "ObjectSync.prefab")
+            entry_guid = _re.search(
+                r"^guid: ([0-9a-f]{32})$",
+                open(entry_pf + ".meta", encoding="utf-8").read(), _re.M).group(1)
+            entry_fcs = []
+            for m in _re.finditer(r"^--- !u!114 &(-?\d+)\n(.*?)(?=^--- |\Z)",
+                                  open(entry_pf, encoding="utf-8").read(),
+                                  _re.M | _re.S):
+                if "class: FullController" in m.group(2):
+                    entry_fcs.append(m.group(1))
+            removed = "".join(_re.findall(
+                r"m_RemovedComponents:\n((?:    - \{fileID: .+\n)+)", body))
+            gone = [a for a in entry_fcs
+                    if f"fileID: {a}, guid: {entry_guid}" in removed]
+            assert_(entry_fcs and gone == entry_fcs,
+                    f"the inherited entry FullController(s) {entry_fcs} are "
+                    f"removed — removed rows carry {gone}")
             blocks, cur, inside = [], [], False
             for ln in body.splitlines():
                 if ln.strip() == "globalParams:":
                     inside, cur = True, []
                 elif inside:
                     if ln.startswith("        - "):
-                        # A leading `!` is a YAML tag indicator, so Unity writes
-                        # every negation single-quoted — strip that, not the `!`.
                         cur.append(ln.split("- ", 1)[1].strip().strip("'\""))
                     else:
                         blocks.append(cur)
                         inside = False
             if inside:
                 blocks.append(cur)
-            # Keyed on the prefix, not on a member name: the scoped list holds no
-            # bare param name for a membership test to find.
             entry_blocks = [b for b in blocks
-                            if any(e.lstrip("!").startswith(f"{cfg['prefix']}/") for e in b)]
-            assert_(len(entry_blocks) == 2 and all(b == want_gp for b in entry_blocks),
-                    f"both of the prefab's object-sync globalParams blocks are "
-                    f"exactly the {len(want_gp)} entries above, in order "
-                    f"({[b for b in entry_blocks if b != want_gp][:1]})")
+                            if any(e.lstrip("!").startswith(f"{cfg['prefix']}/")
+                                   or e.lstrip("!").startswith(f"{cfg['internal']}/")
+                                   for e in b)]
+            assert_(entry_blocks == [want_gp],
+                    f"the one entry-touching globalParams block is exactly the "
+                    f"entry's derived list {want_gp} — got {entry_blocks}")
             # This arrangement pins two rigs to world through the composed
             # entries' own never-instantiated `World.prefab` assets, and a broken
             # reference there resolves to null — the rig silently rides the avatar
