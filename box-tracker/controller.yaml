@@ -154,12 +154,17 @@ clips:
   # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
   # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
   # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl
-  # ease-in (acquisition damp): the source0 curve below ramps the Output source in against the
-  # self-brake (source1). At g=0 the self-source holds the cage exactly in place — a clean freeze,
-  # no rest-pose snap — so the first-frame cage-gap is not slammed at full gain; authority then
-  # rises and the cage glides onto the sender. The curve's end key and the prefab's static source0
-  # (what holds outside Tracking) are one knob in two homes — retune together. Clip-owned here, so
-  # the gain is not live-scrubbable in play.
+  # engage (acquisition guard): the source0 curve below holds the Output source at 0 against the
+  # self-brake (source1) for two frames — covering the coincident-frame latch and the one frame of
+  # radius-compensation skew, at g=0 the self-source holding the cage exactly in place, a clean
+  # freeze, no rest-pose snap — then rises to full authority by 0.1 s. History: static gain 1
+  # (g=0.5) overshot the acquisition gap and felt gritty in-game; #17 softened it to 0.65 behind a
+  # 0.5 s ramp; in-game that ramp read as a dead second before tracking engaged, so the ramp is now
+  # this minimal two-frame guard and the steady gain is 0.75 (g~0.43), capped below #17's retired
+  # grit ceiling (operator-directed 2026-09-01). Stability is structural, not tuned: the loop is a
+  # convex per-frame blend — high gain amplifies readout jitter but can never ring. The curve's end
+  # key and the prefab's static source0 (what holds outside Tracking) are one knob in two homes —
+  # retune together. Clip-owned here, so the gain is not live-scrubbable in play.
   latch:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
@@ -188,8 +193,8 @@ clips:
       TrackingPoints/Y+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
-      # Crawl ease-in (block above). Flat tangents = smooth onset; end key = the prefab's source0.
-      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: [ [0, 0], [0.5, 0.65] ]
+      # Crawl engage (block above): two-frame zero-hold, then full authority by 0.1 s. End key = the prefab's source0.
+      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: [ [0, 0], [0.033333336, 0], [0.1, 0.75] ]
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and

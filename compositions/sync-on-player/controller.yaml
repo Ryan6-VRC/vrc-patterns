@@ -885,7 +885,7 @@ clips:
       "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
       "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
       "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.5, 0.65] ]
+      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.033333336, 0], [0.1, 0.75] ]
 
   provisional:  # released-cell + tracked-cage FUSION (ruling 13; header carve): the capture runs under the latched cage; dwell = the pulse
     length: 0.5
@@ -935,7 +935,7 @@ clips:
       "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
       "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
       "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.5, 0.65] ]
+      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.033333336, 0], [0.1, 0.75] ]
       "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
 
   seeking:      # tracked-cell + box-tracker Searching cage (ruling 12; header carve): self-hold at the loss point, filters reopened, zone recollapsed  [EMPIRICAL: dwell = clip length = the 5 s loss grace]
