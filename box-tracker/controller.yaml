@@ -154,11 +154,11 @@ clips:
   # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
   # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
   # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl gain
-  # guard (the source0 curve below): zero across the first frames, 0.75 by clip end. What the
+  # guard (the source0 curve below): zero across the first frames, 0.7 by clip end. What the
   # guard covers (measured at the emulator): at the latch the receivers still carry column-scale
   # readings while the decode coefficients assume the full slabs, so Output decodes up to a
   # slab-dimension off for the first frame or two — ANY gain during that window lunges the cage at
-  # a phantom (a static 0.75 snapped visibly past the target for a frame; #17's "overshot on
+  # a phantom (an unguarded static gain snapped visibly past the target for a frame; #17's "overshot on
   # initial acquisition" was this, then misread as gain stiffness). Timing rule for EVERY curve in
   # this state: the readout Direct tree is non-normalized with weight-sum > 1, so curves play at
   # normT × clipLength over duration = Σ(weight × length) — authored seconds stretch by

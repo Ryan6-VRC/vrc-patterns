@@ -242,8 +242,8 @@ layers:
 # (X+ X- Y+ Z+) coincident at the cage center, resized only by host-GO localScale — (0.5,0.5,1)
 # collapses them to one acquisition column, (1,1,1) is the absolute tracking geometry. No clip
 # moves a receiver's localPosition (the readout is the DBT, not a position spread); of the crawl
-# constraint's source weights only source0 is animated, by the Tracked clip alone (the acquisition
-# ease-in above), the rest holding their prefab values. Output is pinned to the cage center everywhere but
+# constraint's source weights only source0 is animated, by the Tracked clip alone (the gain
+# guard above), the rest holding their prefab values. Output is pinned to the cage center everywhere but
 # Tracked, where the readout tree writes it.
 # Off-state hygiene: Disabled kills the grab physbone's GO (an "off" module must not stay
 # grabbable; resetWhenDisabled 0 preserves pose) and the four cage-receiver GOs (no sensing while
