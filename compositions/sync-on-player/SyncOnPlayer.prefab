@@ -594,10 +594,30 @@ MonoBehaviour:
             fileID: 0
             guid: 
             id: 
+            objRef: {fileID: 9100000, guid: 22e1406f820163446a383cde6df1471c, type: 2}
+          type: 5
+        - controller:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 
             objRef: {fileID: 9100000, guid: f65c5dc777c043e4bb80591c4cf425b9, type: 2}
           type: 5
-        menus: []
+        menus:
+        - menu:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 
+            objRef: {fileID: 11400000, guid: 461b739a7e3347f4f9350d56609d779c, type: 2}
+          prefix: Sync On Player
         prms:
+        - parameters:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 
+            objRef: {fileID: 11400000, guid: bb9db624a9d25c54eb1bb619684febf6, type: 2}
         - parameters:
             version: 1
             fileID: 0
@@ -903,11 +923,16 @@ PrefabInstance:
       propertyPath: Sources.source0.SourceTransform
       value: 
       objectReference: {fileID: 1940780969816251488}
+    - target: {fileID: 7002501280877217314, guid: 6cee8f75505d2b34c8b65797c5eac317, type: 3}
+      propertyPath: parameter
+      value: Grab
+      objectReference: {fileID: 0}
     - target: {fileID: 7739993993811026437, guid: 6cee8f75505d2b34c8b65797c5eac317, type: 3}
       propertyPath: m_Name
       value: DropOnPlayer
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3748974673866233685, guid: 6cee8f75505d2b34c8b65797c5eac317, type: 3}
     m_RemovedGameObjects:
     - {fileID: 3797510562260182084, guid: 6cee8f75505d2b34c8b65797c5eac317, type: 3}
     - {fileID: 5810838092650044962, guid: 6cee8f75505d2b34c8b65797c5eac317, type: 3}

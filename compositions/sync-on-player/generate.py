@@ -367,6 +367,147 @@ def prefab_pins(assert_, mod, cfg):
             f"offsets ({len(zeroed)}/2 zeroed, of {len(pin_bodies)} candidates)")
 
 
+def shared_component_pins(assert_, mod, cfg):
+    """The sealed-interface coupling (T2 subsume), pinned per grab-sync's
+    template: everything here is a hand-maintained pairing only this check
+    reads — the ONE shared FullController's controller AND prms order (glue
+    first in both: the animator param merge follows controllers order and the
+    baked expression-parameter default follows prms order, so either inversion
+    disarms the glue's Enable default-1 — controller.yaml's header owns the
+    mechanism), the shipped menu entry and its prefix, globalParams exactly
+    the build's derived list (the seal), the mount pairing (the variant
+    instance named MOUNT, hanging directly under the component's GO — the
+    frame every emitted binding resolves from), the nested entry's recorded
+    FullController removal plus its physbone `parameter` override (the two T2
+    remove-and-add edits nothing else validates), the glue's entry-rooted
+    names against what the build's document declares, and the absence of any
+    second FullController on the sync side (a split component un-unifies
+    every shared name with no build error — the rewrite memo is per
+    component)."""
+    import re
+    comp_path = os.path.join(HERE, "SyncOnPlayer.prefab")
+    raw = open(comp_path, encoding="utf-8").read()
+    docs = prefab_docs(comp_path)
+    want_gp = mod.document(cfg)[1]["facts"]["globalParams"]
+    n_fc = raw.count("class: FullController")
+    assert_(n_fc == 1,
+            f"shared: exactly ONE FullController authored here — a second "
+            f"component un-unifies every shared name (found {n_fc})")
+    # Every ordering and membership read below is scoped to THAT component's
+    # own document — a whole-file find() would keep passing after a
+    # controller moved onto some other component.
+    fc = next((b for c2, a, b in docs
+               if c2 == 114 and "class: FullController" in b), "")
+    glue_g = guid_of("built/SyncOnPlayer_Fx.controller")
+    sync_g = guid_of(os.path.join("object-sync", "built",
+                                  "ObjectSync_Fx.controller"))
+    gi, si = fc.find(glue_g), fc.find(sync_g)
+    assert_(gi != -1 and si != -1,
+            f"shared: the component carries both built controllers by GUID "
+            f"(glue at {gi}, sync at {si})")
+    assert_(gi == -1 or si == -1 or gi < si,
+            "shared: the glue controller sits BEFORE the sync build — "
+            "first-wins in controllers order is half of what arms Enable")
+    # The OTHER half: the baked expression-parameter default comes from the
+    # prms list's assets, merged in ITS order — reorder prms alone and Enable
+    # bakes default 0 with controllers order still green.
+    gp_g = guid_of("built/SyncOnPlayer_Fx_Parameters.asset")
+    sp_g = guid_of(os.path.join("object-sync", "built",
+                                "ObjectSync_Fx_Parameters.asset"))
+    gpi, spi = fc.find(gp_g), fc.find(sp_g)
+    assert_(gpi != -1 and spi != -1 and gpi < spi,
+            f"shared: the glue params asset sits BEFORE the sync build's in "
+            f"prms — the baked Enable default merges in that order "
+            f"({gpi}, {spi})")
+    # The menu asset is the T4 drive surface (the entry's params vanish at
+    # T2), so its entry and prefix are pinned, not just its existence.
+    menu_g = guid_of("built/SyncOnPlayer_Fx_Menu.asset")
+    assert_(menu_g in fc and "prefix: Sync On Player" in fc,
+            "shared: the glue menu asset rides the component's menus at "
+            "prefix `Sync On Player`")
+    blocks = re.findall(r"globalParams:\n((?:        - .+\n)+)", fc)
+    got = [[ln.split("- ", 1)[1].strip().strip("'\"")
+            for ln in b.splitlines()] for b in blocks]
+    assert_(got == [want_gp],
+            f"shared: the component's globalParams is exactly the build's "
+            f"derived list {want_gp} — got {got}")
+    # The mount pairing, both halves: the variant instance (resolved by its
+    # source-prefab guid, never by scanning every m_Name) is named MOUNT, and
+    # it is a DIRECT CHILD of the component's GO — the emitted `ObjectSync/…`
+    # bindings resolve from that GO, so one extra nesting level kills every
+    # binding silently.
+    var_guid = guid_of(os.path.join("object-sync", "ObjectSync.prefab"))
+    inst = next((b for c2, a, b in docs if c2 == 1001
+                 and f"m_SourcePrefab: {{fileID: 100100000, guid: {var_guid}"
+                 in b), "")
+    iname = re.search(r"propertyPath: m_Name\s*\n\s*value: (.+)", inst)
+    assert_(inst != "" and iname is not None
+            and iname.group(1).strip() == MOUNT,
+            f"shared: the sync instance (source {var_guid}) is named "
+            f"{MOUNT!r} — got {iname.group(1).strip() if iname else None!r}")
+    fc_go = re.search(r"m_GameObject: \{fileID: (\d+)\}", fc)
+    root_tf = next((str(a) for c2, a, b in docs if c2 == 4 and fc_go
+                    and f"m_GameObject: {{fileID: {fc_go.group(1)}}}" in b),
+                   None)
+    parent = re.search(r"m_TransformParent: \{fileID: (\d+)\}", inst)
+    assert_(root_tf is not None and parent is not None
+            and parent.group(1) == root_tf,
+            f"shared: the sync instance hangs directly under the component's "
+            f"GO (parent {parent.group(1) if parent else None}, component GO "
+            f"transform {root_tf})")
+    # The two T2 edits on the nested entry instance. The entry's own
+    # FullController never appears as text here — only its
+    # m_RemovedComponents row proves the double build is off; derive the
+    # anchor from the entry prefab rather than pinning a literal.
+    dop_pf = os.path.normpath(os.path.join(
+        HERE, os.pardir, os.pardir, "drop-on-player", "DropOnPlayer.prefab"))
+    dop_guid, dop_tf, dop_comp, dop_docs = entry_nodes(dop_pf)
+    dop_fcs = [a for c2, a, b in dop_docs
+               if c2 == 114 and "class: FullController" in b]
+    mods, removed, parsed, want = parse_mods(docs, raw)
+    gone = [a for a in dop_fcs if (a, dop_guid) in removed["Components"]]
+    assert_(len(dop_fcs) >= 1 and gone == dop_fcs,
+            f"shared: the nested entry instance removes the entry's own "
+            f"FullController ({dop_fcs}) — removed rows carry {gone}")
+    # The physbone `parameter` override mints `Grab_IsGrabbed` for the glue's
+    # conditions (a VRC-SDK component override — survives the build where a
+    # VRCFury one would not).
+    gb_cm = [a for a, n in dop_comp.items() if n == "GrabBone"]
+    got_prm = [m["parameter"][0] for (fid, g), m in mods.items()
+               if g == dop_guid and fid in gb_cm and "parameter" in m]
+    assert_(got_prm == ["Grab"],
+            f"shared: the grab physbone's `parameter` overrides to `Grab` "
+            f"— got {got_prm}")
+    # The glue hard-codes sealed entry names (`OS/Ready`, the stage AAPs),
+    # which couples it to the entry's CONFIG keys with nothing else watching:
+    # rename `internal` or `channel` upstream and the glue recompiles green
+    # while every engage rung gates forever on a param nothing writes. So:
+    # every entry-rooted name the glue binds must be a name its own sync
+    # build's document declares.
+    roots = {cfg["prefix"].split("/")[0],
+             cfg["internal"].split("/")[0],
+             cfg["channel"].split("/")[0]}
+    own = re.sub(r"#.*", "",
+                 open(os.path.join(HERE, "controller.yaml"),
+                      encoding="utf-8").read())
+    reached = sorted({n for n in
+                      re.findall(r"[A-Za-z][A-Za-z0-9_]*/[A-Za-z0-9_/]+", own)
+                      if n.split("/")[0] in roots})
+    declared = set(re.findall(r"^  ([^\s#:]+):",
+                              mod.document(cfg)[0], re.M))
+    missing = [n for n in reached if n not in declared]
+    assert_(len(reached) > 0 and not missing,
+            f"shared: every entry-rooted name the glue binds is declared by "
+            f"its sync build ({len(reached)} names) — undeclared: {missing}")
+    # The sync side carries no FullController of its own anywhere: the entry
+    # prefab used to own one, and a leftover builds the wire twice.
+    rig = open(os.path.join(HERE, "object-sync", "ObjectSync.prefab"),
+               encoding="utf-8").read()
+    assert_("class: FullController" not in rig,
+            "shared: object-sync/ObjectSync.prefab carries no FullController "
+            "— the shared root component is the only merge door")
+
+
 def parse_clips(path):
     """The bounded clip-table subset both documents use: 2-space clip names,
     4-space set:/curves:/length rows, 6-space quoted bindings. Values kept as
@@ -546,13 +687,15 @@ def main():
         print(f"  park {mod.rig_offset(cfg['rigSeed'])}")
         transcription_pins(assert_)
         prefab_pins(assert_, mod, cfg)
+        shared_component_pins(assert_, mod, cfg)
         print("scope: emit determinism, the seed-skew facts, the per-state "
               "cell-binding transcription diff (exceptions carved at the "
-              "carve tables above), and the value-set collapse; the glue's "
-              "TRANSITION set is checked by hand against the entry's (T2), "
-              "and the prefab pins land with the prefab (T-stage build); "
-              "freshness of the committed documents is "
-              "regenerate-and-read-git-diff")
+              "carve tables above), the value-set collapse, and the "
+              "shared-component pins (orders, globalParams, mount, the T2 "
+              "removals); the glue's TRANSITION set is checked by hand "
+              "against the entry's (T2 — recorded in the README), and the "
+              "prefab pins land with the prefab (T-stage build); freshness "
+              "of the committed documents is regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     text, f = mod.document(cfg)
