@@ -651,13 +651,20 @@ def transcription_pins(assert_):
     sset.update(boxt["searching"]["set"])
     diff_cell("seeking", {PREFIX + k: v for k, v in sset.items()}, {})
 
-    # readout leaves: entry values verbatim, padded to the pulse length so
-    # TrackedProvisional's blend-tree exitTime is well-defined.
+    # readout leaves, two sets over the same entry-verbatim values: Tracked's
+    # `readout_*` ride the one-frame floor (box-tracker's stretch rule: every
+    # child of the Tracked DBT stays tiny so its curves play in ~real frames),
+    # while TrackedProvisional's `readout_pulse_*` copies are padded to the
+    # pulse so its blend-tree exitTime dwell keeps its floor.
     for name in ("readout_xp", "readout_xn", "readout_yp", "readout_zp"):
         e = entry[name]
         diff_cell(name, {PREFIX + k: v for k, v in e["set"].items()}, {})
-        assert_(glue[name]["len"] == "0.5",
-                f"`{name}` padded to the pulse length (0.5) — got {glue[name]['len']}")
+        assert_(glue[name]["len"] is None,
+                f"`{name}` rides the one-frame floor (no declared length) — got {glue[name]['len']}")
+        pulse = name.replace("readout_", "readout_pulse_")
+        diff_cell(pulse, {PREFIX + k: v for k, v in e["set"].items()}, {})
+        assert_(glue[pulse]["len"] == "0.5",
+                f"`{pulse}` padded to the pulse length (0.5) — got {glue[pulse]['len']}")
 
     # Empirical lengths transcribe too: the pulse and the boot dwell.
     assert_(glue["released"]["len"] == entry["released"]["len"],

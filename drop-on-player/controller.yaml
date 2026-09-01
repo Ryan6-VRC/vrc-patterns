@@ -20,8 +20,9 @@
 # README for the reconstruction math and the crawl-gain contract, which owns both). The head-
 # catcher's cage is 4 face-proximity BOX receivers (X+ X- Y+ Z+), an exact linear readout writing
 # Output.localPosition inside the Tracked state's direct tree, and a feedback constraint (source0
-# Output : source1 self) crawling the cage onto the reading at a static gain the tracked clip
-# sets (box-tracker's crawl block owns the value, the history, and the DBT normalized-time trap).
+# Output : source1 self) crawling the cage onto the reading, gain held at zero across the latch
+# frames then 0.75 (the tracked clip's guard curve; box-tracker's crawl block owns value, history,
+# and the DBT stretch rule that sizes this state's children).
 # The old 6-sphere crawler-servo (a separate always-on layer, raw proximity => source weights, ALL-
 # loss, a park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
 # converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
@@ -523,7 +524,7 @@ clips:
       "TrackingPoints/Output/Transform.m_LocalPosition.z": 0
 
   tracked:      # latch geometry + tracked-mode rig config; rides the readout tree at weight One.
-    set:        # crawl gain: static source0 below (box-tracker's contract — and its normalized-time trap: never a curve here).
+    set:        # cage config; the gain guard curve below and its timing rule are box-tracker's crawl block.
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
       "Container/VRCPositionConstraint.m_Enabled": 1
@@ -551,12 +552,12 @@ clips:
       "TrackingPoints/X-/Transform.m_LocalScale.z": 1
       "TrackingPoints/Y+/Transform.m_LocalScale.z": 1
       "TrackingPoints/Z+/Transform.m_LocalScale.z": 1
-      "TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": 0.75   # crawl gain — static; box-tracker's crawl block owns value, history, and the never-a-curve trap
     curves:
-      # Acquisition column for the latch frame (0.5), full tracking slabs after it (1) — the
-      # latch samples the coincident column first (box-tracker's coincident-frame idiom). WD would
-      # snap these to 1 at t=0 if the clip didn't own the hold. These play stretched (the DBT's
-      # normalized time, box-tracker's trap note) — accepted, the cube only covers the latch sampling.
+      # Acquisition column first (0.5), full tracking slabs after (1) — the latch samples the
+      # coincident column (box-tracker's coincident-frame idiom). WD would snap these to 1 at t=0
+      # if the clip didn't own the hold. All curves here play stretched by (1 + Σ readings) —
+      # box-tracker's stretch rule — so every child of this state stays tiny (readouts at the
+      # one-frame floor, this clip two frames) and the stretch is 1–5 real frames.
       "TrackingPoints/X+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/X+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/X-/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
@@ -565,6 +566,8 @@ clips:
       "TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
       "TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
+      # Gain guard: zero across the latch/mis-decode frames, 0.75 by clip end (box-tracker's crawl block).
+      "TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.016666668, 0], [0.033333336, 0.75] ]
 
   waiting:      # late-join park: hidden, everything home; the grab physbone stays live outside
     set:

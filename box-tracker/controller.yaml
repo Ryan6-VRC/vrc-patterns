@@ -153,21 +153,24 @@ clips:
   # per binding over the clips that write it, so these values pass through unscaled while the
   # readout_* clips below sum into Output's position. The receiver scales hold the acquisition
   # cube for the first frame (the latch samples first — contact-tracker's coincident-frame idiom)
-  # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl
-  # gain: STATIC — this clip sets source0 to 0.75 (g~0.43) against the self-brake (source1); the
-  # set value and the prefab's static source0 (what holds outside Tracking) are one knob in two
-  # homes — retune together. NEVER author the gain (or any timing intent) as a curve in this
-  # state: the readout DBT is non-normalized with weight-sum > 1, so Unity plays its curves in
-  # NORMALIZED time over duration = Σ(weight × length) ≈ len × (1 + Σ box readings) — an authored
-  # second plays as ~2–4 real seconds, stretching MORE the better-centred the latch (measured
-  # 2026-09-01: a 0.1 s ease played as a 0.4 s dead zone + ~1 s engage; #17's "0.5 s" ease had
-  # shipped as ~1.5–2.5 s in-game). Set values are stretch-immune. The receiver-scale curves below
-  # accept the stretch knowingly — the cube only has to cover the latch sampling, and 2–6 frames
-  # of cube is harmless. History: static gain 1 (g=0.5) read as gritty overshoot and #17 eased it
-  # to 0.65 behind a ramp; T5 judged the (stretched) ramp's dead zone worse than the grit, so the
-  # landing is static 0.75, capped below #17's retired ceiling (operator-directed 2026-09-01).
-  # Stability is structural: the loop is a convex per-frame blend — high gain amplifies readout
-  # jitter but can never ring. First-frame step ≈ g × acquisition gap.
+  # so the latched set is exactly the cube's occupants, then expand to the full slabs. Crawl gain
+  # guard (the source0 curve below): zero across the first frames, 0.75 by clip end. What the
+  # guard covers (measured 2026-09-01): at the latch the receivers still carry column-scale
+  # readings while the decode coefficients assume the full slabs, so Output decodes up to a
+  # slab-dimension off for the first frame or two — ANY gain during that window lunges the cage at
+  # a phantom (a static 0.75 snapped visibly past the target for a frame; #17's "overshot on
+  # initial acquisition" was this, then misread as gain stiffness). Timing rule for EVERY curve in
+  # this state: the readout Direct tree is non-normalized with weight-sum > 1, so curves play at
+  # normT × clipLength over duration = Σ(weight × length) — authored seconds stretch by
+  # (1 + Σ box readings), and real-frame intent survives only if every child is tiny. Hence the
+  # readout leaves ride the schema's one-frame floor and this clip is two frames: the guard's zero
+  # half spans ~1–5 real frames across the reading range, full authority within ~4–10 frames.
+  # NEVER pad a child of this state — a consumer needing a padded DBT dwell (sync-on-player's
+  # provisional) pads its OWN clip copies. Steady 0.75 (g~0.43) is the operator-directed landing
+  # (2026-09-01), capped below the static-1 ceiling #17 retired; the curve's end key and the
+  # prefab's static source0 (what holds outside Tracking) are one knob in two homes — retune
+  # together. Stability is structural: the loop is a convex per-frame blend — high gain amplifies
+  # readout jitter but can never ring.
   latch:
     set:
       TrackingPoints/VRCParentConstraint.m_Enabled: 0
@@ -185,7 +188,6 @@ clips:
       TrackingPoints/X-/Transform.m_LocalScale.z: 1
       TrackingPoints/Y+/Transform.m_LocalScale.z: 1
       TrackingPoints/Z+/Transform.m_LocalScale.z: 1
-      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: 0.75   # crawl gain — static; the block above owns why never a curve
     curves:
       # Cube for the latch frame, full slabs one frame later (WD would snap these to 1 at t=0
       # if the clip didn't own them — the hold is the point).
@@ -197,6 +199,8 @@ clips:
       TrackingPoints/Y+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.x: [ [0, 0.5], [0.016666668, 1] ]
       TrackingPoints/Z+/Transform.m_LocalScale.y: [ [0, 0.5], [0.016666668, 1] ]
+      # Gain guard (block above): zero across the latch frames, 0.75 by clip end.
+      TrackingPoints/VRCPositionConstraint.Sources.source0.Weight: [ [0, 0], [0.016666668, 0], [0.033333336, 0.75] ]
 
   # Readout leaves: Output.localPosition = sum of (reading x coefficients). With face position f
   # = 1.5 and depth D = 3: x = 1.5(X+ - X-); r = 1.5(X+ + X- - 1); y = 3*Y+ - 1.5 - r and
