@@ -133,7 +133,7 @@ VALUE_SETS = {
     "WORD-RIGID-ON": (1, (0, 0, 0, 1), (1, 0), (0, 1), 1),
     "WORD-RIGID-OFF": (1, (0, 0, 0, 1), (1, 0), (0, 1), 0),
     "WORD-DAMPED": (1, (0, 0, 0, 1), (0.1, 1), (0, 1), 1),
-    "WORD-CELL-ON":  (1, (0, 0, 0, 1), (1, 0), (0, 1), 1),
+    "WORD-CELL-ON":  (1, (0, 0, 0, 1), (0.1, 1), (0, 1), 1),   # damped — grab-sync parity (header)
     "WORD-CELL-OFF": (1, (0, 0, 0, 1), (1, 0), (0, 1), 0),
 }
 CLIP_SET = {
