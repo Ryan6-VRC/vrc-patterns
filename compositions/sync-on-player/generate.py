@@ -13,8 +13,10 @@ shared component below.
 
 THE CONFIGURATION
 -----------------
-The entry's shipped CONFIG — the wire block, the shipped default-off `Enable`
-(this composition keeps it off: entry parity, the menu Toggle is the arm) —
+The entry's shipped CONFIG — the wire block, the shipped default-off
+`enableDefault` (the BUILD never arms itself; the glue's params asset declares
+`ObjectSync/Enable` default-1 and merges first, so the pattern spawns armed —
+controller.yaml's header owns the mechanism, --check pins both orders) —
 at two deliberate deltas:
 
 - `mountPath "ObjectSync"`: the sync rig is the nested GO of that name under
@@ -251,13 +253,39 @@ def prefab_pins(assert_, mod, cfg):
             f"Sync_Target Drop toggle; found {len(ent_vrcfury)}) and the root "
             f"pin pair (found {len(ent_pins)}) are all removed "
             f"(removed rows carry {len(gone)} of them)")
-    # the rotation rig is gone: removed-GO rows exist and neither node name
-    # survives anywhere in the variant's own text (an added-back or renamed
-    # node would resurface as a name row)
-    assert_(len(removed["GameObjects"]) >= 2
+    # the rotation rig is gone: every Rot/Recon-named GO is removed by fileID
+    # or sits inside a removed subtree (a bare row-count accepts any two
+    # removals; a descendant of a removed root carries no row of its own),
+    # and neither name survives anywhere in the variant's own text (an
+    # added-back or renamed node would resurface as a name row)
+    os_go = {a: re.search(r"m_Name: (.*)", b).group(1).strip()
+             for c, a, b in os_docs if c == 1 and "m_Name:" in b}
+    rr_fids = sorted(a for a, n in os_go.items() if n in ("Rot", "Recon"))
+    tf_go, tf_father = {}, {}
+    for c, a, b in os_docs:
+        if c != 4:
+            continue
+        mg = re.search(r"m_GameObject: \{fileID: (\d+)\}", b)
+        mf = re.search(r"m_Father: \{fileID: (\d+)\}", b)
+        if mg:
+            tf_go[a] = int(mg.group(1))
+        if mf:
+            tf_father[a] = int(mf.group(1))
+    go_tf = {g: t for t, g in tf_go.items()}
+
+    def gone_or_under(g):
+        t = go_tf.get(g)
+        while t:
+            if (tf_go[t], os_guid) in removed["GameObjects"]:
+                return True
+            t = tf_father.get(t)
+        return False
+
+    direct = [a for a in rr_fids if (a, os_guid) in removed["GameObjects"]]
+    assert_(len(direct) >= 2 and all(gone_or_under(a) for a in rr_fids)
             and not re.search(r"value: (Rot|Recon)\s*$", var_raw, re.M),
-            f"variant: Rot/ and Recon/ removed "
-            f"({len(removed['GameObjects'])} removed-GO rows)")
+            f"variant: Rot/ and Recon/ removed by fileID — {len(direct)} "
+            f"subtree roots removed, {len(rr_fids)} named GOs all covered")
     # repark + retag: the park and tags derive from ONE seed and move together
     prop_mod = next((m for (fid, g), m in mods.items()
                      if g == os_guid and "m_LocalPosition.x" in m
@@ -571,7 +599,11 @@ def transcription_pins(assert_):
         bad = []
         for k, v in expect_set.items():
             got = g["set"].get(k)
-            if got is None or _num(got) != _num(v) and got != v:
+            gn, vn = _num(got), _num(v)
+            # numeric pair -> numeric compare; anything else -> exact string
+            # (an unparenthesized and/or here silently equated non-numerics)
+            if got is None or (gn != vn if gn is not None and vn is not None
+                               else got != v):
                 bad.append(f"{k}: want {v!r} got {got!r}")
         for k, v in expect_curves.items():
             got = g["curves"].get(k)
@@ -634,6 +666,13 @@ def transcription_pins(assert_):
             "provisional dwell = the pulse length (ruling 13)")
     assert_(glue["timer"]["len"] == entry["timer"]["len"],
             f"boot dwell transcribes ({entry['timer']['len']})")
+
+    # The glue's own empirical dwells (header derivations; the README quotes
+    # the 5 s grace and the ~1 s drop-to-word — this is their pin).
+    for name, want in (("seeking", "5.0"), ("bridge", "2.0"), ("resume", "2.5")):
+        assert_(glue[name]["len"] == want,
+                f"`{name}` dwell = clip length {want} (header derivation) — "
+                f"got {glue[name]['len']}")
 
     # Value-set collapse: every clip's glue bindings match its declared set.
     for name, setname in CLIP_SET.items():

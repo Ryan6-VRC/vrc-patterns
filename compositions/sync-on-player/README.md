@@ -41,10 +41,10 @@ Drop `SyncOnPlayer.prefab` under your avatar root. Swap your mesh in for the sph
     │                      Container/TrackingOffset's below-the-prop offset, so at a latch the cage sits
     │                      at word − RideOffset and the prop at cage + RideOffset = word (value-continuous)
     └─ Prop/
-       ├─ DropOnPlayer     nested entry instance. Removed: the root FreezeToWorld node and the
-       │                   ApplyDuringUpload that armed it (the composition pin owns the world frame; a
-       │                   fresh ApplyDuringUpload keeps EditorOnly's build-time TurnOff), the Payload
-       │                   sphere, and the entry's FullController (the glue's machine replaces it
+       ├─ DropOnPlayer     nested entry instance. Removed: the root FreezeToWorld node, whose arming
+       │                   ApplyDuringUpload rides that GO and goes with it (the composition pin owns
+       │                   the world frame; EditorOnly keeps its own inherited TurnOff
+       │                   ApplyDuringUpload, riding the kept GO), the Payload sphere, and the entry's FullController (the glue's machine replaces it
        │                   whole). Overridden:
        │                   the grab physbone's parameter → `Grab`; GrabPosition's source0 → the
        │                   composition Display (grab-prop's sanctioned two-source repoint, so a re-grab
@@ -59,7 +59,7 @@ Drop `SyncOnPlayer.prefab` under your avatar root. Swap your mesh in for the sph
        └─ Container        the damper: VRCPositionConstraint [Source, self]; child Display is the
                            visibility gate and the payload mount
 
-The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above because prose is most of what validates them; run `generate.py --check` for the pinned half.
+The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above because prose is most of what validates them; run `generate.py --check`.
 
 The park↔word ring this adds exists in the constraint graph on every client — solve order derives from sources and targets and never consults weights. The safety argument: the cell's capture edge is hierarchy-authored and no source this composition adds touches any cell-ring constraint, and every edge of the new ring tolerates a one-frame stale read (park, encode-measure, display are all continuous follows). Verify by frame lag over the new ring's edges, never by group index — `../../grab-prop/README.md` §Verifying the install is the method.
 
@@ -74,7 +74,7 @@ The park↔word ring this adds exists in the constraint graph on every client �
 
 ## Verifying it
 
-Grab, carry, release on the wearer must feel exactly like the `drop-on-player` demo — the cell bindings are that entry's clip table verbatim (`generate.py --check` diffs them), and its release ladder (own head / other head / world) is unchanged. The TRANSITION set sits outside that diff's reach and is checked by hand against the entry's `controller.yaml` instead — every entry rung must survive, re-route under a ruling the glue header names, or be dead by reachability — and an edit to either machine's transitions re-runs that check. `SelfDetect` must read 1.000 at rest on the wearer's own head sender — a module-scale minimal rig reads 0 (`docs/emulator.md`) and silently loses the anchored branch, so verify on a full avatar. On a remote clone: a drop glides to the exact spot in ~1 s; a fresh clone shows an already-placed prop **in place** (no fly-in); Enable off/on recalls to the head on both views; a local tracking loss seeks 5 s at the loss point, then freezes in place. The wire itself is `../../object-sync/README.md` §Verifying the install.
+Grab, carry, release on the wearer must feel exactly like the `drop-on-player` demo — the cell bindings are that entry's clip table verbatim (run `generate.py --check`), and its release ladder (own head / other head / world) is unchanged. The TRANSITION set sits outside the check's reach and is checked by hand against the entry's `controller.yaml` instead — every entry rung must survive, re-route under a ruling the glue header names, or be dead by reachability — and an edit to either machine's transitions re-runs that check. `SelfDetect` must read 1.000 at rest on the wearer's own head sender — a module-scale minimal rig reads 0 (`docs/emulator.md`) and silently loses the anchored branch, so verify on a full avatar. On a remote clone: a drop glides to the exact spot in ~1 s; a fresh clone shows an already-placed prop **in place** (no fly-in); Enable off/on recalls to the head on both views; a local tracking loss seeks 5 s at the loss point, then freezes in place. The wire itself is `../../object-sync/README.md` §Verifying the install.
 
 What the emulator structurally cannot show — every item below needs a real second player's client: their IK-delayed body senders, that client's own arbitration, real network timing (`../../../docs/verify.md`) — handed to the in-game two-client checklist instead: the remote edge-latch on a moving recipient and its ≤-one-pulse disagreement flash; wrong-head and crowd behavior under the settled gate, the slow-carry variant and the Seeking-window bystander latch included; the avatar-swap reacquire; FBT sway against the detector's ε at rest and at range; re-latch robustness where word-vs-rendered disagreement approaches the cage half-width; Seeking against real occlusion loss; cull resume in Tracked and SyncedTrack; the Enable double-click receiver-deafness class; chase feel.
 
