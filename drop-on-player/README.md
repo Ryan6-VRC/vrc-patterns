@@ -35,6 +35,7 @@ Values live at the sites named here, not in this README.
 | Remote release-settle | = the `released` pulse length (remotes route by pair at pulse end); must cover the sync tick or a world drop flashes through a stale mode first |
 | Remote boot dwell | the `timer` clip's length — long enough for the synced pair to arrive before a late joiner poses off it |
 | Head-catch column | prefab `TrackingPoints` rest `localScale` + `ScaleAtRest` (zone side = 3 × scale/axis), taller than wide so lowering onto a head catches down the column; doubles as the arbitration zone |
+| Self-anchor arming radius | prefab `TrackingOffset` receiver `radius`; effective arming distance adds the wearer's standard `Head` sender radius (avatar-scaled). The release-to-anchor snap is deliberately rigid — the in-game-proven ancestor shape: a tight radius makes the jump imperceptible, no damper — so this radius bounds the visible jump, and the floor matters: shrink it out of reach of an on-head release and that release falls through the ladder to a world freeze beside the wearer's face |
 | Crawl gain | per `box-tracker`'s crawl-gain row; boxes pinned absolute to `World.prefab` so avatar scale never skews the readout |
 | Loss / acquire | **ANY** box near zero loses (one dead box breaks the exact reconstruction) / all four positive acquires |
 | Physbone / anchor | physbone cloned from `grab-prop`'s rig (see its Rig); `AnchorOffset` must exceed `RideOffset` in local Y — head bone sits at the neck while the cage converges on head-contact center, so re-check per avatar |
