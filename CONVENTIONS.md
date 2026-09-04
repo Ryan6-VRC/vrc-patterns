@@ -7,7 +7,7 @@ Doctrine an entry *embodies* — seams, build order, gimmick packaging, the bind
 ## An entry is a folder
 
     <entry-name>/
-      README.md          # human lead + provenance + Ground truth + traps + measured (§The README); routes to source, never restates it
+      README.md          # what it demonstrates + provenance (§The README)
       controller.yaml    # the YAML source (CompileController); declares basis, role, parameters, menu
       built/             # committed when a GUID references it, or for a declared study entry: .controller + *_Parameters.asset (+ *_Menu.asset) + .meta
       assets/            # owned, self-contained assets the entry ships
@@ -18,6 +18,8 @@ Doctrine an entry *embodies* — seams, build order, gimmick packaging, the bind
 **Entries may nest** (variant builds take subfolders; every composition is a nested entry, and a nested entry is a full entry), but `built/` and `assets/` may not hold one — the gate ignores those directories, so an entry misfiled there is silently never gated.
 
 **No two committed `.meta` under one top-level tree may declare the same GUID.** After copying an entry, re-GUID the copy's `built/` `.meta`s and repoint its prefab in the same edit; the gate names both offenders.
+
+A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
 ## Tier is derived, not assigned
 
@@ -36,25 +38,10 @@ A composition is a runnable arrangement of two or more entries, committed as a p
 
 ## The README
 
-One document, two readers, one direction of trust: the lead is for a human deciding whether to build this; everything after exists only because the artifacts cannot say it. **An agent must never be able to satisfy from this file a lookup the source could answer** — if `controller.yaml`, `generate.py`, or the prefab can answer the question, the README routes there and stops. The catalog row's "Build this" cell is the lead's one-line compression, and the title carries the bare tier in parens.
+An entry README explains what the entry demonstrates and what is non-obvious about how it works, at the length the mechanism needs — an entry exists for what the docs cannot express without a working rig, and the README is where that knowledge lives. One provenance line (§Provenance / PII) is mandatory. Where a broken install looks plausible, say how to tell a correct one apart.
 
-Slots, in order:
-
-- **Lead** — what a consumer *gets*, the packaged novelty, its synced-bit cost; describe, don't sell. Human register.
-- **Provenance** — ancestry and attribution (§Provenance / PII; mandatory).
-- **Ground truth** — a few lines naming which artifact owns what: parameters and behavior in `controller.yaml` (where the YAML is generator-emitted, `generate.py` owns it and its docstring is the design record), the published set in the prefab's `globalParams`, wiring in the prefab. Seam facts no artifact can state — a binding-frame pairing, an anchor rule, a consumer wiring step that ships as an empty reference — are stated here as facts with their failure signatures, and never behind a leading "none": a bullet that opens with "none" must also end there.
-- **Traps** (or **Before you compose it**) — the agent-facing slot: what goes wrong, its symptom, and the site to check. Also the sanctioned home for domain knowledge demoted from `docs/` (`tool-design.md`'s ladder routes a measured surface to the entry that measured it).
-- **Measured** — empirical constants and behavior figures. Every figure carries its method and venue, or routes to its authoring site (name the knob, the direction, the relation). Nothing checks README prose.
-- **Verifying the install** (Module) or **Behavior** (Pattern) — unchanged remit: the cheapest observable distinguishing a correct install from a plausible broken one, plus what the emulator cannot show. For a Structural Module this section is the entry's only standing check, and says so.
-
-No slot may carry: a parameter-by-parameter interface enumeration, prose narration of the state machine or solver, or transcriptions of serialized component values. A **Rig** section, where a hand-maintained prefab warrants one, is topology and rationale — the tree, and why each node is shaped the way it is — never the digit strings, which the prefab owns.
-
-Two standing traps:
-
-- **Route values, keep relations.** A tuned number lives once at its authoring site; the README names the knob, the direction, and the relation. Quote only what the rig *produces*, a structural constant whose re-derivation is the design (named as an echo of its source); when a clone physically copies a value, the canon names its copy sites.
+- **A constant lives in the code.** The README names the knob, the direction, and the relation — never the value; when a clone physically copies a value, name its copy sites. Never restate what `controller.yaml` or the prefab already says: parameter lists, serialized values, the state machine step by step. Why it is shaped that way is the point.
 - **Never append a verification run.** A sound re-verification leaves the README alone; a broken one fixes the entry and edits the line that was wrong.
-
-A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
 ## The gate
 
