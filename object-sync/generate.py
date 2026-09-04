@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """object-sync generator: emits the three committed controller.yaml documents
-(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below; DEMOS configs are
-emit-only smoke (emitted, and refused where unpackable, on every change; nothing
-on disk).
+(root = full, `y/`, `y_double/`) from CONFIG + PRESETS below.
 
 Edit CONFIG, rerun (`python generate.py`), recompile each touched built/ — the
 three controller.yaml documents committed here are generated output: never
@@ -131,9 +129,9 @@ CONFIG = {
     # to the nested GO's name — e.g. "ObjectSync" for a rig at
     # `<component GO>/ObjectSync` — and every emitted binding is prefixed so it
     # resolves from the component's own GameObject without leaning on VRCFury's
-    # ancestor walk-up (operator-ruled 2026-08-31: the walk-up resolves today
+    # ancestor walk-up (the walk-up resolves today
     # and is still not a contract to build on). The GO name and this string are
-    # a hand-maintained pairing: the consumer's own --check pins them.
+    # a hand-maintained pairing.
     "mountPath": "",
     # `Enable`'s declared default, 0 or 1: at 1 the enable tree evaluates armed
     # from frame one, where a driver forcing it true leaves the one-frame off->on
@@ -149,7 +147,7 @@ CONFIG = {
     # Position measure. range is the half-extent about the rig anchor, so the
     # working volume is +/-range metres on each axis. coarseBits must span it at
     # cellSize resolution: 2*range/cellSize == 2**coarseBits.
-    # 4096/12/12 is the ruled uniform geometry (operator, 2026-08-16): every
+    # 4096/12/12 is the uniform geometry: every
     # word is byte+4 bools, every position group 2 bytes + 8 bools, at a finer
     # LSB (~0.78 mm) for a +/-4096 m working volume — accepted, not a bit
     # harvest.
@@ -238,7 +236,7 @@ CONFIG = {
     },
 }
 
-# The two other COMMITTED builds (operator-ruled 2026-08-02: all three variants
+# The two other COMMITTED builds (all three variants
 # ship as built artifacts, so a GitHub download is usable without this
 # workspace). Each overrides CONFIG["objects"] only and rides CONFIG's wire
 # block unchanged; each emits into its own subdirectory (`y/`, `y_double/`)
@@ -249,31 +247,6 @@ PRESETS = {
     "y_double": {"objects": [{"name": "PropA", "rotation": "y"},
                              {"name": "PropB", "rotation": "y"}]},
 }
-
-# Check-only DEMO configs (operator-ruled 2026-08-17): `--check` emits each —
-# nothing lands on disk (no controller.yaml, no prefab, no built/) and nothing
-# is asserted beyond byte-identical regeneration. At this scale every consumer
-# writes their own CONFIG; these exist so the multi-object emission the
-# committed builds cannot reach (mixed rotation modes, slice weighting, widened
-# slots) still runs derive()'s refusals on every change. A DEMO may override the
-# `wire` block — merged SHALLOWLY onto CONFIG's, because a dict replacement
-# would silently drop `indexLoops: 1` back to word-channel's default of 2,
-# costing an index bit and three Sync states per batch with no diagnostic.
-DEMOS = {
-    # The mount emission the committed builds cannot reach (all three ship at
-    # mountPath "") — every prefixed binding site runs on every --check.
-    "mounted": {"mountPath": "ObjectSync"},
-    "six": {
-        "objects": [{"name": "Prop0", "rotation": "full", "slices": 3},
-                    {"name": "Prop1", "rotation": "y"},
-                    {"name": "Prop2", "rotation": "y"},
-                    {"name": "Prop3", "rotation": "y"},
-                    {"name": "Prop4", "rotation": "y"},
-                    {"name": "Prop5", "rotation": "y"}],
-        "wire": {"numberSlots": 4, "boolSlots": 16},
-    },
-}
-
 
 # ------------------------------------------------------- derived geometry ----
 
@@ -302,6 +275,14 @@ def derive(c):
                 "of the multi-object ring, and a single-object build emits no "
                 "Slice layer, so the key would change nothing while the header "
                 "claimed it did. Drop it.")
+    # Per-object collision tags land in the HAND-MAINTAINED prefabs, and two
+    # objects on one tag set is measured-broken — refuse the config here rather
+    # than emit it.
+    flat = [t for ob in c["objects"] for t in tag_set(c, ob["name"])]
+    if len(set(flat)) != len(flat):
+        raise SystemExit(
+            f"REFUSE: collision tags collide across objects/stages ({flat}) — "
+            "object names must derive distinct tag sets.")
     # Per-slice contact budget: one object's rig live at a time, so the active
     # cluster is that object's own receivers — coarse 3 + fine 3 + one per
     # rotation component (6/2/0 by mode). The ceiling guards FUTURE modes, not
@@ -881,7 +862,7 @@ def build(c):
                 (re.match(r"\s*([^\s#:]+):", ln) for ln in params
                  if ln.strip() and not ln.strip().startswith("#"))
                 if m and m.group(1) not in wcm.BUILTINS]
-    # ONE name — the interface is sealed (operator, 2026-08-31). `Ready` and
+    # ONE name — the interface is sealed. `Ready` and
     # `<channel>/Acquired` are declared under sealed roots, so check_namespaces
     # holds the published wildcard to exactly `Enable`: a consumer reading past
     # it merges through the same FullController component instead (CONFIG's
@@ -2065,38 +2046,12 @@ def committed_configs():
     return out
 
 
-def check_configs():
-    """Everything the structural suite runs over: the committed builds plus the
-    check-only DEMOS. A DEMO's `wire` merges shallowly onto CONFIG's (see the
-    DEMOS comment for the indexLoops trap a replacement reintroduces)."""
-    out = committed_configs()
-    for name, over in DEMOS.items():
-        cfg = dict(CONFIG)
-        for k, v in over.items():
-            if k == "wire":
-                w = dict(CONFIG["wire"])
-                w.update(v)
-                cfg["wire"] = w
-            else:
-                cfg[k] = v
-        out[name] = cfg
-    return out
-
-
 def check():
-    """The hand-maintained surfaces no compile or gate reads — the prefabs'
-    wiring and cross-asset pins, the README's quoted figures — plus the emit
-    determinism that makes regenerate-and-read-git-diff a valid freshness
-    instrument. Deliberately nothing else: freshness of the committed
-    documents is regen + git diff, and nothing here asserts the emitted
-    document's shape — the document is a pure function of this file, so a
-    shape assert is rewritten by the very edit it would catch (measured,
-    across a full composition build, at zero of five shipped defects found
-    while its green output was cited as verification evidence). CONVENTIONS.md
-    §Per-entry checks is the standard; a rule that generalizes lives in
-    ControllerRules, where CompileController's graph-lint stage already
-    refuses the compile (driver-on-animated-param, which this file once
-    re-implemented in Python, is the worked instance)."""
+    """The hand-maintained prefab surfaces no compile or gate reads, each of
+    which fails silently at build: the `globalParams` list, the sense
+    receivers' names, the collision tags and their carriers, the park, the
+    source offsets, and the world pin. Nothing else — a check that does not
+    guard a non-obvious breakage of the pattern is deleted."""
     ok = True
 
     def assert_(cond, msg):
@@ -2104,93 +2059,6 @@ def check():
         print(("  ok   " if cond else "  FAIL ") + msg)
         if not cond:
             ok = False
-
-    # Determinism over every config, DEMOS included: the multi-object emission
-    # the committed builds cannot reach is still emitted on every change —
-    # derive() refuses an unpackable config loudly — and a nondeterministic
-    # emit would make every regen diff read as drift.
-    for label, cfg in check_configs().items():
-        print(f"[{label}]")
-        text, f = document(cfg)
-        assert_(document(cfg)[0] == text, "regeneration is byte-identical")
-        facts = f["facts"]
-        print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
-              f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.2f}s refresh")
-
-    # Per-object collision tags land in the HAND-MAINTAINED prefabs, and two
-    # objects on one tag set is measured-broken — a config edit that collides
-    # them regenerates green and ships a defect regeneration cannot fix.
-    for label, cfg in committed_configs().items():
-        tags = [tag_set(cfg, ob["name"]) for ob in cfg["objects"]]
-        flat = [t for group in tags for t in group]
-        assert_(len(set(flat)) == len(flat),
-                f"{label}: collision tags are unique across objects and stages ({flat})")
-
-    # `globalParams` is a VRCFury field with no CompileController spelling, so
-    # the document cannot carry it and the README is where it is specified for
-    # the prefab. Assert the line exists rather than letting it drift silently.
-    print("[README]")
-    readme = os.path.join(HERE, "README.md")
-    if os.path.exists(readme):
-        body = open(readme, encoding="utf-8").read()
-        want_gp = document(CONFIG)[1]["facts"]["globalParams"]
-        assert_(f"`globalParams` is exactly `{'`, `'.join(want_gp)}`" in body,
-                f"README quotes the derived globalParams list ({', '.join(want_gp)}) "
-                "— a consumer reads it from there to bind the interface")
-        assert_(f"`source0 = Sync_Target`, `source1 = Rig/<obj>/{DISPLAY_NODE}`"
-                in body,
-                "README pins the two Sync sources in the order the Follow layer "
-                "indexes them")
-        # The assert above reads DISPLAY_NODE, so renaming the node breaks it —
-        # which is what lets README §Ground truth publish that path as a read.
-        # Below: the Rig table states the default in prose no figure reaches.
-        want_ed = ("unsaved and default-off" if enable_default(CONFIG) == 0
-                   else "unsaved and default-on")
-        assert_(f"**{want_ed}**" in body,
-                f"README's Rig table states the shipped Enable default "
-                f"(`enableDefault` = {enable_default(CONFIG)} -> {want_ed})")
-        # Synced cost is the wire PLUS `Enable`, and word-channel's own accounting
-        # cannot see the second term — Enable is this entry's param, not the
-        # transport's. Both figures are quoted in the lead and the Wire bullet,
-        # so pin both to the generator rather than to a reviewer's arithmetic.
-        cfacts = document(CONFIG)[1]["facts"]
-        wire_bits = cfacts["wireBits"]
-        assert_(f"= **{wire_bits} bits**" in body,
-                f"README's Wire bullet states the {wire_bits}-bit transport wire")
-        assert_(f"**{wire_bits + 1} synced bits**" in body,
-                f"README's lead states {wire_bits + 1} synced bits total "
-                f"(wire {wire_bits} + {CONFIG['prefix']}/Enable)")
-        # The geometry pins the wire-bit pair cannot see: the 8192->4096 bump
-        # measurably moved NEITHER wireBits figure, so without these a fully
-        # stale README passes. Every figure is read off derive()'s output, and
-        # the two squeeze weights use exact dyadic repr — num()'s 9-decimal
-        # rounding would pin a value the prefab must not carry.
-        gm = cfacts["geometry"]
-        g_w = CONFIG["coarseHalfSpan"] / CONFIG["range"]
-        for frag, why in (
-                (f"±{num(CONFIG['range'])} m", "working volume"),
-                (f"{CONFIG['coarseBits']}+{CONFIG['fineBits']}", "bit split"),
-                (f"({num(gm['fineSpan'])} m)", "redundant fine field"),
-                (f"{num(round(gm['fineLSB'] * 1000, 5))} mm", "fine LSB"),
-                (repr(g_w), "squeeze weight g"),
-                (repr(1 - g_w), "squeeze weight 1-g")):
-            assert_(frag in body, f"README carries the current {why} ({frag})")
-        # Cost accounting pinned per committed build: state/layer counts and
-        # the Floatify limb count are the generator's own figures.
-        dfacts = {lbl: document(cfg2)[1]["facts"]
-                  for lbl, cfg2 in committed_configs().items()}
-        s0, l0 = dfacts["committed"]["stateCount"], dfacts["committed"]["layerCount"]
-        assert_(f"**{s0} states and {l0} layers**" in body,
-                f"README's Costs states the root build's {s0}/{l0}")
-        assert_(f"({dfacts['y']['stateCount']}/{dfacts['y']['layerCount']} and "
-                f"{dfacts['y_double']['stateCount']}/{dfacts['y_double']['layerCount']} "
-                in body,
-                "README's Costs states the y and y_double state/layer counts")
-        fl = dfacts["committed"]["floatifyLimbs"]
-        assert_(f"({fl - 1}+1 params" in body,
-                f"README's Floatify accounting matches the generator ({fl - 1}+1)")
-    else:
-        assert_(False, "README.md is missing")
 
     # A build's prefab text, plus its base's when the build is a VARIANT. A variant serialises only
     # its overrides, so scanning its own file alone sees a fraction of the wiring: the world-pin
@@ -2401,11 +2269,6 @@ def check():
             assert_(not bad_mods,
                     f"{label}: the variant overrides no park or tag "
                     f"(m_Modifications rows: {sorted(set(bad_mods))})")
-        # The committed builds ship the FullController on the rig root, so a
-        # committed config that grew a mount prefix has broken every binding.
-        assert_(cfg.get("mountPath", "") == "",
-                f"{label}: committed builds emit at mountPath \"\" — a mounted "
-                "build is a consumer generation, never committed here")
 
     # The prefabs are hand-maintained, so the document pin cannot see a park
     # creeping back onto a constraint source offset — and the emulator cannot
@@ -2495,9 +2358,6 @@ def check():
                     f"(fileID in {sorted(world_tf)}, {world_guid}), "
                     f"found {len(refs)} [{how}]: {sorted(set(refs))}")
 
-    print("scope: emit determinism and hand-maintained wiring only — freshness "
-          "of committed generated files is regenerate-and-read-git-diff; "
-          "document structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 

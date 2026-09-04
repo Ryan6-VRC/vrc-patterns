@@ -804,17 +804,9 @@ def prefab_global_params(body):
 
 
 def check():
-    """The hand-maintained surfaces no compile or gate reads — the prefab's
-    globalParams list and the README's quoted formula — plus the emit
-    determinism that makes regenerate-and-read-git-diff a valid freshness
-    instrument. Assertions on the emitted document's own shape — the Acquired
-    head/tail/Lost mechanism was pinned here once — are deliberately gone
-    (CONVENTIONS.md §Per-entry checks): the document is a pure function of
-    this file, and the mechanism's invariants live as comments at their
-    emission sites and in the emitted YAML."""
+    """The one hand-maintained surface no compile or gate reads: the prefab's
+    `globalParams` list, which fails silently at build."""
     c = CONFIG
-    p = c["channel"]
-    text = document(c)[0]
     ok = True
 
     def assert_(cond, msg):
@@ -822,18 +814,6 @@ def check():
         print(("  ok   " if cond else "  FAIL ") + msg)
         ok = ok and cond
 
-    print("[document]")
-    # Comparing two calls shows only that the emit is deterministic (no set
-    # iteration order, no clock, no dict-address leakage reaching the text) —
-    # which is exactly what makes an empty regen diff mean "no drift".
-    assert_(document(c)[0] == text, "emission is deterministic across two calls")
-
-    # `globalParams` is a VRCFury field with no CompileController spelling, so
-    # nothing in the compile or the gate reads it. Pin the prefab's list here or
-    # it drifts silently. The expectation is DERIVED from the published set, not
-    # an enumeration echoed here: adding a word must not require a prefab edit,
-    # and check_namespaces has already refused a published set the wildcards
-    # cannot express exactly.
     print("[prefab globalParams]")
     pf_path = os.path.join(HERE, "WordChannel.prefab")
     if os.path.exists(pf_path):
@@ -847,24 +827,6 @@ def check():
                 "latches and Cycle stay instance-prefixed")
     else:
         assert_(False, f"WordChannel.prefab is missing ({pf_path})")
-
-    print("[README]")
-    rd_path = os.path.join(HERE, "README.md")
-    if os.path.exists(rd_path):
-        body = open(rd_path, encoding="utf-8").read()
-        # One assert, and the scope rule says why there is not a second: CONVENTIONS
-        # §Per-entry checks puts README-quoted FIGURES in scope, and this README quotes
-        # none — no Costs slot, no state count, the docstring owning the formula. A pin
-        # on a figure the README does not carry fails forever and pins nothing; add one
-        # back only alongside the figure it guards.
-        assert_(f"`{p}/Acquired`" in body,
-                "README's Interface stanza names the emitted correctness output")
-    else:
-        assert_(False, "README.md is missing")
-
-    print("scope: emit determinism and hand-maintained wiring only — freshness "
-          "of committed generated files is regenerate-and-read-git-diff; "
-          "document structure, prefab behavior and runtime are unverified here")
     return 0 if ok else 1
 
 

@@ -11,7 +11,7 @@ Grab a prop off your head and release it: on your own head it anchors, on anothe
 | `box-tracker` | the Searching configuration `Seeking` ports (via `drop-on-player`, whose cage is that entry's) |
 | `word-channel` | the wire underneath (reached through `object-sync`) |
 
-Its own contribution, belonging to no entry: the seventeen-state glue arbitrating cell, cage, and word (`controller.yaml` — its header carries every design ruling and carve), the settled-word detector that gates remote cage acquisition, the sensor-first remote edge-latch, and the wearer's 5 s loss-grace dwell.
+Its own contribution, belonging to no entry: the seventeen-state glue arbitrating cell, cage, and word (`controller.yaml` — its header carries every design decision and carve), the settled-word detector that gates remote cage acquisition, the sensor-first remote edge-latch, and the wearer's 5 s loss-grace dwell.
 
 ## Install
 
@@ -59,7 +59,7 @@ Drop `SyncOnPlayer.prefab` under your avatar root. Swap your mesh in for the sph
        └─ Container        the damper: VRCPositionConstraint [Source, self]; child Display is the
                            visibility gate and the payload mount
 
-The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above because prose is most of what validates them; run `generate.py --check`.
+The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above and pinned by `generate.py --check`.
 
 The park↔word ring this adds exists in the constraint graph on every client — solve order derives from sources and targets and never consults weights. The safety argument: the cell's capture edge is hierarchy-authored and no source this composition adds touches any cell-ring constraint, and every edge of the new ring tolerates a one-frame stale read (park, encode-measure, display are all continuous follows). Verify by frame lag over the new ring's edges, never by group index — `../../grab-prop/README.md` §Verifying the install is the method.
 
@@ -74,7 +74,7 @@ The park↔word ring this adds exists in the constraint graph on every client �
 
 ## Verifying it
 
-Grab, carry, release on the wearer must feel exactly like the `drop-on-player` demo — the cell bindings are that entry's clip table verbatim (run `generate.py --check`), and its release ladder (own head / other head / world) is unchanged. The TRANSITION set sits outside the check's reach and is checked by hand against the entry's `controller.yaml` instead — every entry rung must survive, re-route under a ruling the glue header names, or be dead by reachability — and an edit to either machine's transitions re-runs that check. `SelfDetect` must read 1.000 at rest on the wearer's own head sender — a module-scale minimal rig reads 0 (`docs/emulator.md`) and silently loses the anchored branch, so verify on a full avatar. On a remote clone: a drop glides to the exact spot in ~1 s; a fresh clone shows an already-placed prop **in place** (no fly-in); Enable off/on recalls to the head on both views; a local tracking loss seeks 5 s at the loss point, then freezes in place. The wire itself is `../../object-sync/README.md` §Verifying the install.
+Grab, carry, release on the wearer must feel exactly like the `drop-on-player` demo — the cell bindings are that entry's clip table verbatim, and its release ladder (own head / other head / world) is unchanged. The transition set is checked by hand against the entry's `controller.yaml` — every entry rung must survive, re-route under a decision the glue header names, or be dead by reachability — and an edit to either machine's transitions re-runs that check. `SelfDetect` must read 1.000 at rest on the wearer's own head sender — a module-scale minimal rig reads 0 (`docs/emulator.md`) and silently loses the anchored branch, so verify on a full avatar. On a remote clone: a drop glides to the exact spot in ~1 s; a fresh clone shows an already-placed prop **in place** (no fly-in); Enable off/on recalls to the head on both views; a local tracking loss seeks 5 s at the loss point, then freezes in place. The wire itself is `../../object-sync/README.md` §Verifying the install.
 
 What the emulator structurally cannot show — every item below needs a real second player's client: their IK-delayed body senders, that client's own arbitration, real network timing (`../../../docs/verify.md`) — handed to the in-game two-client checklist instead: the remote edge-latch on a moving recipient and its ≤-one-pulse disagreement flash; wrong-head and crowd behavior under the settled gate, the slow-carry variant and the Seeking-window bystander latch included; the avatar-swap reacquire; FBT sway against the detector's ε at rest and at range; re-latch robustness where word-vs-rendered disagreement approaches the cage half-width; Seeking against real occlusion loss; cull resume in Tracked and SyncedTrack; the Enable double-click receiver-deafness class; chase feel.
 

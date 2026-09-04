@@ -166,7 +166,7 @@ clips:
   # readout leaves ride the schema's one-frame floor and this clip is two frames: the guard's zero
   # half spans ~1–5 real frames across the reading range, full authority within ~4–10 frames.
   # NEVER pad a child of this state — a consumer needing a padded DBT dwell (sync-on-player's
-  # provisional) pads its OWN clip copies. Steady 0.7 (g~0.41) is the operator-directed landing
+  # provisional) pads its OWN clip copies. Steady 0.7 (g~0.41) is the landing
   # (wear-tested), capped below the static-1 ceiling #17 retired; the curve's end key and the
   # prefab's static source0 (what holds outside Tracking) are one knob in two homes — retune
   # together. Stability is structural: the loop is a convex per-frame blend — high gain amplifies

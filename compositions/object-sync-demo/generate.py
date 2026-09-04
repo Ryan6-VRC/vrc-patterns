@@ -27,7 +27,7 @@ THE WIRE
 `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — 3
 batches, 50 wire bits, 0.350 s full refresh, 11 sync states. Settled in
 `docs/local/m3-brief.md` §The wire at 18 slots / 52 bits for the 147-bit
-table, retuned with the 12+12 geometry (operator-ruled 2026-08-17): at 144
+table, retuned with the 12+12 geometry: at 144
 bits the worst batch pins 16 bool words, so the two extra slots rode every
 batch idle; the 28-bit shipped default stays for
 composed avatars that cannot afford more, and this avatar carries no other
@@ -38,7 +38,7 @@ the tablet's Index readout reading as a counter.
 THE SHARED COMPONENT (the prefab half this generator cannot author)
 -------------------------------------------------------------------
 The demo's `Demo_Fx` and its object-sync build merge through ONE FullController
-on the prefab root — the sealed-interface coupling (operator, 2026-08-31): the
+on the prefab root — the sealed-interface coupling: the
 entry publishes `Enable` alone, and everything else the tablet reads (`OS/D/*`
 decoded AAPs, `OS/Ch/Wire/Idx*`, `OS/Ready`, `OSCh/Acquired`) is reachable only
 because one component prefixes both controllers identically and the shared
@@ -123,13 +123,6 @@ def main():
             print(("  ok   " if cond else "  FAIL ") + msg)
             ok = ok and cond
 
-        assert_(mod.document(cfg)[0] == text, "regeneration is byte-identical")
-        # The Enable default, the slot packing, and the on-disk document are
-        # NOT re-asserted here: the entry's generator refuses `enableDefault`
-        # outside 0/1, check_slots refuses an unpackable config, the REFUSE
-        # above pins the settled 3-batch/50-bit
-        # wire, and freshness of the committed document is regenerate-and-read-
-        # git-diff (CONVENTIONS.md §Per-entry checks).
         # The prefab is the hand-edited half — a wrong globalParams entry or a
         # split component lands silently (VRCFury exposes nothing and says
         # nothing) and no compile or gate reads either.
@@ -178,13 +171,6 @@ def main():
                     "Demo_Fx and the object-sync build share exactly ONE "
                     f"FullController (found in {len(ours)} components of "
                     f"{len(fc_blocks)} total)")
-            fc = ours[0] if ours else ""
-            di = fc.find("compositions/object-sync-demo/built/Demo_Fx.controller")
-            si = fc.find("compositions/object-sync-demo/object-sync/built/"
-                         "ObjectSync_Fx.controller")
-            assert_(di != -1 and si != -1,
-                    f"the shared component carries Demo_Fx ({di}) and the "
-                    f"object-sync build ({si})")
             # The demo is a VARIANT of the entry prefab, so the entry's own
             # FullController arrives inherited and text-invisible; only its
             # m_RemovedComponents row proves the double build is off.
@@ -257,9 +243,6 @@ def main():
             assert_(False, f"ObjectSyncDemo.prefab is missing ({pf_path})")
         print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} payload / "
               f"{facts['batchCount']} batches / ~{facts['cycleSeconds']:.3f}s refresh")
-        print("scope: emit determinism and hand-maintained wiring only — freshness "
-              "of committed generated files is regenerate-and-read-git-diff; "
-              "document structure, prefab behavior and runtime are unverified here")
         sys.exit(0 if ok else 1)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

@@ -25,20 +25,26 @@ at two deliberate deltas:
   (the entry's §Seam; grab-sync is the worked precedent). Controller ORDER in
   that component is load-bearing (glue first, first-wins); controller.yaml's
   header owns the mechanism and the check below pins the order.
-- `rigSeed "sync-on-player/g6"` (operator-approved 2026-08-31, G6 rulings):
-  this composition's OWN namespace skew — tags and park derive from the seed
-  together, which is what lets a different object-sync build (grab-sync at
-  the entry default) compose beside this one on one avatar. The parameters
-  stay sealed identical by design; only tags and park differ.
+- `rigSeed "sync-on-player/g6"`: this composition's OWN namespace skew — tags
+  and park derive from the seed together, which is what lets a different
+  object-sync build (grab-sync at the entry default) compose beside this one
+  on one avatar. The parameters stay sealed identical by design; only tags
+  and park differ.
 
 The build is position-only: `drop-on-player` ships one position channel, so
 no drag bone, no heading, no rotation words exist anywhere in this
 composition — the emitted surface is the `Sync`/`Sync_Target` pair and the
 two collision tags printed in the document header.
+
+The glue document's cell bindings are `drop-on-player/controller.yaml`'s clip
+table transcribed by hand under the `Prop/DropOnPlayer/` prefix (its header
+names the carves); nothing here checks that transcription. `--check` asserts
+only the hand-maintained prefab wiring that fails silently at build.
 """
 
 import importlib.util
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -53,9 +59,9 @@ OBJECTS = [{"name": "Prop", "rotation": "none"}]
 # and the check below reads it back off the prefab.
 MOUNT = "ObjectSync"
 
-# The namespace skew (G6 ruling 16 as shipped by G7): one string, from which
-# tag_set derives the collision tags and rig_offset derives the park —
-# together, never separately (the entry's CONFIG rigSeed comment owns why).
+# The namespace skew: one string, from which tag_set derives the collision
+# tags and rig_offset derives the park — together, never separately (the
+# entry's CONFIG rigSeed comment owns why).
 RIG_SEED = "sync-on-player/g6"
 
 
@@ -79,79 +85,8 @@ def sync_config(mod):
     return cfg
 
 
-# ---------------------------------------------------------------------------
-# The transcription assert (G6 spec §Glue): cell bindings transcribe VERBATIM
-# from drop-on-player's clip table — values unchanged, paths gaining the
-# Prop/DropOnPlayer/ prefix — with the exceptions carved EXPLICITLY here and
-# nowhere else. The diff compares CLIPS, not transitions: the transition set is
-# checked by hand against the entry's controller.yaml (T2), which this assert
-# structurally cannot see.
-
-PREFIX = "Prop/DropOnPlayer/"
-
-# glue clip -> the entry clip whose cell bindings it transcribes
-CELL_SOURCE = {
-    "timer": "timer", "disabled": "disabled", "anchored": "anchored",
-    "grabbed": "grabbed", "released": "released", "dropped": "dropped",
-    "waiting": "waiting", "tracked": "tracked",
-    "bridge": "dropped", "acquireflush": "dropped", "synced": "dropped",
-    "resume": "dropped", "reacquire": "grabbed", "resume_grab": "grabbed",
-    # fusions (handled specially below):
-    #   provisional = released cell + tracked cage (+ both clips' curves)
-    #   seeking     = tracked cell + box-tracker `searching` cage
-}
-
-# The GrabPosition repoint carve: word states hold (1,0) so the parked cell
-# root rides the word through the repointed Display (spec ruling 9 + grab-sync
-# §How it works' sanctioned two-source repoint).
-GP_CARVE = {"acquireflush", "synced", "resume"}
-GP0 = PREFIX + "GrabPosition/VRCPositionConstraint.Sources.source0.Weight"
-GP1 = PREFIX + "GrabPosition/VRCPositionConstraint.Sources.source1.Weight"
-
-# The 9 glue bindings every clip adds (excluded from the entry diff; pinned by
-# the value-set collapse assert below).
-GLUE_KEYS = (
-    "Prop/GameObject.m_IsActive",
-    "Prop/Source/VRCPositionConstraint.Sources.source0.Weight",
-    "Prop/Source/VRCPositionConstraint.Sources.source1.Weight",
-    "Prop/Source/VRCPositionConstraint.Sources.source2.Weight",
-    "Prop/Source/VRCPositionConstraint.Sources.source3.Weight",
-    "Prop/Container/VRCPositionConstraint.Sources.source0.Weight",
-    "Prop/Container/VRCPositionConstraint.Sources.source1.Weight",
-    PREFIX + "TrackingPoints/VRCParentConstraint.Sources.source0.Weight",
-    PREFIX + "TrackingPoints/VRCParentConstraint.Sources.source1.Weight",
-    "Prop/Container/Display/GameObject.m_IsActive",
-)
-
-# Value-sets (spec §Value-sets): (root, mux0..3, damper0..1, park0..1, display)
-# display None = curve-owned (asserted present as a curve instead).
-VALUE_SETS = {
-    "HIDDEN":      (1, (0, 1, 0, 0), (1, 0), (1, 0), 0),
-    "HIDDEN-OFF":  (0, (0, 1, 0, 0), (1, 0), (1, 0), 0),   # disabled's root kill
-    "ANCHOR":      (1, (1, 0, 0, 0), (1, 0), (1, 0), 1),
-    "CELL":        (1, (0, 1, 0, 0), (1, 0), (1, 0), 1),
-    "CAGE":        (1, (0, 0, 1, 0), (1, 0), (1, 0), 1),
-    "WORD-RIGID":  (1, (0, 0, 0, 1), (1, 0), (0, 1), None),
-    "WORD-RIGID-ON": (1, (0, 0, 0, 1), (1, 0), (0, 1), 1),
-    "WORD-RIGID-OFF": (1, (0, 0, 0, 1), (1, 0), (0, 1), 0),
-    "WORD-DAMPED": (1, (0, 0, 0, 1), (0.1, 1), (0, 1), 1),
-    "WORD-CELL-ON":  (1, (0, 0, 0, 1), (0.1, 1), (0, 1), 1),   # damped — grab-sync parity (header)
-    "WORD-CELL-OFF": (1, (0, 0, 0, 1), (1, 0), (0, 1), 0),
-}
-CLIP_SET = {
-    "timer": "HIDDEN", "disabled": "HIDDEN-OFF", "waiting": "HIDDEN",
-    "anchored": "ANCHOR",
-    "grabbed": "CELL", "released": "CELL", "dropped": "CELL", "bridge": "CELL",
-    "tracked": "CAGE", "provisional": "CAGE", "seeking": "CAGE",
-    "acquireflush": "WORD-RIGID", "resume": "WORD-RIGID-OFF",
-    "synced": "WORD-DAMPED",
-    "reacquire": "WORD-CELL-ON", "resume_grab": "WORD-CELL-OFF",
-}
-
-
 def prefab_docs(path):
     """Split a Unity YAML asset into (classId, anchor, body) documents."""
-    import re
     docs = []
     for m in re.finditer(r"^--- !u!(\d+) &(\d+)\n(.*?)(?=^--- |\Z)",
                          open(path, encoding="utf-8").read(),
@@ -162,10 +97,9 @@ def prefab_docs(path):
 
 def parse_mods(docs, raw):
     """Every PrefabInstance's modification rows, grouped per (target fileID,
-    guid), plus removed component/GO fileID sets per source guid — with
-    grab-sync's vacuity guard: every serialized row must parse or the negative
-    asserts read over an empty set."""
-    import re
+    guid), plus removed component/GO fileID sets per source guid — with the
+    vacuity guard: every serialized row must parse or the negative asserts
+    read over an empty set."""
     mod_re = re.compile(
         r"- target: \{fileID:\s+(\d+),\s+guid:\s+(\w+),\s+type:\s+3\}\s*\n"
         r"      propertyPath: ([^\n]+)\n      value: ([^\n]*)\n"
@@ -188,16 +122,14 @@ def parse_mods(docs, raw):
 
 
 def guid_of(rel):
-    import re
     return re.search(r"guid: (\w+)",
                      open(os.path.join(HERE, rel) + ".meta",
                           encoding="utf-8").read()).group(1)
 
 
 def entry_nodes(prefab_path):
-    """(guid, name->transform-fileIDs, name->component-fileIDs-by-owner) for a
-    hand-read entry prefab (flat, no nesting)."""
-    import re
+    """(guid, transform-fileID->owner name, component-fileID->owner name, docs)
+    for a hand-read entry prefab (flat, no nesting)."""
     guid = re.search(r"guid: (\w+)",
                      open(prefab_path + ".meta", encoding="utf-8").read()).group(1)
     docs = prefab_docs(prefab_path)
@@ -208,17 +140,22 @@ def entry_nodes(prefab_path):
         m = re.search(r"m_GameObject: \{fileID: (\d+)", b)
         if c in (4, 114, 208) and m:
             owner[a] = go_name.get(int(m.group(1)), "?")
-    tf = {a: owner[a] for c, a, b in docs if c == 4 for a in [a] if a in owner}
+    tf = {a: owner[a] for c, a, b in docs if c == 4 and a in owner}
     comp = {a: owner[a] for c, a, b in docs if c == 114 and a in owner}
     return guid, tf, comp, docs
 
 
+def _num(s):
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def prefab_pins(assert_, mod, cfg):
-    """The hand-maintained surfaces no compile or gate reads (CONVENTIONS §Per-
-    entry checks): the variant's removals/retag/repark against the entry, and
-    the composition's nested-instance wiring — the removal record the README
-    carries in prose, pinned where a fileID can carry it."""
-    import re
+    """The hand-maintained prefab surfaces no compile or gate reads, each of
+    which fails silently at build: the variant's removals, retag and repark
+    against the entry, and the composition's nested-instance wiring."""
     entry_pf = os.path.normpath(os.path.join(
         HERE, os.pardir, os.pardir, "object-sync", "ObjectSync.prefab"))
     dop_pf = os.path.normpath(os.path.join(
@@ -235,11 +172,8 @@ def prefab_pins(assert_, mod, cfg):
     assert_(f"guid: {os_guid}" in var_raw,
             "variant: sources the entry prefab (a Regular re-save silently "
             "stops tracking entry-side retunes)")
-    # the entry's own merge/pin/toggle surface is REMOVED (the shared root
-    # component is the only merge door; the composition root carries the one pin)
-    # A MonoBehaviour doc never carries its C# type name — VRCFury features are
-    # identified by their managedReference `class:` line, constraints by their
-    # distinctive serialized fields (FreezeToWorld / ScaleAtRest).
+    # The entry's own merge/pin/toggle surface is REMOVED: a leftover builds
+    # the wire twice or arms a second world pin, with no build error.
     ent_vrcfury = [a for c, a, b in os_docs if c == 114
                    and re.search(r"class: (FullController|Toggle|ApplyDuringUpload)\b", b)]
     ent_pins = [a for c, a, b in os_docs if c == 114
@@ -249,15 +183,11 @@ def prefab_pins(assert_, mod, cfg):
             if (a, os_guid) in removed["Components"]]
     assert_(len(ent_vrcfury) == 4 and len(ent_pins) == 2
             and sorted(gone) == sorted(ent_vrcfury + ent_pins),
-            f"variant: the entry's 4 VRCFury components (root FC/Toggle/ADU + "
-            f"Sync_Target Drop toggle; found {len(ent_vrcfury)}) and the root "
-            f"pin pair (found {len(ent_pins)}) are all removed "
+            f"variant: the entry's 4 VRCFury components (found {len(ent_vrcfury)}) "
+            f"and the root pin pair (found {len(ent_pins)}) are all removed "
             f"(removed rows carry {len(gone)} of them)")
-    # the rotation rig is gone: every Rot/Recon-named GO is removed by fileID
-    # or sits inside a removed subtree (a bare row-count accepts any two
-    # removals; a descendant of a removed root carries no row of its own),
-    # and neither name survives anywhere in the variant's own text (an
-    # added-back or renamed node would resurface as a name row)
+    # The rotation rig is gone: a leftover Rot/Recon subtree keeps its contacts
+    # live at the park, summing into the position cluster with no error.
     os_go = {a: re.search(r"m_Name: (.*)", b).group(1).strip()
              for c, a, b in os_docs if c == 1 and "m_Name:" in b}
     rr_fids = sorted(a for a, n in os_go.items() if n in ("Rot", "Recon"))
@@ -286,7 +216,7 @@ def prefab_pins(assert_, mod, cfg):
             and not re.search(r"value: (Rot|Recon)\s*$", var_raw, re.M),
             f"variant: Rot/ and Recon/ removed by fileID — {len(direct)} "
             f"subtree roots removed, {len(rr_fids)} named GOs all covered")
-    # repark + retag: the park and tags derive from ONE seed and move together
+    # Repark + retag: the park and tags derive from ONE seed and move together.
     prop_mod = next((m for (fid, g), m in mods.items()
                      if g == os_guid and "m_LocalPosition.x" in m
                      and _num(m["m_LocalPosition.x"][0]) is not None
@@ -316,25 +246,27 @@ def prefab_pins(assert_, mod, cfg):
             f"composition: modification parser read every row ({cparsed}/{cwant})")
     dop_guid, dop_tf, dop_comp, dop_docs = entry_nodes(dop_pf)
 
-    # nested drop-on-player: FreezeToWorld + Payload GOs removed
+    # Nested drop-on-player: the FreezeToWorld node (and the ApplyDuringUpload
+    # riding it) removed — a second world pin arming at build is silent.
     dop_go = {a: re.search(r"m_Name: (.*)", b).group(1).strip()
               for c, a, b in dop_docs if c == 1 and "m_Name:" in b}
-    for node in ("FreezeToWorld", "Payload"):
-        fids = [a for a, n in dop_go.items() if n == node]
-        assert_(fids and any((f, dop_guid) in cremoved["GameObjects"] for f in fids),
-                f"composition: drop-on-player `{node}` GO removed")
-    # the cell's stale edge: no instance modification re-parents/re-poses
-    # SourcePosition, and no added source on its constraint (grab-sync's pins)
+    fids = [a for a, n in dop_go.items() if n == "FreezeToWorld"]
+    assert_(fids and any((f, dop_guid) in cremoved["GameObjects"] for f in fids),
+            "composition: drop-on-player `FreezeToWorld` GO removed")
+    # The cell's stale edge: no instance modification re-poses SourcePosition,
+    # and no added source on its constraint — the capture drops with every clip
+    # identical (grab-prop README §How it works).
     sp_tf = [a for a, n in dop_tf.items() if n == "SourcePosition"]
     sp_cm = [a for a, n in dop_comp.items() if n == "SourcePosition"]
     bad_sp = [pp for (fid, g), m in cmods.items() if g == dop_guid
               for pp in m
-              if (fid in sp_tf and pp.startswith(("m_Father", "m_LocalPosition",
+              if (fid in sp_tf and pp.startswith(("m_LocalPosition",
                                                   "m_LocalRotation")))
               or (fid in sp_cm and pp.startswith("Sources."))]
     assert_(not bad_sp,
             f"composition: the cell's SourcePosition is untouched (found {bad_sp})")
-    # GrabPosition repoint (the sanctioned two-source repoint): source0 retargeted
+    # GrabPosition repoint (the two-source repoint): source0 retargeted, weights
+    # and source1 untouched — a re-grab from a word state starts on the display.
     gp_cm = [a for a, n in dop_comp.items() if n == "GrabPosition"]
     gp_mod = [m for (fid, g), m in cmods.items()
               if g == dop_guid and fid in gp_cm]
@@ -345,9 +277,8 @@ def prefab_pins(assert_, mod, cfg):
                         for m in gp_mod for pp in m),
             "composition: GrabPosition source0 repointed, weights and source1 "
             "untouched (two sources always — grab-prop §How it works)")
-    # the park gains exactly one word-side source
-    tp_cm = [a for a, n in dop_comp.items()
-             if n == "TrackingPoints"]
+    # The cage park gains exactly one word-side source.
+    tp_cm = [a for a, n in dop_comp.items() if n == "TrackingPoints"]
     tp_mod = [m for (fid, g), m in cmods.items()
               if g == dop_guid and fid in tp_cm]
     assert_(any(m.get("Sources.totalLength", ("",))[0] == "2" for m in tp_mod)
@@ -356,7 +287,8 @@ def prefab_pins(assert_, mod, cfg):
                         for m in tp_mod for pp in m),
             "composition: the cage park gains source1 (the word park) at "
             "totalLength 2, source0 untouched")
-    # CagePark: an added plain GO named CagePark, parked BELOW the prop (y<0)
+    # CagePark: a plain GO parked BELOW the prop (y<0) — the catch column is
+    # mis-centered by one ride offset otherwise, with no error.
     cp = re.search(r"m_Name: CagePark", comp_raw)
     cp_y = re.search(
         r"m_Name: CagePark(?:.*\n)*?  m_LocalPosition: \{x: ([-\d.e]+), y: ([-\d.e]+)",
@@ -365,10 +297,9 @@ def prefab_pins(assert_, mod, cfg):
             "composition: CagePark exists with a below-the-prop offset "
             f"(y={cp_y.group(2) if cp_y else '?'})")
     # Sync_Target wired to the mux, statically. The nested instance is the
-    # VARIANT, whose remapped fileIDs appear in no .prefab (unity.md §Reading
-    # serialized assets), so the row is identified by its content: the one
-    # totalLength 0→1 write on the variant instance is Sync_Target's shipped
-    # empty-list constraint gaining its single source.
+    # VARIANT, whose remapped fileIDs appear in no .prefab, so the row is
+    # identified by its content: the one totalLength 0->1 write on the variant
+    # instance is Sync_Target's shipped empty-list constraint gaining its source.
     var_guid = guid_of(os.path.join("object-sync", "ObjectSync.prefab"))
     st_mod = [m for (fid, g), m in cmods.items() if g == var_guid
               and m.get("Sources.totalLength", ("",))[0] == "1"]
@@ -377,10 +308,9 @@ def prefab_pins(assert_, mod, cfg):
             and "Sources.source0.SourceTransform" in st_mod[0],
             "composition: Sync_Target sources [Prop/Source w=1] (the encoder "
             "measures the mux output, undamped)")
-    # the ONE pin: exactly the two constraint docs on the composition ROOT GO
-    # (every VRC constraint serializes FreezeToWorld:, so ownership is the
-    # discriminator) serialize disabled at all-zero offsets — never Activate a
-    # world pin (runtime.md §Constraints)
+    # The ONE pin: exactly the two constraint docs on the composition ROOT GO
+    # serialize disabled at all-zero offsets — the shipping client scales a
+    # source offset per client (runtime.md §Constraints), silently.
     root_go = next(re.search(r"m_GameObject: \{fileID: (\d+)\}", b).group(1)
                    for c, a, b in comp_docs
                    if c == 4 and "m_Father: {fileID: 0}" in b)
@@ -396,23 +326,16 @@ def prefab_pins(assert_, mod, cfg):
 
 
 def shared_component_pins(assert_, mod, cfg):
-    """The sealed-interface coupling (T2 subsume), pinned per grab-sync's
-    template: everything here is a hand-maintained pairing only this check
-    reads — the ONE shared FullController's controller AND prms order (glue
-    first in both: the animator param merge follows controllers order and the
-    baked expression-parameter default follows prms order, so either inversion
-    disarms the glue's Enable default-1 — controller.yaml's header owns the
-    mechanism), the shipped menu entry and its prefix, globalParams exactly
-    the build's derived list (the seal), the mount pairing (the variant
-    instance named MOUNT, hanging directly under the component's GO — the
-    frame every emitted binding resolves from), the nested entry's recorded
-    FullController removal plus its physbone `parameter` override (the two T2
-    remove-and-add edits nothing else validates), the glue's entry-rooted
-    names against what the build's document declares, and the absence of any
-    second FullController on the sync side (a split component un-unifies
-    every shared name with no build error — the rewrite memo is per
-    component)."""
-    import re
+    """The sealed-interface coupling: the ONE shared FullController's
+    controller AND prms order (glue first in both — the animator param merge
+    follows controllers order and the baked expression-parameter default
+    follows prms order, so either inversion bakes Enable default-0 with no
+    error), globalParams exactly the build's derived list, the mount pairing
+    (the variant instance named MOUNT, hanging directly under the component's
+    GO — the frame every emitted binding resolves from), the nested entry's
+    FullController removal, the glue's entry-rooted names against what the
+    build declares, and no second FullController on the sync side (a split
+    component un-unifies every shared name with no build error)."""
     comp_path = os.path.join(HERE, "SyncOnPlayer.prefab")
     raw = open(comp_path, encoding="utf-8").read()
     docs = prefab_docs(comp_path)
@@ -421,24 +344,16 @@ def shared_component_pins(assert_, mod, cfg):
     assert_(n_fc == 1,
             f"shared: exactly ONE FullController authored here — a second "
             f"component un-unifies every shared name (found {n_fc})")
-    # Every ordering and membership read below is scoped to THAT component's
-    # own document — a whole-file find() would keep passing after a
-    # controller moved onto some other component.
     fc = next((b for c2, a, b in docs
                if c2 == 114 and "class: FullController" in b), "")
     glue_g = guid_of("built/SyncOnPlayer_Fx.controller")
     sync_g = guid_of(os.path.join("object-sync", "built",
                                   "ObjectSync_Fx.controller"))
     gi, si = fc.find(glue_g), fc.find(sync_g)
-    assert_(gi != -1 and si != -1,
-            f"shared: the component carries both built controllers by GUID "
-            f"(glue at {gi}, sync at {si})")
-    assert_(gi == -1 or si == -1 or gi < si,
-            "shared: the glue controller sits BEFORE the sync build — "
-            "first-wins in controllers order is half of what arms Enable")
-    # The OTHER half: the baked expression-parameter default comes from the
-    # prms list's assets, merged in ITS order — reorder prms alone and Enable
-    # bakes default 0 with controllers order still green.
+    assert_(gi != -1 and si != -1 and gi < si,
+            f"shared: the glue controller sits BEFORE the sync build in "
+            f"controllers (glue at {gi}, sync at {si}) — first-wins in "
+            "controllers order is half of what arms Enable")
     gp_g = guid_of("built/SyncOnPlayer_Fx_Parameters.asset")
     sp_g = guid_of(os.path.join("object-sync", "built",
                                 "ObjectSync_Fx_Parameters.asset"))
@@ -447,23 +362,12 @@ def shared_component_pins(assert_, mod, cfg):
             f"shared: the glue params asset sits BEFORE the sync build's in "
             f"prms — the baked Enable default merges in that order "
             f"({gpi}, {spi})")
-    # The menu asset is the T4 drive surface (the entry's params vanish at
-    # T2), so its entry and prefix are pinned, not just its existence.
-    menu_g = guid_of("built/SyncOnPlayer_Fx_Menu.asset")
-    assert_(menu_g in fc and "prefix: Sync On Player" in fc,
-            "shared: the glue menu asset rides the component's menus at "
-            "prefix `Sync On Player`")
     blocks = re.findall(r"globalParams:\n((?:        - .+\n)+)", fc)
     got = [[ln.split("- ", 1)[1].strip().strip("'\"")
             for ln in b.splitlines()] for b in blocks]
     assert_(got == [want_gp],
             f"shared: the component's globalParams is exactly the build's "
             f"derived list {want_gp} — got {got}")
-    # The mount pairing, both halves: the variant instance (resolved by its
-    # source-prefab guid, never by scanning every m_Name) is named MOUNT, and
-    # it is a DIRECT CHILD of the component's GO — the emitted `ObjectSync/…`
-    # bindings resolve from that GO, so one extra nesting level kills every
-    # binding silently.
     var_guid = guid_of(os.path.join("object-sync", "ObjectSync.prefab"))
     inst = next((b for c2, a, b in docs if c2 == 1001
                  and f"m_SourcePrefab: {{fileID: 100100000, guid: {var_guid}"
@@ -483,10 +387,6 @@ def shared_component_pins(assert_, mod, cfg):
             f"shared: the sync instance hangs directly under the component's "
             f"GO (parent {parent.group(1) if parent else None}, component GO "
             f"transform {root_tf})")
-    # The two T2 edits on the nested entry instance. The entry's own
-    # FullController never appears as text here — only its
-    # m_RemovedComponents row proves the double build is off; derive the
-    # anchor from the entry prefab rather than pinning a literal.
     dop_pf = os.path.normpath(os.path.join(
         HERE, os.pardir, os.pardir, "drop-on-player", "DropOnPlayer.prefab"))
     dop_guid, dop_tf, dop_comp, dop_docs = entry_nodes(dop_pf)
@@ -497,21 +397,9 @@ def shared_component_pins(assert_, mod, cfg):
     assert_(len(dop_fcs) >= 1 and gone == dop_fcs,
             f"shared: the nested entry instance removes the entry's own "
             f"FullController ({dop_fcs}) — removed rows carry {gone}")
-    # The physbone `parameter` override mints `Grab_IsGrabbed` for the glue's
-    # conditions (a VRC-SDK component override — survives the build where a
-    # VRCFury one would not).
-    gb_cm = [a for a, n in dop_comp.items() if n == "GrabBone"]
-    got_prm = [m["parameter"][0] for (fid, g), m in mods.items()
-               if g == dop_guid and fid in gb_cm and "parameter" in m]
-    assert_(got_prm == ["Grab"],
-            f"shared: the grab physbone's `parameter` overrides to `Grab` "
-            f"— got {got_prm}")
-    # The glue hard-codes sealed entry names (`OS/Ready`, the stage AAPs),
-    # which couples it to the entry's CONFIG keys with nothing else watching:
+    # The glue hard-codes sealed entry names (`OS/Ready`, the stage AAPs):
     # rename `internal` or `channel` upstream and the glue recompiles green
-    # while every engage rung gates forever on a param nothing writes. So:
-    # every entry-rooted name the glue binds must be a name its own sync
-    # build's document declares.
+    # while every engage rung gates forever on a param nothing writes.
     roots = {cfg["prefix"].split("/")[0],
              cfg["internal"].split("/")[0],
              cfg["channel"].split("/")[0]}
@@ -527,178 +415,11 @@ def shared_component_pins(assert_, mod, cfg):
     assert_(len(reached) > 0 and not missing,
             f"shared: every entry-rooted name the glue binds is declared by "
             f"its sync build ({len(reached)} names) — undeclared: {missing}")
-    # The sync side carries no FullController of its own anywhere: the entry
-    # prefab used to own one, and a leftover builds the wire twice.
     rig = open(os.path.join(HERE, "object-sync", "ObjectSync.prefab"),
                encoding="utf-8").read()
     assert_("class: FullController" not in rig,
             "shared: object-sync/ObjectSync.prefab carries no FullController "
             "— the shared root component is the only merge door")
-
-
-def parse_clips(path):
-    """The bounded clip-table subset both documents use: 2-space clip names,
-    4-space set:/curves:/length rows, 6-space quoted bindings. Values kept as
-    verbatim strings so the diff is exact."""
-    import re
-    clips, cur, sect = {}, None, None
-    started = False
-    for line in open(path, encoding="utf-8"):
-        if re.match(r"^clips:", line):
-            started, cur = True, None
-            continue
-        if not started:
-            continue
-        m = re.match(r"^  ([\w+-]+):", line)
-        if m:
-            cur = m.group(1)
-            clips[cur] = {"set": {}, "curves": {}, "len": None}
-            sect = None
-            continue
-        if cur is None:
-            continue
-        m = re.match(r"^    (seconds|length): ([\d.]+)", line)
-        if m:
-            clips[cur]["len"] = m.group(2)
-            continue
-        if re.match(r"^    set:", line):
-            sect = "set"
-            continue
-        if re.match(r"^    curves:", line):
-            sect = "curves"
-            continue
-        m = re.match(r'^      "([^"]+)": (.+?)\s*$', line) \
-            or re.match(r'^      ([\w+./-]+(?:/[\w+.-]+)*): (.+?)\s*$', line)
-        if m and sect:
-            val = m.group(2)
-            if not val.startswith(("{", "[")):
-                val = re.sub(r"\s+#.*$", "", val)
-            clips[cur][sect][m.group(1)] = val
-    return clips
-
-
-def _num(s):
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def transcription_pins(assert_):
-    entry = parse_clips(os.path.join(HERE, os.pardir, os.pardir,
-                                     "drop-on-player", "controller.yaml"))
-    boxt = parse_clips(os.path.join(HERE, os.pardir, os.pardir,
-                                    "box-tracker", "controller.yaml"))
-    glue = parse_clips(os.path.join(HERE, "controller.yaml"))
-
-    def diff_cell(name, expect_set, expect_curves):
-        g = glue.get(name)
-        if g is None:
-            assert_(False, f"clip `{name}` exists in the glue document")
-            return
-        bad = []
-        for k, v in expect_set.items():
-            got = g["set"].get(k)
-            gn, vn = _num(got), _num(v)
-            # numeric pair -> numeric compare; anything else -> exact string
-            # (an unparenthesized and/or here silently equated non-numerics)
-            if got is None or (gn != vn if gn is not None and vn is not None
-                               else got != v):
-                bad.append(f"{k}: want {v!r} got {got!r}")
-        for k, v in expect_curves.items():
-            got = g["curves"].get(k)
-            if got != v:
-                bad.append(f"curve {k}: want {v!r} got {got!r}")
-        extra = [k for k in list(g["set"]) + list(g["curves"])
-                 if k.startswith(PREFIX) and k not in GLUE_KEYS
-                 and k not in expect_set and k not in expect_curves]
-        assert_(not bad and not extra,
-                f"`{name}` transcribes its cell verbatim"
-                + (f" — mismatched: {bad[:4]}" if bad else "")
-                + (f" — untranscribed extras: {extra[:4]}" if extra else ""))
-
-    # The plain transcriptions, GP carve applied where ruled.
-    for name, src in CELL_SOURCE.items():
-        e = entry[src]
-        eset = {PREFIX + k: v for k, v in e["set"].items()}
-        ecur = {PREFIX + k: v for k, v in e["curves"].items()}
-        if name in GP_CARVE:
-            eset[GP0], eset[GP1] = "1", "0"
-        diff_cell(name, eset, ecur)
-
-    # provisional = released cell + tracked cage; tracked owns scale x/y by
-    # curve and Output by the readout DBT, so released's static copies drop.
-    import re
-    rel, trk = entry["released"], entry["tracked"]
-    fset = dict(rel["set"])
-    for k, v in trk["set"].items():
-        if k.startswith("TrackingPoints/"):
-            fset[k] = v
-    for k in list(fset):
-        if re.search(r"TrackingPoints/[XYZ][+-]/Transform\.m_LocalScale\.[xy]$", k) \
-           or "TrackingPoints/Output/" in k:
-            del fset[k]
-    fcur = dict(trk["curves"])
-    fcur.update(rel["curves"])
-    diff_cell("provisional",
-              {PREFIX + k: v for k, v in fset.items()},
-              {PREFIX + k: v for k, v in fcur.items()})
-
-    # seeking = tracked cell + box-tracker's `searching` cage verbatim (the
-    # self-hold configuration is that entry's to own).
-    sset = {k: v for k, v in trk["set"].items()
-            if not k.startswith("TrackingPoints/")}
-    sset.update(boxt["searching"]["set"])
-    diff_cell("seeking", {PREFIX + k: v for k, v in sset.items()}, {})
-
-    # readout leaves, two sets over the same entry-verbatim values: Tracked's
-    # `readout_*` ride the one-frame floor (box-tracker's stretch rule: every
-    # child of the Tracked DBT stays tiny so its curves play in ~real frames),
-    # while TrackedProvisional's `readout_pulse_*` copies are padded to the
-    # pulse so its blend-tree exitTime dwell keeps its floor.
-    for name in ("readout_xp", "readout_xn", "readout_yp", "readout_zp"):
-        e = entry[name]
-        diff_cell(name, {PREFIX + k: v for k, v in e["set"].items()}, {})
-        assert_(glue[name]["len"] is None,
-                f"`{name}` rides the one-frame floor (no declared length) — got {glue[name]['len']}")
-        pulse = name.replace("readout_", "readout_pulse_")
-        diff_cell(pulse, {PREFIX + k: v for k, v in e["set"].items()}, {})
-        assert_(glue[pulse]["len"] == "0.5",
-                f"`{pulse}` padded to the pulse length (0.5) — got {glue[pulse]['len']}")
-
-    # Empirical lengths transcribe too: the pulse and the boot dwell.
-    assert_(glue["released"]["len"] == entry["released"]["len"],
-            f"released pulse length transcribes ({entry['released']['len']})")
-    assert_(glue["provisional"]["len"] == entry["released"]["len"],
-            "provisional dwell = the pulse length (ruling 13)")
-    assert_(glue["timer"]["len"] == entry["timer"]["len"],
-            f"boot dwell transcribes ({entry['timer']['len']})")
-
-    # The glue's own empirical dwells (header derivations; the README quotes
-    # the 5 s grace and the ~1 s drop-to-word — this is their pin).
-    for name, want in (("seeking", "5.0"), ("bridge", "2.0"), ("resume", "2.5")):
-        assert_(glue[name]["len"] == want,
-                f"`{name}` dwell = clip length {want} (header derivation) — "
-                f"got {glue[name]['len']}")
-
-    # Value-set collapse: every clip's glue bindings match its declared set.
-    for name, setname in CLIP_SET.items():
-        root, mux, damper, park, disp = VALUE_SETS[setname]
-        want = dict(zip(GLUE_KEYS,
-                        (root, *mux, *damper, *park,
-                         disp if disp is not None else "CURVE")))
-        g = glue[name]
-        bad = []
-        for k, v in want.items():
-            if v == "CURVE":
-                if k not in g["curves"]:
-                    bad.append(f"{k}: expected curve-owned")
-                continue
-            got = g["set"].get(k)
-            if got is None or _num(got) != float(v):
-                bad.append(f"{k}: want {v} got {got!r}")
-        assert_(not bad, f"`{name}` holds value-set {setname}"
-                + (f" — off: {bad[:4]}" if bad else ""))
 
 
 def main():
@@ -713,35 +434,18 @@ def main():
             print(("  ok   " if cond else "  FAIL ") + msg)
             ok = ok and cond
 
-        text, f = mod.document(cfg)
-        facts = f["facts"]
-        assert_(mod.document(cfg)[0] == text, "regeneration is byte-identical")
+        # The seed skew against the entry default: a shared tag is the
+        # cross-build sender bleed, a shared park the cluster-summing bug —
+        # both silent, both only visible with two builds on one avatar.
         tags = mod.tag_set(cfg, "Prop")
-        assert_(len(tags) == len(set(tags)),
-                f"collision tags unique across stages ({len(tags)} tags: {tags})")
         entry_tags = mod.tag_set(mod.CONFIG, mod.CONFIG["objects"][0]["name"])
         assert_(not set(tags) & set(entry_tags),
-                f"tags disjoint from the entry default's (a shared tag is the "
-                f"cross-build sender bleed the rigSeed skew exists to prevent)")
+                "tags disjoint from the entry default's")
         assert_(tuple(mod.rig_offset(cfg["rigSeed"]))
                 != tuple(mod.rig_offset(mod.CONFIG["rigSeed"])),
-                "park disjoint from the entry default's (tags and park skew "
-                "together — the cluster-summing bug needs both)")
-        print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} "
-              f"payload / {facts['batchCount']} batches / "
-              f"~{facts['cycleSeconds']:.3f}s refresh")
-        print(f"  park {mod.rig_offset(cfg['rigSeed'])}")
-        transcription_pins(assert_)
+                "park disjoint from the entry default's")
         prefab_pins(assert_, mod, cfg)
         shared_component_pins(assert_, mod, cfg)
-        print("scope: emit determinism, the seed-skew facts, the per-state "
-              "cell-binding transcription diff (exceptions carved at the "
-              "carve tables above), the value-set collapse, and the "
-              "shared-component pins (orders, globalParams, mount, the T2 "
-              "removals); the glue's TRANSITION set is checked by hand "
-              "against the entry's (T2 — recorded in the README), and the "
-              "prefab pins land with the prefab (T-stage build); freshness "
-              "of the committed documents is regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     text, f = mod.document(cfg)

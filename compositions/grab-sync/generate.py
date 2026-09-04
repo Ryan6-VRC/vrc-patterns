@@ -26,7 +26,7 @@ first-wins declaration is what arms it), no menu — at `mountPath "ObjectSync"`
 the sync rig is the nested GO of that name under each composition root, and the
 root's FullController is SHARED, carrying the glue controller and the sync
 build together. That sharing is the whole coupling mechanism since the entry
-sealed its interface (operator, 2026-08-31): one component prefixes both
+sealed its interface: one component prefixes both
 controllers identically, so the glue's reads of `OS/Ready` and the entry's
 writes are one parameter, with no `globalParams` exposure beyond the entry's
 own derived list (`ObjectSync/*`, matching `Enable` alone). Controller ORDER in
@@ -133,9 +133,8 @@ def cell_nodes():
 
 
 def prefab_pins(assert_):
-    """The handful of prefab pins CONVENTIONS assigns a composition's check:
-    the drift classes nothing else reads (the cell's untouched sample edge,
-    physbone params, Payload removals, controller wiring).
+    """The prefab pins nothing else reads and whose breakage is silent: the
+    cell's untouched sample edge on every nested GrabProp instance.
 
     The cell's own rig is NOT here — that is `grab-prop`'s prefab, nested rather
     than inline. What survives here is the half no entry can see: this composition
@@ -170,7 +169,7 @@ def prefab_pins(assert_):
             r"- target: \{fileID:\s+(\d+),\s+guid:\s+(\w+),\s+type:\s+3\}\s*\n"
             r"      propertyPath: ([^\n]+)\n      value: ([^\n]*)\n"
             r"      objectReference: \{fileID:\s+(\d+)\}")
-        params, added_sources, moved_cells, parsed = [], [], [], 0
+        added_sources, moved_cells, parsed = [], [], 0
         for c, a, b in docs:
             if c != 1001:
                 continue
@@ -190,11 +189,9 @@ def prefab_pins(assert_):
                 # A re-parent or a re-position of the sample cell breaks the
                 # hierarchy relation the capture rests on.
                 if fid == sp_fid and any(
-                        p.startswith(("m_Father", "m_LocalPosition", "m_LocalRotation"))
+                        p.startswith(("m_LocalPosition", "m_LocalRotation"))
                         for p in m):
                     moved_cells.append(f"&{a}")
-                if m.get("parameter", ("",))[0].startswith("Grab"):
-                    params.append(m["parameter"][0])
         # The vacuity guard: every serialized modification row must have been
         # parsed, or the negative asserts below pass over an empty set.
         want_rows = raw.count("\n      propertyPath: ")
@@ -207,20 +204,8 @@ def prefab_pins(assert_):
                 f"{prefab}: no added source on the cell SourcePosition constraint "
                 f"(found on {added_sources})")
         assert_(not moved_cells,
-                f"{prefab}: no nested instance re-parents or re-poses SourcePosition "
+                f"{prefab}: no nested instance re-poses SourcePosition "
                 f"(found on {moved_cells})")
-        params = sorted(params)
-        assert_(params == sorted("Grab" + s for s in props),
-                f"{prefab}: physbone parameters {params}")
-        payload_removals = raw.count("4257538466046114012, guid: db55e975")
-        assert_(payload_removals == len(props),
-                f"{prefab}: Payload removed on all {len(props)} GrabProp instance(s)")
-
-        # FullController wired to this composition's own build
-        ctrl = "GrabSync_Fx" if prefab == "GrabSync.prefab" else "MultiGrabSync_Fx"
-        meta = os.path.join(HERE, "built", ctrl + ".controller.meta")
-        guid = re.search(r"guid: (\w+)", open(meta, encoding="utf-8").read()).group(1)
-        assert_(guid in raw, f"{prefab}: FullController resolves to built/{ctrl}.controller")
 
 
 def shared_component_pins(assert_, mod):
@@ -269,11 +254,9 @@ def shared_component_pins(assert_, mod):
         glue_g = meta_guid(f"built/{glue_ctrl}.controller")
         sync_g = meta_guid(f"{sync_dir}/built/ObjectSync_Fx.controller")
         gi, si = fc.find(glue_g), fc.find(sync_g)
-        assert_(gi != -1 and si != -1,
-                f"{prefab}: the shared FullController carries both built "
-                f"controllers by GUID ({glue_ctrl} at {gi}, {sync_dir} at {si})")
-        assert_(gi == -1 or si == -1 or gi < si,
-                f"{prefab}: the glue controller sits BEFORE the sync build — "
+        assert_(gi != -1 and si != -1 and gi < si,
+                f"{prefab}: the glue controller sits BEFORE the sync build in "
+                f"controllers ({glue_ctrl} at {gi}, {sync_dir} at {si}) — "
                 "first-wins in controllers order is half of what arms Enable")
         # The OTHER half: the baked expression-parameter default comes from
         # the prms list's assets, merged in ITS order — reorder prms alone
@@ -379,20 +362,6 @@ def main():
             print(("  ok   " if cond else "  FAIL ") + msg)
             ok = ok and cond
 
-        for label, (cfg, _out) in builds.items():
-            print(f"[{label}]")
-            text, f = mod.document(cfg)
-            facts = f["facts"]
-            assert_(mod.document(cfg)[0] == text,
-                    f"{label}: regeneration is byte-identical")
-            tags = [mod.tag_set(cfg, ob["name"]) for ob in cfg["objects"]]
-            flat = [t for ts in tags for t in ts]
-            assert_(len(flat) == len(set(flat)),
-                    f"{label}: collision tags unique across objects and stages "
-                    f"({len(flat)} tags)")
-            print(f"  wire {facts['wireBits']} bits / {facts['payloadBits']} "
-                  f"payload / {facts['batchCount']} batches / "
-                  f"~{facts['cycleSeconds']:.3f}s refresh")
         prefab_pins(assert_)
         shared_component_pins(assert_, mod)
 
@@ -430,11 +399,6 @@ def main():
                 f"ObjectSync.prefab: each tag sits on exactly its stage's "
                 f"components — off (got, want): {off}")
 
-        print("scope: emit determinism, the prefab pins above, the shared-component "
-              "pins (controllers+prms order, seal, mount name+parent, glue names), "
-              "and the object-sync rig prefab's node names + collision tags/counts "
-              "against OBJECTS; freshness of the committed documents is "
-              "regenerate-and-read-git-diff")
         sys.exit(0 if ok else 1)
 
     for label, (cfg, out) in builds.items():

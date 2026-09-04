@@ -15,7 +15,7 @@ registry table is the ledger; bump `revision` here and reinstall the manifest).
 Same discipline as the base: edit CONFIG, rerun (`python generate.py`), recompile
 `built/` in a mounting Editor — never hand-edit `controller.yaml` or
 `built/manifest.json`; check their freshness by regenerating and reading git
-diff (`--check` pins the prefab's `globalParams` list, which no gate reads).
+diff. `--check` pins the prefab's `globalParams` list, which no gate reads.
 """
 
 import importlib.util
@@ -68,8 +68,7 @@ CONFIG = {
 
 
 def document(base, c):
-    """The base `document()`'s frame under this instance's controller name —
-    one frame home, so a base frame change reaches this build through `--check`."""
+    """The base `document()`'s frame under this instance's controller name."""
     return base.document(c, controller="QuantChannelIndexPuppet_Fx")
 
 

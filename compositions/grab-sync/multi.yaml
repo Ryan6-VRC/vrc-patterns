@@ -2,7 +2,7 @@
 # suffixed A..D (PropA..PropD, DetachedA..D, GrabA..D, timerA.. etc.), each identical to controller.yaml's
 # modulo the suffix (the SyncPropA..D mux repoint is a prefab fact — the mux swaps by source index, so
 # nothing here names it).
-# Every design ruling lives in controller.yaml's header and is not restated here; keep the two documents
+# Every design note lives in controller.yaml's header and is not restated here; keep the two documents
 # in lockstep — an edit to one is an edit to both, and the check is reproducible: strip the trailing
 # letter (A..D) from any one prop's layer and diff it against controller.yaml's (the layers are identical;
 # the Bridge and Resume timers below are the only intended differences, both re-derived at N=4).
@@ -58,14 +58,14 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabA_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
-          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # home. Direct to Synced: the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
           - { to: Synced,   when: [ IsLocal is false, DetachedA is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedA }
         behaviours:
-          - driver: { localOnly: true, set: { DetachedA: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+          - driver: { localOnly: true, set: { DetachedA: 1 } }   # detached-on-grab: the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
@@ -89,7 +89,7 @@ layers:
           - { to: Grabbed,  when: [ GrabA_IsGrabbed is true ] }
           # the late-join level path
           - { to: Acquire,  when: [ DetachedA is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          # home is unambiguous given the bit: show an anchored prop immediately
           - { to: Anchored, when: [ DetachedA is false ] }
       Acquire:
         motion: { clip: acquireA }
@@ -142,7 +142,7 @@ layers:
           - { to: Released, when: [ GrabA_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # Hand arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
       nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
@@ -170,14 +170,14 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabB_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
-          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # home. Direct to Synced: the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
           - { to: Synced,   when: [ IsLocal is false, DetachedB is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedB }
         behaviours:
-          - driver: { localOnly: true, set: { DetachedB: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+          - driver: { localOnly: true, set: { DetachedB: 1 } }   # detached-on-grab: the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
@@ -201,7 +201,7 @@ layers:
           - { to: Grabbed,  when: [ GrabB_IsGrabbed is true ] }
           # the late-join level path
           - { to: Acquire,  when: [ DetachedB is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          # home is unambiguous given the bit: show an anchored prop immediately
           - { to: Anchored, when: [ DetachedB is false ] }
       Acquire:
         motion: { clip: acquireB }
@@ -254,7 +254,7 @@ layers:
           - { to: Released, when: [ GrabB_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # Hand arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
       nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
@@ -282,14 +282,14 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabC_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
-          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # home. Direct to Synced: the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
           - { to: Synced,   when: [ IsLocal is false, DetachedC is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedC }
         behaviours:
-          - driver: { localOnly: true, set: { DetachedC: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+          - driver: { localOnly: true, set: { DetachedC: 1 } }   # detached-on-grab: the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
@@ -313,7 +313,7 @@ layers:
           - { to: Grabbed,  when: [ GrabC_IsGrabbed is true ] }
           # the late-join level path
           - { to: Acquire,  when: [ DetachedC is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          # home is unambiguous given the bit: show an anchored prop immediately
           - { to: Anchored, when: [ DetachedC is false ] }
       Acquire:
         motion: { clip: acquireC }
@@ -366,7 +366,7 @@ layers:
           - { to: Released, when: [ GrabC_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # Hand arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
       nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
@@ -394,14 +394,14 @@ layers:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Grabbed,  when: [ GrabD_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing
-          # home. Direct to Synced (operator-ruled): the prop is visible and solving at home, so the
+          # home. Direct to Synced: the prop is visible and solving at home, so the
           # damped entry is value-continuous — a glide to the word, never Acquire's hide/flush (whose
           # only entry is now from hidden Waiting, so its delayed show can never blink a visible prop).
           - { to: Synced,   when: [ IsLocal is false, DetachedD is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       Grabbed:
         motion: { clip: grabbedD }
         behaviours:
-          - driver: { localOnly: true, set: { DetachedD: 1 } }   # detached-on-grab (operator-ruled): the bit means "away from home"
+          - driver: { localOnly: true, set: { DetachedD: 1 } }   # detached-on-grab: the bit means "away from home"
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
@@ -425,7 +425,7 @@ layers:
           - { to: Grabbed,  when: [ GrabD_IsGrabbed is true ] }
           # the late-join level path
           - { to: Acquire,  when: [ DetachedD is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-          # home is unambiguous given the bit (operator-ruled): show an anchored prop immediately
+          # home is unambiguous given the bit: show an anchored prop immediately
           - { to: Anchored, when: [ DetachedD is false ] }
       Acquire:
         motion: { clip: acquireD }
@@ -478,7 +478,7 @@ layers:
           - { to: Released, when: [ GrabD_IsGrabbed is false ] }
           - { to: Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Operator-authored arrangement. A window rearrange lives only in the built asset until folded back:
+    # Hand arrangement. A window rearrange lives only in the built asset until folded back:
     # DecompileController, take the layout block, recompile — never regenerate over it.
     layout:
       nodes: { Timer: [30, 180], Disabled: [260, 250], Anchored: [30, 390], Grabbed: [30, 530], Released: [260, 530], Dropped: [490, 530], Waiting: [-200, 250], Acquire: [-200, 320], Bridge: [320, 390], Synced: [320, 320], Reacquire: [30, 460], Resume: [560, 320], Resume_Grab: [560, 460] }
@@ -535,7 +535,7 @@ clips:
       "PropA/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "PropA/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "PropA/Container/Display/GameObject.m_IsActive": 0
-  anchoredA:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+  anchoredA:     # cell `anchored` + HOME visible (home rot + park)
     set:
       "PropA/GameObject.m_IsActive": 1
       "PropA/GrabProp/Container/GameObject.m_IsActive": 1
@@ -854,7 +854,7 @@ clips:
       "PropB/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "PropB/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "PropB/Container/Display/GameObject.m_IsActive": 0
-  anchoredB:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+  anchoredB:     # cell `anchored` + HOME visible (home rot + park)
     set:
       "PropB/GameObject.m_IsActive": 1
       "PropB/GrabProp/Container/GameObject.m_IsActive": 1
@@ -1173,7 +1173,7 @@ clips:
       "PropC/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "PropC/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "PropC/Container/Display/GameObject.m_IsActive": 0
-  anchoredC:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+  anchoredC:     # cell `anchored` + HOME visible (home rot + park)
     set:
       "PropC/GameObject.m_IsActive": 1
       "PropC/GrabProp/Container/GameObject.m_IsActive": 1
@@ -1492,7 +1492,7 @@ clips:
       "PropD/DragBone_Yaw/Follower/DragBone/VRCPhysBone.m_Enabled": 0
       "PropD/DragBone_Yaw/Follower/VRCRotationConstraint.IsActive": 1
       "PropD/Container/Display/GameObject.m_IsActive": 0
-  anchoredD:     # cell `anchored` + HOME visible (home rot + park — operator-ruled)
+  anchoredD:     # cell `anchored` + HOME visible (home rot + park)
     set:
       "PropD/GameObject.m_IsActive": 1
       "PropD/GrabProp/Container/GameObject.m_IsActive": 1
