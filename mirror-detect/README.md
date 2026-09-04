@@ -6,7 +6,7 @@ One FX layer, zero synced bits, no scene objects: a three-valued signal that tel
 
 ## Ground truth
 
-The layer, its states, and the driver race that produces the three values live in `controller.yaml` (its header comment is the design record). `MirrorDetection/IsMirror` (float AAP) is the output a consumer reads — **−1** real local, **+1** mirror clone, **parked at its declared default** on remotes (0 as shipped); `MirrorDetection/DetectMirror` (bool) is race residue, scratch, out of the params asset. `IsMirror` stays listed in the params asset deliberately — it is the signal consumers read — and the `MirrorDetection/*` namespace is that consumer-facing name, deliberately not renamed to match this folder.
+`MirrorDetection/IsMirror` (float AAP) is the output a consumer reads — **−1** real local, **+1** mirror clone, **parked at its declared default** on remotes (0 as shipped); `MirrorDetection/DetectMirror` (bool) is race residue, scratch, out of the params asset. `IsMirror` stays listed in the params asset deliberately — it is the signal consumers read — and the `MirrorDetection/*` namespace is that consumer-facing name, deliberately not renamed to match this folder.
 
 ## Traps
 

@@ -8,8 +8,6 @@ This entry is **half of a system and inert on its own.** It ships the avatar sid
 
 ## Ground truth
 
-No `controller.yaml`; the prefab's MA components are the source (params on MA Parameters, menu on MA Menu Items — **Rig**).
-
 - **Params:** `OscWardrobe/Manifest` (ships at **0** — set it to your manifest id) — the marker the host reads over OSCQuery to learn *which* wardrobe this avatar has. `OscWardrobe/Slot` (default 0) — the button press. Both are MA-declared Ints (flags under **Verifying**), declared for OSC's sake only: nothing on the avatar reads either one.
 - **Seam:** none. No merge, no anchor, no binding frame, no controller — an MA Parameters component and a menu, so the prefab drops anywhere under the avatar and no path can break.
 - **Dependencies:** Modular Avatar.

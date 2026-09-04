@@ -4,14 +4,4 @@ A minimal one-param toggle: drive `Template_Toggle` and a `Cube` renderer follow
 
 **Provenance:** authored for scaffolding; no upstream asset.
 
-## Ground truth
-
-- **Parameters and behavior:** `controller.yaml` — `basis`, `role`, the `Template_Toggle` bool, and its clip. The prefab's `globalParams` publishes `Template_Toggle` under that bare name.
-- **Wiring:** the prefab. A VRCFury `FullController` (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`) merges `built/`; a VRCFury `Toggle` (`useGlobalParam`) is the menu front.
-- **Seam fact no artifact states:** CompileController is frame-blind, so the merged clip binds `Cube/MeshRenderer.enabled` relative to the prefab root — the toggled mesh must sit at child path `Cube`. Move it and the toggle drives nothing, silently.
-
-## Verifying the install
-
-Drive `Template_Toggle` and watch the `Cube` renderer follow. If the toggle moves but nothing renders, the merged clip is binding somewhere other than child path `Cube` — the frame pairing in **Ground truth** is what went wrong.
-
-Write this slot for the agent installing the entry, never as a log of past runs — `CONVENTIONS.md` §The README has the rule.
+The one non-obvious thing: CompileController is frame-blind, so the merged clip binds `Cube/MeshRenderer.enabled` relative to the prefab root (`basis: mount-root` ↔ the FullController's `rootBindingsApplyToAvatar: 0`). The toggled mesh must sit at child path `Cube`; move it and the toggle drives nothing, silently. If the toggle moves but nothing renders, that pairing is what went wrong.

@@ -6,7 +6,7 @@ Make a payload follow one point on another player, one target at a time, reconst
 
 ## Ground truth
 
-`controller.yaml` owns the Reset/Searching/Tracking machine, the readout coefficients, and every tuned constant (values at their sites, not here). `BoxTracker/Enable` (bool, synced, unsaved) rides `globalParams` with a VRCFury `Toggle` (`useGlobalParam`) as the menu front; off is the reset and recall, parking the cage at `HomeAnchor/Offset` on the wearer. The four `BoxTracker/{X+,X-,Y+,Z+}` floats are sensing (never synced, never menu-exposed); `BoxTracker/One` is a scratch DBT carrier excluded from the params asset.
+A VRCFury `Toggle` (`useGlobalParam`) is the menu front; `Enable` off is the reset and the recall, parking the cage at `HomeAnchor/Offset` on the wearer.
 
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root`, so clip paths bind relative to the prefab root and the internal hierarchy names are load-bearing. `built/BoxTracker_Fx_Parameters.asset` merges via `prms`.
 - **Home:** `HomeAnchor` is an MA BoneProxy (Hips, `AsChildAtRoot`); retarget the proxy or drag its `Offset` child to move home.
@@ -18,10 +18,10 @@ Make a payload follow one point on another player, one target at a time, reconst
 
 | Constant | Value | Knob |
 |---|---|---|
-| Acquisition cube | `TrackingPoints` rest `localScale` + the scale constraint's `ScaleAtRest`, both (`GlobalWeight 0` drives to `ScaleAtRest`, so `localScale` alone is display-only); receiver GOs (0.5, 0.5, 1) collapse to one coincident cube while not tracking | host-GO scale widens the zone |
-| Tracking scale | ×1 absolute (VRCScaleConstraint `ScaleOffset`, World.prefab source) | not a knob — defines the working core, `\|x\|,\|y\|,\|z\| ≤ 1.5 m` around the cage |
+| Acquisition cube | `TrackingPoints` rest `localScale` + the scale constraint's `ScaleAtRest`, both (`GlobalWeight 0` drives to `ScaleAtRest`, so `localScale` alone is display-only); the receiver GOs collapse to one coincident cube while not tracking | host-GO scale widens the zone |
+| Tracking scale | ×1 absolute (VRCScaleConstraint `ScaleOffset`, World.prefab source) | not a knob — defines the working core: the cage half-extent in absolute metres, fixed by the readout coefficients in `controller.yaml` |
 | Crawl gain | prefab `TrackingPoints/VRCPositionConstraint` `source0` (Output) against `source1` (self), **and** the `latch` clip's `source0` curve — **two homes that must agree** | lower `source0` for a floatier follow, raise it toward a locked-on snap; retune in the clip, not the running scene — it owns `source0` during Tracking, so a WD-on frame overwrites the inspector |
-| Loss / acquire thresholds | any <0.00001 / all four >0 | ANY-loss (vs `contact-tracker`'s ALL): one dead box breaks the reconstruction, so partial reads never hold Tracking |
+| Loss / acquire thresholds | the proximity comparisons on the Tracking and Searching edges in `controller.yaml` — acquire on all four positive, lose on any one hitting an epsilon floor | ANY-loss (vs `contact-tracker`'s ALL): one dead box breaks the reconstruction, so partial reads never hold Tracking |
 
 **Copy site — `drop-on-player`** embeds this tracker rig and carries its own copy of every row it does not re-tune, so a retune here lands half the homes. That entry's constants table marks which rows it takes from here.
 

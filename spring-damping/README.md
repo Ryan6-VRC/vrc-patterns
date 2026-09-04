@@ -4,7 +4,7 @@ Two kinds of physics-like secondary motion from VRChat constraints alone: **damp
 
 ## The three rigs
 
-Each rig's tuned weights are the contract — the spring's shape and each damper's strength — and live in the prefabs, which own them. All constraints solve in **world space** (`SolveInLocalSpace: 0`) and are `Locked`; the payload rides inside `Container`.
+All constraints solve in **world space** (`SolveInLocalSpace: 0`) and are `Locked`; the payload rides inside `Container`.
 
 | Prefab | Component (on `Container`, unless noted) | Sources |
 |---|---|---|

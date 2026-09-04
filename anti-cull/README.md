@@ -1,6 +1,6 @@
 # anti-cull — bounds-inflation view-cull defeat (Module)
 
-Keeps the avatar's **animator evaluating** on every remote client — the mesh rendering is not the point. A hidden 10 000-unit cube inflates the renderer bounds so the combined bounds intersect every camera frustum, so **view (frustum) culling never skips the avatar** and its animator keeps running. Defeats view culling *only*: distance culling ("Hide Avatars Beyond" / closest-N) is a client-side unload nothing can defeat. Module total **1 synced bit** (`AntiCull/Enable`).
+Keeps the avatar's **animator evaluating** on every remote client — the mesh rendering is not the point. A hidden oversized cube inflates the renderer bounds so the combined bounds intersect every camera frustum, so **view (frustum) culling never skips the avatar** and its animator keeps running. Defeats view culling *only*: distance culling ("Hide Avatars Beyond" / closest-N) is a client-side unload nothing can defeat. Module total **1 synced bit** (`AntiCull/Enable`).
 
 **The cost is the mechanism, not a side effect.** Anti-cull makes the avatar expensive for other people's clients: every remote client skins and draws it at all times, overriding the view-culling protection those clients would otherwise apply. Compose it deliberately, and only once per avatar.
 
@@ -8,9 +8,9 @@ Keeps the avatar's **animator evaluating** on every remote client — the mesh r
 
 ## Ground truth
 
-`controller.yaml` owns the two-state layer and its two gate clips. `AntiCull/Enable` (bool, synced, **unsaved**, **default ON**) exports via `globalParams`; a VRCFury `Toggle` (`defaultOn`) is the menu front. Default-on + unsaved is load-bearing: the avatar can never spawn already-culled with the toggle out of reach, and an off state never persists into a fresh load — turning it off is a per-session choice. Seam: VRCFury `FullController` (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), pure VRCFury with no MA half; self-contained (`assets/World.prefab`, `assets/AntiCull.mat`). Drop the prefab anywhere under the avatar.
+A VRCFury `Toggle` (`defaultOn`) is the menu front. Default-on + unsaved is load-bearing: the avatar can never spawn already-culled with the toggle out of reach, and an off state never persists into a fresh load — turning it off is a per-session choice. Seam: VRCFury `FullController` (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), pure VRCFury with no MA half; self-contained (`assets/World.prefab`, `assets/AntiCull.mat`). Drop the prefab anywhere under the avatar.
 
-The serialized and runtime states differ, which is why upload validation passes despite an enormous runtime envelope: as serialized the `Culling` child is inactive, scaled `(0,0,0)`, its constraint `GlobalWeight 0`, contributing nothing to bounds. At runtime the merged FX default state plays from the animator's first frame — part of initialization — setting `m_IsActive → 1` and `GlobalWeight → 1`, and the VRC Scale Constraint blends rest `(0,0,0)` to source × offset = **10 000 world units**. That source is the transform inside `assets/World.prefab`, a prefab asset **never instantiated**, which a VRC constraint resolves as world origin on every client (`runtime.md` §Constraints). Its scale fixes the cube in **world** units independent of avatar scale — shrink the avatar and the envelope does not shrink with it. Nobody sees the cube: everyone is *inside* it and a cube viewed from inside is backface-culled; the material is opaque white VRChat Mobile StandardLite (SDK-shipped, Quest-safe), so invisibility comes from the geometry, not the shader.
+The serialized and runtime states differ, which is why upload validation passes despite an enormous runtime envelope: as serialized the `Culling` child is inactive, its scale and its constraint's `GlobalWeight` both zero, contributing nothing to bounds. At runtime the merged FX default state plays from the animator's first frame — part of initialization — raising `m_IsActive` and `GlobalWeight`, and the VRC Scale Constraint blends from its rest scale to source × the constraint's `ScaleOffset`. That source is the transform inside `assets/World.prefab`, a prefab asset **never instantiated**, which a VRC constraint resolves as world origin on every client (`runtime.md` §Constraints). Its scale fixes the cube in **world** units independent of avatar scale — shrink the avatar and the envelope does not shrink with it. Nobody sees the cube: everyone is *inside* it and a cube viewed from inside is backface-culled; the material is opaque white VRChat Mobile StandardLite (SDK-shipped, Quest-safe), so invisibility comes from the geometry, not the shader.
 
 ## Traps
 
@@ -21,7 +21,3 @@ The serialized and runtime states differ, which is why upload validation passes 
 ## Verifying the install
 
 Nothing to drive — the default path inflates with zero input. In play, the `Culling` object should sit at kilometre scale and the renderer's bounds with it; toggled off, the renderer deactivates and contributes no bounds at all, since the GameObject-active write is the effective gate rather than the constraint (which just holds its last transform). Serialized rest state must stay inactive and zero-scale. That inflated bounds actually defeat a remote client's view culling is in-game-only: the emulator cannot reproduce another client's culling decision (`docs/emulator.md`).
-
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`.

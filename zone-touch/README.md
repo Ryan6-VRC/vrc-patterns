@@ -6,7 +6,7 @@ Touch zones on the avatar that react when someone touches them — a headpat, a 
 
 ## Ground truth
 
-`controller.yaml` owns the parameters, the state machine, and the clips. What the artifacts cannot state:
+What the artifacts cannot state:
 
 - **`ZoneTouch/Enable` must stay synced.** It is the menu front (a VRCFury Toggle) and it gates **remote** sensing too — unsynced would leave every remote's receivers alive while the wearer believes the module is off. `globalParams` is exactly `[ZoneTouch/Enable]`.
 - **`ZoneTouch/Special` is the one divergent bit**, written only by the wearer's `localOnly` drivers; its falling edge — dropped on Cooldown/Disabled entry — is the signal a remote rearms on. `ZoneTouch/RollHit` is local roll residue, excluded from the params asset.
@@ -28,7 +28,6 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 |---|---|
 | Debounce dwell | the `zt_cooldown` clip's length — the dwell *is* the `Cooldown` state length; feel-tunable, long enough that a re-touch inside the window reads as the same episode |
 | Special chance | the `chance` field on each `React` entry's Random driver — **all three must agree** |
-| Touch / release thresholds | >0 / <0.00001 |
 
 ## Verifying the install
 
@@ -47,6 +46,3 @@ That remotes' own receivers fire for a real toucher is in-game-only — the touc
     └─ ReactProxy                    unit-scale wrapper — the clips scale this transform
        └─ Sphere                     placeholder sphere, built-in default material — swap this
 
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`.

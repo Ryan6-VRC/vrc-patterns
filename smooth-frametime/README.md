@@ -8,7 +8,7 @@ Generalized from standard VRChat DBT-math smoother constructions (vrc.school Adv
 
 ## Ground truth
 
-`controller.yaml` owns the parameters, the two layers, and the clips. The three outputs `SmoothedExpClamp` / `SmoothedExpRemap` / `SmoothedHybrid` are AAPs; inputs are assumed in `[0,1]`; the λ pair and every other tunable lives in a param **default**, so tuning is an install-time edit with no tree surgery. A convex blend cannot overshoot and every weight is `≥0` by construction, so `blendtree-math`'s one hard `directWeight ≥ 0` constraint holds here for free. No seam and no dependencies: every clip writes an animator parameter, not a scene binding, so there is nothing to repath.
+The three outputs `SmoothedExpClamp` / `SmoothedExpRemap` / `SmoothedHybrid` are AAPs; inputs are assumed in `[0,1]`; the λ pair and every other tunable lives in a param **default**, so tuning is an install-time edit with no tree surgery. A convex blend cannot overshoot and every weight is `≥0` by construction, so `blendtree-math`'s one hard `directWeight ≥ 0` constraint holds here for free. No seam and no dependencies: every clip writes an animator parameter, not a scene binding, so there is nothing to repath.
 
 **The two-layer split (`Smooth/FrameTime` front-end, `Smooth/Smoothers`) is author-time legibility, not runtime structure.** Collapsing them into one Direct tree is mechanical — nest the children — and costs no timing, because layer order never bought same-frame data flow (`docs/gimmicks.md` "Layer order buys no same-frame data flow"). Fold it if you are counting layers. The rig is owned rather than borrowed from VRCFury's `FrameTimeService`, whose update-ordering contract is undocumented and fragile for a lifted entry.
 

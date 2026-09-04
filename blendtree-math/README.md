@@ -6,7 +6,7 @@ The DBT-math primitives an agent reaches for when a gimmick needs arithmetic on 
 
 ## Ground truth
 
-`controller.yaml`'s header and inline comments own the graph — the four idiom families, the one hard constraint (a parameter used *as* a Direct `directWeight` is clamped `>=0` by Unity, so signed intermediates are read back through a 1D tree whose blend parameter is never clamped), the ~3-frame min/max settle, and the linear smoother's limit-cycle are all documented there. No seam ships (Pattern tier); every clip writes an animator parameter, not a scene property, so there are no bindings to repath — a consumer renames the generic params. No shader, mesh, or package dependency (contrast `color-adjust`).
+The four idiom families share one hard constraint: a parameter used *as* a Direct `directWeight` is clamped `>=0` by Unity, so signed intermediates are read back through a 1D tree whose blend parameter is never clamped; the ~3-frame min/max settle and the linear smoother's limit-cycle are both the one-frame AAP hop showing through. No seam ships (Pattern tier); every clip writes an animator parameter, not a scene property, so there are no bindings to repath — a consumer renames the generic params. No shader, mesh, or package dependency (contrast `color-adjust`).
 
 ## Traps
 
