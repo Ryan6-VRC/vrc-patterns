@@ -11,7 +11,7 @@ Grab a prop off your hip, carry it, set it down anywhere: everyone in the instan
 | `object-sync` (`y/`) | absolute world position + heading for the drop, late-join included |
 | `word-channel` | the wire underneath (reached through `object-sync`) |
 
-Its own contribution, belonging to no entry: the thirteen-state glue layer arbitrating cell against word (`controller.yaml` — its header carries every design ruling), the park that force-aligns the drag heading to the synced yaw on every remote so re-grab is snap-free, and the `Reacquire` dwell that keeps a remote's re-grab from flashing the stale cell.
+Its own contribution, belonging to no entry: the thirteen-state glue layer arbitrating cell against word (`controller.yaml` — its header carries every design decision), the park that force-aligns the drag heading to the synced yaw on every remote so re-grab is snap-free, and the `Reacquire` dwell that keeps a remote's re-grab from flashing the stale cell.
 
 ## Install
 
@@ -47,7 +47,7 @@ Drop `GrabSync.prefab` under your avatar root. The home anchor is an MA `BonePro
 
 Unlike `object-sync-demo`, this prefab is **not** a variant of the entry prefab — the entry is a nested child and the composition root carries the only pin. The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded here because prose is most of what validates them: `grab-prop`'s `FullController` and `Toggle` are removed (its chords live in the glue controller) along with its placeholder `Payload` sphere on every nested instance (the visible payload lives under `Prop/Container/Display`); `object-sync`'s own `FullController` is removed — the shared root component replaces it (run `generate.py --check`); its shipped Drop toggle on `Sync_Target` is removed (its `FreezeToWorld` writer would fight the glue), as are its root's own menu `Toggle` and `ApplyDuringUpload` (the composition fronts Enable and arms the one pin itself); and the `object-sync` root's own pin pair is removed so the built avatar holds exactly one World-sourced pin — the entry's `PinEnable` curves then resolve to nothing, which is harmless and deliberate.
 
-The glue's state graph, its value-sets, the engage-on-`OS/Ready` gate, and every operator ruling live in `controller.yaml`'s header — read it there, not here.
+The glue's state graph, its value-sets, and the engage-on-`OS/Ready` gate live in `controller.yaml`'s header — read it there, not here.
 
 ## Capture order
 

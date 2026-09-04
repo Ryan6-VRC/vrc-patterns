@@ -6,7 +6,7 @@
 # SAME FullController component — the sealed-interface coupling; the shared names unify there.
 #
 # THE RIG THIS DRIVES. One GameObject, everything under it, the root itself world-pinned — the shape
-# the operator's own multi-source prop rig uses, where the rig root carries the World pin and the
+# a private multi-source prop rig uses, where the rig root carries the World pin and the
 # damper hangs beneath it. Anchors are flat at the top so an installer can drag them onto a different
 # avatar's hands; their local transforms ARE the fitting, authored in avatar space and preserved by
 # ArmatureLink.

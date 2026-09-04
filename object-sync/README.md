@@ -26,7 +26,7 @@ The split is a **two-writer rule**, and every composed behavior hangs off it: th
 
 ## Composing against Sync
 
-The shape both known consumers converged on independently — the operator's own doll rig and this entry's demo avatar — and the one to reach for whenever the prop has more than one authority:
+The shape both known consumers converged on independently — a private doll rig and this entry's demo avatar — and the one to reach for whenever the prop has more than one authority:
 
     World.prefab pin (your rig root, VRCParentConstraint, Locked)
       └─ mux node          VRCPosition + VRCRotation, N sources, weights animated

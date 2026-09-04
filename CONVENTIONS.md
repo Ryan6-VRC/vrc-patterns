@@ -44,7 +44,7 @@ Slots, in order:
 - **Provenance** — ancestry and attribution (§Provenance / PII; mandatory).
 - **Ground truth** — a few lines naming which artifact owns what: parameters and behavior in `controller.yaml` (where the YAML is generator-emitted, `generate.py` owns it and its docstring is the design record), the published set in the prefab's `globalParams`, wiring in the prefab. Seam facts no artifact can state — a binding-frame pairing, an anchor rule, a consumer wiring step that ships as an empty reference — are stated here as facts with their failure signatures, and never behind a leading "none": a bullet that opens with "none" must also end there.
 - **Traps** (or **Before you compose it**) — the agent-facing slot: what goes wrong, its symptom, and the site to check. Also the sanctioned home for domain knowledge demoted from `docs/` (`tool-design.md`'s ladder routes a measured surface to the entry that measured it).
-- **Measured** — empirical constants and behavior figures. Every figure carries its method and venue, and is either pinned by the entry's `--check` or replaced by a route to its authoring site (name the knob, the direction, the relation): pinned or routed, no third state.
+- **Measured** — empirical constants and behavior figures. Every figure carries its method and venue, or routes to its authoring site (name the knob, the direction, the relation). Nothing checks README prose.
 - **Verifying the install** (Module) or **Behavior** (Pattern) — unchanged remit: the cheapest observable distinguishing a correct install from a plausible broken one, plus what the emulator cannot show. For a Structural Module this section is the entry's only standing check, and says so.
 
 No slot may carry: a parameter-by-parameter interface enumeration, prose narration of the state machine or solver, or transcriptions of serialized component values. A **Rig** section, where a hand-maintained prefab warrants one, is topology and rationale — the tree, and why each node is shaped the way it is — never the digit strings, which the prefab owns.
@@ -53,8 +53,6 @@ Two standing traps:
 
 - **Route values, keep relations.** A tuned number lives once at its authoring site; the README names the knob, the direction, and the relation. Quote only what the rig *produces*, a structural constant whose re-derivation is the design (named as an echo of its source); when a clone physically copies a value, the canon names its copy sites.
 - **Never append a verification run.** A sound re-verification leaves the README alone; a broken one fixes the entry and edits the line that was wrong.
-
-And one rule is enforced rather than stated: **prose never speaks for the checks.** A README sentence attributing coverage to `--check` or the gate ("`--check` asserts/holds/refuses …") fails the gate's README lint — the check prints its own scope, and the README may say only "run `generate.py --check`". Figure pins live as asserts inside `--check`, never as claims in the README.
 
 A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
@@ -70,7 +68,7 @@ Study entries name every non-leaf blend-tree node and name clips by the value th
 
 ## Per-entry checks (`generate.py --check`)
 
-Freshness of generated files is regenerate-and-read-`git diff`, never a disk pin (same trigger, less information, and regeneration is also the repair). A `--check` asserts emit determinism — what makes an empty regen diff mean "no drift" — plus only the **hand-maintained surfaces no compile or gate reads**: prefab wiring, `globalParams`, cross-asset references, README-quoted figures, registry ids. Never the emitted document's shape: a shape assert is rewritten by the very edit it would catch (measured — zero of five shipped defects caught, while cited as verification evidence); that knowledge is a comment at the emission site or a generator refusal, and a rule that generalizes belongs in `ControllerRules`, which already fails every compile and therefore the gate. Nothing runs `--check` automatically; "gates green" never includes it; every check prints its scope negatively. A composition's check is a handful of prefab pins, never a suite.
+A `--check` asserts only a **hand-maintained prefab surface no compile or gate reads, whose breakage is silent at build**: `globalParams`, contact tags and parks, constraint source offsets, cross-asset pins, registry ids, a shared FullController's controller order. A check that does not guard a non-obvious breakage of the pattern is deleted — not the emitted document's shape (the document is a pure function of the generator; a rule that generalizes is a generator refusal or belongs in `ControllerRules`, which already fails every compile and therefore the gate), not README prose, not emit determinism. Freshness of generated files is regenerate-and-read-`git diff`. Nothing runs `--check` automatically; "gates green" never includes it.
 
 ## Provenance / PII
 
