@@ -31,7 +31,7 @@ Three rules govern anything docked in an exempt slot:
 
 ## Ventriloquism (`HeadProxy/MoveHead`) — with the vision fix built in
 
-`MoveHead` swaps the weights of `Head_Proxy`'s position constraint — the voice origin and IK head move to `VoiceTarget`; the visible geometry stays home. Your **viewpoint and hearing do not follow**: both are locked to your VR headset, and animating the head bone never moves the camera — only the voice's *source* relocates. Because the relocated bone set eventually crosses the release gate, **the FakeChop layer auto-engages with the move**: it reproduces the chop with avatar animation (a `VRCScaleConstraint` driven to a 0.0001-scale source, never the bone's `m_LocalScale` directly), gated `IsLocal && IsMirror < 0` via [`mirror-detect`](../mirror-detect/). The mirror gate is not optional — the mirror clone runs your animator with `IsLocal` still true; delete the condition to demonstrate the failure. With the mirror-detect row omitted, `IsMirror` parks at 0 and the fake chop never engages — the fail-safe direction, a possible vision block rather than a wrong mirror.
+`MoveHead` swaps the weights of `Head_Proxy`'s position constraint — the voice origin and IK head move to `VoiceTarget`; the visible geometry stays home. Your **viewpoint and hearing do not follow**: both are locked to your VR headset, and animating the head bone never moves the camera — only the voice's *source* relocates. Because the relocated bone set eventually crosses the release gate, **the FakeChop layer auto-engages with the move**: it reproduces the chop with avatar animation (a `VRCScaleConstraint` driven to a near-zero-scale source, never the bone's `m_LocalScale` directly), gated `IsLocal && IsMirror < 0` via [`mirror-detect`](../mirror-detect/). The mirror gate is not optional — the mirror clone runs your animator with `IsLocal` still true; delete the condition to demonstrate the failure. With the mirror-detect row omitted, `IsMirror` parks at 0 and the fake chop never engages — the fail-safe direction, a possible vision block rather than a wrong mirror.
 
 ## Reaching out of the prefab — the socket, and why it ships wired
 
@@ -41,7 +41,7 @@ So: the socket ships in-prefab, and **"point the socket at your gimmick" is the 
 
 ## Interface
 
-- **Params, seam:** `HeadProxy/MoveHead` (synced/unsaved — remotely visible) and the consumed `MirrorDetection/IsMirror` (parks at 0 = fail-safe) are declared in `controller.yaml`. The seam is a VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `HeadProxy_Fx` + `mirror-detect`'s `MirrorDetect_Fx` — a Toggle fronting `MoveHead` via `globalParams`, plus `FixWriteDefaults`. This entry *is* an avatar, not a mergeable — composing its ideas means rebuilding the rig per the Blender recipe, not dropping the prefab.
+- **Seam:** a VRCFury `FullController` on the avatar root (`basis: avatar-root`) with two rows — `HeadProxy_Fx` + `mirror-detect`'s `MirrorDetect_Fx` — a Toggle fronting `MoveHead` via `globalParams`, plus `FixWriteDefaults`. This entry *is* an avatar, not a mergeable — composing its ideas means rebuilding the rig per the Blender recipe, not dropping the prefab.
 - **Dependencies:** VRCFury.
 - **Required assets:** `assets/HeadProxyRig.fbx` — owned bare armature, primitives only, no vendor content.
 
@@ -51,10 +51,10 @@ Play mode with Av3Emulator, avatar **at the world origin**, `EnableHeadScaling` 
 
 - deform `Head.lossyScale` ≈ 0.0001, `Head_Proxy` ≈ 1, `Head_NoChop` ≈ 1, in place.
 - `MoveHead` on → `Head_Proxy` lands at `VoiceTarget`; the exempt slot (+ any occupant) follows it — the head-anchored re-place, observed directly. `Chopping` engaging at all is the `IsMirror = −1` proof (hard transition condition).
-- `MoveHead` off → a restore pulse (shipped 0.5 s; the ≥0.25 s floor is the low-FPS constraint) returns the deform head to scale 1 before the constraint deactivates at rest weights, so it never sticks at ~0 for a photo.
+- `MoveHead` off → a restore pulse (the `chop_constraint_restore` clip's length, floored by low-FPS sampling) returns the deform head to scale 1 before the constraint deactivates at rest weights, so it never sticks at ~0 for a photo.
 
 What the emulator structurally cannot show: **any mirror-side visual** (its clones copy transforms instead of stripping VRCHeadChop — runtime.md §VRCHeadChop), the **root-distance release gate** (no capsule model — the very thing the fake chop exists for), and in-game ordering of client chop vs animator writes. Hand those to an in-game tester, in that order.
 
 ## Rebuilding
 
-`controller.yaml` → `CompileController` → `built/`; the FBX regenerates from the Blender recipe above (primitives, exact bone names).
+The FBX regenerates from the Blender recipe above (primitives, exact bone names).

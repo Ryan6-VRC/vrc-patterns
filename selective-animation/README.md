@@ -6,11 +6,11 @@ Point at someone and hold the tag button: everyone whose capsule your aim line c
 
 ## Ground truth
 
-Parameters and the FX layers live in `controller.yaml` (compiled to `built/`); the prefab owns the wiring and `globalParams` (**Seam**). Two facts a consumer cannot read off those artifacts: `IsLocal` is declared **float**, not bool, so the wearer-only beam is a blend-tree branch and every condition on it reads `greater 0.5` rather than `is true` — a bool-`IsLocal` state gate would not compose here. And `SelectiveAnimation/Tagged`, the exported per-client latch, is the one consumption point for gating your own layers; it also carries the latch onto a mirror clone (which runs no drivers of its own), so a consumer that drops or renames it reads a tagged avatar as untagged in the observer's mirror.
+Two facts a consumer cannot read off `controller.yaml` or the prefab: `IsLocal` is declared **float**, not bool, so the wearer-only beam is a blend-tree branch and every condition on it reads `greater 0.5` rather than `is true` — a bool-`IsLocal` state gate would not compose here. And `SelectiveAnimation/Tagged`, the exported per-client latch, is the one consumption point for gating your own layers; it also carries the latch onto a mirror clone (which runs no drivers of its own), so a consumer that drops or renames it reads a tagged avatar as untagged in the observer's mirror.
 
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0` ↔ `basis: mount-root`), merging `built/SelectiveAnimation_Fx_Parameters.asset` and `built/SelectiveAnimation_Fx_Menu.asset` at prefix `Selective Animation`. `globalParams` exports **one** name, `SelectiveAnimation/Tagged`. The hand anchor is a VRCFury `ArmatureLink` (`Aim` → Right Hand, non-recursive) and **must not become an MA `BoneProxy`**: this module animates *through* that anchor, so one framework must own both the move and the animation, or the bindings are dropped from the merged FX — warned, but with the warning naming the clip and the layer rather than the anchor (`nondestructive.md` owns the build-order mechanism; `CONVENTIONS.md`: *only object-referenced, never path-animated, nodes may be proxied*). A second anchor of a different framework anywhere above an animated node in this subtree re-breaks the rig the same way.
 - **Dependencies:** VRC SDK + VRCFury, and a **humanoid** avatar (the `ArmatureLink` resolves Right Hand through the humanoid mapping). No Modular Avatar. Composes well with `anti-cull` — see below.
-- **Required assets:** `assets/SelectiveAnimationBeam.mat` (Unity Standard, self-contained — no Poiyomi or lilToon dependency) and `built/SelectiveAnimation_Fx_Menu.asset`, the shipped menu, regenerated from the `menu:` block in `controller.yaml` like the rest of `built/`. The material carries the beam's colour; nothing animates it. `Payload` is a placeholder sphere on the built-in default material.
+- **Required assets:** `assets/SelectiveAnimationBeam.mat` (Unity Standard, self-contained — no Poiyomi or lilToon dependency). The material carries the beam's colour; nothing animates it. `Payload` is a placeholder sphere on the built-in default material.
 
 ## Before you compose it
 
@@ -38,7 +38,7 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 | Constant | Value |
 |---|---|
 | Range | `distance` on **both** raycasts, plus `BeamMesh`'s `position.z` (half it) and `scale.z`. The rays must share a transform and agree on `distance`/`applyTransformScale`, or `Clear` is meaningless. Kept short: widening it widens the no-occlusion blast radius (**Before you compose it**). |
-| Clearance tolerance | the `Clear greater` threshold on the latch's commit — **zero**; a stale reading (two misses) also subtracts to exactly zero, so it can't commit either. |
+| Clearance tolerance | the `Clear greater` threshold on the latch's commit; a stale reading (two misses) also subtracts to exactly zero, so it can't commit either. |
 | Gate depth | the `Casting` → `Armed` chain in the `Compute` tree, two stages. Shorten it and a frozen sensing set commits on the press frame; lengthen it and the opening frames of a legitimate sweep are dropped. |
 | Beam length | `BeamMesh`'s local position and scale carry the range, so `Beam`'s animated `scale.z` stays unitless and a retune touches only the prefab. |
 | Payload | the `sa_tagged` / `sa_untagged` clip pair — the swap point for a real payload. |
@@ -74,6 +74,3 @@ What the emulator cannot show for this entry is **selectivity itself** — that 
 
 A `resultTransform` is not optional on either ray: without one the component never registers and never casts — no hit, no params, no error, no diagnostic. (It is oriented as well as placed — its `up` is the hit surface normal — though this entry reads position only.)
 
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`.

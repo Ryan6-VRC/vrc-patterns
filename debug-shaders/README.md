@@ -18,7 +18,7 @@ Every knob is a material property, and each `.shader`'s `Properties` block is th
 
 **Animation binding** — `DebugDisplay` only: `material._E{i}_Value`, `i` in 0..11, on the display's `MeshRenderer`, a plain clip curve (the shader is unlocked, so there is no Poiyomi `Animated`-tag step; the inspector has a copy button per path).
 
-**Seam:** each prefab is a bare root with the renderer under it, plus a `DepthLight` child on the two that read depth — no framework component of any kind. Parent it where you want it to ride; no shader here depends on a rest position, so nothing anchors one for you. Everything editable ships in-entry (three shaders, four `.hlsl`, the glyph atlas, two cubemaps, `assets/DebugSphere.fbx`, three template materials, the `ShaderGUI` inspectors and the `DisplayGlyphs` canon), so a bare install of this package alone is enough.
+**Seam:** each prefab is a bare root with the renderer under it, plus a `DepthLight` child on the two that read depth — no framework component of any kind. Parent it where you want it to ride; no shader here depends on a rest position, so nothing anchors one for you. Everything editable ships in-entry, so a bare install of this package alone is enough.
 
 ## Traps
 

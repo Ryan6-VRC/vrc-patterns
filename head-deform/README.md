@@ -11,7 +11,7 @@ Grab your own cheek in first person and pull — the head stretches wide; squeez
 
 ## Ground truth
 
-Parameters (the enable, the physbone outputs, the smoother λ, the consumed `IsMirror`) and the DBT that gates and smooths them live in `controller.yaml` and its header comment. `HeadDeform/Active` is the odd one out: sync and save ride the **VRCFury Toggle on the prefab root** (`useGlobalParam`, saved, default on, synced — remotes must see the chain appear), and the controller only reads it as the smoother's input gate, so switching off decays the deformation to rest instead of snapping.
+`HeadDeform/Active` is the odd one out among the module's parameters: sync and save ride the **VRCFury Toggle on the prefab root** (`useGlobalParam`, saved, default on, synced — remotes must see the chain appear), and the controller only reads it as the smoother's input gate, so switching off decays the deformation to rest instead of snapping.
 
 - **Seam:** VRCFury `FullController` on the prefab root (`basis: mount-root`); `globalParams: [HeadDeform/Active]` only — everything else takes instance prefixes. A VRCFury `ArmatureLink` puts `Cheek_Root` on the humanoid **Head**; a VRCFury `ConstraintRetarget` (conventional prefab only) points the scale constraint's target at the humanoid Head at build.
 - **Dependencies:** VRCFury. Conventional prefab: a rig whose humanoid head actually chops. Proxy prefab: a `head-proxy`-class rig, **plus one consumer wiring step** — point the `ScaleConstraint`'s `TargetTransform` at the **deforming** head bone. A cross-prefab object reference is structurally a scene-level assignment, and a weighted null source is silently excluded from the solve (`head-proxy` §Reaching out of the prefab owns the mechanism and the silent-null trap).
@@ -52,7 +52,3 @@ Mirror-side visuals are in-game checks — the emulator's mirror clone copies tr
        └─ Right_Cheek → Right_Cheek_End  (+x)
 
 `HeadDeformProxy.prefab` = prefab variant of the above: removes the two-row FullController and the ConstraintRetarget, adds a one-row FullController (`HeadDeform_Fx` alone), ships the scale constraint IsActive 1. Everything else inherits.
-
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`.

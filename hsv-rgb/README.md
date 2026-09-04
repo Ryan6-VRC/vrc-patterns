@@ -6,7 +6,7 @@ Compute an RGB colour from `H`/`S`/`V` sliders and write it into a shader's plai
 
 ## Ground truth
 
-Parameters, the six-sector→trapezoid decomposition, and the WD-ON sum-to-1 sink construction all live in `controller.yaml` and its header comment — the design record for why the textbook algorithm never appears and why each channel carries a third zero-value sink child at weight `(1−V)`. The output is the target material's `_Color`, written **by name** as per-channel material curves on a placeholder renderer path (`Body/SkinnedMeshRenderer`).
+The output is the target material's `_Color`, written **by name** as per-channel material curves on a placeholder renderer path (`Body/SkinnedMeshRenderer`).
 
 **Seam:** shipped as YAML only (Pattern tier), so a consumer adapts in two steps, in order — **`RepathClips` first**, to repoint the placeholder renderer path at their own renderer; **then** pair `basis: avatar-root` with the MA merge component's `pathMode` per `_template`, or the repathed bindings land on the wrong node.
 

@@ -12,7 +12,6 @@ Two prefabs, one mechanism:
 ## Ground truth
 
 - **Seam:** two constraint-reference wiring points. **Input** — add your prop's container as the single source (weight 1, zero offset) on `Follower`'s position constraint. **Output** — source your prop's rotation constraint at `Drag_Rotation` (yaw-only consumers keep their own X/Z axes unaffected). Both are object references, path-immune, so drop the prefab anywhere under the avatar; nothing merges into any controller.
-- **Params:** none.
 - **Dependencies:** VRCFury (the `FreezeToWorld` ApplyDuringUpload). No required assets.
 
 ## Before you compose it

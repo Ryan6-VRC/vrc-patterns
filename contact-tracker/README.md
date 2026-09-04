@@ -6,7 +6,7 @@ The building block for anything that interacts with **another player's body** �
 
 ## Ground truth
 
-`controller.yaml` owns the Reset/Searching/Tracking machine, the crawler servo, and every tuned constant (values at their sites). `ContactTracker/Enable` (bool, synced, unsaved) rides `globalParams` with a VRCFury `Toggle` (`useGlobalParam`) as the menu front; off is the reset, recalling the cage to `HomeAnchor/Offset`. The six `ContactTracker/{X,Y,Z}±` floats are sensing — never synced, never menu-exposed.
+A VRCFury `Toggle` (`useGlobalParam`) is the menu front; `Enable` off is the reset, recalling the cage to `HomeAnchor/Offset`.
 
 - **Seam:** VRCFury FullController on the prefab root; `basis: mount-root`, so clip paths bind relative to the prefab root and the internal hierarchy names are load-bearing.
 - **`HomeAnchor` is an MA BoneProxy (Hips, `AsChildAtRoot`); anchoring by BoneProxy is safe here *only because* no clip path runs through `HomeAnchor`** — it is referenced purely as a constraint source, which survives the build-time reparent.
@@ -20,9 +20,9 @@ The building block for anything that interacts with **another player's body** �
 |---|---|---|
 | Acquisition scale | `TrackingPoints` rest `localScale` + the scale constraint's `ScaleAtRest`, both (`GlobalWeight 0` drives to `ScaleAtRest`) | latch radius ∝ the scale |
 | Tracking scale | ×3 absolute (VRCScaleConstraint `ScaleOffset`) | falloff = receiver radius × 3; radius alone sets it (`runtime.md` §Contacts) |
-| Probe spread | ±0.5 local (tracking clip) | ±1.5 m world in tracking; sets the step-response limit below |
+| Probe spread | the probe `m_LocalPosition` keys in the `tracking` clip | ±1.5 m world in tracking; sets the step-response limit below |
 | Settle dwell | the `tracking` clip's `source6` (park-brake) hold length | network-feel-tunable — **in-game wear-test owns it**; the emulator cannot discriminate values |
-| Loss / acquire thresholds | all six <0.00001 / >0 | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
+| Loss / acquire thresholds | the proximity comparisons on the Tracking and Searching edges in `controller.yaml` — acquire on all six positive, lose on all six at an epsilon floor | loss → freeze in place (fail-visible), filters reopen, cage recollapses |
 
 ## Traps
 

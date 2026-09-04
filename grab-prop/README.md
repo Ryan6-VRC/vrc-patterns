@@ -8,7 +8,6 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 
 - **Params:**
   - `GrabProp/Enable` (bool, in) — synced, **unsaved**. The menu front (VRCFury Toggle on the prefab root). Off-is-reset: toggling off/on recalls a dropped prop to the home anchor.
-  - `GrabBone_IsGrabbed` (bool, sensing) — minted by the grab physbone (`parameter: GrabBone`), never synced/saved/menu-exposed; the native grab sync regenerates it per client.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0`), so every clip binding resolves **prop-root relative** (`basis: mount-root`). The FullController merges `built/GrabProp_Fx_Parameters.asset`; `GrabProp/Enable` is exported via `globalParams` and the Toggle drives it.
 - **Dependencies:** none beyond the VRC SDK + VRCFury to build; **compose `anti-cull` alongside** (its README §When a module needs this) — a dropped prop holds state through replayed choreography while the wearer may be off-screen. Drop the prefab anywhere under the avatar.
 - **Required assets:** none — `Payload` is a placeholder sphere on Unity's built-in default material; swap it for your prop mesh, keep it under `Container`.
@@ -75,7 +74,3 @@ The prefab is the shipped artifact and ships no builder — edit it in place. `L
                                       edit-time alignment only; ApplyDuringUpload TurnOff (off at upload)
 
 **Physbone (`GrabBone`)** — grab-drag with no idle sway; each value deliberate: `pull 1`, `stiffness 0.2`, `spring 0`, `gravity 0`; `immobileType AllMotion` + `immobile 1` (a grab moves it, nothing else does); `radius 0.075`; `grabMovement 1`, `maxStretch 100000`, `maxSquish 1`; `allowGrabbing` on, `allowPosing` off (persistence is the constraint hold, never a pose), `allowCollision` off; `ignoreTransforms: [DropPosition]` (the tip-measure cell must not be dragged by its own bone); `isAnimated 0`, `resetWhenDisabled 0`.
-
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`.

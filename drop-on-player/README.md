@@ -6,7 +6,7 @@ Grab the prop and release it: on your own head it anchors (a bone constraint); o
 
 ## Ground truth
 
-Parameters — the synced `Out`/`Worn` pair (the pair *is* the rest mode: `00` disabled · `01` anchored · `11` tracked · `10` dropped), the unsynced menu intents (`Enable`, `ToHead`), and the sensing floats — are declared in `controller.yaml` with their sync/save flags and the arbitration rationale in its header. Two seam facts no artifact states:
+Two seam facts no artifact states:
 
 - The four box-cage receivers are `localOnly: 0` **by necessity** — remotes re-derive the chase from them — while `SelfDetect` is `localOnly: 1` (routing input only; its outcome syncs as the pair). Menu intents stay unsynced, so the menu costs 0 extra synced bits.
 - **Seam:** VRCFury `FullController` (FX, `basis: mount-root`) merging `built/`'s params + menu at prefix `Drop On Player`. `globalParams` is **empty**: with two controls the menu ships as an asset, so `RewriteParamName` takes control and parameter together and nothing escapes to the host avatar. **Plus one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone — a mixed seam, needed so the anchor's placement is visible while authoring. `HeadMount` is referenced only as a constraint source; no VRCF clip binding paths through it.
@@ -26,8 +26,6 @@ The prop (`Container`) multiplexes three position sources: anchored, grabbed/dro
 **Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the prop off your head and put it on theirs, since the wearer's client arbitrates from wherever the prop is. `allowPosing` is off — persistence is always a constraint hold.
 
 ## Empirical constants (90% rule — test before changing)
-
-Values live at the sites named here, not in this README.
 
 | Constant | Where it lives / the relation |
 |---|---|
@@ -50,7 +48,7 @@ Two clients in-game, not the emulator: remote-side cage re-derivation against a 
 
 ## Rig
 
-The prefab is the shipped artifact and ships no builder — edit it in place; positions and constraint/physbone values live in the prefab. Constraint `Locked` on, source weights swapped by the clips. Topology and why each node exists:
+The prefab is the shipped artifact and ships no builder — edit it in place. Constraint `Locked` on, source weights swapped by the clips. Topology and why each node exists:
 
     DropOnPlayer                   root — VRCFury FullController
     ├─ Container                   VRCPositionConstraint, 3 sources: AnchorOffset (anchored),
@@ -81,8 +79,4 @@ The prefab is the shipped artifact and ships no builder — edit it in place; po
                                    auto-mirrors TrackingOffset)
 
 **Self-detection correctness:** `TrackingOffset` is allowSelf-only on the standard `Head` tag, so a friend wearing the same module (or any other player's head) can't trip your self-anchor — their senders are "other".
-
-## Rebuilding
-
-`controller.yaml` → `CompileController` → `built/`
 

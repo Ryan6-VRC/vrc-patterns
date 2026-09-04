@@ -6,7 +6,7 @@ Two ways to give a user a hue/color slider by driving a shader's own property di
 
 ## Ground truth
 
-`controller.yaml`'s header owns the vec4-driving mechanism: under WD-ON an un-keyed channel reverts to the material default, and per-channel Override layers fight (each writes the whole vec4, last wins), so the fix is one WD-ON Direct tree in which each slider's 1D sub-tree writes only its own channel plus a constant `.w`. `BrokenDemo` is the counterexample kept for study. Pattern tier, no seam shipped: a consumer adapts in order — **`RepathClips` first** onto their own renderer (placeholder paths `Body`/`BodyBroken`), **then** pair `basis: avatar-root` with the MA merge component's `pathMode` per `_template`, or the repathed bindings land on the wrong node.
+The vec4-driving mechanism: under WD-ON an un-keyed channel reverts to the material default, and per-channel Override layers fight (each writes the whole vec4, last wins), so the fix is one WD-ON Direct tree in which each slider's 1D sub-tree writes only its own channel plus a constant `.w`. `BrokenDemo` is the counterexample kept for study. Pattern tier, no seam shipped: a consumer adapts in order — **`RepathClips` first** onto their own renderer (placeholder paths `Body`/`BodyBroken`), **then** pair `basis: avatar-root` with the MA merge component's `pathMode` per `_template`, or the repathed bindings land on the wrong node.
 
 ## Traps — Dependencies
 
