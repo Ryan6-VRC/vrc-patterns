@@ -59,7 +59,7 @@ Drop `SyncOnPlayer.prefab` under your avatar root. Swap your mesh in for the sph
        └─ Container        the damper: VRCPositionConstraint [Source, self]; child Display is the
                            visibility gate and the payload mount
 
-The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above because prose is all that validates them.
+The nested instances are customised by **removal**, the only redirect a VRCFury component supports (`../../../docs/nondestructive.md`), and those removals are recorded above and pinned by `generate.py --check`.
 
 The park↔word ring this adds exists in the constraint graph on every client — solve order derives from sources and targets and never consults weights. The safety argument: the cell's capture edge is hierarchy-authored and no source this composition adds touches any cell-ring constraint, and every edge of the new ring tolerates a one-frame stale read (park, encode-measure, display are all continuous follows). Verify by frame lag over the new ring's edges, never by group index — `../../grab-prop/README.md` §Verifying the install is the method.
 
