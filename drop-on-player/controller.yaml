@@ -21,15 +21,14 @@
 # catcher's cage is 4 face-proximity BOX receivers (X+ X- Y+ Z+), an exact linear readout writing
 # Output.localPosition inside the Tracked state's direct tree, and a feedback constraint (source0
 # Output : source1 self) crawling the cage onto the reading, gain held at zero across the latch
-# frames then 0.7 (the tracked clip's guard curve; box-tracker's crawl block owns value, history,
-# and the DBT stretch rule that sizes this state's children).
-# The old 6-sphere crawler-servo (a separate always-on layer, raw proximity => source weights, ALL-
-# loss, a park-brake ramp) is gone: 4 contacts instead of 6, an exact position instead of a
-# converging centroid, ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
+# frames then 0.7 (the tracked clip's guard curve; box-tracker's crawl block owns the value
+# and the DBT stretch rule that sizes this state's children). Against contact-tracker's 6-sphere
+# crawler-servo: 4 contacts instead of 6, an exact position instead of a converging centroid, and
+# ANY-loss instead of ALL-loss (one dead box breaks the reconstruction).
 #
 # Head-catch zone (wear-test-tuned): the acquisition cube is stretched to a VERTICAL COLUMN — taller
-# than it is wide — so lowering a prop onto a head reliably catches (and it widens the release-
-# arbitration zone the old rig flagged as maybe too tight). Set on the prefab by TrackingPoints rest
+# than it is wide — so lowering a prop onto a head reliably catches; it doubles as the release-
+# arbitration zone. Set on the prefab by TrackingPoints rest
 # localScale + VRCScaleConstraint ScaleAtRest, edited together — zone side = 3 × scale per axis. The
 # receiver box is a 1.5³ cube in local space, so the 90° rotations are shape-invariant and a
 # non-uniform parent scale gives a clean axis-aligned box; tracking geometry is constraint-pinned

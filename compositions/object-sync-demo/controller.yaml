@@ -42,21 +42,20 @@
 # edit-time snap is the only thing given up, and it buys nothing here: both anchors are positions a
 # human chooses by eye anyway, so the snap would only discard the placement.
 #
-# WHY Display_Source STILL EXISTS after object-sync's surface collapsed to Sync_Target/Sync. `Sync`
-# is correct on both clients, so a plain consumer parents to it and multiplexes nothing — remotes
-# need no local/remote choice from us at all, and this layer's old Cycle gate and Delay state are
-# gone with it. What Sync cannot give is the WEARER a view of the reconstruction: the entry's Follow
-# layer engages it only when !IsLocal, so on the wearer Sync is always Sync_Target. View Remote is
+# WHY Display_Source EXISTS at all, given object-sync's Sync_Target/Sync surface. `Sync` is correct
+# on both clients, so a plain consumer parents to it and multiplexes nothing — remotes need no
+# local/remote choice from us. What Sync cannot give is the WEARER a view of the reconstruction:
+# the entry's Follow layer engages it only when !IsLocal, so on the wearer Sync is always Sync_Target. View Remote is
 # the demo's point, so src1 reads Rig/Prop/Display directly. Reading a transform is not
 # writing it, so the two-writer rule is untouched — but this IS a reach past the surface, and if the
 # entry ever exports the reconstruction, src1 should move to that export.
 #
-# DAMPING BRANCHES ON WHAT IS DISPLAYED, NOT ON WHICH STATE. It used to nest under the Remote state,
-# which made "never damped locally" structural. That shape does not survive the new surface: remotes
-# now sit in Local (src0 = Sync = the reconstruction), so a damper nested under Remote would leave
-# every remote undamped — the exact failure the design forbids. The condition is therefore explicit:
+# DAMPING BRANCHES ON WHAT IS DISPLAYED, NOT ON WHICH STATE. Nesting the damper under the Remote
+# state would make "never damped locally" structural, and it is the wrong structure here: remotes sit
+# in Local (src0 = Sync = the reconstruction), so a damper under Remote would leave every remote
+# undamped — the exact failure the design forbids. The condition is therefore explicit:
 # damp when the thing on screen is the reconstruction, which is (remote AND Enable AND Ready)
-# OR (wearer AND View Remote). The wearer's true prop is still never damped, now by condition rather
+# OR (wearer AND View Remote). The wearer's true prop is never damped, by condition rather
 # than by nesting. The remote half must name BOTH entry terms because it is mirroring the entry's own
 # Follow engage rung, and the validity term alone is not that rung: Enable never gated the wire, so a
 # remote with Enable off still reads the table valid while Sync rides Sync_Target — damping there
@@ -74,16 +73,16 @@
 # what it is — the prop vanishing with the avatar and reappearing where it now is. `Ch/Acquired` is
 # what makes the resume visible to this layer at all: the Reset layer zeroes it on the pause, so the
 # `Acquired less 0.5` exit below drops the damper before the jump and re-arms it once the table
-# re-certifies. Reviewers keep reading that exit as a bug because `Follow` LATCHES through the same
+# re-certifies. That exit reads as a bug because `Follow` LATCHES through the same
 # resume and so the two layers disagree during it. They are answering different questions — Follow
 # picks which source Sync rides, the damper picks whether motion is smoothed — and this is exactly
 # the window where the right answers differ. Making them agree in either direction is a regression:
 # damping the resume brings back the glide, and un-latching Follow snaps a world-dropped prop onto a
 # remote's hand for a loop.
 #
-# THE DAMPER IS A ONE-POLE LAG AND ITS STRENGTH IS A RATE (docs/local/damping-experiment-result.md):
-# tau = 1/ln(1 + w_target/w_self) FRAMES, 20.50 measured onto 20.50 predicted at spring-damping's
-# shipped 1 : 0.05. Price it as tau x speed / framerate, never as a distance. Two rules from that
+# THE DAMPER IS A ONE-POLE LAG AND ITS STRENGTH IS A RATE (../../spring-damping/README.md
+# §Framerate dependence owns the law): tau = 1/ln(1 + w_target/w_self) FRAMES, 20.50 measured
+# onto 20.50 predicted at spring-damping's shipped 1 : 0.05. Price it as tau x speed / framerate, never as a distance. Two rules from that
 # measurement the rig above already satisfies, restated so a later edit does not undo them: the
 # damper hangs UNDER a world-pinned frame and never ON one, and FreezeToWorld is NEVER set on the
 # damped node — they fight and the freeze wins totally (0.0 response for 150 frames, no error). The
@@ -130,7 +129,7 @@ parameters:
   # controllers ride ONE FullController component (the sealed-interface coupling — the entry's
   # generate.py CONFIG comment owns it): the shared component prefixes both identically, so no
   # globalParams entry beyond the entry's own derived list exists or is needed.
-  # Enable carries the demo-local default of TRUE (Generators/object-sync-demo.py owns the reason);
+  # Enable carries the demo-local default of TRUE (generate.py owns the reason);
   # the menu toggle below must agree with it or the control lies at spawn.
   ObjectSync/Enable:      { type: float, default: 1, vrc: { type: bool, synced: true,  saved: false } }
   # "This client's receiver has applied a complete word table" — the transport's own correctness
@@ -248,8 +247,8 @@ layers:
   - name: Reconstruction/View
     # Which pose Display_Source takes. Remotes never leave Local and that is correct: Sync already
     # resolves local-vs-remote inside the module, so Local IS the reconstruction on a remote once
-    # the entry engages it, and Sync_Target before — including the cold-join case the old Delay
-    # state existed to cover. Only the wearer ever needs the other source.
+    # the entry engages it, and Sync_Target before — the cold-join case included. Only the wearer
+    # ever needs the other source.
     states:
       Local:
         motion: { clip: display_local }
@@ -327,7 +326,7 @@ layers:
     # parameter as directWeight over a clip writing its entry's value at 1. Output is weight x 1, so
     # each entry reads its parameter verbatim. A static clip curve could not carry a live parameter.
     # The six position params are the DECODED AAPs — full-resolution cell index (0..4095) and fine
-    # index (0..4095) — not the truncated word bytes the tablet originally showed.
+    # index (0..4095) — not the truncated word bytes.
     # Ch/Acquired joins them rather than taking a decode ladder because it is a FLOAT in the animator
     # (bool only to VRC); the index bits below are real bools and cannot.
     states:

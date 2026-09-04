@@ -193,19 +193,20 @@ CONFIG = {
     # sized at. The ring's Run windows are COMPLETION-GATED (each shared walk
     # stamps a Slice/Done/* bit at commit, and Run advances only once every walk
     # its slice's mode runs has stamped), because the walks step one state per
-    # FRAME while an exitTime is wall-clock SECONDS: the pre-fix window divided
-    # the frame budget by a hard-coded 60, so at ~45 fps the heading pair
-    # (27 frames) still fit while the position walk (33) was beheaded by the
-    # Slice/Live abandon rung at ~F3 on every cycle — heading synced, position
-    # words never committed, measured in-venue (G5, 2026-08-18). This constant
+    # FRAME while an exitTime is wall-clock SECONDS: a window sized off a
+    # hard-coded 60 fps beheads the longer walk as soon as the venue runs
+    # slower — measured in-venue at ~45 fps, where the heading pair (27 frames)
+    # still fit while the position walk (33) was cut by the Slice/Live abandon
+    # rung at ~F3 every cycle, so heading synced and the position words never
+    # committed. This constant
     # sizes only the escape bound a slice that CANNOT finish (dead rig, fine
     # stage escaping under fast motion) yields at; below this fps that bound can
     # fire before completion again, so it is set at the unfocused-editor floor
     # rather than a client figure.
     "sliceFloorFps": 12,
 
-    # Parks the contact cluster away from spawn-dense space, and — since the
-    # published prefix froze — seeds the collision tags too (tag_set). ONE seed
+    # Parks the contact cluster away from spawn-dense space, and seeds the
+    # collision tags too (tag_set). ONE seed
     # for both, deliberately: two builds on one avatar must vary tags AND park
     # together — distinct tags with a shared park still stack ~24 receivers at
     # one point, the cluster-summing bug (docs/runtime.md §Contacts) — so a
@@ -228,8 +229,8 @@ CONFIG = {
     "wire": {
         "numberSlots": 2,
         # 8, not 9: at 12+12 bits a position group's bool tail is exactly 4+4,
-        # so the ninth slot the 13-bit geometry needed would ride every batch
-        # idle — one synced bit for nothing. Batch counts are unchanged.
+        # so a ninth slot would ride every batch idle — one synced bit for
+        # nothing.
         "boolSlots": 8,
         "indexLoops": 1,
         "batchSeconds": 0.1,
@@ -757,8 +758,8 @@ def build(c):
     # reads as a prefix everywhere below while matching no published wildcard, so
     # it would emit `/Sense/...` and `/Ch/Wire/...` with every guard here blind to
     # it (check_namespaces sees root "" in no published root; the prefab assert
-    # degenerates to startswith("/")). A missing key raised KeyError rather than
-    # naming the fix. Every other `c["internal"]` read below is reached only
+    # degenerates to startswith("/")). A missing key would raise KeyError rather
+    # than naming the fix. Every other `c["internal"]` read below is reached only
     # through this function, so refusing once here covers them.
     wcm = load_word_channel()
     p, pub = wcm.internal_prefix(c), c["prefix"]
@@ -901,10 +902,10 @@ def build(c):
 
 
 def refuse_duplicate_states(layers):
-    """Two ladders now share layers (the serial pair; per-object commit
-    fan-outs), which makes a silently-duplicated state name reachable for the
-    first time — the exact generator-bug class `Doc` refuses for params and
-    clips, closed here for states. A duplicate key in the emitted YAML would
+    """Ladders share layers (the serial pair; per-object commit fan-outs),
+    which makes a silently-duplicated state name reachable — the exact
+    generator-bug class `Doc` refuses for params and clips, closed here for
+    states. A duplicate key in the emitted YAML would
     compile to whichever state the loader keeps, with every probe reading the
     first. Returns the total state count — the document's own figure for the
     README's cost accounting."""
@@ -985,8 +986,8 @@ def floatify_layer(doc, c, numbers, bools):
         copies[f] = w["name"]
     # NOT scratch: the certification has to reach the params asset, and a
     # same-component consumer binding it declares THESE flags or VRCFury throws
-    # at build. Under `p` since the seal — it shares the instance prefix with
-    # the consumer that merges beside it, and no wildcard may reach it.
+    # at build. Under `p`: it shares the instance prefix with the consumer that
+    # merges beside it, and no wildcard may reach it.
     ready = f"{p}/Ready"
     doc.param(f"  {ready}: {{ type: float, default: 0, "
               "vrc: { type: bool, synced: false, saved: false } }", ready)
@@ -1337,10 +1338,10 @@ def slice_schedule(c):
     and repaying the settle."""
     total = sum(ob.get("slices", 1) for ob in c["objects"])
     # Deal heaviest-first into the even indices, then the odd: on a ring this
-    # is adjacency-free for every weighting with max <= total//2 — a quotient
-    # placement with linear probing refused feasible rings (2,2,3 among them)
-    # while its message blamed the weight — so the refusal below fires exactly
-    # when the bound it states is actually violated.
+    # is adjacency-free for every weighting with max <= total//2, so the refusal
+    # below fires exactly when the bound it states is actually violated. A
+    # quotient placement with linear probing is NOT equivalent — it refuses
+    # feasible rings, 2,2,3 among them.
     flat = []
     for ob in sorted(c["objects"], key=lambda x: -x.get("slices", 1)):
         flat += [ob["name"]] * ob.get("slices", 1)
@@ -1410,10 +1411,10 @@ def slice_layer(doc, c):
         blocked[dp] = 0
     # The Run window is COMPLETION-GATED: the walks step one state per FRAME
     # while an exitTime is wall-clock SECONDS, so any fixed dwell is a frame
-    # budget divided by an assumed fps — the pre-fix /60.0 beheaded the
-    # position walk mid-fine-ladder at every fps under ~58 (the Slice/Live
-    # abandon rung fired first), which read as heading synced, position words
-    # zero forever. Run now advances when every walk its slice's mode runs has
+    # budget divided by an assumed fps — a /60.0 dwell beheads the position
+    # walk mid-fine-ladder at every fps under ~58 (the Slice/Live abandon rung
+    # fires first), which reads as heading synced, position words zero forever.
+    # Run advances when every walk its slice's mode runs has
     # stamped its Slice/Done/* bit, frame-true at any fps; the wall-clock
     # escapes below remain only as the yield bound on a slice that CANNOT
     # finish — a rig that never wakes (skip) or walks that never converge
@@ -1754,19 +1755,16 @@ def pair_layer(doc, c, d, shared):
     back-to-back ladders off the frozen residuals, published by one commit.
 
     A heading's two components are one value, and BOTH halves of that need a
-    single frame: the sampling and the publication. The parallel-plus-barrier
-    shape this replaces bought publication atomicity on top of walks that
-    sampled simultaneously by construction; a naive serialization keeps the
-    cheap half and loses the one that matters — two samples ~13 frames apart on
-    a yawing prop commit, atomically, an angle the marker never held. So
-    `Start`'s one driver copies BOTH residuals, the X ladder walks its frozen
-    residual, its final pair steps straight into the Z ladder's first decision
-    (no hop state, no mid-ladder sense read, no second liveness gate — Idle's
-    single gate covers both senses), and one Commit publishes all 24 bits.
-    Against the old shape this deletes the barrier layer, its done-flags and
-    their cross-layer races, at 2 + 2·rotBits + 1 frames — under the position
-    ladder, so cycle time is untouched; the old README's anti-serialization
-    argument priced the ladder against the wrong critical path.
+    single frame: the sampling and the publication. Serializing the two ladders
+    WITHOUT sharing one sample frame keeps the cheap half and loses the one that
+    matters — two samples ~13 frames apart on a yawing prop commit, atomically,
+    an angle the marker never held. So `Start`'s one driver copies BOTH
+    residuals, the X ladder walks its frozen residual, its final pair steps
+    straight into the Z ladder's first decision (no hop state, no mid-ladder
+    sense read, no second liveness gate — Idle's single gate covers both
+    senses), and one Commit publishes all 24 bits. The layer costs
+    2 + 2·rotBits + 1 frames — under the position ladder, so cycle time is
+    untouched.
 
     `shared` (multi-object) commits fan out per rotating object exactly like
     `position_walk`'s. Full-mode objects ride this layer for A/X + A/Z too:
@@ -2062,12 +2060,12 @@ def check():
 
     # A build's prefab text, plus its base's when the build is a VARIANT. A variant serialises only
     # its overrides, so scanning its own file alone sees a fraction of the wiring: the world-pin
-    # assert below reads zero cross-asset refs there and the offset assert passes over ~8% of the
-    # offsets it covered when every build was a flat copy. Both scan the union instead, which is the
+    # assert below reads zero cross-asset refs there, and the offset assert would cover about 8% of
+    # a flat build's offsets. Both scan the union instead, which is the
     # honest population for the proposition each makes - the pin THIS BUILD SHIPS resolves, and every
     # offset THIS BUILD SHIPS is zero - whether the node is authored here or inherited.
     #
-    # A variant's base must be this entry's own root prefab. That is the inheritance the entry now
+    # A variant's base must be this entry's own root prefab. That is the inheritance the entry
     # ships (README §Rig), and a variant pointing anywhere else is a wiring defect of exactly the
     # class these asserts exist to catch, so it fails loud rather than silently scanning less.
     def prefab_texts(label, pf_path):
@@ -2133,9 +2131,9 @@ def check():
         if not os.path.exists(pf_path):
             continue      # the missing-prefab FAIL is already reported above
         own = open(pf_path, encoding="utf-8").read()
-        # UNFILTERED: anchoring this scan on the current internal prefix made it
+        # UNFILTERED: anchoring this scan on the current internal prefix makes it
         # blind to exactly the defect it exists to catch — a receiver left on a
-        # stale name simply fell out of the scan and reported no stray. Every
+        # stale name falls out of the scan and reports no stray. Every
         # `parameter:` field is read, and the test is membership in the whole
         # declared param set, so a receiver naming anything the document does not
         # declare fails whatever prefix it carries.
@@ -2160,8 +2158,7 @@ def check():
                     f"{sorted(sense_declared - sense_fields)}")
 
     # Under the sealed interface the park and the collision tags are the ONLY
-    # things that vary between two builds on one avatar (the parameters froze),
-    # and both are hand-maintained prefab↔config pairings nothing else reads:
+    # things that vary between two builds on one avatar, and both are hand-maintained prefab↔config pairings nothing else reads:
     # the tags are strings VRCFury's prefixing does not reach, and the park is
     # a plain transform localPosition the document pin cannot see. A pairing
     # that drifts regenerates green and ships the measured-broken states — two

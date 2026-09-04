@@ -38,8 +38,7 @@ layers:
   # driver zeroes the six floats (nothing rewrites them while the receivers are off) and Reset
   # exits on Enable alone. Resume-in-place survives via Searching: its clip self-holds the cage
   # where it stands with filters open, so a sender still in range relatches one frame later
-  # (Searching -> Tracking) with the identical latch geometry the old Reset -> Tracking direct
-  # edge gave.
+  # (Searching -> Tracking).
   - name: Control
     states:
       Reset:                      # Enable off — parked at HomeAnchor, receivers off, cage collapsed

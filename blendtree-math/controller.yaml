@@ -52,7 +52,7 @@
 #
 # FRAMETIME rig — OWNED here, not borrowed from VRCFury's FrameTimeService (see README): a `tangents:
 # linear` ramp makes the `Time` AAP equal elapsed seconds (flat tangents would stair-step it — most frames
-# read Delta=0, spiking at key boundaries). `Time_Ramp` and the `FrameTime = Time - LastTime` calc are now
+# read Delta=0, spiking at key boundaries). `Time_Ramp` and the `FrameTime = Time - LastTime` calc are
 # siblings in one tree, so the calc reads `Time` at frame start (one-frame-old dt) and stages LastTime =
 # Time — still exactly dt for a steady frame rate. Multiply FrameTime into a smoothing step (via the
 # multiply idiom) to make that step frame-rate independent.

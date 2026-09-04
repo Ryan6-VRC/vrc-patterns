@@ -25,14 +25,12 @@ and committed unmodified, and its one departure from the entry's shipped posture
 THE WIRE
 --------
 `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — 3
-batches, 50 wire bits, 0.350 s full refresh, 11 sync states. Settled in
-`docs/local/m3-brief.md` §The wire at 18 slots / 52 bits for the 147-bit
-table, retuned with the 12+12 geometry: at 144
-bits the worst batch pins 16 bool words, so the two extra slots rode every
-batch idle; the 28-bit shipped default stays for
-composed avatars that cannot afford more, and this avatar carries no other
-synced system. `batchSeconds` 0.1 and `indexLoops` 1 are the shipped defaults
-and are deliberately not overridden. Three batches rather than two is what keeps
+batches, 50 wire bits, 0.350 s full refresh, 11 sync states. 16 bool slots is
+the size the table wants: at 144 bits the worst batch pins exactly 16 bool
+words, so a wider slot set rides every batch idle. The entry's 28-bit default
+stays for composed avatars that cannot afford more; this avatar carries no
+other synced system. `batchSeconds` 0.1 and `indexLoops` 1 are the shipped
+defaults and are deliberately not overridden. Three batches rather than two is what keeps
 the tablet's Index readout reading as a counter.
 
 THE SHARED COMPONENT (the prefab half this generator cannot author)
@@ -42,12 +40,11 @@ on the prefab root — the sealed-interface coupling: the
 entry publishes `Enable` alone, and everything else the tablet reads (`OS/D/*`
 decoded AAPs, `OS/Ch/Wire/Idx*`, `OS/Ready`, `OSCh/Acquired`) is reachable only
 because one component prefixes both controllers identically and the shared
-names unify. The positive-wildcard `globalParams` grammar this file used to
-derive is retired with the exposure it existed to scope: the component's list
-is exactly the entry's derived `ObjectSync/*` (matching `Enable` alone), and
-`--check` pins it. Splitting the two controllers back onto two components
+names unify. The component's `globalParams` list is exactly the entry's
+derived `ObjectSync/*` (matching `Enable` alone), and `--check` pins it.
+Splitting the two controllers back onto two components
 un-unifies every shared name with no build error — the param-rewrite memo is
-per component (measured 2026-08-31) — so `--check` also refuses a second
+per component (measured) — so `--check` also refuses a second
 FullController. The `Drop` toggle stays deleted (its `FreezeToWorld` writer
 would fight the Freeze mode; the entry's two-writer rule).
 
@@ -70,10 +67,6 @@ REPO = os.path.normpath(os.path.join(HERE, os.pardir, os.pardir))
 # The entry is a sibling in this same checkout, which is what makes the wrong
 # source unreachable rather than something a reader has to remember: whichever
 # branch is checked out supplies both the composition and the entry it builds.
-# When this generator lived in the venue it resolved the entry through
-# `Packages/manifest.json`, because a static path there could name a different
-# checkout than the Editor had loaded — a full green `--check` against the
-# pre-refactor surface, measured.
 ENTRY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "object-sync", "generate.py"))
 OUT = os.path.join(HERE, "object-sync", "controller.yaml")
@@ -96,8 +89,8 @@ def entry_module():
 def demo_config(mod):
     cfg = dict(mod.CONFIG)
     cfg["wire"] = dict(mod.CONFIG["wire"], **WIRE)
-    # This demo removes the menu control (m3-brief.md §Menu), so with the entry's
-    # shipped default-off nothing would ever turn sync on.
+    # This demo removes the menu control, so with the entry's shipped
+    # default-off nothing would ever turn sync on.
     cfg["enableDefault"] = 1
     return cfg
 
@@ -156,7 +149,7 @@ def main():
             # entry component is removed — remove-and-add, the one redirect a
             # VRCFury component supports). A second component holding either
             # controller un-unifies every shared name with no build error: the
-            # param-rewrite memo is per component (measured 2026-08-31).
+            # param-rewrite memo is per component (measured).
             # Counted over FullController blocks that reference EITHER
             # controller, not over all of them — the composed anti-cull ships
             # its own component legitimately.

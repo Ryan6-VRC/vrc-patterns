@@ -29,7 +29,7 @@
 # sub-tree summing floor + hue + sink); one tree, not one Override layer per channel, so the channels also
 # don't fight (color-adjust fact 2).
 #
-# BINDING SUFFIX IS .r/.g/.b/.a — _Color is a *Color* property. color-adjust used .x/.y/.z ONLY because
+# BINDING SUFFIX IS .r/.g/.b/.a — _Color is a *Color* property. color-adjust uses .x/.y/.z ONLY because
 # _MainTexHSVG is a *Vector*; _Color.x parses and lints clean but the by-name write lands on NOTHING (a
 # wrong suffix on a Color is silently inert). The MPB proof (README) reads .r/.g/.b back and catches it.
 #
