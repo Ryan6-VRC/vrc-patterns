@@ -164,9 +164,8 @@ CONFIG = {
     #                same batch index (docstring).
     # Every word name sits under one config-chosen published prefix. That is
     # what makes the whole table expressible as a single `WDemo/*` wildcard, so
-    # adding a word is not a prefab edit; a bare name (this table's `Level` once
-    # was) has no wildcard that matches it and would silently take the instance
-    # prefix instead.
+    # adding a word is not a prefab edit; a bare name has no wildcard that
+    # matches it and would silently take the instance prefix instead.
     "numbers": [
         {"name": "WDemo/Pos/Hi", "kind": "byte", "group": "pos"},
         {"name": "WDemo/Pos/Lo", "kind": "byte", "group": "pos"},
@@ -485,10 +484,8 @@ def build(config):
     # (its own built-in list carries it), so the reset layer really is driven by
     # the client. Declared plainly, exactly like `IsLocal` above: CompileController's
     # reserved-name list carries the name, so the emitter keeps it out of the
-    # VRCExpressionParameters asset on its own. It was `scratch: true` until that
-    # list caught up, which said "internal working param" about a client-driven
-    # built-in. Default true is the SDK's, so a fresh load takes no spurious trip
-    # through the reset state.
+    # VRCExpressionParameters asset on its own. Default true is the SDK's, so a
+    # fresh load takes no spurious trip through the reset state.
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in")
     o(f"  {ip}/True: {{ type: bool, default: true, scratch: true }}   # constant for +1-frame hops")
     o("  # Interface — the word table. Producers write these on the wearer; consumers read")

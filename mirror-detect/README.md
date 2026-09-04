@@ -2,7 +2,7 @@
 
 One FX layer, zero synced bits, no scene objects: a three-valued signal that tells the real local avatar from its mirror clone from every remote. Build it into anything that must behave differently on your own body than in the mirror — a head chop that must never shrink your head in mirrors or photos (`head-proxy`), mirror-side scale compensation for a gimmick whose chopped parent exists only outside the mirror (`head-deform`), wearer-only widgets that shouldn't render on the mirror clone.
 
-**Provenance:** the standard parameter-driver race (VRLabs lineage); extracted from this library's proxy-head rig, where it previously shipped embedded.
+**Provenance:** the standard parameter-driver race (VRLabs lineage); extracted from this library's proxy-head rig.
 
 ## Ground truth
 

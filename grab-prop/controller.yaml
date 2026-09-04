@@ -18,8 +18,7 @@
 # Container/GameObject.m_IsActive 0 (disabled, timer, waiting) — the child GameObject is off, so the
 # constraint does not run regardless of the value. The write is kept at 1 there because it takes
 # effect the frame Container reactivates, and no live sample is lost meanwhile: in exactly those
-# states the cell's own source (DropPosition) is parked too, which is why the reactivation trace
-# measures identical to the pre-nesting rig (frame-measured, stock-vs-nested, enable-cycle).
+# states the cell's own source (DropPosition) is parked too (frame-measured across an enable cycle).
 #
 # The tuned constants are the README's Empirical-constants table — what each knob does, and which of
 # these clips authors it. Values live at those sites only; the inline comments below carry each one's

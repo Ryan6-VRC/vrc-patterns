@@ -158,8 +158,8 @@ clips:
   # guard covers (measured at the emulator): at the latch the receivers still carry column-scale
   # readings while the decode coefficients assume the full slabs, so Output decodes up to a
   # slab-dimension off for the first frame or two — ANY gain during that window lunges the cage at
-  # a phantom (an unguarded static gain snapped visibly past the target for a frame; #17's "overshot on
-  # initial acquisition" was this, then misread as gain stiffness). Timing rule for EVERY curve in
+  # a phantom (an unguarded static gain snaps visibly past the target for a frame, which reads as gain
+  # stiffness and is not). Timing rule for EVERY curve in
   # this state: the readout Direct tree is non-normalized with weight-sum > 1, so curves play at
   # normT × clipLength over duration = Σ(weight × length) — authored seconds stretch by
   # (1 + Σ box readings), and real-frame intent survives only if every child is tiny. Hence the
@@ -167,7 +167,7 @@ clips:
   # half spans ~1–5 real frames across the reading range, full authority within ~4–10 frames.
   # NEVER pad a child of this state — a consumer needing a padded DBT dwell (sync-on-player's
   # provisional) pads its OWN clip copies. Steady 0.7 (g~0.41) is the landing
-  # (wear-tested), capped below the static-1 ceiling #17 retired; the curve's end key and the
+  # (wear-tested), capped below a static gain of 1; the curve's end key and the
   # prefab's static source0 (what holds outside Tracking) are one knob in two homes — retune
   # together. Stability is structural: the loop is a convex per-frame blend — high gain amplifies
   # readout jitter but can never ring.
