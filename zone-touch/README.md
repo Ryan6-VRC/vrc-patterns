@@ -34,7 +34,7 @@ Empirical constants (labeled in `controller.yaml`; `runtime.md` 90% rule):
 
 The sync surface is Enable + Special only. A foreign (`allowOthers`) sender on a zone fires its reaction once and holds without re-triggering while the touch persists; coincident Zone1+Zone2 resolves to React1, and releasing only sender 1 exits the machine. A re-touch inside the cooldown is ignored. Enable-off must kill the zone receivers on the clone as well as locally.
 
-That remotes' own receivers fire for a real toucher is in-game-only — emulator clones hold spawn-time contact fossils (`verify.md`). The emulator reaches the local machine, the allow-flag matrix, and the synced-bool channel against a clone.
+That remotes' own receivers fire for a real toucher is in-game-only — the toucher's real body senders and that client's timing have no emulator stand-in, though a clone's receivers do simulate against scripted senders (`emulator.md` §Remote clone). The emulator reaches the local machine, the allow-flag matrix, and the synced-bool channel against a clone.
 
 ## Rig
 

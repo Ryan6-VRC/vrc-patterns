@@ -46,7 +46,7 @@ At rest on the wearer, `SelfDetect` must read 1.000 off the avatar's own standar
 
 For the tracker: with the prop grabbed, put a scripted `Head` sender (`docs/emulator.md`) into the catch column and release — the four `X+/X-/Y+/Z+` floats leave zero together, filters shut, `Output` lands on the sender. A partial box set that never all-fire means the column doesn't suit this avatar's head placement. Loss is **ANY-box** — a target leaving even one box's core drops the prop.
 
-Two clients in-game, not the emulator: remote-side cage re-derivation (clone receivers hold spawn-time fossils and are never simulated), the witnessed grab/release choreography (`_IsGrabbed` does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and culling against a genuinely distant or occluded player.
+Two clients in-game, not the emulator: remote-side cage re-derivation against a real player (a clone's receivers do simulate against a scripted sender — `emulator.md` §Remote clone — but a real head arrives IK-delayed on that client's own clock), the witnessed grab/release choreography (`_IsGrabbed` does not transport to a clone), the remote release-settle dwell, chase feel under real IK, and culling against a genuinely distant or occluded player.
 
 ## Rig
 
