@@ -425,8 +425,7 @@ def shared_component_pins(assert_, mod, cfg):
 
 # ========================================================== the glue document ===
 # Emits the marked region of `controller.yaml` — the transcribed clip table. The
-# splice is textual, so nothing outside the markers is read or written; the Settle
-# layer's own AAP clips sit below the END marker and stay hand-authored.
+# splice is textual, so nothing outside the markers is read or written.
 #
 # Cell bindings are read live at emit time from
 # ../../drop-on-player/controller.yaml, and ../../box-tracker/controller.yaml for
@@ -451,8 +450,15 @@ GP1 = PREFIX + "GrabPosition/VRCPositionConstraint.Sources.source1.Weight"
 
 # The GrabPosition repoint: word states hold (1,0) so the parked cell root rides
 # the word through the repointed Display (grab-prop §How it works sanctions the
-# two-source repoint; the header owns why these three take it).
-GP_CARVE = {"acquireflush", "synced", "resume"}
+# two-source repoint; the header owns why these four take it).
+GP_CARVE = {"acquireflush", "synced", "acquiring", "resume"}
+
+# Acquiring's carve: the four cage filters shut over the `synced` set, so the boxes
+# lock onto the head they held at entry (the header owns the discriminator). Same
+# shape as GP_CARVE — generated clip content, so no --check reads it.
+FILTER_CARVE = {"acquiring"}
+FILTER_KEYS = tuple(PREFIX + f"TrackingPoints/{f}/VRCContactReceiver.allowOthers"
+                    for f in ("X+", "X-", "Y+", "Z+"))
 
 # The glue's own bindings, in emit order. Every value-set clip carries all ten.
 GLUE_KEYS = (
@@ -490,29 +496,28 @@ DISPLAY_DELAY = "{ tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }"
 # the park pair sits with the cell's own TrackingPoints block. Cosmetic — the
 # compiled clip is a set, not a sequence — but reproducing it keeps the emit diff
 # free of noise that would hide a real one.
-PACKED = {"disabled", "readout_xn", "readout_yp", "readout_zp",
-          "readout_pulse_xn", "readout_pulse_yp", "readout_pulse_zp"}
+PACKED = {"disabled", "readout_xn", "readout_yp", "readout_zp"}
 
-# The cage's gain-guard curve closes a clip's curve block, with its note above it
-# — including in the provisional fusion, where the entry's pulse curve lands ahead
-# of it. `body` is emitted immediately before this key.
+# The cage's gain-guard curve closes a clip's curve block, with its note above it.
+# `body` is emitted immediately before this key.
 GAIN_CURVE = PREFIX + "TrackingPoints/VRCPositionConstraint.Sources.source0.Weight"
 
 TIMER_ANCHOR = PREFIX + "TrackingPoints/VRCParentConstraint.m_Enabled"
 
 
 # Dwells. PULSE transcribes from the entry (its release pulse is the sample
-# window this composition inherits); BRIDGE and SEEK are this document's own,
-# derived in the header. Resume waits the full release-to-committed-word latency
-# FROM the resume, which is pulse + bridge — the relation, so a bridge retune
-# carries. Copy sites for BRIDGE and SEEK: the header derivation and README.md's
-# lead. Retune together.
+# window this composition inherits); BRIDGE, SEEK and DWELL are this document's
+# own, derived in the header. Resume waits the full release-to-committed-word
+# latency FROM the resume, which is pulse + bridge — the relation, so a bridge
+# retune carries. Copy sites: the header derivation for all three, and README.md's
+# verifying section for SEEK. Retune together.
 BRIDGE = 2.0    # [EMPIRICAL] header: 0.97 s worst case + grab-sync's proportional buffer
 SEEK = 5.0      # [EMPIRICAL] the wearer-side loss grace
+DWELL = 0.75    # [EMPIRICAL, derived] Acquiring: rejects a crossing at or above ~0.5 m/s (header)
 
 READOUT_LEAD = (
     'Readout leaves (entry verbatim, prefixed; coefficients and box geometry are ONE unit —',
-    "the entry's clip table owns them). Tracked's set rides the one-frame floor (box-tracker's stretch rule); provisional rides the pulse-padded copies below.",
+    "the entry's clip table owns them). The set rides the one-frame floor (box-tracker's stretch rule): every child of the readout state stays tiny, so the latch clip's gain guard plays in ~real frames.",
 )
 
 # Comment alignment, matched to the committed document: the value-set clips align
@@ -526,10 +531,10 @@ NOTE_COL = {
     'dropped': 16,
     'waiting': 16,
     'tracked': 16,
-    'provisional': 16,
     'seeking': 16,
     'acquireflush': 16,
     'synced': 16,
+    'acquiring': 16,
     'bridge': 16,
     'reacquire': 16,
     'resume': 16,
@@ -538,10 +543,6 @@ NOTE_COL = {
     'readout_xn': 22,
     'readout_yp': 22,
     'readout_zp': 22,
-    'readout_pulse_xp': 22,
-    'readout_pulse_xn': 22,
-    'readout_pulse_yp': 22,
-    'readout_pulse_zp': 22,
 }
 
 CLIPS = (
@@ -577,11 +578,7 @@ CLIPS = (
      ('cell `tracked` verbatim (latch curves included) + CAGE; rides the readout tree at weight One',),
      None,
      ('curves', ("Gain guard: zero across the latch/mis-decode frames, 0.7 by clip end (box-tracker's crawl block; entry transcription).",))),
-    ('provisional', '@provisional', 'CAGE', '@pulse',
-     ('released-cell + tracked-cage FUSION (header carve): the capture runs under the latched cage; dwell = the pulse',),
-     None,
-     ('curves', ("Gain guard: zero across the latch/mis-decode frames, 0.7 by clip end (box-tracker's crawl block; entry transcription).",))),
-    ('seeking', '@seeking', 'CAGE', '5.0',
+    ('seeking', '@seeking', 'CAGE', '@seek',
      ('tracked-cell + box-tracker Searching cage (header carve): self-hold at the loss point, filters reopened, zone recollapsed  [EMPIRICAL: dwell = clip length = the {SEEK} s loss grace]',),
      None,
      None),
@@ -590,7 +587,11 @@ CLIPS = (
      None,
      None),
     ('synced', 'dropped', 'WORD-DAMPED', None,
-     ('cell `dropped` + WORD-DAMPED (SyncedRest AND SyncedTrack — binding-identical sets); GrabPosition (1,0) carve; damper (0.1,1)',),
+     ('cell `dropped` + WORD-DAMPED (Synced — riding the word, filters open); GrabPosition (1,0) carve; damper (0.1,1)',),
+     None,
+     None),
+    ('acquiring', 'dropped', 'WORD-DAMPED', '@acquire',
+     ('`synced` with the four cage filters SHUT (header carve): the boxes stay locked on the head they held at entry; nothing visible moves  [EMPIRICAL: dwell = clip length = DWELL {DWELL} s — header derivation]',),
      None,
      None),
     ('bridge', 'dropped', 'CELL', '@bridge',
@@ -622,22 +623,6 @@ CLIPS = (
      None,
      None),
     ('readout_zp', 'readout_zp', None, None,
-     (),
-     None,
-     None),
-    ('readout_pulse_xp', 'readout_xp', None, '@pulse',
-     ("provisional's pulse-padded readout copies (the header's dwell-floor formula)",),
-     None,
-     None),
-    ('readout_pulse_xn', 'readout_xn', None, '@pulse',
-     (),
-     None,
-     None),
-    ('readout_pulse_yp', 'readout_yp', None, '@pulse',
-     (),
-     None,
-     None),
-    ('readout_pulse_zp', 'readout_zp', None, '@pulse',
      (),
      None,
      None),
@@ -697,22 +682,8 @@ def parse_clips(path):
 
 
 def _cell(entry, cage, name, src):
-    """The cell half of one clip, already prefixed: an entry clip by name, or one
-    of the two fusions the header carves."""
-    if src == "@provisional":
-        # released cell + tracked cage. `tracked` owns the scale x/y by curve and
-        # Output by the readout tree, so released's static copies drop out.
-        rel, trk = entry["released"], entry["tracked"]
-        s = dict(rel["set"])
-        s.update({k: v for k, v in trk["set"].items()
-                  if k.startswith("TrackingPoints/")})
-        for k in list(s):
-            if (re.search(r"TrackingPoints/[XYZ][+-]/Transform\.m_LocalScale\.[xy]$", k)
-                    or "TrackingPoints/Output/" in k):
-                del s[k]
-        c = dict(trk["curves"])
-        c.update(rel["curves"])
-        return s, c
+    """The cell half of one clip, already prefixed: an entry clip by name, or the
+    Seeking fusion the header carves."""
     if src == "@seeking":
         # tracked cell + box-tracker's `searching` cage verbatim — the self-hold
         # configuration is that entry's to own.
@@ -733,7 +704,8 @@ def emit_clips(entry, cage):
     # PULSE is read live: the pulse is the entry's, and three of this document's
     # dwells are defined as it or as a relation over it.
     pulse = float(entry["released"]["len"])
-    dwells = {"@pulse": pulse, "@bridge": BRIDGE, "@resume": pulse + BRIDGE}
+    dwells = {"@pulse": pulse, "@bridge": BRIDGE, "@resume": pulse + BRIDGE,
+              "@acquire": DWELL, "@seek": SEEK}
     out = []
     for name, src, setname, dwell, note, lead, body in CLIPS:
         cs, cc = _cell(entry, cage, name, src)
@@ -741,6 +713,10 @@ def emit_clips(entry, cage):
         curves = {PREFIX + k: v for k, v in cc.items()}
         if name in GP_CARVE:
             rows[GP0], rows[GP1] = "1", "0"
+        if name in FILTER_CARVE:
+            for k in FILTER_KEYS:
+                assert k in rows, f"filter carve: {k} not in the cell set"
+                rows[k] = "0"
 
         if setname is not None:
             vals = VALUE_SETS[setname]
@@ -774,7 +750,8 @@ def emit_clips(entry, cage):
         if lead:
             out.extend("  # " + t for t in lead)
         note = tuple(t.format(PULSE=_sec(pulse), BRIDGE=_sec(BRIDGE),
-                              RESUME=_sec(pulse + BRIDGE), SEEK=_num(SEEK))
+                              RESUME=_sec(pulse + BRIDGE), SEEK=_num(SEEK),
+                              DWELL=_sec(DWELL))
                      for t in note)
         head = f"  {name}:"
         if note:
