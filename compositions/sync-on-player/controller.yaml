@@ -1,23 +1,25 @@
 # SyncOnPlayer glue controller — the ONE controller of the sync-on-player composition; the README owns the arc, this header owns only what the graph cannot say.
-# The clip table below the BEGIN marker is EMITTED by generate.py (its `the glue document` section is the design record) — cell bindings read live from ../../drop-on-player/controller.yaml's clip table — values unchanged, entry-Container's own mux weights included (a harmless inner duplicate of Source's selection — the outer mux exists to add the word without touching the cell ring), paths gaining the Prop/DropOnPlayer/ prefix. State↔cell-clip map, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grabbed→grabbed, Released→released (pulse curve included), Dropped→dropped, WaitWord→waiting, Tracked→tracked (readout DBT included), Bridge/AcquireFlush/SyncedRest/SyncedTrack/Resume→dropped, Reacquire/Resume_Grab→grabbed, TrackedProvisional→released-cell + tracked-cage FUSION (carved), Seeking→tracked-cell + box-tracker-Searching cage (carved). Exceptions carved from the verbatim rule, and only these: the GrabPosition repoint weight pair (word states hold (1,0) so the parked cell root rides the word through the repointed Display — grab-prop §How it works sanctions the two-source repoint), the added park/word source-weight pair on TrackingPoints/VRCParentConstraint (a NEW binding pair on every clip — the entry never animates its park sources), TrackedProvisional's fusion, and Seeking's self-hold set.
+# The clip table below the BEGIN marker is EMITTED by generate.py (its `the glue document` section is the design record) — cell bindings read live from ../../drop-on-player/controller.yaml's clip table — values unchanged, entry-Container's own mux weights included (a harmless inner duplicate of Source's selection — the outer mux exists to add the word without touching the cell ring), paths gaining the Prop/DropOnPlayer/ prefix. State↔clip map (the wearer and remote lanes share clips by name; a state's last word keys it): Timer→timer, Disabled→disabled, Anchored→anchored, Grabbed→grabbed, Released→released (pulse curve included), Dropped→dropped, Tracked→tracked (readout DBT included), WaitWord→waiting, Seeking→seeking (tracked-cell + box-tracker-Searching cage, carved), AcquireFlush→acquireflush, Synced→synced, Acquiring→acquiring (`synced` with the cage filters shut, carved), Bridge→bridge, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab. Exceptions carved from the verbatim rule, and only these: the GrabPosition repoint weight pair (word states hold (1,0) so the parked cell root rides the word through the repointed Display — grab-prop §How it works sanctions the two-source repoint), the added park/word source-weight pair on TrackingPoints/VRCParentConstraint (a NEW binding pair on every clip — the entry never animates its park sources), Seeking's self-hold set, and Acquiring's four allowOthers written 0.
 # Glue value-sets — digits are an echo of generate.py's VALUE_SETS, which is their canon (mux = Prop/Source position sources [AnchorOffset, cell Container, cage RideOffset, word Sync], damper = Prop/Container [Source, self], park = TrackingPoints/VRCParentConstraint [Container/TrackingOffset, ObjectSync/Sync/CagePark]):
 #   HIDDEN     = mux (0,1,0,0), damper (1,0), Display off, park (1,0)   (Timer, Disabled, WaitWord)
 #   ANCHOR     = mux (1,0,0,0), damper (1,0), Display on,  park (1,0)   (Anchored — shows immediately: it never needed the word)
 #   CELL       = mux (0,1,0,0), damper (1,0), Display on,  park (1,0)   (Grabbed, Released, Dropped, Bridge)
-#   CAGE       = mux (0,0,1,0), damper (1,0), Display on,  park inert   (Tracked; TrackedProvisional; Seeking — parent constraint disabled, cage owns its own position)
+#   CAGE       = mux (0,0,1,0), damper (1,0), Display on,  park inert   (Tracked; Seeking — parent constraint disabled, cage owns its own position)
 #   WORD-RIGID = mux (0,0,0,1), damper (1,0),              park (0,1)   (AcquireFlush — Display shown 0.1 s delayed while the park↔word ring flushes; Resume — Display off)
-#   WORD-DAMPED= mux (0,0,0,1), damper (0.1,1), Display on, park (0,1)  (SyncedRest, SyncedTrack — ONE clip, `synced`: the sets are binding-identical, only the rungs differ; damper weights are grab-sync's shipped position value)
+#   WORD-DAMPED= mux (0,0,0,1), damper (0.1,1), Display on, park (0,1)  (Synced; Acquiring — the same set with the four cage filters shut; damper weights are grab-sync's shipped position value)
 #   WORD-CELL  = mux (0,0,0,1), grabbed cell, park (0,1); damper (0.1,1) on Reacquire, (1,0) on Resume_Grab  (Reacquire — Display on, holding the word while the cell flies to the hand; DAMPED so a grab landing mid-convergence rides value-continuous rather than snapping onto the undamped word — grab-sync's SYNC set spans its Synced AND Reacquire, and this is that parity. Measured residual, grab-sync-shared: the cell pins to the display at grab ENTRY, so the dwell's remaining ride pays back in one frame at the Grabbed hop — gap-at-grab × ~44% at the 0.1 s dwell, plus the 20 mm cell offset, shrinking as the damper converges. Resume_Grab — Display off, passthrough: a resume must not integrate from a stale pose; grab-sync's resume_grab likewise)
 # The cage park geometry: the word encodes the PROP (Sync_Target measures the mux output = cage + RideOffset), so word states park the cage on ObjectSync/Sync/CagePark — a plain constraint-free child of Sync carrying the below-the-prop offset (−RideOffset), never on bare Sync (one ride-offset high: mis-centered catch column, full-offset pop at every latch). At the latch the cage sits at word − RideOffset, the prop at cage + RideOffset = word: value-continuous. Cell/anchor states keep the entry's own park (Container/TrackingOffset). Offsets live on the child GO's transform, never in constraint fields (runtime.md §Constraints — the client scales source offsets by avatar scale).
-# Engage predicate ("engaged" := IsLocal OR (ObjectSync/Enable AND OS/Ready)) — the entry's own three-term derivation (object-sync README §Params out), read DIRECTLY in transition rungs, grab-sync's shipped shape. No Ready-lag layer exists here or in shipped grab-sync: OS/Ready is already the Floatify copy aligned with the decoded words, so lagging it buys nothing. The rungs are plain conjunctions [Enable, Ready] with no IsLocal arm — the IsLocal term is carried by reachability: WaitWord and Bridge are remote-only structurally (Released's IsLocal → Dropped split keeps the wearer out of the word arc), and Resume's only local entries are pre-arm rungs, whose IsAnimatorEnabled-false condition never fires on the wearer (a wearer is never distance-hidden from themselves — runtime.md §Parameters; grab-sync ships the same un-gated pre-arms).
+# One flat machine in two lanes under one boot dwell; state names carry the lane as a leading word (Local X / Remote X), the entry's scheme. IsLocal is constant per client, so Timer routes each client once, by level transitions (the frame-0 trap below), into the wearer half or the remote half, and the two never meet again; the only IsLocal conditions left are Timer's. The wearer half is the entry's wearer half lifted under one transcription rule, state to same-named state — every driver gains the Carried write and Grabbed gains a driver setting it, Tracked's loss rungs target Seeking instead of Dropped, Seeking is added, and Enable and the grab param take this composition's names (ObjectSync/Enable read as a float, Grab_IsGrabbed); any other difference is a defect in one of the two documents. The remote half carries every word state and no driver. A mirror clone reads IsLocal true, takes the wearer half, and runs no drivers (runtime.md §Parameters). No wearer state pre-arms on cull: a wearer is never distance-hidden from themselves.
+# Engage predicate: "engaged" := ObjectSync/Enable AND OS/Ready, the entry's certification read DIRECTLY in remote-half rungs, grab-sync's shipped shape; the entry's IsLocal arm is structural here, because only the remote half reads the word. No Ready-lag layer exists here or in shipped grab-sync: OS/Ready is already the Floatify copy aligned with the decoded words, so lagging it buys nothing.
 # The Enable and OS/Ready declarations MATCH the sync build's animator declarations — float, with vrc.type the bool wire type — because VRCFury's param merge is first-wins and types must agree. ObjectSync/Enable declares default 1 HERE while the build's enableDefault stays 0 (the pattern spawns armed; grab-sync's exact mechanism, and like it un-scratch with the vrc flags matched to the entry's) — which only works because this glue sits BEFORE the sync build in the shared FullController's controllers list AND its params asset before the build's in prms (grab-sync's header owns the two first-wins lists, and the failure symptom of either inversion is Enable baking default-0, the prop hidden on spawn). ObjectSync/Enable is ONE bare param across every sealed object-sync build on the avatar — composed beside grab-sync, this menu toggle arms that build too, by design (the entry's §Seam), and the baked default is first-wins across components, so default-on holds unconditionally only while this is the avatar's sole build.
-# The synced pair DropOnPlayer/Out+Worn is the entry's 2-bit mode transport unchanged: 00 disabled · 01 anchored · 11 tracked · 10 dropped; stamped only by the wearer's localOnly drivers; the word disambiguates position for both Out=1 codes (hide until the word is certified when the pair reads 10/11; 01 shows immediately). `Lost` is dissolved: remote loss falls to riding the word (Tracked → SyncedTrack), never a permanent freeze. Synced cost: 2 (pair) + 1 (Enable) + 26 (this build's wire) = 29 bits.
-# Settle layer — the word-quiet gate (§Settled detector). No single metres AAP exists in the build, so this glue assembles it: per axis M = C × cellSize + F × fineLSB = OS/D/Prop/Pa/C × 2.0 + OS/D/Prop/Pa/F × 0.00078125 (constants read off object-sync/controller.yaml's generated header — 2 m cells, 0.78125 mm fine LSB; re-derive both if the wire geometry changes). Comparing C alone IS the rejected byte-compare (FBT sway near a cell boundary dithers the committed coarse word ~1 event/s while the assembled value moves only by the true centimetres). Mechanism, all animator-local, zero bits, zero contacts: Prev = one-frame-delayed copy of M (blendtree-math's staging idiom), D = M − Prev (signed, read only as a 1D param — never a directWeight, blendtree-math's hard constraint), NM_a = a ±ε window on D_a (1D saturation, ε = 0.2 m/step — retuned in-game, doubling the original 0.1: ε ≈ v_threshold × refresh, this wire refreshes ~0.35 s, so 0.2 m admits carriers up to ~0.57 m/s per axis — a slow walk now settles; FBT sway steps still clear by well over an order of magnitude), and Quiet = NM_x·NM_y·NM_z × (Quiet + Dt) — a feedback-add in true seconds (owned frametime rig, blendtree-math) that any axis's motion collapses to 0. The word is piecewise constant, so D is exactly 0 between commits and the window only ever adjudicates commit steps; torn or excursion frames can only fabricate motion, never stillness — the failure direction is a delayed latch. Acquisition rung: Quiet greater 0.75 [EMPIRICAL, derived]: T = max(2 wire refreshes, 4τ) = max(0.70, 0.70) + margin — 2 × 0.35 s refresh, τ ≈ 0.175 s at the (0.1,1) damper — so at the latch the word equals the carrier's true position AND the damper has fully converged onto it: the swap is value-continuous by the same gate. Acquisition always reads the UNDAMPED word (the cage parks on Sync's child, never on the damped display).
-# TrackedProvisional (remotes acquire SENSOR-FIRST at the release edge, never waiting on the pair): entered from Grabbed on [grab end AND all four boxes > 0], UNGATED by the settled detector (the witnessed edge-latch). CAGE display with the released clip's cell choreography running underneath (the fusion: the capture runs regardless, so a 10-routed exit shows a valid witnessed drop); filters shut at entry; dwell = 0.5 s × max(1 + Σ box readings, 1) ∈ (0.5, 2.5] s, ~1.55 s at this cage's latched readings [EMPIRICAL, measured] — exitTime 1.0 on a Direct-tree state, and Unity's effective duration there is Σ(weight × child length) normalized only below a weight-sum of 1, so live box weights stretch the dwell past the pulse; the 0.5 s floor (One's constant weight, and the sub-1 clamp independently) is what the release-settle "must cover the sync tick" contract needs, and the ceiling's cost is a longer self-correcting flash plus pair rungs landing up to 2.5 s late on this path; NO pair rungs during the dwell; the arrived pair routes at exitTime — the follow-then-revert (≤ the dwell) is the accepted, self-correcting flash. ANY-loss during the dwell exits to Released: Released IS this state's loss semantics — CELL display over the same capture, a pulse dwell, the identical arrived-pair ladder — the display cannot drop value-discontinuously (the capture froze at the same release), the restart only widens the suppression window, and the cost is that path inheriting the pulse's re-grab lockout. The DBT rides its own pulse-padded readout copies (`readout_pulse_*`, 0.5 s) so no child can pull the dwell below the pulse — equal child lengths bound the duration below, they do NOT make it weight-independent (the formula above); Tracked's `readout_*` set instead rides the one-frame floor so its gain guard plays in ~real frames (box-tracker's stretch rule).
-# Seeking (wearer-side loss grace + swap-reacquire, 5 s, local-only by reachability): box-tracker's Searching configuration ported verbatim (cage self-holds — position constraint on with Output pinned to cage center, no chase regardless of gain; filters REOPENED; zone recollapsed at the ORDINARY acquisition scale) + the tracked clip's cell (the inner cell keeps riding the cage, so the Dropped exit's transcribed freeze captures the seek point); pair STILL 11, no stamp — remotes see only the word freezing and stay armed in SyncedTrack on their own clocks. At 5 s exitTime → Dropped (stamps 10). The armed-window residuals this buys are accepted (the two-client checklist).
-# Bridge timer [EMPIRICAL, derived — NEVER copied from grab-sync's]: pulse 0.5 + bridge 2.0 = 2.5 s. Worst-case release→committed-word for THIS build ≈ 0.55 s measure cycle + ~0.07 s unpark + 0.35 s wire refresh ≈ 0.97 s (all three read off the generated document header), plus grab-sync's proportional buffer (its 2.4 covered a 1.3 s worst case). Resume's dwell = pulse + bridge FROM the resume (grab-sync's sizing argument verbatim: Ready certifies a walk, not that the table reflects the rest point, and a resume cannot date the last release) = 2.5 s; the clip playhead freezes with the animator, which is what lets a clip length express it. Nine states pre-arm on IsAnimatorEnabled false (the one-frame pre-halt contract, runtime.md §Parameters): Grabbed, Released, TrackedProvisional, Tracked, Bridge, AcquireFlush, SyncedRest, SyncedTrack (damped or word-exposed), Reacquire (→ Resume_Grab). Resume is WORD-RIGID with Display off — never HIDDEN-on-cell, which resurrects the stale-pose flight it exists to prevent. Local-only states (Dropped, Seeking) never pre-arm: a wearer is never distance-hidden from themselves.
-# Exit-priority template per state (the machine): pair-00 first, then cull pre-arm, then grab, then recall intent, then pair/level rungs. On REMOTES the off-exit is the pair-00 rung alone — Enable-off rungs are IsLocal-gated (the wearer's 00 stamp is the off broadcast; a remote acting on raw Enable would two-cycle against a stale pair). Released keeps NO early exits but the cull pre-arm (the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped — grab-sync's split: IsLocal → Dropped at exitTime, without which the wearer's own pair routes them into the remote word arc where engaged's remote terms never fire).
-# Off-state hygiene inherits the entry's unchanged: disabled kills the grab-bone GO and the four cage-receiver GOs (frozen floats are safe — read only from states whose receivers have been live for many frames); NO force-release driver, the stale-_IsGrabbed off-state simplification stays accepted as the entry ships it.
+# The synced pair DropOnPlayer/Out+Worn is the entry's 2-bit mode transport unchanged: 00 disabled · 01 anchored · 11 tracked · 10 dropped; stamped only by the wearer's localOnly drivers; the word disambiguates position for both Out=1 codes (hide until the word is certified when the pair reads 10/11; 01 shows immediately). `Lost` is dissolved: remote loss falls to riding the word (Tracked → Synced), never a permanent freeze. Synced cost: 2 (pair) + 1 (Carried) + 1 (Enable) + 26 (this build's wire) = 30 bits.
+# DropOnPlayer/Carried (bool, synced, unsaved): Local Grabbed's driver sets it 1; every wearer rest-state driver writes it 0 IN THE SAME DRIVER as its pair stamp, so pair and Carried land in one coherent sync snapshot (runtime.md §Parameters) and a remote never reads Carried 0 beside a stale pair. That is what lets Remote Grabbed enter Remote Tracked on grab-end with all four boxes and stay deaf to the pre-carry pair until the stamp — the stamp is recognised by Carried falling, not by the pair changing, so an 11-lifted-and-11-dropped release (no pair edge) works. One gating rule, no exceptions: every rung that reads the pair also reads Carried is false, 00 included, because a torn 00-with-Carried-1 read would otherwise ping-pong Disabled ⇄ WaitWord. Carried-true rungs live only where a joiner, or the fumble below, can sit with a stale pair: Timer, Disabled and Anchored route it to the word arc (Anchored to Synced when engaged, else WaitWord — Anchored is visible and solving, so the damped entry is a glide where WaitWord's hide and AcquireFlush's delayed show would blink), Resume's engaged rung takes it without reading the pair; a present, running client always witnesses a grab natively, so Carried true arriving anywhere else without a grab is a cull artefact, which lands in Resume. Accepted corner: a grab-and-release shorter than one sync tick enters Tracked reading Carried 0 with the stale pair and routes on it for one tick; the real stamp then corrects it — Anchored → Synced → Acquiring → Tracked, ~1.5 s, damped throughout. The snapshot argument holds only while the three bits are uncompressed: a host avatar past the 256-bit budget puts them on the Parameter Compressor's multiplexed channel and the coherence is gone — read the compressed membership off the baked VRCFuryDebugInfo component at compose time.
+# Acquiring — the remote acquisition dwell. A remote riding a moving word must not latch onto whichever head the sweeping catch column passes over; the discriminator is dwell-in-column: the target's head rides with the word and stays in the column, a bystander is in it only for the crossing time. Entered from Synced when the pair reads 11, Carried is false, and all four boxes read above ACQ_MIN = 0.2 [EMPIRICAL, derived: face proximity reads the sender's deepest point over the face's depth, so 0.2 is the head's leading surface ~3 cm inside the 0.15 m X/Z faces and ~6 cm inside the 0.30 m Y face — hysteresis over the 0.00001 loss floor, so a head grazing the column does not cycle the state every frame]. Its clip is `synced` with the four allowOthers written 0: filters are checked only at acquisition (runtime.md §Contacts), so the boxes lock onto the head they held at entry and a second head entering mid-dwell cannot keep the readings alive. Exits to Synced on ANY-loss (filters reopen), to Tracked at exitTime = DWELL = 0.75 s [EMPIRICAL, derived: the column is 0.15 m across — TrackingPoints rest scale × 3, held in metres by the root scale pin — plus a ~0.1 m head sender radius each side, so a crossing spans ~0.35 m and the dwell rejects one at or above ~0.5 m/s, while a target at rest latches 0.75 s after the remote's parked cage settles on it — the cage parks on the word, so that clock starts one wire refresh plus the wearer's measure cycle after the head itself stops, and a head that moves again inside that window restarts the dwell]. Nothing visible moves during the dwell: cage parked on the word park, acquisition scale, display unchanged, so a rejected bystander costs no motion; the pop at the swap is the damper residual (≈ 3 cm worst case at the admitted speed). Carried from box-tracker's Searching → Tracking re-latch, not separately measured: a box whose latch broke re-acquires the head on re-entry once allowOthers reopens — Acquiring's loss → Synced → Acquiring cycle is that path's hot loop. Residuals: two heads stationary in one column; a still target off-centre by more than the tolerance never latches and rides the word, which is where the prop is; and a word still walking toward its rest below the admitted speed can complete the dwell on a head it passes over — the detector's stillness gate had no dwell-in-column blind spot there, and the dwell has no stillness gate.
+# Seeking (wearer-side loss grace + swap-reacquire, 5 s, wearer half only): box-tracker's Searching configuration ported verbatim (cage self-holds — position constraint on with Output pinned to cage center, no chase regardless of gain; filters REOPENED; zone recollapsed at the ORDINARY acquisition scale) + the tracked clip's cell (the inner cell keeps riding the cage, so the Dropped exit's transcribed freeze captures the seek point); pair STILL 11, no stamp — remotes see only the word freezing and stay armed in Synced on their own clocks. At 5 s exitTime → Dropped (stamps 10). The armed-window residuals this buys are accepted (the two-client checklist).
+# Four routing deltas against the entry's remote half, beyond the states the word adds: Remote Released routes an arrived 11, or a still-carried pair, to Synced when engaged, else WaitWord — never Tracked, since this client's boxes did not fire and there is nothing to latch, and a Tracked visit would pop the cage onto the entry's own park for a frame; Remote Tracked routes an arrived 10 to Synced, so the boxes-fired-but-wearer-said-world-drop case shows the head for ~one tick, then a damped glide to the word as it converges on the drop (≤ ~1 s), where Bridge would freeze the head position for the bridge timer; Acquiring carries Synced's pair rungs, so a wearer recall or world-drop stamp mid-dwell does not wait out the dwell and then pay a spurious one-frame Tracked latch; Resume's engaged rung is one — anything not 00 or 01 rides the word, a carry in progress included, because Resume is already rigid on the word, so Synced is value-continuous there where Timer, Disabled and Anchored are not.
+# Bridge timer [EMPIRICAL, derived — NEVER copied from grab-sync's]: pulse 0.5 + bridge 2.0 = 2.5 s. Worst-case release→committed-word for THIS build ≈ 0.55 s measure cycle + ~0.07 s unpark + 0.35 s wire refresh ≈ 0.97 s (all three read off the generated document header), plus grab-sync's proportional buffer (its 2.4 covered a 1.3 s worst case). Resume's dwell = pulse + bridge FROM the resume (grab-sync's sizing argument verbatim: Ready certifies a walk, not that the table reflects the rest point, and a resume cannot date the last release) = 2.5 s; the clip playhead freezes with the animator, which is what lets a clip length express it. Eight remote states pre-arm on IsAnimatorEnabled false (the one-frame pre-halt contract, runtime.md §Parameters): Grabbed, Released, Tracked, Bridge, AcquireFlush, Synced, Acquiring (damped or word-exposed), Reacquire (→ Resume_Grab). Resume is WORD-RIGID with Display off — never HIDDEN-on-cell, which resurrects the stale-pose flight it exists to prevent.
+# Exit-priority template per remote state: pair-00, cull pre-arm, grab, carried and pair rungs, loss, exitTime — pair before loss, so a recall arriving on the loss frame lands Anchored directly. Per wearer state: Enable-off, grab, recall, sensors, exitTime. Released keeps no early exit but the cull pre-arm on the remote half and the entry's Enable-off rung on the wearer half (the pulse is the re-grab lockout).
+# Off-state hygiene inherits the entry's unchanged: disabled kills the grab-bone GO and the four cage-receiver GOs (frozen floats are safe — read only from states whose receivers have been live for many frames); NO force-release driver, the stale-_IsGrabbed off-state simplification stays accepted as the entry ships it — while a stale true holds the wearer in Grabbed, Carried holds 1 and remotes ride the word, which is the wearer's real state; Disabled's driver clears Carried with the pair on the way out.
 # Routing trap, non-derivable: entry rungs evaluate at playable frame 0, before the runtime writes IsLocal — all boot routing is level transitions on the dwell state (Timer), never entry-edge rungs.
 # Grab_IsGrabbed is minted by the nested entry's grab physbone with its parameter field overridden to `Grab` (a VRC-SDK component override — survives the build; VRCFury rewrites the component field and the conditions here with one instance prefix, the safe match-nothing branch — off every globalParams list).
 
@@ -31,9 +33,11 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
-  # The synced pair — the rest mode, written only by the wearer's localOnly drivers (entry declarations verbatim).
-  DropOnPlayer/Out:    { type: bool, default: false, vrc: { synced: true, saved: false } }
-  DropOnPlayer/Worn:   { type: bool, default: false, vrc: { synced: true, saved: false } }
+  # The synced mode bits — the entry's pair plus Carried (header), written only by the wearer's
+  # localOnly drivers, pair and Carried in one driver each.
+  DropOnPlayer/Out:     { type: bool, default: false, vrc: { synced: true, saved: false } }
+  DropOnPlayer/Worn:    { type: bool, default: false, vrc: { synced: true, saved: false } }
+  DropOnPlayer/Carried: { type: bool, default: false, vrc: { synced: true, saved: false } }
   # Menu intent — local-only (unsynced); the pair carries the outcome. (The entry's own Enable intent
   # dissolves into ObjectSync/Enable below — one gate for the whole composition.)
   DropOnPlayer/ToHead: { type: bool, default: false, vrc: { synced: false, saved: false } }
@@ -50,32 +54,6 @@ parameters:
   # because this glue merges through the same FullController component as the build.
   ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
   OS/Ready:          { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
-  # The build's decoded stage AAPs, per axis: assembled cell index (C, 0..4095) and fine index (F).
-  # Scratch HERE (the build's own params asset already lists them); types match the build's floats.
-  OS/D/Prop/PX/C: { type: float, scratch: true }
-  OS/D/Prop/PX/F: { type: float, scratch: true }
-  OS/D/Prop/PY/C: { type: float, scratch: true }
-  OS/D/Prop/PY/F: { type: float, scratch: true }
-  OS/D/Prop/PZ/C: { type: float, scratch: true }
-  OS/D/Prop/PZ/F: { type: float, scratch: true }
-  # Settle-layer scratch (§header): assembled metres, the one-frame-delayed copy, the signed step,
-  # the per-axis quiet windows, the owned frametime rig, and the quiet clock itself.
-  SOP/MX:    { type: float, aap: true, scratch: true }
-  SOP/MY:    { type: float, aap: true, scratch: true }
-  SOP/MZ:    { type: float, aap: true, scratch: true }
-  SOP/PrevX: { type: float, aap: true, scratch: true }
-  SOP/PrevY: { type: float, aap: true, scratch: true }
-  SOP/PrevZ: { type: float, aap: true, scratch: true }
-  SOP/DX:    { type: float, aap: true, scratch: true }   # signed — read only as a 1D param
-  SOP/DY:    { type: float, aap: true, scratch: true }
-  SOP/DZ:    { type: float, aap: true, scratch: true }
-  SOP/NX:    { type: float, aap: true, scratch: true }   # 1 while |DX| < ε
-  SOP/NY:    { type: float, aap: true, scratch: true }
-  SOP/NZ:    { type: float, aap: true, scratch: true }
-  SOP/Time:  { type: float, aap: true, scratch: true }
-  SOP/Last:  { type: float, aap: true, scratch: true }
-  SOP/Dt:    { type: float, aap: true, scratch: true }
-  SOP/Quiet: { type: float, aap: true, scratch: true }   # seconds the word has been still; the acquisition gate reads it
   IsLocal:            bool                               # VRC built-in
   IsAnimatorEnabled:  { type: bool, default: true }      # VRC built-in — longform default-true MATCHES the build's declaration; the shorthand form defaults false and, first-wins, would send the build's Ch/Reset to Disabling at startup
 
@@ -90,108 +68,73 @@ menu:
     param: DropOnPlayer/ToHead
 
 layers:
+  # One flat machine in two lanes (header). State names carry the lane as a leading word (Local X /
+  # Remote X), the entry's scheme, so the transcription rule maps wearer state to wearer state by name.
   - name: SyncOnPlayer/Control
     states:
-      # Remote boot dwell — all routing is level transitions here (the frame-0 IsLocal trap, header).
+      # Boot dwell — all routing is level transitions here (the frame-0 IsLocal trap, header); the
+      # exit-time rungs read IsLocal false too, so a first frame longer than the dwell cannot carry an
+      # unwritten wearer into the remote half, which has no way back. A carried pair rides the word
+      # from the start (header, Carried).
       Timer:
         motion: { clip: timer }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true ], exitTime: 1.0 }
-          - { to: WaitWord, when: [ DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: Disabled, when: [], exitTime: 1.0 }
-      Disabled:
+          - { to: Local Disabled,  when: [ IsLocal is true ] }
+          - { to: Remote WaitWord, when: [ IsLocal is false, DropOnPlayer/Carried is true ], exitTime: 1.0 }
+          - { to: Remote Anchored, when: [ IsLocal is false, DropOnPlayer/Out is false, DropOnPlayer/Worn is true, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote WaitWord, when: [ IsLocal is false, DropOnPlayer/Carried is false, DropOnPlayer/Out is true ], exitTime: 1.0 }
+          - { to: Remote Disabled, when: [ IsLocal is false ], exitTime: 1.0 }
+      # ---- The wearer half (Local …) — the entry's wearer half under the transcription rule (header).
+      # Every driver stamps pair and Carried together. Every entry into it is Timer's explicit rung.
+      Local Disabled:
         behaviours:
-          - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 0 } }
+          - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 0, DropOnPlayer/Carried: 0 } }
         motion: { clip: disabled }
         transitions:
-          - { to: Anchored, when: [ IsLocal is true, ObjectSync/Enable greater 0.5 ] }
-          - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: WaitWord, when: [ IsLocal is false, DropOnPlayer/Out is true ] }
-      # Anchored — own head (the reset target: Enable-on, ToHead, and every 01 read land here). A pair
-      # change without a witnessed grab is a missed carry — treat as late-join (→ WaitWord).
-      Anchored:
+          - { to: Local Anchored, when: [ ObjectSync/Enable greater 0.5 ] }
+      # Anchored — own head (the reset target: Enable-on and ToHead land here).
+      Local Anchored:
         behaviours:
-          - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 1 } }
+          - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 1, DropOnPlayer/Carried: 0 } }
         motion: { clip: anchored }
         transitions:
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Disabled, when: [ IsLocal is true, ObjectSync/Enable less 0.5 ] }
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: WaitWord, when: [ IsLocal is false, DropOnPlayer/Out is true ] }
-      # Grabbed — the carry, both sides. Local release ladder, priority top-down: own head beats
-      # another player's head beats world. Remote, above the Released rung: the sensor-first
-      # edge-latch — grab end with all four boxes live → TrackedProvisional, never
-      # waiting on the pair.
-      Grabbed:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Grabbed,  when: [ Grab_IsGrabbed is true ] }
+      # Grabbed — the carry; Carried goes up, the pair holds its previous code. Release ladder,
+      # priority top-down: own head beats another player's head beats world.
+      Local Grabbed:
+        behaviours:
+          - driver: { localOnly: true, set: { DropOnPlayer/Carried: 1 } }
         motion: { clip: grabbed }
         transitions:
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Disabled, when: [ IsLocal is true, ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Anchored, when: [ IsLocal is true, Grab_IsGrabbed is false, DropOnPlayer/SelfDetect greater 0 ] }
-          - { to: Tracked,  when: [ IsLocal is true, Grab_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
-          - { to: TrackedProvisional, when: [ IsLocal is false, Grab_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
-          - { to: Released, when: [ Grab_IsGrabbed is false ] }
-      # The remote edge-latch: cage latched and crawling over the released choreography's
-      # capture; dwell = the pulse; NO pair rungs during it (the stale-bit suppression window). The
-      # arrived pair becomes authoritative at exitTime — 11 enters Tracked with the cage already
-      # latched (continuous); 10 shows Bridge a valid witnessed drop (the capture ran underneath;
-      # the cage→capture snap is the accepted ≤-pulse flash). ANY-loss → Released (header).
-      TrackedProvisional:
-        motion:
-          tree: direct
-          name: ProvisionalReadout
-          normalized: false
-          children:
-            - { clip: provisional, directWeight: DropOnPlayer/One }
-            - { clip: readout_pulse_xp, directWeight: DropOnPlayer/X+ }
-            - { clip: readout_pulse_xn, directWeight: DropOnPlayer/X- }
-            - { clip: readout_pulse_yp, directWeight: DropOnPlayer/Y+ }
-            - { clip: readout_pulse_zp, directWeight: DropOnPlayer/Z+ }
-        transitions:
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Released, when: [ DropOnPlayer/X+ less 0.00001 ] }  # ANY-loss during the dwell (header)
-          - { to: Released, when: [ DropOnPlayer/X- less 0.00001 ] }
-          - { to: Released, when: [ DropOnPlayer/Y+ less 0.00001 ] }
-          - { to: Released, when: [ DropOnPlayer/Z+ less 0.00001 ] }
-          - { to: Tracked,   when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: Bridge,    when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false ], exitTime: 1.0 }
-          - { to: Anchored,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: Disabled,  when: [], exitTime: 1.0 }
-      # The pulse, both sides. Local: only the world branch enters; stamps 10 AT ENTRY so the pair
-      # beats the remotes' pulse end; IsLocal → Dropped at exitTime (grab-sync's split, header).
-      # Remote (boxes-did-not-fire releases): routes at exitTime by ARRIVED pair — 11 means the pair
-      # says caught but this client's boxes were empty: enter Tracked and fall through ANY-loss to
-      # SyncedTrack, working as designed. No grab exit: the pulse is the re-grab lockout.
-      Released:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Anchored, when: [ Grab_IsGrabbed is false, DropOnPlayer/SelfDetect greater 0 ] }
+          - { to: Local Tracked,  when: [ Grab_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
+          - { to: Local Released, when: [ Grab_IsGrabbed is false ] }
+      # The pulse: only the world branch enters; stamps 10 AT ENTRY so the pair beats the
+      # remotes' pulse end. No grab exit: the pulse is the re-grab lockout.
+      Local Released:
         behaviours:
-          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0 } }
+          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0, DropOnPlayer/Carried: 0 } }
         motion: { clip: released }
         transitions:
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the one sanctioned early exit
-          - { to: Dropped,  when: [ IsLocal is true ], exitTime: 1.0 }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: Tracked,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: Bridge,   when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false ], exitTime: 1.0 }
-          - { to: Disabled, when: [], exitTime: 1.0 }
-      # The local world-freeze rest (local-only by reachability); stamps 10. The transcribed freeze
-      # holds whatever the cell last captured — a Seeking expiry's seek point included.
-      Dropped:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Dropped,  when: [], exitTime: 1.0 }
+      # The world-freeze rest; stamps 10. The transcribed freeze holds whatever the cell last
+      # captured — a Seeking expiry's seek point included.
+      Local Dropped:
         behaviours:
-          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0 } }
+          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0, DropOnPlayer/Carried: 0 } }
         motion: { clip: dropped }
         transitions:
-          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/ToHead is true ] }
-      # Cage latched and crawling, both sides; stamps 11. Local ANY-loss → Seeking;
-      # remote ANY-loss → SyncedTrack (riding the word, never a permanent freeze);
-      # ToHead is the entry's recall failsafe (review-restored).
-      Tracked:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/ToHead is true ] }
+      # Cage latched and crawling; stamps 11. ANY-loss → Seeking (one transition per box; a
+      # layer takes one edge per frame). ToHead is the entry's recall failsafe.
+      Local Tracked:
         behaviours:
-          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 1 } }
+          - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 1, DropOnPlayer/Carried: 0 } }
         motion:
           tree: direct
           name: BoxReadout
@@ -203,264 +146,209 @@ layers:
             - { clip: readout_yp, directWeight: DropOnPlayer/Y+ }
             - { clip: readout_zp, directWeight: DropOnPlayer/Z+ }
         transitions:
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Disabled, when: [ IsLocal is true, ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/ToHead is true ] }
-          # ANY-loss, local → Seeking (one transition per box; a layer takes one edge per frame).
-          - { to: Seeking, when: [ IsLocal is true, DropOnPlayer/X+ less 0.00001 ] }
-          - { to: Seeking, when: [ IsLocal is true, DropOnPlayer/X- less 0.00001 ] }
-          - { to: Seeking, when: [ IsLocal is true, DropOnPlayer/Y+ less 0.00001 ] }
-          - { to: Seeking, when: [ IsLocal is true, DropOnPlayer/Z+ less 0.00001 ] }
-          # ANY-loss, remote → SyncedTrack (the word is live and certified — the 11 pair got us here).
-          - { to: SyncedTrack, when: [ IsLocal is false, DropOnPlayer/X+ less 0.00001 ] }
-          - { to: SyncedTrack, when: [ IsLocal is false, DropOnPlayer/X- less 0.00001 ] }
-          - { to: SyncedTrack, when: [ IsLocal is false, DropOnPlayer/Y+ less 0.00001 ] }
-          - { to: SyncedTrack, when: [ IsLocal is false, DropOnPlayer/Z+ less 0.00001 ] }
-          - { to: SyncedRest, when: [ IsLocal is false, DropOnPlayer/Out is true, DropOnPlayer/Worn is false ] }
-          - { to: Anchored,   when: [ IsLocal is false, DropOnPlayer/Out is false, DropOnPlayer/Worn is true ] }
-      # The 5 s loss-grace / swap-reacquire dwell, local-only by reachability. Prop frozen
-      # fail-visible at the loss point (cage self-held, cell riding it), filters reopened at the
-      # ordinary zone, pair STILL 11 — no stamp. A fresh all-four acquisition re-latches; expiry
-      # freezes in place via Dropped's transcribed capture. The dwell only has to outlast the
-      # WEARER's own reload of the target's avatar — remotes self-serve through SyncedTrack.
-      Seeking:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/ToHead is true ] }
+          - { to: Local Seeking, when: [ DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Local Seeking, when: [ DropOnPlayer/X- less 0.00001 ] }
+          - { to: Local Seeking, when: [ DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Local Seeking, when: [ DropOnPlayer/Z+ less 0.00001 ] }
+      # The 5 s loss-grace / swap-reacquire dwell (header). Prop frozen fail-visible at the loss
+      # point, filters reopened, pair STILL 11 — no stamp. A fresh all-four acquisition
+      # re-latches; expiry freezes in place via Dropped's transcribed capture.
+      Local Seeking:
         motion: { clip: seeking }
         transitions:
-          - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/ToHead is true ] }
-          - { to: Tracked,  when: [ DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
-          - { to: Dropped,  when: [], exitTime: 1.0 }
-      # Remote, Out=1, word not certified: HIDDEN (fail-visible preserved — the entry's exact gap,
-      # kept until the word can speak). The pair rungs sit ABOVE the engaged rung (review: engaged-
-      # first walks a just-recalled prop into the flush).
-      WaitWord:
+          - { to: Local Disabled, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Local Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/ToHead is true ] }
+          - { to: Local Tracked,  when: [ DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
+          - { to: Local Dropped,  when: [], exitTime: 1.0 }
+      # ---- The remote half (Remote …). Every other client: poses from the pair, Carried, the synced
+      # grab and the word. No drivers. Every pair rung also reads Carried false (header, the one
+      # gating rule).
+      Remote Disabled:
+        motion: { clip: disabled }
+        transitions:
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote WaitWord, when: [ DropOnPlayer/Carried is true ] }
+          - { to: Remote WaitWord, when: [ DropOnPlayer/Carried is false, DropOnPlayer/Out is true ] }
+      # Own head — every 01 read lands here. A pair change without a witnessed grab is a missed
+      # carry — treat as late-join (→ WaitWord); a carried pair glides to the word (header).
+      Remote Anchored:
+        motion: { clip: anchored }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Synced,   when: [ DropOnPlayer/Carried is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
+          - { to: Remote WaitWord, when: [ DropOnPlayer/Carried is true ] }
+          - { to: Remote WaitWord, when: [ DropOnPlayer/Carried is false, DropOnPlayer/Out is true ] }
+      # The carry, witnessed. Grab-end with all four boxes live latches Tracked at once — the
+      # wearer's authority arrives as the stamp, recognised by Carried falling (header).
+      Remote Grabbed:
+        motion: { clip: grabbed }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Tracked,  when: [ Grab_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
+          - { to: Remote Released, when: [ Grab_IsGrabbed is false ] }
+      # The pulse for a release this client's boxes did not catch: route by the ARRIVED pair at
+      # exitTime; an arrived 11, or a still-carried pair, rides the word (header, routing
+      # deltas). No grab exit: the pulse is the re-grab lockout.
+      Remote Released:
+        motion: { clip: released }
+        transitions:
+          - { to: Remote Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the one sanctioned early exit
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote Bridge,   when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ], exitTime: 1.0 }
+          - { to: Remote WaitWord, when: [], exitTime: 1.0 }
+      # Cage latched and crawling on this client's own sensors. An arrived 10 glides to the word
+      # (header, routing deltas); ANY-loss rides the word, never a permanent freeze.
+      Remote Tracked:
+        motion:
+          tree: direct
+          name: BoxReadout
+          normalized: false
+          children:
+            - { clip: tracked, directWeight: DropOnPlayer/One }
+            - { clip: readout_xp, directWeight: DropOnPlayer/X+ }
+            - { clip: readout_xn, directWeight: DropOnPlayer/X- }
+            - { clip: readout_yp, directWeight: DropOnPlayer/Y+ }
+            - { clip: readout_zp, directWeight: DropOnPlayer/Z+ }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Synced,   when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true, DropOnPlayer/Carried is false ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/X- less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/Z+ less 0.00001 ] }
+      # Out=1 or carried, word not certified: HIDDEN (fail-visible preserved — the entry's exact
+      # gap, kept until the word can speak). The pair rungs sit ABOVE the engaged rung
+      # (engaged-first walks a just-recalled prop into the flush).
+      Remote WaitWord:
         motion: { clip: waiting }
         transitions:
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: AcquireFlush, when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote AcquireFlush, when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
       # The rigid word flush: entered only from hidden states (WaitWord, Resume's not-engaged
       # fallback re-entry), so the 0.1 s delayed show never blinks a visible prop; the dwell covers
       # the park↔word ring's one-hop-per-frame value flush. Grab → Reacquire (direct-to-Grabbed
       # re-opens the stale-cell flash).
-      AcquireFlush:
+      Remote AcquireFlush:
         motion: { clip: acquireflush }
         transitions:
-          - { to: Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Reacquire, when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: SyncedRest,  when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false ], exitTime: 1.0 }
-          - { to: SyncedTrack, when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is true ], exitTime: 1.0 }
-      # Remote, placed at rest on the word (pair 10). 11 → SyncedTrack DIRECT (both word states, the
-      # display already on the entering value — routing through AcquireFlush would blink).
-      SyncedRest:
+          - { to: Remote Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Reacquire, when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Anchored,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Synced,    when: [], exitTime: 1.0 }
+      # Riding the word, damped, filters open — placed (10), tracked-elsewhere (11) or carried.
+      # THE acquisition rung: 11, not carried, all four boxes above ACQ_MIN → Acquiring (header).
+      Remote Synced:
         motion: { clip: synced }
         transitions:
-          - { to: Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Reacquire, when: [ Grab_IsGrabbed is true ] }
-          - { to: SyncedTrack, when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is true ] }
-          - { to: Anchored,    when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true ] }
-      # Remote, riding the word unlatched (pair 11): the damped glide, cage parked on the Sync park
-      # child at the ordinary zone, filters open. THE acquisition rung: settled word
-      # AND all four boxes — always attempted from the undamped word the cage parks on.
-      SyncedTrack:
-        motion: { clip: synced }
+          - { to: Remote Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Reacquire, when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Acquiring, when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is true, DropOnPlayer/Carried is false, DropOnPlayer/X+ greater 0.2, DropOnPlayer/X- greater 0.2, DropOnPlayer/Y+ greater 0.2, DropOnPlayer/Z+ greater 0.2 ] }
+          - { to: Remote Anchored,  when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true, DropOnPlayer/Carried is false ] }
+      # The acquisition dwell (header): `synced` with the filters shut; loss → Synced reopens
+      # them; the pair rungs ride along so a mid-dwell stamp routes at once; Tracked at exitTime.
+      Remote Acquiring:
+        motion: { clip: acquiring }
         transitions:
-          - { to: Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Reacquire, when: [ Grab_IsGrabbed is true ] }
-          - { to: Tracked,   when: [ SOP/Quiet greater 0.75, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
-          - { to: SyncedRest, when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false ] }
-          - { to: Anchored,   when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true ] }
-      # Remote witnessed world-drop (grab-sync's arc verbatim): the frozen witnessed capture is
-      # IK-close, shown while the wire catches up; at the timer the word takes over if engaged,
-      # else fall back hidden (fail-visible). The stale-01 mid-carry wart is accepted at zero bits
-      #.
-      Bridge:
+          - { to: Remote Disabled,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,    when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Reacquire, when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Synced,    when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Anchored,  when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true, DropOnPlayer/Carried is false ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/X- less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Remote Synced, when: [ DropOnPlayer/Z+ less 0.00001 ] }
+          - { to: Remote Tracked,   when: [], exitTime: 1.0 }
+      # Witnessed world-drop (grab-sync's arc verbatim): the frozen witnessed capture is IK-close,
+      # shown while the wire catches up; at the timer the word takes over if engaged, else fall
+      # back hidden (fail-visible).
+      Remote Bridge:
         motion: { clip: bridge }
         transitions:
-          - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
-          - { to: Grabbed,  when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: SyncedRest, when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: WaitWord,   when: [], exitTime: 1.0 }
-      # Remote grab-from-word dwell: the display holds the word while the woken cell flies to the
-      # hand (a CELL-mux Reacquire would show the just-woken frozen cell — the exact flash being
-      # guarded). A sub-dwell release exits to Released so the capture
-      # choreography still replays.
-      Reacquire:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Resume,   when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Remote Grabbed,  when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ] }
+          - { to: Remote Synced,   when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ], exitTime: 1.0 }
+          - { to: Remote WaitWord, when: [], exitTime: 1.0 }
+      # Grab-from-word dwell: the display holds the word while the woken cell flies to the hand (a
+      # CELL-mux Reacquire would show the just-woken frozen cell — the exact flash being guarded).
+      # A sub-dwell release exits to Released so the capture choreography still replays.
+      Remote Reacquire:
         motion: { clip: reacquire }
         transitions:
-          - { to: Resume_Grab, when: [ IsAnimatorEnabled is false ] }   # a cull mid-re-grab parks hidden
-          - { to: Released, when: [ Grab_IsGrabbed is false ] }
-          - { to: Grabbed,  when: [], exitTime: 1.0 }
+          - { to: Remote Resume_Grab, when: [ IsAnimatorEnabled is false ] }   # a cull mid-re-grab parks hidden
+          - { to: Remote Released, when: [ Grab_IsGrabbed is false ] }
+          - { to: Remote Grabbed,  when: [], exitTime: 1.0 }
       # The cull pre-arm park: WORD-RIGID with Display off — the pause begins here, hidden and rigid
       # on the word, and the clip's remaining dwell measures from the resume. At exitTime route by
-      # pair with engaged; not-engaged falls back hidden (WaitWord).
-      Resume:
+      # pair, anything not home or off riding the word if engaged; not-engaged falls back hidden.
+      Remote Resume:
         motion: { clip: resume }
         transitions:
-          - { to: Resume_Grab, when: [ Grab_IsGrabbed is true ] }
-          - { to: Anchored,    when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: Disabled,    when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: SyncedRest,  when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
-          - { to: SyncedTrack, when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
-          - { to: WaitWord,    when: [], exitTime: 1.0 }
+          - { to: Remote Resume_Grab, when: [ Grab_IsGrabbed is true ] }
+          - { to: Remote Anchored,    when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote Disabled,    when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false, DropOnPlayer/Carried is false ], exitTime: 1.0 }
+          - { to: Remote Synced,      when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, IsAnimatorEnabled is true ], exitTime: 1.0 }
+          - { to: Remote WaitWord,    when: [], exitTime: 1.0 }
       # Grab during a resume dwell (a grab that fires after a resume STARTS after it — an in-progress
       # grab does not reach a paused client; runtime.md §PhysBones): hidden while the cell populates,
       # so the prop appears at the hand and the pre-pause pose is never rendered. Grab-sync verbatim.
-      Resume_Grab:
+      Remote Resume_Grab:
         motion: { clip: resume_grab }
         transitions:
-          - { to: Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
-          - { to: Released, when: [ Grab_IsGrabbed is false ] }
-          - { to: Grabbed,  when: [], exitTime: 1.0 }
+          - { to: Remote Resume,   when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
+          - { to: Remote Released, when: [ Grab_IsGrabbed is false ] }
+          - { to: Remote Grabbed,  when: [], exitTime: 1.0 }
     default: Timer
-    # Hand arrangement (animator-schema.md §Arranging for legibility): boot spine descends Timer →
-    # Disabled; home (Anchored) and the carry hub (Grabbed) hold the center column over the cage
-    # column (Tracked, Seeking); the release pulse falls right to Dropped with Bridge beneath it;
-    # the word arc occupies the left lane (WaitWord → AcquireFlush → SyncedRest/SyncedTrack) with
-    # Reacquire between it and the hub; TrackedProvisional sits between the hub and the word lane
-    # (the remote edge-latch); the cull lane (Resume, Resume_Grab) parks far right.
+    # Two lanes under Timer, wearer left (negative x), remotes right. The wearer lane descends
+    # Disabled → Anchored → Grabbed → Tracked → Seeking with the release pulse falling outboard to
+    # Dropped. The remote lane's first column is the same spine (Disabled, Anchored, Grabbed, Tracked)
+    # with the pulse falling outboard to Bridge on the wearer's Released/Dropped rows; the word arc
+    # takes the third column (WaitWord → AcquireFlush → Synced descending beside the spine, Acquiring
+    # below, off Tracked's row so its exit-time edge does not run through Bridge); the cull lane
+    # (Reacquire, Resume_Grab, Resume) parks furthest out.
     layout:
       nodes:
-        Timer:      [30, 180]
-        Disabled:   [270, 250]
-        WaitWord:   [-450, 250]
-        AcquireFlush: [-450, 320]
-        Anchored:   [30, 320]
-        SyncedRest: [-450, 390]
-        Reacquire:  [-210, 390]
-        Grabbed:    [30, 460]
-        SyncedTrack: [-450, 460]
-        TrackedProvisional: [-210, 530]
-        Released:   [270, 530]
-        Dropped:    [510, 530]
-        Bridge:     [270, 610]
-        Tracked:    [30, 610]
-        Seeking:    [30, 690]
-        Resume:     [630, 320]
-        Resume_Grab: [630, 460]
+        Timer:               [30, 180]
+        Local Disabled:      [-210, 270]
+        Local Anchored:      [-210, 360]
+        Local Grabbed:       [-210, 450]
+        Local Released:      [-450, 450]
+        Local Tracked:       [-210, 540]
+        Local Dropped:       [-450, 540]
+        Local Seeking:       [-210, 630]
+        Remote Disabled:     [270, 270]
+        Remote Anchored:     [270, 360]
+        Remote Grabbed:      [270, 450]
+        Remote Released:     [510, 450]
+        Remote Tracked:      [270, 540]
+        Remote Bridge:       [510, 540]
+        Remote WaitWord:     [750, 270]
+        Remote AcquireFlush: [750, 360]
+        Remote Synced:       [750, 450]
+        Remote Acquiring:    [750, 630]
+        Remote Reacquire:    [990, 360]
+        Remote Resume_Grab:  [990, 540]
+        Remote Resume:       [990, 630]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-
-  # The settled detector (header §Settle): one always-on WD-ON Direct root. Signal flow, one AAP hop
-  # per stage (each stage reads the prior stage's frame-start value): C/F → M (assembly) → Prev
-  # (staging) → D (signed step) → NM (window) → Quiet (gated feedback-add, in true seconds via the
-  # owned frametime rig). Total pipeline lag ~4 frames — noise against T. Every directWeight here is
-  # >=0 by construction (indices, metres-assembled-from-indices, window outputs, Quiet, Dt); the one
-  # signed value (D) is read only as a 1D blend param, which is never clamped (blendtree-math).
-  - name: SyncOnPlayer/Settle
-    states:
-      "Settle (WD ON)":
-        motion:
-          tree: direct
-          name: Settle
-          children:
-            # M = C × cellSize + F × fineLSB, per axis (constants: the generated document header).
-            - tree: direct
-              name: "MX = C×2.0 + F×lsb"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: mx_cell, directWeight: OS/D/Prop/PX/C }
-                - { clip: mx_lsb,  directWeight: OS/D/Prop/PX/F }
-            - tree: direct
-              name: "MY = C×2.0 + F×lsb"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: my_cell, directWeight: OS/D/Prop/PY/C }
-                - { clip: my_lsb,  directWeight: OS/D/Prop/PY/F }
-            - tree: direct
-              name: "MZ = C×2.0 + F×lsb"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: mz_cell, directWeight: OS/D/Prop/PZ/C }
-                - { clip: mz_lsb,  directWeight: OS/D/Prop/PZ/F }
-            # Prev = last frame's M (the staging idiom: the weight reads M at frame start).
-            - tree: direct
-              name: "Prev staging"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: prevx_set, directWeight: SOP/MX }
-                - { clip: prevy_set, directWeight: SOP/MY }
-                - { clip: prevz_set, directWeight: SOP/MZ }
-            # D = M − Prev (signed; the subtract idiom — the sign lives in the clip value).
-            - tree: direct
-              name: "D = M − Prev"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: dx_pos, directWeight: SOP/MX }
-                - { clip: dx_neg, directWeight: SOP/PrevX }
-                - { clip: dy_pos, directWeight: SOP/MY }
-                - { clip: dy_neg, directWeight: SOP/PrevY }
-                - { clip: dz_pos, directWeight: SOP/MZ }
-                - { clip: dz_neg, directWeight: SOP/PrevZ }
-            # NM_a = 1 while |D_a| < ε (ε = 0.2 m/step — retuned in-game, over the
-            # original 0.1): a 1D window with hard shoulders —
-            # the word is piecewise constant, so D is exactly 0 between commits and the shoulders
-            # only ever adjudicate a commit's step size.
-            - tree: 1d
-              name: "NX window (±0.2)"
-              param: SOP/DX
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: nx_zero_lo, threshold: -0.2 }
-                - { clip: nx_one_lo,  threshold: -0.199 }
-                - { clip: nx_one_hi,  threshold: 0.199 }
-                - { clip: nx_zero_hi, threshold: 0.2 }
-            - tree: 1d
-              name: "NY window (±0.2)"
-              param: SOP/DY
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: ny_zero_lo, threshold: -0.2 }
-                - { clip: ny_one_lo,  threshold: -0.199 }
-                - { clip: ny_one_hi,  threshold: 0.199 }
-                - { clip: ny_zero_hi, threshold: 0.2 }
-            - tree: 1d
-              name: "NZ window (±0.2)"
-              param: SOP/DZ
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: nz_zero_lo, threshold: -0.2 }
-                - { clip: nz_one_lo,  threshold: -0.199 }
-                - { clip: nz_one_hi,  threshold: 0.199 }
-                - { clip: nz_zero_hi, threshold: 0.2 }
-            # The owned frametime rig (blendtree-math verbatim, renamed): Dt in true seconds, so
-            # Quiet is frame-rate independent and T compares in the wire's own units.
-            - { clip: time_ramp, directWeight: DropOnPlayer/One }
-            - tree: direct
-              name: "Dt = Time − Last"
-              directWeight: DropOnPlayer/One
-              children:
-                - { clip: dt_pos,   directWeight: SOP/Time }
-                - { clip: dt_neg,   directWeight: SOP/Last }
-                - { clip: last_set, directWeight: SOP/Time }
-            # Quiet = NM_x·NM_y·NM_z × (Quiet + Dt): nested weights multiply, so any axis's motion
-            # collapses the carry AND the increment to 0 that frame — the reset.
-            - tree: direct
-              name: "Quiet (gated carry)"
-              directWeight: SOP/NX
-              children:
-                - tree: direct
-                  name: "× NY"
-                  directWeight: SOP/NY
-                  children:
-                    - tree: direct
-                      name: "× NZ"
-                      directWeight: SOP/NZ
-                      children:
-                        - { clip: quiet_carry, directWeight: SOP/Quiet }
-                        - { clip: quiet_inc,   directWeight: SOP/Dt }
-    default: "Settle (WD ON)"
 
 # Every Control clip = the entry's full rig-property set (transcribed verbatim at the
 # Prop/DropOnPlayer/ prefix — the per-state binding-set diff against the entry's clip table is the
@@ -890,58 +778,6 @@ clips:
       # Gain guard: zero across the latch/mis-decode frames, 0.7 by clip end (box-tracker's crawl block; entry transcription).
       "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.016666668, 0], [0.033333336, 0.7] ]
 
-  provisional:  # released-cell + tracked-cage FUSION (header carve): the capture runs under the latched cage; dwell = the pulse
-    length: 0.5
-    set:
-      "Prop/DropOnPlayer/Container/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/GrabPosition/GrabBone/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/Container/VRCPositionConstraint.m_Enabled": 0
-      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source0.Weight": 0
-      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source1.Weight": 1
-      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source2.Weight": 0
-      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
-      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
-      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.IsActive": 1
-      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
-      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
-      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.m_Enabled": 0
-      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.m_Enabled": 1
-      "Prop/DropOnPlayer/TrackingPoints/VRCScaleConstraint.GlobalWeight": 1
-      "Prop/DropOnPlayer/TrackingPoints/X+/VRCContactReceiver.allowOthers": 0
-      "Prop/DropOnPlayer/TrackingPoints/X+/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/TrackingPoints/X-/VRCContactReceiver.allowOthers": 0
-      "Prop/DropOnPlayer/TrackingPoints/X-/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/TrackingPoints/Y+/VRCContactReceiver.allowOthers": 0
-      "Prop/DropOnPlayer/TrackingPoints/Y+/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/TrackingPoints/Z+/VRCContactReceiver.allowOthers": 0
-      "Prop/DropOnPlayer/TrackingPoints/Z+/GameObject.m_IsActive": 1
-      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.z": 1
-      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.z": 1
-      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.z": 1
-      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.z": 1
-      "Prop/GameObject.m_IsActive": 1
-      "Prop/Source/VRCPositionConstraint.Sources.source0.Weight": 0
-      "Prop/Source/VRCPositionConstraint.Sources.source1.Weight": 0
-      "Prop/Source/VRCPositionConstraint.Sources.source2.Weight": 1
-      "Prop/Source/VRCPositionConstraint.Sources.source3.Weight": 0
-      "Prop/Container/VRCPositionConstraint.Sources.source0.Weight": 1
-      "Prop/Container/VRCPositionConstraint.Sources.source1.Weight": 0
-      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.Sources.source0.Weight": 1
-      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.Sources.source1.Weight": 0
-      "Prop/Container/Display/GameObject.m_IsActive": 1
-    curves:
-      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.x": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.y": [ [0, 0.5], [0.016666668, 1] ]
-      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
-      # Gain guard: zero across the latch/mis-decode frames, 0.7 by clip end (box-tracker's crawl block; entry transcription).
-      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.Sources.source0.Weight": [ [0, 0], [0.016666668, 0], [0.033333336, 0.7] ]
-
   seeking:      # tracked-cell + box-tracker Searching cage (header carve): self-hold at the loss point, filters reopened, zone recollapsed  [EMPIRICAL: dwell = clip length = the 5 s loss grace]
     seconds: 5.0
     set:
@@ -1047,7 +883,7 @@ clips:
     curves:
       "Prop/Container/Display/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.1, 1] ] }
 
-  synced:       # cell `dropped` + WORD-DAMPED (SyncedRest AND SyncedTrack — binding-identical sets); GrabPosition (1,0) carve; damper (0.1,1)
+  synced:       # cell `dropped` + WORD-DAMPED (Synced — riding the word, filters open); GrabPosition (1,0) carve; damper (0.1,1)
     set:
       "Prop/DropOnPlayer/Container/GameObject.m_IsActive": 1
       "Prop/DropOnPlayer/GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -1071,6 +907,58 @@ clips:
       "Prop/DropOnPlayer/TrackingPoints/Y+/VRCContactReceiver.allowOthers": 1
       "Prop/DropOnPlayer/TrackingPoints/Y+/GameObject.m_IsActive": 1
       "Prop/DropOnPlayer/TrackingPoints/Z+/VRCContactReceiver.allowOthers": 1
+      "Prop/DropOnPlayer/TrackingPoints/Z+/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.z": 1
+      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.x": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.y": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/X-/Transform.m_LocalScale.z": 1
+      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.x": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.y": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/Y+/Transform.m_LocalScale.z": 1
+      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.x": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.y": 0.5
+      "Prop/DropOnPlayer/TrackingPoints/Z+/Transform.m_LocalScale.z": 1
+      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.x": 0
+      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.y": 0
+      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.z": 0
+      "Prop/GameObject.m_IsActive": 1
+      "Prop/Source/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop/Source/VRCPositionConstraint.Sources.source3.Weight": 1
+      "Prop/Container/VRCPositionConstraint.Sources.source0.Weight": 0.1
+      "Prop/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.Sources.source0.Weight": 0
+      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.Sources.source1.Weight": 1
+      "Prop/Container/Display/GameObject.m_IsActive": 1
+
+  acquiring:    # `synced` with the four cage filters SHUT (header carve): the boxes stay locked on the head they held at entry; nothing visible moves  [EMPIRICAL: dwell = clip length = DWELL 0.75 s — header derivation]
+    seconds: 0.75
+    set:
+      "Prop/DropOnPlayer/Container/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/Container/VRCPositionConstraint.m_Enabled": 0
+      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop/DropOnPlayer/Container/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.IsActive": 0
+      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop/DropOnPlayer/Container/SourcePosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.IsActive": 1
+      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop/DropOnPlayer/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/DropOnPlayer/TrackingPoints/VRCParentConstraint.m_Enabled": 1
+      "Prop/DropOnPlayer/TrackingPoints/VRCPositionConstraint.m_Enabled": 0
+      "Prop/DropOnPlayer/TrackingPoints/VRCScaleConstraint.GlobalWeight": 0
+      "Prop/DropOnPlayer/TrackingPoints/X+/VRCContactReceiver.allowOthers": 0
+      "Prop/DropOnPlayer/TrackingPoints/X+/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/TrackingPoints/X-/VRCContactReceiver.allowOthers": 0
+      "Prop/DropOnPlayer/TrackingPoints/X-/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/TrackingPoints/Y+/VRCContactReceiver.allowOthers": 0
+      "Prop/DropOnPlayer/TrackingPoints/Y+/GameObject.m_IsActive": 1
+      "Prop/DropOnPlayer/TrackingPoints/Z+/VRCContactReceiver.allowOthers": 0
       "Prop/DropOnPlayer/TrackingPoints/Z+/GameObject.m_IsActive": 1
       "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.x": 0.5
       "Prop/DropOnPlayer/TrackingPoints/X+/Transform.m_LocalScale.y": 0.5
@@ -1307,7 +1195,7 @@ clips:
       "Prop/Container/Display/GameObject.m_IsActive": 0
 
   # Readout leaves (entry verbatim, prefixed; coefficients and box geometry are ONE unit —
-  # the entry's clip table owns them). Tracked's set rides the one-frame floor (box-tracker's stretch rule); provisional rides the pulse-padded copies below.
+  # the entry's clip table owns them). The set rides the one-frame floor (box-tracker's stretch rule): every child of the readout state stays tiny, so the latch clip's gain guard plays in ~real frames.
   readout_xp:
     set:
       "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.x": 1.5
@@ -1324,64 +1212,4 @@ clips:
   readout_zp:
     set:
       "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.z": 3
-
-  readout_pulse_xp:   # provisional's pulse-padded readout copies (the header's dwell-floor formula)
-    length: 0.5
-    set:
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.x": 1.5
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.y": -1.5
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.z": -1.5
-  readout_pulse_xn:
-    length: 0.5
-    set:
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.x": -1.5
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.y": -1.5
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.z": -1.5
-  readout_pulse_yp:
-    length: 0.5
-    set:
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.y": 3
-  readout_pulse_zp:
-    length: 0.5
-    set:
-      "Prop/DropOnPlayer/TrackingPoints/Output/Transform.m_LocalPosition.z": 3
   # --- END GENERATED
-
-  # Settle-layer clips — all animator-parameter writes (no scene bindings). Constants: cellSize
-  # 2.0 m, fine LSB 0.00078125 m (the generated document header); ε shoulders live in the window
-  # trees' thresholds, not here.
-  mx_cell: { set: { SOP/MX: 2.0 } }
-  mx_lsb:  { set: { SOP/MX: 0.00078125 } }
-  my_cell: { set: { SOP/MY: 2.0 } }
-  my_lsb:  { set: { SOP/MY: 0.00078125 } }
-  mz_cell: { set: { SOP/MZ: 2.0 } }
-  mz_lsb:  { set: { SOP/MZ: 0.00078125 } }
-  prevx_set: { set: { SOP/PrevX: 1.0 } }
-  prevy_set: { set: { SOP/PrevY: 1.0 } }
-  prevz_set: { set: { SOP/PrevZ: 1.0 } }
-  dx_pos: { set: { SOP/DX: 1.0 } }
-  dx_neg: { set: { SOP/DX: -1.0 } }
-  dy_pos: { set: { SOP/DY: 1.0 } }
-  dy_neg: { set: { SOP/DY: -1.0 } }
-  dz_pos: { set: { SOP/DZ: 1.0 } }
-  dz_neg: { set: { SOP/DZ: -1.0 } }
-  nx_zero_lo: { set: { SOP/NX: 0.0 } }
-  nx_one_lo:  { set: { SOP/NX: 1.0 } }
-  nx_one_hi:  { set: { SOP/NX: 1.0 } }
-  nx_zero_hi: { set: { SOP/NX: 0.0 } }
-  ny_zero_lo: { set: { SOP/NY: 0.0 } }
-  ny_one_lo:  { set: { SOP/NY: 1.0 } }
-  ny_one_hi:  { set: { SOP/NY: 1.0 } }
-  ny_zero_hi: { set: { SOP/NY: 0.0 } }
-  nz_zero_lo: { set: { SOP/NZ: 0.0 } }
-  nz_one_lo:  { set: { SOP/NZ: 1.0 } }
-  nz_one_hi:  { set: { SOP/NZ: 1.0 } }
-  nz_zero_hi: { set: { SOP/NZ: 0.0 } }
-  # Owned frametime rig (blendtree-math verbatim, renamed): tangents linear is REQUIRED — flat
-  # tangents would stair-step Time and Dt would read 0 most frames.
-  time_ramp: { curves: { SOP/Time: { tangents: linear, keys: [ [0, 0], [10000000, 10000000] ] } } }
-  dt_pos:   { set: { SOP/Dt: 1.0 } }
-  dt_neg:   { set: { SOP/Dt: -1.0 } }
-  last_set: { set: { SOP/Last: 1.0 } }
-  quiet_carry: { set: { SOP/Quiet: 1.0 } }
-  quiet_inc:   { set: { SOP/Quiet: 1.0 } }
