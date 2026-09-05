@@ -48,8 +48,9 @@ LEVER_T = 0.02                        # roll-lever threshold, metres: below it r
 ACQ_SCALE = 0.12                      # receiver host scale between grabs; the smallest whose guaranteed core covers the grab geometry (README)
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
 S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
-SETTLE_TIMEOUT = 1.0                  # seconds in Settling before the latch loop reopens (the settling clip's length)
-CAPTURE_DWELL = 0.25                  # seconds in Settling before a capture may fire (emitted normalized to SETTLE_TIMEOUT)
+SETTLE_TIMEOUT = 1.0                  # seconds after the latch before the loop reopens (Settling + Following + Settled)
+CAPTURE_DWELL = 0.25                  # seconds after the latch before a capture may fire (Settling + Following)
+SETTLE_FILL = 0.1                     # seconds the prop stays frozen after the latch while the readout pipeline primes; then it rides the frame
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled (a one-frame bounce deafens them)
 FRAME = 0.016666668
 PREFIX = 'Palm/'
@@ -363,9 +364,13 @@ GLUE_CLIPS = {
                                              if not re.search(r'Transform\.m_LocalScale\.[xyz]$', k)},
                     curves={k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
                             for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])}),
-    # Latched, waiting for the readout to settle: working scale, filters shut, Rotor still frozen, Held converging.
-    # Length = the timeout; the capture rungs carry CAPTURE_DWELL as their exit time.
-    'settling': dict(length=SETTLE_TIMEOUT, set=glue_clip(1, 1, 1, 1, 0, False, 0, False, True, 1, 1, False, 1)),
+    # Latched, readout pipeline priming: working scale, filters shut, Rotor still frozen, Held converging onto it.
+    'settling': dict(length=SETTLE_FILL, set=glue_clip(1, 1, 1, 1, 0, False, 0, False, True, 1, 1, False, 1)),
+    # Riding the still-settling frame: Held disabled (its local pose under Frame is the fill-end capture), Rotor
+    # follows Held, so rotation moves as soon as the pipeline is primed; Held6/Held5 re-take the capture at settle.
+    'following': dict(length=CAPTURE_DWELL - SETTLE_FILL, set=glue_clip(1, 1, 1, 1, 0, False, 1, False, True, 0, 1, False, 1)),
+    # Same pose as following; the capture rungs are conditional here (polled every frame), the timeout is the length.
+    'settled': dict(length=SETTLE_TIMEOUT - CAPTURE_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, False, True, 0, 1, False, 1)),
     # Carry, 6 DOF: Rotor rides Held; Held's own constraint stays on for the entry frame (so its local pose is
     # taken against the Frame the mode just selected) and disables on the next = the capture.
     'held6': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 1, False, True, 1, 1, False, 1).items() if k != B_HELD_EN},
@@ -398,9 +403,13 @@ def glue_states():
         'Acquire': dict(clip='acquire', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}, {'to': 'Latched', 'when': all_pos}]),
         'Latched': dict(clip='latched', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}, {'to': 'Settling', 'when': [], 'exitTime': 1.0}]),
         'Settling': dict(clip='settling', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]},
-                                                       {'to': 'Held6', 'when': settled + [f'{P("Lever")} greater 0'], 'exitTime': CAPTURE_DWELL / SETTLE_TIMEOUT},
-                                                       {'to': 'Held5', 'when': settled + [f'{P("Lever")} less 0'], 'exitTime': CAPTURE_DWELL / SETTLE_TIMEOUT},
-                                                       {'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
+                                                       {'to': 'Following', 'when': [], 'exitTime': 1.0}]),
+        'Following': dict(clip='following', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]},
+                                                         {'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
+        'Settled': dict(clip='settled', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]},
+                                                     {'to': 'Held6', 'when': settled + [f'{P("Lever")} greater 0']},
+                                                     {'to': 'Held5', 'when': settled + [f'{P("Lever")} less 0']},
+                                                     {'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         'Held6': dict(clip='held6', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}] + loss),
         'Held5': dict(clip='held5', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}] + loss),
         'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
@@ -408,14 +417,15 @@ def glue_states():
         'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Acquire', 'when': [grabbed]}]),
     }
 LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Anchored': [-210, 390], 'Acquire': [30, 390],
-          'Latched': [270, 390], 'Settling': [510, 390], 'Held6': [750, 320], 'Held5': [750, 460], 'Released': [510, 530], 'Dropped': [270, 530]}
+          'Latched': [270, 390], 'Settling': [510, 390], 'Following': [750, 390], 'Settled': [990, 390], 'Held6': [1230, 320], 'Held5': [1230, 460],
+          'Released': [510, 530], 'Dropped': [270, 530]}
 
 def emit_glue():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism: README.md.',
          '# 6dof-grab-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch, the relative',
          '# capture by disable-hold and the roll-mode select. Reads PalmReadout_Fx\'s AAPs through the shared FullController.',
          f'# thresholds: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever gate sign of Palm/Lever (t={LEVER_T} m in readout.yaml),',
-         f'# capture dwell {CAPTURE_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled dwell {DISABLED_DWELL} s, acquisition host scale {ACQ_SCALE}.',
+         f'# fill {SETTLE_FILL} s, capture dwell {CAPTURE_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled dwell {DISABLED_DWELL} s, acquisition host scale {ACQ_SCALE}.',
          'schema: 1', 'controller: SixDofGrabProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
@@ -535,7 +545,7 @@ def check():
       'Cage scale constraint sources assets/World.prefab alone at unit offset')
     # The rotation channel: exact sources per node, zeroed (never activated) with identity source offsets, or the
     # capture is wrong by the offset.
-    for node, want_src in (('Rotor', ['Offset', 'Held']), ('Held', ['Rotor']), ('Frame', ['Recon', 'ReconW'])):
+    for node, want_src in (('Rotor', ['Offset', 'Held']), ('Held', ['Rotor']), ('Frame', ['Recon', 'ReconW']), ('Damped', ['Damped', 'Rotor'])):
         rc = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == node]
         a(len(rc) == 1, f'{node} carries one rotation constraint')
         if rc:
