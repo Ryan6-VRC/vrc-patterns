@@ -8,7 +8,8 @@ they stand at frame start (last frame's clip writes), then the active states' mo
 the current inputs and those same frame-start values. Direct-tree children sum weight x clip value with the weight
 clamped >= 0; a 1D tree blends the two threshold-neighbours of its blend parameter (clamped at the ends).
 
-  python twin.py score  <sweep>...           scorer-metric scoring at the client floor (needs ../../../test-output/p8/probe-04)
+  python twin.py score  <sweep>...           scorer-metric scoring at the client floor (sweeps: P8_SWEEPS, else the
+                                             workspace's test-output/p8/probe-04 two directories above this repo)
   python twin.py dump   <sweep> <out.csv>    per-frame outputs on clean readings (the Unity edit-tick comparison reference)
   python twin.py compare <unity.csv> <twin.csv>
   python twin.py truth  <sweep>...           twin Mid / Lever against the CSV's true centre and axis (tip = cage origin)

@@ -2,7 +2,7 @@
 # 6dof-grab-prop glue: grab-prop's cell (clip table replicated binding for binding) + the cage latch, the relative
 # capture by disable-hold and the roll-mode select. Reads PalmReadout_Fx's AAPs through the shared FullController.
 # thresholds: Res settle 0.002 m, S band [0.012, 0.045] m, lever gate sign of Palm/Lever (t=0.02 m in readout.yaml),
-# capture dwell 0.25 s, settle timeout 1 s, disabled dwell 0.25 s, acquisition host scale 0.12.
+# capture dwell 0.25 s, settle timeout 1.0 s, disabled dwell 0.25 s, acquisition host scale 0.12.
 schema: 1
 controller: SixDofGrabProp_Fx
 basis: mount-root

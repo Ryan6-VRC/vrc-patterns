@@ -5,7 +5,8 @@
     python 6dof-grab-prop/generate.py --check   # asserts the prefab's silent surface, writes nothing
 
 readout.yaml (PalmReadout_Fx) is the palm-orientation readout: eight face-box readings of the grabber's built-in
-Hand palm-capsule sender -> capsule half-length s, the capsule midpoint, a held ORIENTED sign pattern whose tree
+Hand palm-capsule sender -> capsule half-length s (half the overall length, caps included: at k = 0.5 the axis
+segment and the two caps each span s), the capsule midpoint, a held ORIENTED sign pattern whose tree
 writes the signed palm axis, and the roll-lever gate. Mechanism and the measurements behind every constant:
 README.md. controller.yaml (SixDofGrabProp_Fx) is the glue: grab-prop's cell (its clip table replicated binding
 for binding) plus the cage latch, the relative capture and the roll-mode select.
@@ -42,19 +43,37 @@ F, D = 0.75, 1.5
 K = 0.5                               # r/s on every VRChat Automatic base
 QA = 16 * K * K - 4 / 3               # 8/3
 MARGIN = 0.0004                       # keep-previous hysteresis in |S_L| metres
-LUT_LO, LUT_HI, LUT_N = 0.002, 0.03, 24   # sqrt lookup over Disc (m^2): covers s from ~15 to ~47 mm
+LUT_LO, LUT_HI, LUT_N = 0.0012, 0.03, 24  # sqrt lookup over Disc (m^2); must cover Disc over the whole S band (refused below)
 LEVER_T = 0.02                        # roll-lever threshold, metres: below it roll falls back to world-up
 ACQ_SCALE = 0.12                      # receiver host scale between grabs; the smallest whose guaranteed core covers the grab geometry (README)
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
 S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
-CAPTURE_DWELL = 0.25                  # seconds in Settling before a capture may fire (Settling clip = 1 s timeout)
+SETTLE_TIMEOUT = 1.0                  # seconds in Settling before the latch loop reopens (the settling clip's length)
+CAPTURE_DWELL = 0.25                  # seconds in Settling before a capture may fire (emitted normalized to SETTLE_TIMEOUT)
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled (a one-frame bounce deafens them)
 FRAME = 0.016666668
 PREFIX = 'Palm/'
 GLUE = 'SixDofGrabProp/'
 MOUNT = 'GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage'
+GRAB_RADIUS = 0.03                    # physbone grab radius; with BONE_END it sizes the acquisition core (README)
+BONE_END = (0.0, 0.02, 0.0)           # GrabBone_End local position = the bone length
 SQ3 = 1 / math.sqrt(3)
 DIRS = [(SQ3, SQ3, SQ3), (SQ3, -SQ3, -SQ3), (-SQ3, SQ3, -SQ3), (-SQ3, -SQ3, SQ3)]   # T1..T4
+def disc_range(s, n=4000):
+    """min/max of Disc = SumE^2 - qa*SumE2 for a centred capsule of half-length s over a deterministic direction grid
+    (Fibonacci sphere): E_j = s(|u.d_j| + 1) at k = 0.5."""
+    lo, hi = float('inf'), float('-inf')
+    for i in range(n):
+        z = 1 - 2 * (i + 0.5) / n; r = math.sqrt(1 - z * z); t = math.pi * (1 + 5 ** 0.5) * i
+        u = (r * math.cos(t), r * math.sin(t), z)
+        E = [s * (abs(sum(a * b for a, b in zip(u, d))) + 1) for d in DIRS]
+        v = sum(E) ** 2 - QA * sum(e * e for e in E); lo = min(lo, v); hi = max(hi, v)
+    return lo, hi
+# The sqrt lookup clamps outside its knots, so a Disc the S band can produce but the lookup does not cover reads S
+# wrong while the settle gate still passes: refuse rather than emit that.
+_lo, _hi = disc_range(S_LO)[0], disc_range(S_HI)[1]
+if not (LUT_LO <= _lo and LUT_HI >= _hi):
+    raise SystemExit(f'REFUSE: sqrt lookup [{LUT_LO}, {LUT_HI}] does not cover Disc over the S band [{_lo:.5f}, {_hi:.5f}]')
 PATS = list(itertools.product([1, -1], repeat=4))          # 16 oriented patterns
 LINES = [p for p in PATS if p[0] == 1]                      # 8 lines, canonical rep sigma1 = +
 PAIRINGS = [((0, 1), (2, 3)), ((0, 2), (1, 3)), ((0, 3), (1, 2))]
@@ -243,8 +262,10 @@ for idx, sg in enumerate(PATS):
             if t_sign(sg, a) * case < 0 or t_sign(sg, b) * case < 0: continue   # structurally impossible sign case
             op = 'greater' if case > 0 else 'less'; m = fmt(case * MARGIN)
             base = [f'{P("T" + str(pi + 1) + "a")} {op} {m}', f'{P("T" + str(pi + 1) + "b")} {op} {m}']
+            # The pair's second rung carries no O condition: rungs are ordered, so an exact O = 0 tie (a stationary
+            # palm with equal pair masses) still has a target instead of holding the wrong line until the timeout.
             rungs.append({'to': state_name(flipset(sg, a)), 'when': base + [f'{P("O" + str(pi + 1))} greater 0'] + order, 'name': f'flip {a[0]+1}{a[1]+1}'})
-            rungs.append({'to': state_name(flipset(sg, b)), 'when': base + [f'{P("O" + str(pi + 1))} less 0'] + order, 'name': f'flip {b[0]+1}{b[1]+1}'})
+            rungs.append({'to': state_name(flipset(sg, b)), 'when': base + order, 'name': f'flip {b[0]+1}{b[1]+1}'})
     states[state_name(sg)] = {'motion': {'tree': 'direct', 'normalized': False, 'name': f'Select {tag(sg)}', 'children': ch}, 'transitions': rungs}
 select_layer = {'name': 'Palm/Select', 'states': states, 'default': state_name(PATS[0])}
 
@@ -344,7 +365,7 @@ GLUE_CLIPS = {
                             for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])}),
     # Latched, waiting for the readout to settle: working scale, filters shut, Rotor still frozen, Held converging.
     # Length = the timeout; the capture rungs carry CAPTURE_DWELL as their exit time.
-    'settling': dict(length=1.0, set=glue_clip(1, 1, 1, 1, 0, False, 0, False, True, 1, 1, False, 1)),
+    'settling': dict(length=SETTLE_TIMEOUT, set=glue_clip(1, 1, 1, 1, 0, False, 0, False, True, 1, 1, False, 1)),
     # Carry, 6 DOF: Rotor rides Held; Held's own constraint stays on for the entry frame (so its local pose is
     # taken against the Frame the mode just selected) and disables on the next = the capture.
     'held6': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 1, False, True, 1, 1, False, 1).items() if k != B_HELD_EN},
@@ -377,8 +398,8 @@ def glue_states():
         'Acquire': dict(clip='acquire', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}, {'to': 'Latched', 'when': all_pos}]),
         'Latched': dict(clip='latched', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}, {'to': 'Settling', 'when': [], 'exitTime': 1.0}]),
         'Settling': dict(clip='settling', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]},
-                                                       {'to': 'Held6', 'when': settled + [f'{P("Lever")} greater 0'], 'exitTime': CAPTURE_DWELL},
-                                                       {'to': 'Held5', 'when': settled + [f'{P("Lever")} less 0'], 'exitTime': CAPTURE_DWELL},
+                                                       {'to': 'Held6', 'when': settled + [f'{P("Lever")} greater 0'], 'exitTime': CAPTURE_DWELL / SETTLE_TIMEOUT},
+                                                       {'to': 'Held5', 'when': settled + [f'{P("Lever")} less 0'], 'exitTime': CAPTURE_DWELL / SETTLE_TIMEOUT},
                                                        {'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         'Held6': dict(clip='held6', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}] + loss),
         'Held5': dict(clip='held5', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}] + loss),
@@ -394,7 +415,7 @@ def emit_glue():
          '# 6dof-grab-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch, the relative',
          '# capture by disable-hold and the roll-mode select. Reads PalmReadout_Fx\'s AAPs through the shared FullController.',
          f'# thresholds: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever gate sign of Palm/Lever (t={LEVER_T} m in readout.yaml),',
-         f'# capture dwell {CAPTURE_DWELL} s, settle timeout 1 s, disabled dwell {DISABLED_DWELL} s, acquisition host scale {ACQ_SCALE}.',
+         f'# capture dwell {CAPTURE_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled dwell {DISABLED_DWELL} s, acquisition host scale {ACQ_SCALE}.',
          'schema: 1', 'controller: SixDofGrabProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
@@ -460,17 +481,30 @@ def check():
         a(names == [ENABLE], f'globalParams == [{ENABLE}], got {names}')
         a('rootBindingsApplyToAvatar: 0' in fc[0], 'rootBindingsApplyToAvatar 0 (basis: mount-root)')
         a(f'Packages/com.ryan6vrc.patterns/' in fc[0] and 'Assets/' not in re.sub(r'id: [0-9a-f]{32}\|Packages[^\n]*', '', fc[0]), 'cached ids name the package, never a venue')
-    # Receivers: eight, tag Hand, self+others, not local-only, box face proximity at the generator's size.
-    recv = [b for _, _, b in docs if 'collisionTags' in b and 'receiverType' in b]
-    a(len(recv) == 8, f'8 receivers, got {len(recv)}')
-    for b in recv:
+    # Identity map: component/transform fileID -> owning GameObject name, so every assert below names its node.
+    names = {i: re.search(r'm_Name: (.*)', b).group(1) for t, i, b in docs if t == '1'}
+    go_of = {i: m.group(1) for t, i, b in docs for m in [re.search(r'm_GameObject: \{fileID: (\d+)\}', b)] if m}
+    def owner(i): return names.get(go_of.get(i))
+    def sources(b):
+        """[(source name or 'guid:<guid>', weight)] over the non-empty slots, in slot order."""
+        out = []
+        for m in re.finditer(r'SourceTransform: \{fileID: (\d+)(?:, guid: ([0-9a-f]{32}))?[^}]*\}\n\s+Weight: ([-0-9.e]+)', b):
+            if m.group(1) == '0': continue
+            out.append((f'guid:{m.group(2)}' if m.group(2) else owner(m.group(1)), float(m.group(3))))
+        return out
+    # Receivers: eight, one per reading, each writing the parameter its own name says, tag Hand, self+others,
+    # not local-only, box face proximity at the generator's size.
+    recv = [(i, b) for _, i, b in docs if 'collisionTags' in b and 'receiverType' in b]
+    a(sorted(owner(i) or '' for i, _ in recv) == sorted(READINGS), f'receivers named exactly T1p..T4m, got {sorted(owner(i) or "" for i, _ in recv)}')
+    for i, b in recv:
+        a(re.search(r'^  parameter: (.*)$', b, re.M).group(1) == P(owner(i) or ''), f'receiver {owner(i)} writes {P(owner(i) or "")}')
         a(re.search(r'collisionTags:\n\s+- Hand\n(?!\s+- )', b), 'receiver tag exactly [Hand]')
         a('allowSelf: 1' in b and 'allowOthers: 1' in b, 'receiver allowSelf 1 allowOthers 1')
         a('localOnly: 0' in b, 'receiver localOnly 0 (remotes re-derive)')
         a('shapeType: 2' in b and 'receiverType: 2' in b and 'useFaceProximity: 1' in b, 'receiver box / proximity / face mode')
         a(re.search(rf'^  size: \{{x: {2*F:g}, y: {2*F:g}, z: {D:g}\}}', b, re.M), f'receiver size ({2*F:g}, {2*F:g}, {D:g})')
         a('contentTypes: 1' in b, 'receiver contentTypes Avatar')
-    # Physbone: the grab premise.
+    # Physbone: the grab premise. Bone length and grab radius size the acquisition core (README SBefore you compose it).
     pb = [b for _, _, b in docs if 'snapToHand' in b]
     a(len(pb) == 1, 'one physbone')
     if pb:
@@ -478,31 +512,39 @@ def check():
         a('snapToHand: 0' in b, 'snapToHand 0 (the tip is a rigid hand point)')
         a('allowGrabbing: 1' in b, 'allowGrabbing')
         a(re.search(r'grabFilter:\n\s+allowSelf: 1\n\s+allowOthers: 1', b), 'grabFilter self+others')
-        a(re.search(r'^  radius: 0\.03', b, re.M), 'grab radius 0.03 (the latch core is sized against it)')
+        a(re.search(rf'^  radius: {GRAB_RADIUS:g}\n', b, re.M), f'grab radius {GRAB_RADIUS:g} (the latch core is sized against it)')
         a('parameter: GrabBone' in b, 'physbone parameter GrabBone')
         ign = re.search(r'ignoreTransforms:\n((?:\s+- .*\n)+)', b)
-        a(ign and len(re.findall(r'fileID: (\d+)', ign.group(1))) >= 2, 'ignoreTransforms carries DropPosition and Cage')
+        got = sorted(owner(x) or x for x in re.findall(r'fileID: (\d+)', ign.group(1))) if ign else []
+        a(got == ['Cage', 'DropPosition'], f'ignoreTransforms == [Cage, DropPosition], got {got}')
+    end_tf = [b for t, i, b in docs if t == '4' and owner(i) == 'GrabBone_End']
+    pos = re.search(r'm_LocalPosition: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}', end_tf[0]) if end_tf else None
+    a(pos is not None and all(abs(float(pos.group(k + 1)) - BONE_END[k]) < 1e-6 for k in range(3)), f'GrabBone_End local position {BONE_END}, got {pos.groups() if pos else None}')
     # The cage tilt: cube diagonal to vertical (Quaternion.FromToRotation((1,1,1)/sqrt3, up)); a world-aligned cage
     # would make palm-down yaw a persistent two-line ambiguity (README SLimits).
-    cage_go = [(i, b) for _, i, b in docs if 'm_Name: Cage\n' in b]
-    a(len(cage_go) == 1, 'one GameObject named Cage')
-    if cage_go:
-        comp_ids = re.findall(r'component: \{fileID: (\d+)\}', cage_go[0][1])
-        tfs = [b for _, i, b in docs if i in comp_ids and 'm_LocalRotation' in b]
-        rot = re.search(r'm_LocalRotation: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+), w: ([-0-9.e]+)\}', tfs[0]) if tfs else None
+    cage_tf = [b for t, i, b in docs if t == '4' and owner(i) == 'Cage']
+    a(len(cage_tf) == 1, 'one GameObject named Cage')
+    if cage_tf:
+        rot = re.search(r'm_LocalRotation: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+), w: ([-0-9.e]+)\}', cage_tf[0])
         want = (-0.32505758, 0.0, 0.32505758, 0.88807383)
         a(rot is not None and all(abs(float(rot.group(k + 1)) - want[k]) < 1e-3 for k in range(4)), f'Cage localRotation = cube-diagonal-up tilt, got {rot.groups() if rot else None}')
-    # Constraint offsets and the scale pin.
-    scale = [b for _, _, b in docs if 'ScaleAtRest' in b]
-    a(any(re.search(r'guid: [0-9a-f]{32}', b) and 'ScaleOffset: {x: 1, y: 1, z: 1}' in b for b in scale), 'cage scale pin sources World.prefab at unit offset')
-    rots = [b for _, _, b in docs if 'RotationAtRest' in b]
-    a(len(rots) >= 3, f'Rotor, Frame, Held rotation constraints present ({len(rots)})')
-    for b in rots:
-        a('RotationAtRest: {x: 0, y: 0, z: 0}' in b, 'rotation constraint RotationAtRest zero (Zero, never Activate)')
-        a('ParentRotationOffset: {x: 0, y: 0, z: 0}' in b or 'ParentRotationOffset' not in b, 'rotation source offsets zero')
+    # The scale pin: Cage's scale constraint sources assets/World.prefab (never instantiated) at unit offset.
+    g_world = guid_of('assets/World.prefab.meta')
+    scale = [b for _, i, b in docs if 'ScaleAtRest' in b and owner(i) == 'Cage']
+    a(len(scale) == 1 and [s for s, _ in sources(scale[0])] == [f'guid:{g_world}'] and 'ScaleOffset: {x: 1, y: 1, z: 1}' in scale[0],
+      'Cage scale constraint sources assets/World.prefab alone at unit offset')
+    # The rotation channel: exact sources per node, zeroed (never activated) with identity source offsets, or the
+    # capture is wrong by the offset.
+    for node, want_src in (('Rotor', ['Offset', 'Held']), ('Held', ['Rotor']), ('Frame', ['Recon', 'ReconW'])):
+        rc = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == node]
+        a(len(rc) == 1, f'{node} carries one rotation constraint')
+        if rc:
+            a([s for s, _ in sources(rc[0])] == want_src, f'{node} sources {want_src}, got {[s for s, _ in sources(rc[0])]}')
+            a('RotationAtRest: {x: 0, y: 0, z: 0}' in rc[0], f'{node} RotationAtRest zero (Zero, never Activate)')
+            a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentRotationOffset: (\{[^}]*\})', rc[0])), f'{node} source rotation offsets zero')
     if fails:
         print('\n'.join('FAIL: ' + f for f in fails)); raise SystemExit(1)
-    print(f'ok: prefab surface holds ({len(recv)} receivers, {len(rots)} rotation constraints)')
+    print(f'ok: prefab surface holds ({len(recv)} receivers)')
 
 if __name__ == '__main__':
     if '--check' in sys.argv: check(); sys.exit(0)

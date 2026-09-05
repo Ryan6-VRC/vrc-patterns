@@ -7,7 +7,7 @@ Grab the prop off the wearer, and it turns with your hand like a real object: ro
 ## Interface
 
 - **Params:** `SixDofGrabProp/Enable` (bool, in) — synced, **unsaved**; the menu front (VRCFury Toggle on the prefab root). Off is the reset: toggling off and on recalls a dropped prop home. Everything under `Palm/` is internal to the module and takes the instance prefix.
-- **Seam:** one VRCFury `FullController` on the prefab root playing two controllers, the glue first, then the readout; `basis: mount-root`, so clip paths bind relative to the prefab root and the internal hierarchy names are load-bearing. `HomeAnchor` is an MA `BoneProxy` on Hips, referenced only as a constraint source. Both controllers, both params assets and the menu Toggle regenerate from `generate.py`.
+- **Seam:** one VRCFury `FullController` on the prefab root playing two controllers, the glue first, then the readout; `basis: mount-root`, so clip paths bind relative to the prefab root and the internal hierarchy names are load-bearing. `HomeAnchor` is an MA `BoneProxy` on Hips, referenced only as a constraint source. Both controllers and both params assets regenerate from `generate.py` (the YAML) and `CompileController` (the built assets); the Toggle is a VRCFury component on the prefab root, hand-maintained.
 - **Dependencies:** VRC SDK, VRCFury and Modular Avatar to build. **Compose `anti-cull` alongside** (its README §When a module needs this): the drop is replayed choreography and the orientation is contact tracking, both of which stop on a culled remote.
 - **Required assets:** `assets/World.prefab`, the never-instantiated scale reference the cage pins to; do not instantiate or delete it. `Payload` is a placeholder sphere; swap it, keep it under `Container/Rotor`.
 
@@ -23,7 +23,7 @@ Recovering a **rotation** from another player's body with contacts, at 6 degrees
 
 ## How it works
 
-The glue controller is `grab-prop`'s cell, clip table replicated binding for binding, plus four states around the latch. `Acquire` is entered on the grab: the cage sits at its acquisition scale with filters open, and the palm arriving inside all eight boxes is what advances to `Latched`, which shuts the filters on frame 0 (what is inside is what stays latched) and expands the hosts to working scale on frame 1. `Settling` waits a fixed dwell for the residual to fall and the half-length to read palm-plausible, then exits to `Held6` or `Held5` by the lever gate, or back to `Acquire` on a timeout, reopening the filters. That loop is the whole hand-identification mechanism: a second palm latched with the grabbing one keeps the residual high, the loop reopens, a broken latched contact cannot re-latch, and the readout converges on the palm that stays with the tip. A two-handed grab loops indefinitely and the prop carries position-only.
+The glue controller is `grab-prop`'s cell, clip table replicated binding for binding, plus four states around the latch. `Acquire` is entered on the grab: the cage sits at its acquisition scale with filters open, and the palm arriving inside all eight boxes is what advances to `Latched`, which shuts the filters on frame 0 (what is inside is what stays latched) and expands the hosts to working scale on frame 1. `Settling` waits a fixed dwell for the residual to fall and the half-length to read palm-plausible, then exits to `Held6` or `Held5` by the lever gate, or back to `Acquire` on a timeout, reopening the filters. That loop is the hand-identification mechanism, and it is a residual test, not an identity test: a second palm latched with the grabbing one usually keeps the residual high, the loop reopens, a broken latched contact cannot re-latch, and the readout converges on the palm that stays with the tip. A two-handed grab loops indefinitely and the prop carries position-only. Each box reads its nearest sender, so two palms whose union happens to read like one plausible capsule pass the settle gate and the prop captures a blend of the two; the half-length band is the only guard, and narrowing it toward the surveyed hands rejects more such unions at the cost of large hands.
 
 Nothing in a grab cycle toggles a receiver GameObject, which is why no receiver stow is needed (Avatar-Prop stows its trackers because it deactivates them during the grab). The one state that does, `Disabled`, holds for a dwell, because a receiver switched off and on inside one frame with a sender inside is deaf for the session.
 
@@ -48,6 +48,7 @@ Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPositio
 - The readout's remaining error is the naive nearest-surface capsule model's slow pose-dependent bias, under a degree median and a few degrees at the tail, which a prop riding the frame shows as slight drift across the wrist's range, not shake.
 - Three co-located wearers of this entry reach the receiver-cluster count that reads wrong values.
 - The remote hand's readout noise is unmeasured: the client floor was measured on the wearer's own hand.
+- Two palms in the core are rejected by residual, not identified: a union that reads like one plausible capsule captures a blend (§How it works).
 - Not ported from Avatar-Prop, deliberately: its distance-too-far reset (`grab-prop`'s unlimited carry plus Enable-off recall covers it) and its left-hand grip mirror (relative capture takes the pose from the grab itself).
 
 ## Empirical constants (90 % rule)
@@ -60,15 +61,16 @@ Every value lives in `generate.py`; the table names the knob and the relation.
 | Acquisition scale | `ACQ_SCALE` | host scale between grabs; sized so the shipped bone and grab radius put the whole palm inside all eight boxes, measured on the synthesized palm |
 | Sign margin | `MARGIN` | keep-previous hysteresis in residual metres; below it noise flips the held pattern, above it the pattern lags through degenerate regions |
 | Lever threshold | `LEVER_T` | tip-to-axis distance below which roll falls back to world-up; roll error scales as tip-to-midpoint distance over lever |
-| Settle gate | `RES_SETTLE`, `S_LO`, `S_HI` | residual and half-length band a capture requires; wider captures sooner and on worse geometry |
-| Dwells | `CAPTURE_DWELL`, `DISABLED_DWELL` | seconds before a capture may fire; seconds a receiver stays off |
-| Grab radius, bone length | prefab `GrabBone` `radius`, `GrabBone_End` position | the acquisition trade above; `--check` pins the shipped values |
+| Settle gate | `RES_SETTLE`, `S_LO`, `S_HI` | residual and half-length band a capture requires; wider captures sooner and on worse geometry, and admits more two-palm unions |
+| Square-root lookup | `LUT_LO`, `LUT_HI`, `LUT_N` | must cover the discriminant over the whole half-length band, or S reads wrong while the gate still passes; the generator refuses a lookup that does not |
+| Dwells | `CAPTURE_DWELL`, `SETTLE_TIMEOUT`, `DISABLED_DWELL` | seconds before a capture may fire; seconds before the latch loop reopens; seconds a receiver stays off |
+| Grab radius, bone length | prefab `GrabBone` `radius`, `GrabBone_End` position | the acquisition trade above; `--check` pins them to `GRAB_RADIUS` and `BONE_END` in `generate.py` |
 
 ## Verifying the install
 
 Enable on: the prop rests at `HomeAnchor/Offset` on the wearer's hips; at the origin means the BoneProxy never resolved. Grab it and hold still: the prop should not snap, and within the capture dwell it starts turning with the hand; a prop that follows position but never turns means the readout never settled, which is a second palm in the core, a hand outside it, or `Cage` missing from the physbone's ignore list. Roll the wrist: the prop rolls with it when the grip is off the palm axis and holds a world-up roll when it is on it. Drop and re-grab as `grab-prop`.
 
-`generate.py --check` asserts the prefab surface no compile reads: controller and params order in the FullController, `globalParams`, the receivers' tags, filters, locality, content type and size, the pins' zero offsets, and the physbone's `snapToHand`, grab filter, radius, bone length and ignore list. `twin.py` is the per-frame reference the compiled readout is scored against, not a build input: `python twin.py truth <sweep>` checks the midpoint and lever against a recorded sweep's true centre and axis, and `compare` scores a Unity edit-tick dump against the twin's.
+`generate.py --check` asserts the prefab surface no compile reads: controller and params order in the FullController, `globalParams`, each receiver's name-to-parameter mapping, tags, filters, locality, content type and size, the cage tilt and its scale source, the exact sources and zero offsets of `Rotor`, `Held` and `Frame`, and the physbone's `snapToHand`, grab filter, radius, bone length and ignore list. `twin.py` is the per-frame reference the compiled readout is scored against, not a build input: `python twin.py truth <sweep>` checks the midpoint and lever against a recorded sweep's true centre and axis, and `compare` scores a Unity edit-tick dump against the twin's.
 
 Two clients in-game, not the emulator: the rigid grab offset (the emulator's grab helper applies it unrotated), remote-side re-derivation against a real IK-delayed hand, the per-client capture offset, the remote hand's readout noise, and late join.
 
