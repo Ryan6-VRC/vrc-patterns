@@ -21,6 +21,8 @@ The prop (`Container`) multiplexes three position sources: anchored, grabbed/dro
 
 **Release arbitration** (priority top-down, evaluated by the wearer): self receiver fires → anchored; all four boxes fire → tracked (the cage latches `allowOthers` shut); neither → a `grab-prop` release pulse → dropped. The winning branch's localOnly driver stamps the synced pair at release.
 
+**One controller, two lanes.** `IsLocal` is constant per client, so the boot timer reads it once and routes into the wearer half (the `Local …` states: the sensor-arbitrated release ladder and the pair drivers) or the remote half (the `Remote …` states: the pair and the synced grab, no drivers); the two share clips by name and never meet again.
+
 **Remotes** resolve from the synced pair rather than local sensors, freezing the prop on every release and self-correcting if the pair changes. **Tracking loss also freezes the prop in place** rather than snapping it home, for wearer and remote alike, since observers unload a distant target at different times. **Late joiners** dwell a boot timer, then resolve from the pair alone — anchored or hidden resolve at once, but a tracked or dropped prop stays hidden until a witnessed grab, fail-visible since that position never crossed the wire.
 
 **Anyone can grab it** (`allowGrabbing` on, native sync): a friend can take the prop off your head and put it on theirs, since the wearer's client arbitrates from wherever the prop is. `allowPosing` is off — persistence is always a constraint hold.

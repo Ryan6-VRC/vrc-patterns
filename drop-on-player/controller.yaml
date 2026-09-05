@@ -85,88 +85,84 @@ menu:
     param: DropOnPlayer/ToHead
 
 layers:
-  # Mode machine. Local edges arbitrate off live sensors and stamp the pair; remote edges pose
-  # from the pair alone (deterministic resume). Grab edges are shared — the grab is natively
-  # synced per client, no pair code for the transient carry.
+  # Mode machine: one flat machine in two lanes. IsLocal is constant per client, so root Timer routes
+  # each client once, by level transition (entry rungs evaluate before the runtime writes IsLocal),
+  # into the wearer half or the remote half, and the two never meet again. The wearer half is the
+  # wearer: the release ladder arbitrates off live sensors and the localOnly drivers stamp the pair.
+  # The remote half poses the rig from the pair plus the natively synced grab, and carries no driver.
+  # A mirror clone reads IsLocal true, takes the wearer half, and runs no drivers (runtime.md
+  # §Parameters). Clips are shared by name — Local Tracked and Remote Tracked both play the tracked
+  # readout. State names carry the lane as a leading word (Local X / Remote X): siblings stay unique,
+  # the animator window's lists sort by lane, and a state's twin across the lanes shares its last word.
   - name: DropOnPlayer/Control
     states:
-      # Remote boot dwell: wait out param arrival, then route by pair. Non-derivable bands
-      # (Out=1: the tracked/dropped position never syncs) park in Waiting, hidden, until a
-      # witnessed grab. Local skips straight to Disabled.
+      # Boot dwell: the wearer leaves on frame one; a remote waits out param arrival, then routes by
+      # pair. The exit-time rungs read IsLocal false too: a first frame longer than the dwell would
+      # otherwise carry a wearer whose IsLocal is not yet written into the remote half, which has no
+      # way back. Non-derivable bands (Out=1: the tracked/dropped position never syncs) park in
+      # Waiting, hidden, until a witnessed grab.
       Timer:
         motion: { clip: timer }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true ] }
-          - { to: Anchored, when: [ DropOnPlayer/Out is false, DropOnPlayer/Worn is true ], exitTime: 1.0 }
-          - { to: Waiting,  when: [ DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: Disabled, when: [], exitTime: 1.0 }
-      Disabled:
+          - { to: Local Disabled,  when: [ IsLocal is true ] }
+          - { to: Remote Anchored, when: [ IsLocal is false, DropOnPlayer/Out is false, DropOnPlayer/Worn is true ], exitTime: 1.0 }
+          - { to: Remote Waiting,  when: [ IsLocal is false, DropOnPlayer/Out is true ], exitTime: 1.0 }
+          - { to: Remote Disabled, when: [ IsLocal is false ], exitTime: 1.0 }
+      # ---- The wearer half (Local …). Every entry into it is Timer's explicit rung.
+      Local Disabled:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 0 } }
         motion: { clip: disabled }
         transitions:
-          - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/Enable is true ] }
-          - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Waiting,  when: [ IsLocal is false, DropOnPlayer/Out is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/Enable is true ] }
       # Anchored — own head (the reset target: Enable-on and ToHead both land here).
-      Anchored:
+      Local Anchored:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 0, DropOnPlayer/Worn: 1 } }
         motion: { clip: anchored }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
-          - { to: Tracked,  when: [ IsLocal is false, DropOnPlayer/Out is true, DropOnPlayer/Worn is true ] }
-          - { to: Dropped,  when: [ IsLocal is false, DropOnPlayer/Out is true, DropOnPlayer/Worn is false ] }
-      # Grabbed — the carry. Release-time arbitration is the local exit ladder, priority top-down:
-      # own head beats another player's head beats world. Remotes route through Released and wait
-      # for the pair. The pair holds its previous code during the carry (no transient band).
-      Grabbed:
+          - { to: Local Disabled, when: [ DropOnPlayer/Enable is false ] }
+          - { to: Local Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+      # Grabbed — the carry. Release-time arbitration is the exit ladder, priority top-down: own
+      # head beats another player's head beats world. The pair holds its previous code during
+      # the carry (no transient band).
+      Local Grabbed:
         motion: { clip: grabbed }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Anchored, when: [ IsLocal is true, GrabBone_IsGrabbed is false, DropOnPlayer/SelfDetect greater 0 ] }
-          - { to: Tracked,  when: [ IsLocal is true, GrabBone_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
-          - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
-      # Release choreography (world-drop + remote settle window): t=0 the Container constraint
-      # disables (the freeze) and the bone chain re-anchors onto the frozen prop; t=0.25
-      # SourcePosition re-samples the settled tip; t=0.5 it holds. Locally only the world-drop
-      # branch enters here (driver stamps 10 AT RELEASE so the pair beats the remotes' pulse end);
-      # remotes enter on every release and route by pair at exitTime — a stale pair self-corrects
-      # via the mode states' remote edges. No grab exit: the pulse is a re-grab lockout.
-      Released:
+          - { to: Local Disabled, when: [ DropOnPlayer/Enable is false ] }
+          - { to: Local Anchored, when: [ GrabBone_IsGrabbed is false, DropOnPlayer/SelfDetect greater 0 ] }
+          - { to: Local Tracked,  when: [ GrabBone_IsGrabbed is false, DropOnPlayer/X+ greater 0, DropOnPlayer/X- greater 0, DropOnPlayer/Y+ greater 0, DropOnPlayer/Z+ greater 0 ] }
+          - { to: Local Released, when: [ GrabBone_IsGrabbed is false ] }
+      # Release choreography (world-drop): t=0 the Container constraint disables (the freeze) and
+      # the bone chain re-anchors onto the frozen prop; t=0.25 SourcePosition re-samples the
+      # settled tip; t=0.5 it holds. Only the world-drop branch enters here; the driver stamps 10
+      # AT RELEASE so the pair beats the remotes' pulse end. No grab exit: the pulse is a re-grab
+      # lockout.
+      Local Released:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0 } }
         motion: { clip: released }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: Tracked,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is true ], exitTime: 1.0 }
-          - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ], exitTime: 1.0 }
-          - { to: Dropped,  when: [], exitTime: 1.0 }
+          - { to: Local Disabled, when: [ DropOnPlayer/Enable is false ] }
+          - { to: Local Dropped,  when: [], exitTime: 1.0 }
       # Dropped — world-frozen (the disabled constraint holds the transform; the held sample lets
-      # a re-grab pick up at the drop point). Also the LOCAL loss target: the driver re-stamps 10
-      # when Tracked loses its sender, so remotes converge on freeze.
-      Dropped:
+      # a re-grab pick up at the drop point). Also the loss target: the driver re-stamps 10 when
+      # Tracked loses its sender, so remotes converge on freeze.
+      Local Dropped:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 0 } }
         motion: { clip: dropped }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
-          - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/ToHead is true ] }
-          - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Tracked,  when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is true ] }
+          - { to: Local Disabled, when: [ DropOnPlayer/Enable is false ] }
+          - { to: Local Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/ToHead is true ] }
       # Tracked — the box cage latches (allowOthers shut), the readout writes Output.localPosition
-      # inside this state's direct tree, and the feedback constraint crawls the cage
-      # onto it; every client runs this on its own sensors. ANY-loss (box-tracker): one dead box
-      # breaks the reconstruction, so the loss edges fire on the FIRST box to drop, not the last.
-      # LOCAL loss stamps Dropped (freeze, never snap-home — observers unload the target at
-      # different times); REMOTE loss falls to Lost without writing the pair.
-      Tracked:
+      # inside this state's direct tree, and the feedback constraint crawls the cage onto it.
+      # ANY-loss (box-tracker): one dead box breaks the reconstruction, so the loss edges fire on
+      # the FIRST box to drop, not the last — one transition per box (a layer takes one edge per
+      # frame). Loss stamps Dropped: freeze, never snap-home, since observers unload the target at
+      # different times.
+      Local Tracked:
         behaviours:
           - driver: { localOnly: true, set: { DropOnPlayer/Out: 1, DropOnPlayer/Worn: 1 } }
         motion:
@@ -180,58 +176,115 @@ layers:
             - { clip: readout_yp, directWeight: DropOnPlayer/Y+ }
             - { clip: readout_zp, directWeight: DropOnPlayer/Z+ }
         transitions:
-          - { to: Disabled, when: [ IsLocal is true, DropOnPlayer/Enable is false ] }
-          - { to: Disabled, when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
-          - { to: Anchored, when: [ IsLocal is true, DropOnPlayer/ToHead is true ] }
-          # ANY-loss, local -> Dropped (freeze). One transition per box (a layer takes one edge/frame; whichever box dies first wins).
-          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/X+ less 0.00001 ] }
-          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/X- less 0.00001 ] }
-          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/Y+ less 0.00001 ] }
-          - { to: Dropped, when: [ IsLocal is true, DropOnPlayer/Z+ less 0.00001 ] }
-          # ANY-loss, remote -> Lost (freeze, pair untouched).
-          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/X+ less 0.00001 ] }
-          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/X- less 0.00001 ] }
-          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/Y+ less 0.00001 ] }
-          - { to: Lost, when: [ IsLocal is false, DropOnPlayer/Z+ less 0.00001 ] }
-          - { to: Anchored, when: [ IsLocal is false, DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Dropped,  when: [ IsLocal is false, DropOnPlayer/Worn is false, DropOnPlayer/Out is true ] }
-      # Lost — remote-only freeze while the pair still reads Tracked (this client's cage lost the
-      # sender; it cannot rewrite the synced pair, and re-opening the filters would re-latch a
-      # WRONG nearby head). Same pose as Dropped; exits only on a witnessed grab or a pair change
-      # — no pair-11 re-entry, so no Tracked<->Lost oscillation.
-      Lost:
+          - { to: Local Disabled, when: [ DropOnPlayer/Enable is false ] }
+          - { to: Local Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Local Anchored, when: [ DropOnPlayer/ToHead is true ] }
+          - { to: Local Dropped, when: [ DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Local Dropped, when: [ DropOnPlayer/X- less 0.00001 ] }
+          - { to: Local Dropped, when: [ DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Local Dropped, when: [ DropOnPlayer/Z+ less 0.00001 ] }
+      # ---- The remote half (Remote …). Every rung here reads the pair (the wearer's stamp) or the
+      # synced grab; a pair change without a witnessed grab is a missed carry, and the mode states
+      # re-route on it directly.
+      Remote Disabled:
+        motion: { clip: disabled }
+        transitions:
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
+          - { to: Remote Waiting,  when: [ DropOnPlayer/Out is true ] }
+      Remote Anchored:
+        motion: { clip: anchored }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Remote Tracked,  when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is true ] }
+          - { to: Remote Dropped,  when: [ DropOnPlayer/Out is true, DropOnPlayer/Worn is false ] }
+      # The carry, witnessed. Every release routes through Released and waits for the pair.
+      Remote Grabbed:
+        motion: { clip: grabbed }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Released, when: [ GrabBone_IsGrabbed is false ] }
+      # The pulse doubles as the remote settle window: route by the ARRIVED pair at exitTime; a
+      # stale pair self-corrects via the mode states' rungs. No grab exit: the pulse is a re-grab
+      # lockout.
+      Remote Released:
+        motion: { clip: released }
+        transitions:
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ], exitTime: 1.0 }
+          - { to: Remote Tracked,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is true ], exitTime: 1.0 }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ], exitTime: 1.0 }
+          - { to: Remote Dropped,  when: [], exitTime: 1.0 }
+      Remote Dropped:
         motion: { clip: dropped }
         transitions:
-          - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
-          - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
-          - { to: Dropped,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is true ] }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
+          - { to: Remote Tracked,  when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is true ] }
+      # This client re-derives the chase on its own sensors. ANY-loss falls to Lost without
+      # writing the pair.
+      Remote Tracked:
+        motion:
+          tree: direct
+          name: BoxReadout
+          normalized: false
+          children:
+            - { clip: tracked, directWeight: DropOnPlayer/One }
+            - { clip: readout_xp, directWeight: DropOnPlayer/X+ }
+            - { clip: readout_xn, directWeight: DropOnPlayer/X- }
+            - { clip: readout_yp, directWeight: DropOnPlayer/Y+ }
+            - { clip: readout_zp, directWeight: DropOnPlayer/Z+ }
+        transitions:
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Remote Lost, when: [ DropOnPlayer/X+ less 0.00001 ] }
+          - { to: Remote Lost, when: [ DropOnPlayer/X- less 0.00001 ] }
+          - { to: Remote Lost, when: [ DropOnPlayer/Y+ less 0.00001 ] }
+          - { to: Remote Lost, when: [ DropOnPlayer/Z+ less 0.00001 ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
+          - { to: Remote Dropped,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is true ] }
+      # Lost — freeze while the pair still reads Tracked (this client's cage lost the sender; it
+      # cannot rewrite the synced pair, and re-opening the filters would re-latch a WRONG nearby
+      # head). Same pose as Dropped; exits only on a witnessed grab or a pair change — no pair-11
+      # re-entry, so no Tracked<->Lost oscillation.
+      Remote Lost:
+        motion: { clip: dropped }
+        transitions:
+          - { to: Remote Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
+          - { to: Remote Dropped,  when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is true ] }
       # Late-join park: pair says the prop is out (Out=1) but its position never synced — hidden
       # (fail-visible) until a witnessed grab re-establishes it. The grab physbone lives OUTSIDE
       # the hidden Container branch so the grab always can.
-      Waiting:
+      Remote Waiting:
         motion: { clip: waiting }
         transitions:
-          - { to: Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
-          - { to: Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
-          - { to: Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
+          - { to: Remote Grabbed,  when: [ GrabBone_IsGrabbed is true ] }
+          - { to: Remote Disabled, when: [ DropOnPlayer/Worn is false, DropOnPlayer/Out is false ] }
+          - { to: Remote Anchored, when: [ DropOnPlayer/Worn is true, DropOnPlayer/Out is false ] }
     default: Timer
-    # Hand arrangement (animator-schema.md §Arranging for legibility): boot spine descends Timer -> Disabled;
-    # the remote-only pair (Waiting, Lost) shares the left column with Anchored; Grabbed is the
-    # central hub, midway between home (Anchored) and Lost, over Tracked in the center column;
-    # the release pulse falls right to Dropped. Any/Exit parked top-left.
+    # Two lanes under Timer, wearer left (negative x), remotes right: each lane descends Disabled →
+    # Anchored → Grabbed → Tracked with the release pulse falling outboard to Dropped, twins on
+    # matching rows. The remote-only states take the third column: Waiting beside Disabled (the other
+    # boot park), Lost further out, off the Tracked→Dropped row so its edges do not merge with it.
     layout:
       nodes:
-        Timer:    [30, 180]
-        Waiting:  [-330, 250]
-        Disabled: [150, 250]
-        Anchored: [-330, 320]
-        Released: [390, 320]
-        Grabbed:  [30, 390]
-        Lost:     [-330, 460]
-        Tracked:  [30, 530]
-        Dropped:  [390, 530]
+        Timer:           [30, 180]
+        Local Disabled:  [-210, 270]
+        Local Anchored:  [-210, 360]
+        Local Grabbed:   [-210, 450]
+        Local Released:  [-450, 450]
+        Local Tracked:   [-210, 540]
+        Local Dropped:   [-450, 540]
+        Remote Disabled: [270, 270]
+        Remote Waiting:  [510, 270]
+        Remote Anchored: [270, 360]
+        Remote Grabbed:  [270, 450]
+        Remote Released: [510, 450]
+        Remote Tracked:  [270, 540]
+        Remote Dropped:  [510, 540]
+        Remote Lost:     [750, 360]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
