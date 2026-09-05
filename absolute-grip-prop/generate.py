@@ -59,7 +59,7 @@ GATE_R = 0.13                         # HandL / HandR proximity sphere radius on
 GATE_M = 0.1                          # |HandDiff| a decisive hand needs; two palms or none read under it and refuse
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2)
+MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.0, 0.0, 0.0, 1.0)         # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose; identity ships
 GRIP_L = (0.0, 0.0, 0.0, 1.0)         # Frame/GripL localRotation: the authored left-hand grip pose, authored, never derived from GRIP_R
 PREFIX = 'Palm/'
@@ -417,7 +417,9 @@ ENABLE = GLUE + 'Enable'
 HANDS = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
 def negate(cond):
-    """the complement of a float condition, for the Confirm bounce rungs (a float has no equality, so the boundary itself holds)."""
+    """the complement of a float condition, for the Confirm bounce rungs. Both rungs are strict, so a value sitting exactly on
+    the threshold satisfies neither and rides Confirm's exit time; that is a float equality on a blend-tree sum, not a case
+    worth an epsilon rung (which would turn the point into a dead band the engage could never cross)."""
     p, op, v = cond.rsplit(' ', 2); return f'{p} {"less" if op == "greater" else "greater"} {v}'
 def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
@@ -658,6 +660,17 @@ def check():
             a(near(vec3(tb, 'm_LocalPosition'), (0, 0, 0)), f'{node} local position zero')
             a(near(quat(tb, 'm_LocalRotation'), want), f'{node} localRotation == generator {want}')
             a(not any(('RotationAtRest' in b or 'AimAxis' in b or 'PositionAtRest' in b) and owner(i) == node for _, i, b in docs), f'{node} carries no constraint')
+    # The hand-maintained seam pieces no compile reads: the Toggle's global parameter is the one published name (a rename
+    # strands the menu with no error), the home BoneProxy targets Hips, and Damped's smoother weights are the entry's own.
+    tg = [b for _, _, b in docs if 'class: Toggle' in b and 'ns: VF.Model.Feature' in b]
+    a(len(tg) == 1, 'exactly one VRCFury Toggle')
+    if tg:
+        a(re.search(r'^\s+useGlobalParam: 1$', tg[0], re.M) and re.search(rf'^\s+globalParam: {re.escape(ENABLE)}$', tg[0], re.M), f'Toggle drives the global {ENABLE}')
+        a(re.search(r'^\s+saved: 0$', tg[0], re.M) and re.search(r'^\s+defaultOn: 0$', tg[0], re.M), 'Toggle unsaved, default off (off is the reset)')
+    bp = [b for _, i, b in docs if 'boneReference' in b and owner(i) == 'HomeAnchor']
+    a(len(bp) == 1 and re.search(r'^\s+boneReference: 0$', bp[0], re.M), 'HomeAnchor BoneProxy targets Hips')
+    dm = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == 'Damped']
+    a(dm and [w for _, w in sources(dm[0])] == [1.0, 0.5], f'Damped source weights [1, 0.5] (self, Rotor), got {[w for _, w in sources(dm[0])] if dm else None}')
     # Absence: a leftover from the copied prefab writes the same transform and wins silently.
     for gone in ('Held', 'ReconW'):
         a(gone not in names.values(), f'no node named {gone}')
