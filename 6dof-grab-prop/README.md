@@ -49,11 +49,11 @@ Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPositio
 - Three co-located wearers of this entry reach the receiver-cluster count that reads wrong values.
 - The remote hand's readout noise is unmeasured: the client floor was measured on the wearer's own hand.
 - Two palms in the core are rejected by residual, not identified: a union that reads like one plausible capsule captures a blend (§How it works).
-- Not ported from Avatar-Prop, deliberately: its distance-too-far reset (`grab-prop`'s unlimited carry plus Enable-off recall covers it) and its left-hand grip mirror (relative capture takes the pose from the grab itself).
+- Not ported from Avatar-Prop, deliberately: its distance-too-far reset (`grab-prop`'s unlimited carry plus Enable-off recall covers it) and its left-hand grip mirror (relative capture takes the pose from the grab itself; `absolute-grip-prop` ports it, since an authored grip needs the hand).
 
 ## Where this is headed
 
-Three measured facts point at a more reliable entry than this one, not yet built. The client's `snapToHand` grab point sits well off the palm axis (in-game: where a held ball would rest), so a snap-on variant would have a constant lever on every grab and every client, and roll would never fall back to world-up. The built-in senders carry `HandL`/`HandR` beside `Hand`, so two small gate receivers could pick the grabbing hand, run only that hand's readout, and reject a second palm outright rather than by residual. And the drift across pickups, which is per-client relative capture accumulating, ends either with an absolute grip or with a rest-pose reconciliation over `object-sync` at each drop. What no cue here settles is the palm axis sign: a point and a symmetric capsule read the same rotated 180° about the tip's offset, handedness alone does not break that, and only a stable along-axis tip offset or a finger-tag cue would.
+`absolute-grip-prop` is the successor: `snapToHand` on, so the tip is the client's hand grab point and the roll lever is structural on every grab and every client; a two-receiver `HandL`/`HandR` gate for the handedness a per-hand grip needs; a `FingerIndex` cue pair for the palm-axis sign; and an authored grip pose in place of the capture, so there is nothing to drift. What stays this entry's own limit: a point plus a symmetric capsule cannot yield the axis sign, and handedness alone does not break that, which is why the successor pays two receivers for a finger cue.
 
 ## Empirical constants (90 % rule)
 
