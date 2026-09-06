@@ -53,7 +53,7 @@ Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPositio
 
 ## Where this is headed
 
-`absolute-grip-prop` is the successor: `snapToHand` on, so the tip is the client's hand grab point and the roll lever is structural on every grab and every client; a two-receiver `HandL`/`HandR` gate for the handedness a per-hand grip needs; a `FingerIndex` cue pair for the palm-axis sign; and an authored grip pose in place of the capture, so there is nothing to drift. What stays this entry's own limit: a point plus a symmetric capsule cannot yield the axis sign, and handedness alone does not break that, which is why the successor pays two receivers for a finger cue.
+`absolute-grip-prop` is the successor: `snapToHand` on, so the tip is the client's hand grab point, which sits off the palm axis on every grab and every client as far as that point has been observed; a two-receiver `HandL`/`HandR` gate for the handedness a per-hand grip needs; a `FingerIndex` cue pair for the palm-axis sign; and an authored grip pose in place of the capture, so there is nothing to drift. What stays this entry's own limit: a point plus a symmetric capsule cannot yield the axis sign, and handedness alone does not break that, which is why the successor pays two receivers for a finger cue.
 
 ## Empirical constants (90 % rule)
 

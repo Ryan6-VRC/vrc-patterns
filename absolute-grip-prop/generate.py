@@ -56,7 +56,7 @@ SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop 
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
-ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident world-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
+ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident cage-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
 ARRIVE_DWELL = 2 / FPS_FLOOR          # 2 frames at the floor a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
 SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; 6dof-grab-prop's value, and raising it shows more of the readout's pattern hops
 BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung fires only once a reading has retreated to this fraction of its entry margin, or past 1/this of its entry ceiling, so a reading dithering on its entry threshold cannot flap Settled and Confirm (runtime.md: a bare threshold on a contact reading needs hysteresis)
@@ -379,7 +379,7 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
     boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch). scale selects the
-    box hosts' pose as a unit: ACQ_SCALE = one coincident world-aligned cube (identity rotation), 1 = the tetrahedral working cage.
+    box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
     grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
     if place == 'palm' and rot_src not in ('R', 'L'): raise SystemExit(f'REFUSE: palm placement with no latched hand (rot_src={rot_src})')
@@ -436,16 +436,12 @@ GLUE_CLIPS = {
     'settling': dict(length=SETTLE_FILL, set=glue_clip(**FROZEN)),
     # Same pose; the engage rungs are conditional here (polled every frame), the timeout is the length.
     'settled': dict(length=SETTLE_TIMEOUT - SETTLE_FILL, set=glue_clip(**FROZEN)),
-    # Provisional carry: the tentative hand and sign already drive the grip and the placement while every engage condition is
-    # re-tested each frame; the exit time is the irreversible decision, and a bounce back to Settled freezes the pose it reached.
-    **{f'confirm{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
-    # Carry: Rotor rides the authored grip for the latched hand, Frame on the aim constraint for the latched sign, and
-    # the placement smoother eases the payload origin onto that hand's grip node. Hand and sign are the state; the gate and
-    # cue are never re-read while carrying.
-    'carryRP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', 1, 1, False, 1, 'palm')),
-    'carryRN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', -1, 1, False, 1, 'palm')),
-    'carryLP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', 1, 1, False, 1, 'palm')),
-    'carryLN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', -1, 1, False, 1, 'palm')),
+    # Carry, one clip per hand and sign, played by Confirm and Carry alike: Rotor rides the authored grip for the latched hand,
+    # Frame on the aim constraint for the latched sign, and the placement smoother eases the payload origin onto that hand's
+    # grip node. Confirm plays it provisionally while every engage condition is re-tested each frame, so the length is Confirm's
+    # dwell and its exit time the irreversible decision (Carry has no exit-time rung, so the length is inert there); a bounce
+    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate and cue are never re-read while carrying.
+    **{f'carry{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
     # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
     # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
     # The receivers ride a stepped off-then-on for the stow dwell at the head: a release can land one frame after a stow
@@ -478,7 +474,6 @@ def bounce(cond):
 def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
     en_off = f'{ENABLE} is false'
-    all_pos = [grabbed] + [f'{P(r)} greater 0' for r in READINGS]
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
@@ -491,9 +486,9 @@ def glue_states():
         # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
         # directly, since the tip is already in the hand.
         'Arrive': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        # A latch needs a hand tag on the tip sphere AND the palm in the coincident cube (all eight boxes agree by
-        # construction; the cube contains the sphere, so the sphere decides): a tip in no palm never latches.
-        'Acquire': dict(clip='acquire', transitions=common() + [{'to': 'Latched', 'when': all_pos + [f'{P(g)} greater 0']} for g in GATES]),
+        # A latch is a hand tag reading on the tip sphere: the coincident acquisition cube contains the sphere (ACQ_SCALE), so a
+        # palm the sphere reads is inside all eight boxes and the box readings add no condition. A tip in no palm never latches.
+        'Acquire': dict(clip='acquire', transitions=common() + [{'to': 'Latched', 'when': [grabbed, f'{P(g)} greater 0']} for g in GATES]),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         'Latched': dict(clip='latched', transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]),
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
@@ -506,7 +501,7 @@ def glue_states():
         for s in 'PN':
             entry = settled + [HANDS[h], SIGNS[s]]
             # Any entry condition failing during the dwell returns to Settled; the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'confirm{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in entry]
+            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in entry]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
