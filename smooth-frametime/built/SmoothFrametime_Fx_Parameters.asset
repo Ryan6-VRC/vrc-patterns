@@ -34,11 +34,6 @@ MonoBehaviour:
     saved: 0
     defaultValue: 2
     networkSynced: 0
-  - name: crossover
-    valueType: 1
-    saved: 0
-    defaultValue: 0.1
-    networkSynced: 0
   - name: One
     valueType: 1
     saved: 0
@@ -104,32 +99,7 @@ MonoBehaviour:
     saved: 0
     defaultValue: 0
     networkSynced: 0
-  - name: AbsDelta
-    valueType: 1
-    saved: 0
-    defaultValue: 0
-    networkSynced: 0
-  - name: CrossDiff
-    valueType: 1
-    saved: 0
-    defaultValue: 0
-    networkSynced: 0
-  - name: W
-    valueType: 1
-    saved: 0
-    defaultValue: 0
-    networkSynced: 0
-  - name: OneMinusW
-    valueType: 1
-    saved: 0
-    defaultValue: 0
-    networkSynced: 0
-  - name: SignDelta
-    valueType: 1
-    saved: 0
-    defaultValue: 0
-    networkSynced: 0
-  - name: SmoothedHybrid
+  - name: SmoothedLinear
     valueType: 1
     saved: 0
     defaultValue: 0
