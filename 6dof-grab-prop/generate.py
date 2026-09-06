@@ -347,9 +347,10 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
 # grab-prop's seven values per state are its controller.yaml's, replicated; the six new bindings and the
 # receiver set are this entry's. Comments beside each state carry the rationale.
 GLUE_CLIPS = {
-    # Off: receiver GOs and bone GO off; Container hidden. The receiver floats freeze at their last value, so
-    # the Disabled state's entry driver zeroes them. Held for DISABLED_DWELL so the receiver off outlives one
-    # evaluation (a same-frame off/on leaves a receiver deaf for the session).
+    # Off: receiver GOs and bone GO off; Container hidden. A stowed receiver reads its parameter back as exactly 0
+    # (runtime.md SContacts, measured in-client and in av3emu), so the Disabled state's entry driver zeroing them
+    # costs nothing and guards only the enable that follows. Held for DISABLED_DWELL so the receiver off outlives
+    # one evaluation (a same-frame off/on leaves a receiver deaf for the session).
     'disabled': dict(length=DISABLED_DWELL, set=glue_clip(0, 0, 1, 1, 0, True, 1, True, True, 0, 0, True, ACQ_SCALE)),
     # Remote boot dwell (grab-prop's timer): hidden, bone alive so a grab in progress is not missed.
     'timer': dict(length=1.0, set=glue_clip(0, 1, 1, 1, 0, True, 1, True, True, 0, 1, True, ACQ_SCALE)),
