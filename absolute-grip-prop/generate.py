@@ -47,7 +47,6 @@ K = 0.5                               # r/s on every VRChat Automatic base
 QA = 16 * K * K - 4 / 3               # 8/3
 MARGIN = 0.0004                       # keep-previous hysteresis in |S_L| metres
 LUT_LO, LUT_HI, LUT_N = 0.0012, 0.03, 24  # sqrt lookup over Disc (m^2); must cover Disc over the whole S band (refused below)
-ACQ_SCALE = 0.12                      # receiver host scale between grabs: the acquisition core must reach from the hand grab point to the far side of the palm (README)
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
 S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
 FRAME = 0.016666668
@@ -55,7 +54,9 @@ SETTLE_FILL = 9 * FRAME               # 9 frames at 60 fps (0.15 s) frozen after
 SETTLE_TIMEOUT = 1.0                  # seconds after the latch before the loop reopens (Settling + Settled)
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
-GATE_R = 0.13                         # HandL / HandR proximity sphere radius on the tip, metres; headroom, not a threshold (the read is the differential)
+GATE_R = 0.15                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale
+ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident world-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
+ARRIVE_DWELL = 10 * FRAME             # seconds a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point over a few frames, and a latch taken before it lands takes whatever palm was nearest the old position
 GATE_M = 0.1                          # |HandDiff| a decisive hand needs; two palms or none read under it and refuse
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
@@ -88,6 +89,27 @@ PATS = list(itertools.product([1, -1], repeat=4))          # 16 oriented pattern
 LINES = [p for p in PATS if p[0] == 1]                      # 8 lines, canonical rep sigma1 = +
 PAIRINGS = [((0, 1), (2, 3)), ((0, 2), (1, 3)), ((0, 3), (1, 2))]
 READINGS = [f'T{j + 1}{s}' for j in range(4) for s in 'pm']
+# Each box host's working rotation (Unity Euler, degrees): local +Z = +/-d_j. Animated to identity between grabs so the eight boxes
+# coincide as one cube, and back to these at the latch. Pinned to the prefab's serialized rotations by --check and to DIRS by the
+# refusal below, so neither the prefab nor this table can drift alone.
+HOST_EULER = {'T1p': (324.7356, 45.0, 0.0), 'T1m': (35.2644, 225.0, 0.0), 'T2p': (35.2644, 135.0, 0.0), 'T2m': (324.7356, 315.0, 0.0),
+              'T3p': (324.7356, 225.0, 0.0), 'T3m': (35.2644, 45.0, 0.0), 'T4p': (35.2644, 315.0, 0.0), 'T4m': (324.7356, 135.0, 0.0)}
+def unity_euler_quat(e):
+    """Unity's Quaternion.Euler: applied Z, then X, then Y (q = qy * qx * qz); returns (x, y, z, w)."""
+    def axis(ax, deg):
+        h = math.radians(deg) / 2; sn = math.sin(h); return tuple(sn * c for c in ax) + (math.cos(h),)
+    def mul(a, b):
+        ax, ay, az, aw = a; bx, by, bz, bw = b
+        return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
+    return mul(mul(axis((0, 1, 0), e[1]), axis((1, 0, 0), e[0])), axis((0, 0, 1), e[2]))
+def rot_vec(q, v):
+    x, y, z, w = q; vx, vy, vz = v
+    tx, ty, tz = 2 * (y * vz - z * vy), 2 * (z * vx - x * vz), 2 * (x * vy - y * vx)
+    return (vx + w * tx + (y * tz - z * ty), vy + w * ty + (z * tx - x * tz), vz + w * tz + (x * ty - y * tx))
+for _n, _e in HOST_EULER.items():
+    _j = int(_n[1]) - 1; _d = DIRS[_j] if _n[2] == 'p' else tuple(-c for c in DIRS[_j])
+    if max(abs(a - b) for a, b in zip(rot_vec(unity_euler_quat(_e), (0, 0, 1)), _d)) > 1e-4:
+        raise SystemExit(f'REFUSE: HOST_EULER[{_n}] does not point local +Z along {_d}')
 GATES = ['HandL', 'HandR']                                  # the gate pair, hosts Cage/HandL, Cage/HandR
 CUES = ['CueP', 'CueN']                                     # the cue pair, hosts Cage/Mid/ProxyA/CueP, Cage/Mid/ProxyB/CueN
 def tag(sg): return ''.join('p' if x > 0 else 'm' for x in sg)
@@ -335,25 +357,34 @@ B_ROT_W1 = 'Container/Rotor/VRCRotationConstraint.Sources.source1.Weight'   # Fr
 B_ROT_W2 = 'Container/Rotor/VRCRotationConstraint.Sources.source2.Weight'   # Frame/GripL
 B_FRM_W0 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source0.Weight'   # Recon  (+Z at ProxyA = +axis)
 B_FRM_W1 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source1.Weight'   # ReconN (+Z at ProxyB = -axis)
+B_DMP_EN = 'Container/Damped/VRCPositionConstraint.m_Enabled'                   # the placement smoother: source0 = self (never bound)
+B_DMP_W1 = 'Container/Damped/VRCPositionConstraint.Sources.source1.Weight'      # Container (the tip): home
+B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame (the palm midpoint): carry
 RECV_PATH = {**{r: f'{MOUNT}/{r}' for r in READINGS}, **{g: f'{MOUNT}/{g}' for g in GATES},
              'CueP': f'{MOUNT}/Mid/ProxyA/CueP', 'CueN': f'{MOUNT}/Mid/ProxyB/CueN'}
 def recv_bindings(r):
     base = RECV_PATH[r]
     return {'go': f'{base}/GameObject.m_IsActive', 'self': f'{base}/VRCContactReceiver.allowSelf', 'others': f'{base}/VRCContactReceiver.allowOthers',
-            'sx': f'{base}/Transform.m_LocalScale.x', 'sy': f'{base}/Transform.m_LocalScale.y', 'sz': f'{base}/Transform.m_LocalScale.z'}
+            'sx': f'{base}/Transform.m_LocalScale.x', 'sy': f'{base}/Transform.m_LocalScale.y', 'sz': f'{base}/Transform.m_LocalScale.z',
+            'rx': f'{base}/Transform.localEulerAnglesRaw.x', 'ry': f'{base}/Transform.localEulerAnglesRaw.y', 'rz': f'{base}/Transform.localEulerAnglesRaw.z'}
 
-def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale):
+def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
-    boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch)."""
+    boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch). scale selects the
+    box hosts' pose as a unit: ACQ_SCALE = one coincident world-aligned cube (identity rotation), 1 = the tetrahedral working cage.
+    place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the palm midpoint."""
     s = {B_CONT_GO: cont_go, B_BONE_GO: bone_go, B_CONT_POS: cont_pos, B_SRC_ACT: src_act, B_GP_ACT: gp_act,
          B_GP_W0: 1 if gp_home else 0, B_GP_W1: 0 if gp_home else 1,
          B_ROT_EN: rot_en, B_ROT_W0: 1 if rot_src == 'home' else 0, B_ROT_W1: 1 if rot_src == 'R' else 0, B_ROT_W2: 1 if rot_src == 'L' else 0,
-         B_FRM_W0: 1 if frame_sign > 0 else 0, B_FRM_W1: 0 if frame_sign > 0 else 1}
+         B_FRM_W0: 1 if frame_sign > 0 else 0, B_FRM_W1: 0 if frame_sign > 0 else 1,
+         B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: 0.5 if place == 'home' else 0, B_DMP_W2: 0.5 if place == 'palm' else 0}
     for r in READINGS:
         b = recv_bindings(r)
         s[b['go']] = recv_go; s[b['self']] = 1 if filters_open else 0; s[b['others']] = 1 if filters_open else 0
         s[b['sx']] = scale; s[b['sy']] = scale; s[b['sz']] = scale
+        e = HOST_EULER[r] if scale == 1 else (0.0, 0.0, 0.0)
+        s[b['rx']] = e[0]; s[b['ry']] = e[1]; s[b['rz']] = e[2]
     for g in GATES:
         b = recv_bindings(g)
         s[b['go']] = recv_go; s[b['self']] = 1 if filters_open else 0; s[b['others']] = 1 if filters_open else 0
@@ -362,50 +393,56 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
 
 # grab-prop's seven values per state are its controller.yaml's, replicated; the rotation channel and the receiver
 # set are this entry's. Comments beside each state carry the rationale.
-FROZEN = dict(cont_go=1, bone_go=1, cont_pos=1, src_act=1, gp_act=0, gp_home=False, rot_en=0, rot_src='home', frame_sign=1, recv_go=1, filters_open=False, scale=1)
+FROZEN = dict(cont_go=1, bone_go=1, cont_pos=1, src_act=1, gp_act=0, gp_home=False, rot_en=0, rot_src='home', frame_sign=1, recv_go=1, filters_open=False, scale=1, place='hold')
 GLUE_CLIPS = {
     # Off: receiver GOs and bone GO off; Container hidden. A stowed receiver reads exactly 0, and the Disabled
     # state's entry driver zeroes the twelve params so nothing stale gates the next enable. Held for DISABLED_DWELL
     # so the receiver off outlives one evaluation (a same-frame off/on leaves a receiver deaf for the session).
-    'disabled': dict(length=DISABLED_DWELL, set=glue_clip(0, 0, 1, 1, 0, True, 1, 'home', 1, 0, True, ACQ_SCALE)),
+    'disabled': dict(length=DISABLED_DWELL, set=glue_clip(0, 0, 1, 1, 0, True, 1, 'home', 1, 0, True, ACQ_SCALE, 'home')),
     # Remote boot dwell (grab-prop's timer): hidden, bone alive so a grab in progress is not missed.
-    'timer': dict(length=1.0, set=glue_clip(0, 1, 1, 1, 0, True, 1, 'home', 1, 1, True, ACQ_SCALE)),
+    'timer': dict(length=1.0, set=glue_clip(0, 1, 1, 1, 0, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
     # Home: prop on the hip offset, Rotor riding the home attitude, cage at acquisition scale with filters open.
-    'anchored': dict(set=glue_clip(1, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE)),
+    'anchored': dict(set=glue_clip(1, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
     # Grabbed, palm not yet latched: position rides the tip (grab-prop's grabbed), Rotor disabled = the prop holds
-    # its pose, cage still at acquisition scale with filters open.
-    'acquire': dict(set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, True, ACQ_SCALE)),
+    # its pose, the eight boxes one coincident cube with filters open. Arrive plays it for the arrive dwell and hands
+    # over to Acquire, which polls the latch every frame (an exit-time rung with conditions re-tests only once per
+    # clip period, measured, so the dwell and the poll are two states).
+    'acquire': dict(length=ARRIVE_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
     # The latch: box and gate filters shut at acquisition scale on frame 0 (what is inside now is what stays
-    # latched), box hosts to working scale on frame 1. Two frames long; Settling takes over at exit time.
-    'latched': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, False, ACQ_SCALE).items()
-                                             if not re.search(r'Transform\.m_LocalScale\.[xyz]$', k)},
-                    curves={k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
-                            for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])}),
+    # latched), box hosts from the coincident cube to the tetrahedral working cage on frame 1 (scale and rotation step
+    # together). Two frames long; Settling takes over at exit time.
+    'latched': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, False, ACQ_SCALE, 'hold').items()
+                                             if not re.search(r'Transform\.(m_LocalScale|localEulerAnglesRaw)\.[xyz]$', k)},
+                    curves={**{k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
+                               for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])},
+                            **{recv_bindings(r)['r' + ax]: {'tangents': 'stepped', 'keys': [[0, 0.0], [FRAME, HOST_EULER[r][i]]]}
+                               for r in READINGS for i, ax in enumerate('xyz')}}),
     # A latched contact that broke while the filters were shut and came back is never re-acquired by reopening
     # them (acquisition is an enter event); a slow receiver stow re-acquires a sender already inside. So every
     # loss after the latch and the settle timeout pass through here: all twelve receiver GOs off for the same dwell
     # Disabled uses, cage at acquisition scale with filters open, then Acquire.
-    'reacquire': dict(length=DISABLED_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 0, True, ACQ_SCALE)),
+    'reacquire': dict(length=DISABLED_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 0, True, ACQ_SCALE, 'hold')),
     # Latched, readout pipeline priming: working scale, filters shut, Rotor frozen. Nothing is polled here.
     'settling': dict(length=SETTLE_FILL, set=glue_clip(**FROZEN)),
     # Same pose; the engage rungs are conditional here (polled every frame), the timeout is the length.
     'settled': dict(length=SETTLE_TIMEOUT - SETTLE_FILL, set=glue_clip(**FROZEN)),
     # Same pose; every engage condition is re-tested each frame for the dwell, and its exit time is the decision.
     'confirm': dict(length=CONFIRM_DWELL, set=glue_clip(**FROZEN)),
-    # Carry: Rotor rides the authored grip for the latched hand, Frame on the aim constraint for the latched sign.
-    # Hand and sign are the state; the gate and cue are never re-read while carrying.
-    'carryRP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', 1, 1, False, 1)),
-    'carryRN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', -1, 1, False, 1)),
-    'carryLP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', 1, 1, False, 1)),
-    'carryLN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', -1, 1, False, 1)),
+    # Carry: Rotor rides the authored grip for the latched hand, Frame on the aim constraint for the latched sign, and
+    # the placement smoother eases the payload origin onto the palm midpoint. Hand and sign are the state; the gate and
+    # cue are never re-read while carrying.
+    'carryRP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', 1, 1, False, 1, 'palm')),
+    'carryRN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', -1, 1, False, 1, 'palm')),
+    'carryLP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', 1, 1, False, 1, 'palm')),
+    'carryLN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', -1, 1, False, 1, 'palm')),
     # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
     # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
-    'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE).items() if k != B_SRC_ACT},
+    'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold').items() if k != B_SRC_ACT},
                      curves={B_SRC_ACT: {'tangents': 'stepped', 'keys': [[0, 0], [0.25, 1], [0.5, 0]]}}),
     # World-dropped: both freezes hold (the frozen transform IS the hold); a grab re-enters Acquire.
-    'dropped': dict(set=glue_clip(1, 1, 0, 0, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE)),
+    'dropped': dict(set=glue_clip(1, 1, 0, 0, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
     # Late-join park (grab-prop's waiting): hidden until a witnessed grab; the bone lives outside the hidden branch.
-    'waiting': dict(set=glue_clip(0, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE)),
+    'waiting': dict(set=glue_clip(0, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
 }
 # Refusal: a cue receiver whose filters a clip could shut is a silent always-"correct" sign (a latched contact that
 # fully breaks cannot re-latch while filters are shut, and the pinky-side contact breaks during a curl).
@@ -433,8 +470,12 @@ def glue_states():
         'Timer': dict(clip='timer', transitions=[{'to': 'Disabled', 'when': ['IsLocal is true']}, {'to': 'Waiting', 'when': ['IsLocal is false'], 'exitTime': 1.0}]),
         'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': {P(r): 0 for r in READINGS + GATES + CUES}}}],
                          transitions=[{'to': 'Anchored', 'when': [f'{ENABLE} is true'], 'exitTime': 1.0}]),
-        'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Acquire', 'when': [grabbed]}]),
-        # A latch needs the palm in all eight boxes AND a hand tag at the tip: a tip in no palm never latches.
+        'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
+        # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
+        # directly, since the tip is already in the hand.
+        'Arrive': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
+        # A latch needs a hand tag on the tip sphere AND the palm in the coincident cube (all eight boxes agree by
+        # construction; the cube contains the sphere, so the sphere decides): a tip in no palm never latches.
         'Acquire': dict(clip='acquire', transitions=common() + [{'to': 'Latched', 'when': all_pos + [f'{P(g)} greater 0']} for g in GATES]),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         'Latched': dict(clip='latched', transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]),
@@ -454,11 +495,11 @@ def glue_states():
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
     st.update({
         'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
-        'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Acquire', 'when': [grabbed]}]),
-        'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Acquire', 'when': [grabbed]}]),
+        'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
+        'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
     })
     return st
-LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Acquire': [30, 390],
+LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Arrive': [-210, 530], 'Acquire': [30, 390],
           'Latched': [270, 390], 'Settling': [510, 390], 'Settled': [750, 390],
           'ConfirmRP': [990, 250], 'ConfirmRN': [990, 340], 'ConfirmLP': [990, 440], 'ConfirmLN': [990, 530],
           'CarryRP': [1230, 250], 'CarryRN': [1230, 340], 'CarryLP': [1230, 440], 'CarryLN': [1230, 530],
@@ -483,7 +524,7 @@ def emit_glue():
          '# that decides hand and sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
          '# the shared FullController.',
          f'# thresholds: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, gate |HandDiff| > {GATE_M}, cue |Cue| > {CUE_M};',
-         f'# fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition host scale {ACQ_SCALE}.',
+         f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
@@ -605,6 +646,19 @@ def check():
             a(near(vec3(tb, 'm_LocalScale'), (1, 1, 1)), f'{node} host local scale 1, never animated')
             want_parent = {'CueP': 'ProxyA', 'CueN': 'ProxyB'}.get(node, 'Cage')
             a(ancestors(go_of[i])[:1] == [want_parent], f'{node} hosted on {want_parent}')
+    # Box hosts: serialized at the working rotation (the clips animate identity between grabs) and the acquisition scale.
+    for r in READINGS:
+        tb = tf_doc(r)
+        a(near(quat(tb, 'm_LocalRotation'), unity_euler_quat(HOST_EULER[r]), 1e-5) or near(quat(tb, 'm_LocalRotation'), tuple(-c for c in unity_euler_quat(HOST_EULER[r])), 1e-5), f'{r} host localRotation == HOST_EULER (local +Z along its tetrahedral direction)')
+        a(near(vec3(tb, 'm_LocalScale'), (ACQ_SCALE,) * 3), f'{r} host serialized at the acquisition scale {ACQ_SCALE:g}')
+    # The placement smoother: Damped eases its origin toward the tip at home and toward the palm midpoint in carry.
+    pc = [b for _, i, b in docs if 'PositionAtRest' in b and owner(i) == 'Damped']
+    a(len(pc) == 1, 'Damped carries one position constraint')
+    if pc:
+        a([s for s, _ in sources(pc[0])] == ['Damped', 'Container', 'Frame'], f'Damped position sources [Damped, Container, Frame], got {[s for s, _ in sources(pc[0])]}')
+        a([w for _, w in sources(pc[0])] == [1.0, 0.5, 0.0], 'Damped position weights [1, 0.5, 0] (self, home, palm) at rest')
+        a('PositionAtRest: {x: 0, y: 0, z: 0}' in pc[0] and 'PositionOffset: {x: 0, y: 0, z: 0}' in pc[0], 'Damped position constraint zeroed, no offset')
+        a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentPositionOffset: (\{[^}]*\})', pc[0])), 'Damped position source offsets zero')
     # Physbone: the grab premise. With snapToHand the tip IS the client's hand grab point.
     pb = [b for _, _, b in docs if 'snapToHand' in b]
     a(len(pb) == 1, 'one physbone')
