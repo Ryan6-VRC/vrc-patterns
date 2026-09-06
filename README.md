@@ -42,6 +42,8 @@ Runnable arrangements of two or more entries, committed as prefabs because an ar
 | Composition | Build this | Composes |
 |---|---|---|
 | [`object-sync-demo`](compositions/object-sync-demo/) | A world-synced prop you hold, **point a raycast at a surface to place**, or freeze — with a hand-held **debug-shader tablet** reading its own wire live: the coarse and fine words, the batch index, and whether this client's receiver has a whole word table yet. Also the worked example for a hand-mounted `VRCRaycast` with a surface-aligned result, and for driving a debug readout from animator clips | `object-sync` · `word-channel` · `anti-cull` · `debug-shaders`; 52 wire bits, 3 batches, ~0.350 s |
+| [`grab-sync`](compositions/grab-sync/) | A grabbable prop whose drops are shared truth: grab it off your hip, carry it, set it down anywhere — everyone sees it there, late joiners included, and a re-grab picks it up snap-free from any join state. Ships as one prop (`GrabSync`) or four time-sliced on one wire (`MultiGrabSync`) | `grab-prop` · `drag-bone` · `object-sync` (single-prop `y` build) · `word-channel`; 29 synced bits, the four-prop build the same wire plus `Detached_0..3` |
+| [`sync-on-player`](compositions/sync-on-player/) | `drop-on-player`'s release arbitration with the placement made shared truth: release on your own head to anchor, on another player's head to ride them, anywhere else to freeze — and unlike the bare entry, every client including a late joiner sees a tracked or dropped prop in the right place | `drop-on-player` · `object-sync` (position-only) · `box-tracker` · `word-channel`; 30 synced bits |
 
 ## Using an entry
 
