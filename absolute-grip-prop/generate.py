@@ -63,6 +63,8 @@ CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.0, 0.0, 0.0, 1.0)         # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose; identity ships
 GRIP_L = (0.0, 0.0, 0.0, 1.0)         # Frame/GripL localRotation: the authored left-hand grip pose, authored, never derived from GRIP_R
+GRIP_R_POS = (0.0, 0.0, 0.0)          # Frame/GripR localPosition, Frame coordinates (+Y toward the grab point, the palm side): the authored fist offset from the palm midpoint for the right hand; zero ships. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ
+GRIP_L_POS = (0.0, 0.0, 0.0)          # Frame/GripL localPosition: the left hand's fist offset, authored, never derived from GRIP_R_POS
 PREFIX = 'Palm/'
 GLUE = 'AbsoluteGrip/'
 MOUNT = 'GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage'
@@ -359,7 +361,8 @@ B_FRM_W0 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source0.Weight'   #
 B_FRM_W1 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source1.Weight'   # ReconN (+Z at ProxyB = -axis)
 B_DMP_EN = 'Container/Damped/VRCPositionConstraint.m_Enabled'                   # the placement smoother: source0 = self (never bound)
 B_DMP_W1 = 'Container/Damped/VRCPositionConstraint.Sources.source1.Weight'      # Container (the tip): home
-B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame (the palm midpoint): carry
+B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame/GripR (the palm midpoint plus the right fist offset): right carry
+B_DMP_W3 = 'Container/Damped/VRCPositionConstraint.Sources.source3.Weight'      # Frame/GripL: left carry
 RECV_PATH = {**{r: f'{MOUNT}/{r}' for r in READINGS}, **{g: f'{MOUNT}/{g}' for g in GATES},
              'CueP': f'{MOUNT}/Mid/ProxyA/CueP', 'CueN': f'{MOUNT}/Mid/ProxyB/CueN'}
 def recv_bindings(r):
@@ -373,12 +376,15 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
     boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident world-aligned cube (identity rotation), 1 = the tetrahedral working cage.
-    place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the palm midpoint."""
+    place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
+    grip node (rot_src picks which), whose local position is that hand's authored fist offset from the palm midpoint."""
+    if place == 'palm' and rot_src not in ('R', 'L'): raise SystemExit(f'REFUSE: palm placement with no latched hand (rot_src={rot_src})')
     s = {B_CONT_GO: cont_go, B_BONE_GO: bone_go, B_CONT_POS: cont_pos, B_SRC_ACT: src_act, B_GP_ACT: gp_act,
          B_GP_W0: 1 if gp_home else 0, B_GP_W1: 0 if gp_home else 1,
          B_ROT_EN: rot_en, B_ROT_W0: 1 if rot_src == 'home' else 0, B_ROT_W1: 1 if rot_src == 'R' else 0, B_ROT_W2: 1 if rot_src == 'L' else 0,
          B_FRM_W0: 1 if frame_sign > 0 else 0, B_FRM_W1: 0 if frame_sign > 0 else 1,
-         B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: 0.5 if place == 'home' else 0, B_DMP_W2: 0.5 if place == 'palm' else 0}
+         B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: 0.5 if place == 'home' else 0,
+         B_DMP_W2: 0.5 if place == 'palm' and rot_src == 'R' else 0, B_DMP_W3: 0.5 if place == 'palm' and rot_src == 'L' else 0}
     for r in READINGS:
         b = recv_bindings(r)
         s[b['go']] = recv_go; s[b['self']] = 1 if filters_open else 0; s[b['others']] = 1 if filters_open else 0
@@ -429,7 +435,7 @@ GLUE_CLIPS = {
     # Same pose; every engage condition is re-tested each frame for the dwell, and its exit time is the decision.
     'confirm': dict(length=CONFIRM_DWELL, set=glue_clip(**FROZEN)),
     # Carry: Rotor rides the authored grip for the latched hand, Frame on the aim constraint for the latched sign, and
-    # the placement smoother eases the payload origin onto the palm midpoint. Hand and sign are the state; the gate and
+    # the placement smoother eases the payload origin onto that hand's grip node. Hand and sign are the state; the gate and
     # cue are never re-read while carrying.
     'carryRP': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', 1, 1, False, 1, 'palm')),
     'carryRN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'R', -1, 1, False, 1, 'palm')),
@@ -651,12 +657,12 @@ def check():
         tb = tf_doc(r)
         a(near(quat(tb, 'm_LocalRotation'), unity_euler_quat(HOST_EULER[r]), 1e-5) or near(quat(tb, 'm_LocalRotation'), tuple(-c for c in unity_euler_quat(HOST_EULER[r])), 1e-5), f'{r} host localRotation == HOST_EULER (local +Z along its tetrahedral direction)')
         a(near(vec3(tb, 'm_LocalScale'), (ACQ_SCALE,) * 3), f'{r} host serialized at the acquisition scale {ACQ_SCALE:g}')
-    # The placement smoother: Damped eases its origin toward the tip at home and toward the palm midpoint in carry.
+    # The placement smoother: Damped eases its origin toward the tip at home and toward the latched hand's grip node in carry.
     pc = [b for _, i, b in docs if 'PositionAtRest' in b and owner(i) == 'Damped']
     a(len(pc) == 1, 'Damped carries one position constraint')
     if pc:
-        a([s for s, _ in sources(pc[0])] == ['Damped', 'Container', 'Frame'], f'Damped position sources [Damped, Container, Frame], got {[s for s, _ in sources(pc[0])]}')
-        a([w for _, w in sources(pc[0])] == [1.0, 0.5, 0.0], 'Damped position weights [1, 0.5, 0] (self, home, palm) at rest')
+        a([s for s, _ in sources(pc[0])] == ['Damped', 'Container', 'GripR', 'GripL'], f'Damped position sources [Damped, Container, GripR, GripL], got {[s for s, _ in sources(pc[0])]}')
+        a([w for _, w in sources(pc[0])] == [1.0, 0.5, 0.0, 0.0], 'Damped position weights [1, 0.5, 0, 0] (self, home, right, left) at rest')
         a('PositionAtRest: {x: 0, y: 0, z: 0}' in pc[0] and 'PositionOffset: {x: 0, y: 0, z: 0}' in pc[0], 'Damped position constraint zeroed, no offset')
         a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentPositionOffset: (\{[^}]*\})', pc[0])), 'Damped position source offsets zero')
     # Physbone: the grab premise. With snapToHand the tip IS the client's hand grab point.
@@ -704,14 +710,14 @@ def check():
             a('AimAxis: {x: 0, y: 0, z: 1}' in ac[0] and 'UpAxis: {x: 0, y: 1, z: 0}' in ac[0], f'{node} AimAxis +Z, UpAxis +Y')
             m = re.search(r'WorldUpTransform: \{fileID: (\d+)\}', ac[0])
             a('WorldUp: 2' in ac[0] and m and owner(m.group(1)) == 'UpAim', f'{node} up mode ObjectRotationUp against UpAim')
-    # The authored grip: the single most silent surface in the entry. No constraint, zero position, exactly the
-    # generator's rotation; the grip lives in the node's own localRotation, never in a source offset.
-    for node, want in (('GripR', GRIP_R), ('GripL', GRIP_L)):
+    # The authored grip: the single most silent surface in the entry. No constraint, exactly the generator's rotation and
+    # position; the grip lives in the node's own localRotation and localPosition, never in a source offset.
+    for node, want, want_pos in (('GripR', GRIP_R, GRIP_R_POS), ('GripL', GRIP_L, GRIP_L_POS)):
         tb = tf_doc(node)
         a(tb is not None, f'node {node} exists')
         if tb:
             a(ancestors(go_id_of(node))[:1] == ['Frame'], f'{node} is a child of Frame')
-            a(near(vec3(tb, 'm_LocalPosition'), (0, 0, 0)), f'{node} local position zero')
+            a(near(vec3(tb, 'm_LocalPosition'), want_pos), f'{node} localPosition == generator {want_pos}')
             a(near(quat(tb, 'm_LocalRotation'), want), f'{node} localRotation == generator {want}')
             a(not any(('RotationAtRest' in b or 'AimAxis' in b or 'PositionAtRest' in b) and owner(i) == node for _, i, b in docs), f'{node} carries no constraint')
     # The hand-maintained seam pieces no compile reads: the Toggle's global parameter is the one published name (a rename
