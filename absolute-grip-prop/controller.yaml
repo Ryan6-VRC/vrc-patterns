@@ -3,7 +3,7 @@
 # that decides hand and sign once, and four carry states riding an authored grip. Reads GripReadout_Fx's AAPs through
 # the shared FullController.
 # thresholds: Res settle 0.002 m, S band [0.012, 0.045] m, lever proxy MM > 0.0001 m^2, gate |HandDiff| > 0.1, cue |Cue| > 0.05;
-# arrive dwell 0.1667 s, fill 0.15 s (9 frames at 60 fps), confirm dwell 0.2 s, settle timeout 1.0 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.06 m (= gate radius).
+# arrive dwell 0.03333 s, fill 0.1 s (6 frames at 60 fps), confirm dwell 0.2 s, settle timeout 0.5 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.06 m (= gate radius).
 schema: 1
 controller: AbsoluteGripProp_Fx
 basis: mount-root
@@ -113,7 +113,7 @@ layers:
           - { to: ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/HandDiff greater 0.1, Palm/Cue less -0.05 ] }
           - { to: Reacquire, when: [  ], exitTime: 1.0 }
       ConfirmRP:
-        motion: { clip: confirm }
+        motion: { clip: confirmRP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
@@ -133,7 +133,7 @@ layers:
           - { to: Settled, when: [ Palm/Cue less 0.05 ] }
           - { to: CarryRP, when: [  ], exitTime: 1.0 }
       ConfirmRN:
-        motion: { clip: confirm }
+        motion: { clip: confirmRN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
@@ -153,7 +153,7 @@ layers:
           - { to: Settled, when: [ Palm/Cue greater -0.05 ] }
           - { to: CarryRN, when: [  ], exitTime: 1.0 }
       ConfirmLP:
-        motion: { clip: confirm }
+        motion: { clip: confirmLP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
@@ -173,7 +173,7 @@ layers:
           - { to: Settled, when: [ Palm/Cue less 0.05 ] }
           - { to: CarryLP, when: [  ], exitTime: 1.0 }
       ConfirmLN:
-        motion: { clip: confirm }
+        motion: { clip: confirmLN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
@@ -586,7 +586,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
   acquire:
-    length: 0.16666668
+    length: 0.033333336
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -887,7 +887,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 0
   settling:
-    length: 0.15000001
+    length: 0.10000001
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -987,7 +987,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
   settled:
-    length: 0.84999999
+    length: 0.39999999
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -1086,7 +1086,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowOthers": 0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
-  confirm:
+  confirmRP:
     length: 0.2
     set:
       "Container/GameObject.m_IsActive": 1
@@ -1096,16 +1096,316 @@ clips:
       "GrabPosition/VRCPositionConstraint.IsActive": 0
       "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
       "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
-      "Container/Rotor/VRCRotationConstraint.m_Enabled": 0
-      "Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 1
-      "Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.m_Enabled": 1
+      "Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 1
       "Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
-      "Container/Damped/VRCPositionConstraint.m_Enabled": 0
+      "Container/Damped/VRCPositionConstraint.m_Enabled": 1
+      "Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
+      "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
+  confirmRN:
+    length: 0.2
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Container/Rotor/VRCRotationConstraint.m_Enabled": 1
+      "Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Container/Damped/VRCPositionConstraint.m_Enabled": 1
+      "Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
+      "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
+  confirmLP:
+    length: 0.2
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Container/Rotor/VRCRotationConstraint.m_Enabled": 1
+      "Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
-      "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0.5
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 225.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 45.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 35.2644
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 315.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 324.7356
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 135.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowSelf": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowOthers": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
+  confirmLN:
+    length: 0.2
+    set:
+      "Container/GameObject.m_IsActive": 1
+      "GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Container/VRCPositionConstraint.m_Enabled": 1
+      "Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "GrabPosition/VRCPositionConstraint.IsActive": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Container/Rotor/VRCRotationConstraint.m_Enabled": 1
+      "Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Container/Damped/VRCPositionConstraint.m_Enabled": 1
+      "Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0.5
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 0

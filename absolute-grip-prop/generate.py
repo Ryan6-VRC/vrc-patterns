@@ -50,13 +50,14 @@ LUT_LO, LUT_HI, LUT_N = 0.0012, 0.03, 24  # sqrt lookup over Disc (m^2); must co
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
 S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
 FRAME = 0.016666668
-SETTLE_FILL = 9 * FRAME               # 9 frames at 60 fps (0.15 s) frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6
-SETTLE_TIMEOUT = 1.0                  # seconds after the latch before the loop reopens (Settling + Settled)
+SETTLE_FILL = 6 * FRAME               # 6 frames at 60 fps (0.1 s) frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
+SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident world-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
-ARRIVE_DWELL = 10 * FRAME             # seconds a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point over a few frames, and a latch taken before it lands takes whatever palm was nearest the old position
+ARRIVE_DWELL = 2 * FRAME              # seconds a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
+SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; 6dof-grab-prop's value, and raising it shows more of the readout's pattern hops
 GATE_M = 0.1                          # |HandDiff| a decisive hand needs; two palms or none read under it and refuse
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
@@ -383,8 +384,8 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
          B_GP_W0: 1 if gp_home else 0, B_GP_W1: 0 if gp_home else 1,
          B_ROT_EN: rot_en, B_ROT_W0: 1 if rot_src == 'home' else 0, B_ROT_W1: 1 if rot_src == 'R' else 0, B_ROT_W2: 1 if rot_src == 'L' else 0,
          B_FRM_W0: 1 if frame_sign > 0 else 0, B_FRM_W1: 0 if frame_sign > 0 else 1,
-         B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: 0.5 if place == 'home' else 0,
-         B_DMP_W2: 0.5 if place == 'palm' and rot_src == 'R' else 0, B_DMP_W3: 0.5 if place == 'palm' and rot_src == 'L' else 0}
+         B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: SMOOTH_W if place == 'home' else 0,
+         B_DMP_W2: SMOOTH_W if place == 'palm' and rot_src == 'R' else 0, B_DMP_W3: SMOOTH_W if place == 'palm' and rot_src == 'L' else 0}
     for r in READINGS:
         b = recv_bindings(r)
         s[b['go']] = recv_go; s[b['self']] = 1 if filters_open else 0; s[b['others']] = 1 if filters_open else 0
@@ -432,8 +433,9 @@ GLUE_CLIPS = {
     'settling': dict(length=SETTLE_FILL, set=glue_clip(**FROZEN)),
     # Same pose; the engage rungs are conditional here (polled every frame), the timeout is the length.
     'settled': dict(length=SETTLE_TIMEOUT - SETTLE_FILL, set=glue_clip(**FROZEN)),
-    # Same pose; every engage condition is re-tested each frame for the dwell, and its exit time is the decision.
-    'confirm': dict(length=CONFIRM_DWELL, set=glue_clip(**FROZEN)),
+    # Provisional carry: the tentative hand and sign already drive the grip and the placement while every engage condition is
+    # re-tested each frame; the exit time is the irreversible decision, and a bounce back to Settled freezes the pose it reached.
+    **{f'confirm{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
     # Carry: Rotor rides the authored grip for the latched hand, Frame on the aim constraint for the latched sign, and
     # the placement smoother eases the payload origin onto that hand's grip node. Hand and sign are the state; the gate and
     # cue are never re-read while carrying.
@@ -495,7 +497,7 @@ def glue_states():
         for s in 'PN':
             entry = settled + [HANDS[h], SIGNS[s]]
             # Any entry condition failing during the dwell returns to Settled; the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip='confirm', transitions=common() + stow + [{'to': 'Settled', 'when': [negate(c)]} for c in entry]
+            st[f'Confirm{h}{s}'] = dict(clip=f'confirm{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [negate(c)]} for c in entry]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
@@ -674,7 +676,7 @@ def check():
     a(len(pc) == 1, 'Damped carries one position constraint')
     if pc:
         a([s for s, _ in sources(pc[0])] == ['Damped', 'Container', 'GripR', 'GripL'], f'Damped position sources [Damped, Container, GripR, GripL], got {[s for s, _ in sources(pc[0])]}')
-        a([w for _, w in sources(pc[0])] == [1.0, 0.5, 0.0, 0.0], 'Damped position weights [1, 0.5, 0, 0] (self, home, right, left) at rest')
+        a([w for _, w in sources(pc[0])] == [1.0, SMOOTH_W, 0.0, 0.0], f'Damped position weights [1, {SMOOTH_W:g}, 0, 0] (self, home, right, left) at rest')
         a('PositionAtRest: {x: 0, y: 0, z: 0}' in pc[0] and 'PositionOffset: {x: 0, y: 0, z: 0}' in pc[0], 'Damped position constraint zeroed, no offset')
         a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentPositionOffset: (\{[^}]*\})', pc[0])), 'Damped position source offsets zero')
     # Physbone: the grab premise. With snapToHand the tip IS the client's hand grab point.
@@ -742,7 +744,7 @@ def check():
     bp = [b for _, i, b in docs if 'boneReference' in b and owner(i) == 'HomeAnchor']
     a(len(bp) == 1 and re.search(r'^\s+boneReference: 0$', bp[0], re.M), 'HomeAnchor BoneProxy targets Hips')
     dm = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == 'Damped']
-    a(dm and [w for _, w in sources(dm[0])] == [1.0, 0.5], f'Damped source weights [1, 0.5] (self, Rotor), got {[w for _, w in sources(dm[0])] if dm else None}')
+    a(dm and [w for _, w in sources(dm[0])] == [1.0, SMOOTH_W], f'Damped source weights [1, {SMOOTH_W:g}] (self, Rotor), got {[w for _, w in sources(dm[0])] if dm else None}')
     # Absence: a leftover from the copied prefab writes the same transform and wins silently.
     for gone in ('Held', 'ReconW'):
         a(gone not in names.values(), f'no node named {gone}')
