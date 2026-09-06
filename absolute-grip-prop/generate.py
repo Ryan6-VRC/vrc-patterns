@@ -63,8 +63,8 @@ CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.0, 0.0, 0.0, 1.0)         # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose; identity ships
 GRIP_L = (0.0, 0.0, 0.0, 1.0)         # Frame/GripL localRotation: the authored left-hand grip pose, authored, never derived from GRIP_R
-GRIP_R_POS = (0.0, 0.0, 0.0)          # Frame/GripR localPosition, Frame coordinates (+Y toward the grab point, the palm side): the authored fist offset from the palm midpoint for the right hand; zero ships. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ
-GRIP_L_POS = (0.0, 0.0, 0.0)          # Frame/GripL localPosition: the left hand's fist offset, authored, never derived from GRIP_R_POS
+GRIP_R_POS = (0.0, 0.0, 0.0)          # Frame/GripR localPosition, Frame coordinates (origin = the tip, the client's grab point; +Y from the palm midpoint toward it): the right hand's authored trim of the payload origin off the grab point; zero ships. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ. Trimmed from the grab point and not from the sensed midpoint because the grab point is the client's, the same in both hands, while the midpoint carries each hand's capsule error
+GRIP_L_POS = (0.0, 0.0, 0.0)          # Frame/GripL localPosition: the left hand's trim, authored, never derived from GRIP_R_POS
 PREFIX = 'Palm/'
 GLUE = 'AbsoluteGrip/'
 MOUNT = 'GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage'
@@ -357,11 +357,11 @@ B_ROT_EN = 'Container/Rotor/VRCRotationConstraint.m_Enabled'
 B_ROT_W0 = 'Container/Rotor/VRCRotationConstraint.Sources.source0.Weight'   # HomeAnchor/Offset
 B_ROT_W1 = 'Container/Rotor/VRCRotationConstraint.Sources.source1.Weight'   # Frame/GripR
 B_ROT_W2 = 'Container/Rotor/VRCRotationConstraint.Sources.source2.Weight'   # Frame/GripL
-B_FRM_W0 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source0.Weight'   # Recon  (+Z at ProxyA = +axis)
-B_FRM_W1 = f'{MOUNT}/Mid/Frame/VRCRotationConstraint.Sources.source1.Weight'   # ReconN (+Z at ProxyB = -axis)
+B_FRM_W0 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source0.Weight'   # Recon  (+Z at ProxyA = +axis)
+B_FRM_W1 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source1.Weight'   # ReconN (+Z at ProxyB = -axis)
 B_DMP_EN = 'Container/Damped/VRCPositionConstraint.m_Enabled'                   # the placement smoother: source0 = self (never bound)
 B_DMP_W1 = 'Container/Damped/VRCPositionConstraint.Sources.source1.Weight'      # Container (the tip): home
-B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame/GripR (the palm midpoint plus the right fist offset): right carry
+B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame/GripR (the grab point plus the right-hand trim): right carry
 B_DMP_W3 = 'Container/Damped/VRCPositionConstraint.Sources.source3.Weight'      # Frame/GripL: left carry
 RECV_PATH = {**{r: f'{MOUNT}/{r}' for r in READINGS}, **{g: f'{MOUNT}/{g}' for g in GATES},
              'CueP': f'{MOUNT}/Mid/ProxyA/CueP', 'CueN': f'{MOUNT}/Mid/ProxyB/CueN'}
@@ -377,7 +377,7 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
     boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident world-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
-    grip node (rot_src picks which), whose local position is that hand's authored fist offset from the palm midpoint."""
+    grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
     if place == 'palm' and rot_src not in ('R', 'L'): raise SystemExit(f'REFUSE: palm placement with no latched hand (rot_src={rot_src})')
     s = {B_CONT_GO: cont_go, B_BONE_GO: bone_go, B_CONT_POS: cont_pos, B_SRC_ACT: src_act, B_GP_ACT: gp_act,
          B_GP_W0: 1 if gp_home else 0, B_GP_W1: 0 if gp_home else 1,
@@ -658,6 +658,10 @@ def check():
         a(near(quat(tb, 'm_LocalRotation'), unity_euler_quat(HOST_EULER[r]), 1e-5) or near(quat(tb, 'm_LocalRotation'), tuple(-c for c in unity_euler_quat(HOST_EULER[r])), 1e-5), f'{r} host localRotation == HOST_EULER (local +Z along its tetrahedral direction)')
         a(near(vec3(tb, 'm_LocalScale'), (ACQ_SCALE,) * 3), f'{r} host serialized at the acquisition scale {ACQ_SCALE:g}')
     # The placement smoother: Damped eases its origin toward the tip at home and toward the latched hand's grip node in carry.
+    # Frame's origin is the tip: its rotation is the sensed hand frame, its position the client's grab point, so a grip node's
+    # local position trims from the grab point (the same in both hands) and never from the sensed midpoint (per-hand capsule error).
+    a(ancestors(go_id_of('Frame'))[:1] == ['Cage'], 'Frame is a child of Cage (its origin is the tip)')
+    a(near(vec3(tf_doc('Frame'), 'm_LocalPosition'), (0, 0, 0)), 'Frame local position zero')
     pc = [b for _, i, b in docs if 'PositionAtRest' in b and owner(i) == 'Damped']
     a(len(pc) == 1, 'Damped carries one position constraint')
     if pc:
