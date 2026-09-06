@@ -42,7 +42,7 @@
 #
 # LINEAR SMOOTHING LIMIT-CYCLES (known; inherent to a clamp band equal to the step — see README): its step needs a computed delta
 # (LinTarget - SmoothedLin) that can't be same-frame as the step consuming it, so a 1-frame feedback delay
-# makes SmoothedLin oscillate by +-one step around the target (widen the clamp band past 4x the step and
+# makes SmoothedLin oscillate by +-one step around the target (widen the clamp band to 4x the step or more and
 # the same construction lands — smooth-frametime's linear lane carries the rule). Near a ZERO target that dip goes slightly
 # negative; this idiom, for simplicity, still uses SmoothedLin as a directWeight (the carry + the delta's
 # neg term), so Unity clamps the dip to 0 and the low end distorts — SmoothedLin is therefore NOT a

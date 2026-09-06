@@ -23,7 +23,7 @@
 # Three constructions share the one owned frametime rig and α front-end:
 #   - exponential smoother, clamp01 alpha  -> SmoothedExpClamp
 #   - exponential smoother, remap   alpha  -> SmoothedExpRemap   (genuinely frametime-independent)
-#   - linear (tapered): constant velocity far, linear-to-zero landing -> SmoothedLinear
+#   - linear (tapered): constant velocity far, proportional tapering landing -> SmoothedLinear
 # Assumes inputs in [0,1]. Generalized from standard VRChat DBT-math constructions; no real-avatar naming.
 #
 # Same-frame convexity trap (handled): the alpha pair (Alpha*/OneMinusAlpha*) are two 1D children over the
@@ -239,17 +239,17 @@ layers:
                     - { clip: SmoothedExpRemap_One,  threshold: 1.0 }
 
             # --- linear (tapered): S += maxSpeed·FrameTime·clamp(Δ/taper, -1, +1), Δ = Target − S.
-            #     Constant velocity while |Δ| > taper, a linear-to-zero landing inside it, no exponential
-            #     handoff. Δ is a computed AAP, so the step reads it ONE FRAME STALE; a stale-delta step
+            #     Constant velocity while |Δ| > taper, a proportional step tapering to zero inside it, no
+            #     handoff between two laws. Δ is a computed AAP, so the step reads it ONE FRAME STALE; a stale-delta step
             #     whose taper is narrower than 4·maxSpeed·dt at the slowest frame rate rings around the
             #     target instead of landing — the error recurrence e_n = e_{n-1} − g·e_{n-2},
             #     g = maxSpeed·dt/taper, has real roots only for g <= 1/4 (measured on this rig at
             #     90/60/30/25/20/15/10 fps: taper 0.4 lands with zero crossings at every rate >= 20, rings
-            #     and then decays at 15 and 10). The ±0.4 keys below are 4·2·(1/20): sized for maxSpeed 2
+            #     and then decays at 15 and 10; at one far step of taper or less, g >= 1, the ring is sustained). The ±0.4 keys below are 4·2·(1/20): sized for maxSpeed 2
             #     at a 20 fps floor. Raising maxSpeed raises the floor in proportion — widen the keys with
             #     it. A 1D THRESHOLD IS A COMPILE-TIME CONSTANT, so taper is the one tunable here that is a
             #     YAML edit, not a param default. Wider is the safe direction; its cost is a longer
-            #     linear-to-zero tail, so settle time spreads across frame rates. The crossover-weight
+            #     tapering tail, so settle time spreads across frame rates. The crossover-weight
             #     hybrid this lane replaced is recorded in the README's Traps. ---
             - tree: direct
               name: "Linear (tapered)"
