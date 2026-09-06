@@ -134,8 +134,9 @@ CONFIG = {
     # a hand-maintained pairing.
     "mountPath": "",
     # `Enable`'s declared default, 0 or 1: at 1 the enable tree evaluates armed
-    # from frame one, where a driver forcing it true leaves the one-frame off->on
-    # that deafens every receiver (README §Rig, Enable row).
+    # from frame one, where a driver forcing it true leaves a one-frame off->on
+    # that, above 60 fps, deafens every receiver whenever the collision scene
+    # skipped that frame (README §Rig, Enable row).
     "enableDefault": 0,
 
     # The synced objects. `rotation` is per-object and resolved at generation
