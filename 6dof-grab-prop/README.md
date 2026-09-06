@@ -39,7 +39,7 @@ The bone length and the grab radius are one trade with the acquisition volume, s
 
 Two consequences of allowing self senders on a hip-parked home: the wearer's own resting hand often sits inside the acquisition core, so another player's grab may capture only after the wearer's hand moves away; drag `HomeAnchor/Offset` out of the idle hand path if that bites. And the wearer's own grab gets the full orientation path.
 
-Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPosition` out of any re-parented subtree: a VRCFury clip binding through an MA-moved node is dropped at build (`nondestructive.md`). The `Cage` subtree must stay in the physbone's `ignoreTransforms`, or the solver enrols the whole readout rig as chain bones.
+Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPosition` out of any re-parented subtree: a VRCFury clip binding through an MA-moved node is dropped at build (`nondestructive.md`). `FreezeRotation` must stay in the physbone's `ignoreTransforms`: it takes the whole tip subtree out of the chain, so the chain ends at `GrabBone_End` with no zero-length node behind it (one makes the grab solver assert every frame) and the readout rig is never enrolled as chain bones.
 
 ## Limits, stated
 
@@ -91,9 +91,9 @@ The prefab is `grab-prop`'s with three additions; edit it in place, `Locked` on 
     │  └─ SourcePosition
     ├─ HomeAnchor / Offset            MA BoneProxy → Hips; the home attitude is the Offset transform, never a baked offset
     ├─ GrabPosition ← [Offset, Container]
-    │  └─ GrabBone                    VRCPhysBone: snapToHand 0, ignoreTransforms [DropPosition, Cage]
-    │     └─ GrabBone_End
-    │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld: the readout frame is world-attitude
+    │  └─ GrabBone                    VRCPhysBone: snapToHand 0, ignoreTransforms [FreezeRotation]
+    │     └─ GrabBone_End             the chain's last node
+    │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld: the readout frame is world-attitude; out of the chain with everything below it
     │           ├─ DropPosition
     │           └─ Cage               VRCScaleConstraint → assets/World.prefab; nothing else on this node
     │              ├─ T1p T1m … T4p T4m   8 box receivers, local +Z = ±d_j; host scale animated acquisition ↔ working

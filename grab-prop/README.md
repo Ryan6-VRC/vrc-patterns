@@ -66,11 +66,11 @@ The prefab is the shipped artifact and ships no builder — edit it in place. `L
     ├─ GrabPosition   (0, 0.8, 0.25)  VRCPositionConstraint, sources [source0 HomeAnchor/Offset, source1 Container]
     │  └─ GrabBone                    VRCPhysBone (parameter GrabBone → mints GrabBone_IsGrabbed)
     │     └─ GrabBone_End (0, .02, 0)
-    │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld — world-stable rotation frame
+    │        └─ FreezeRotation        VRCRotationConstraint FreezeToWorld — world-stable rotation frame; ignored by the physbone, so the chain ends at GrabBone_End
     │           └─ DropPosition (0, -.02, 0)  measures the grabbed tip
     ├─ FreezeToWorld                  VRCParentConstraint drives root, FreezeToWorld; inactive in editor,
     │                                 ApplyDuringUpload TurnOn (freezes the module frame at load-in)
     └─ EditorOnly                     VRCPositionConstraint drives DropPosition from GrabPosition —
                                       edit-time alignment only; ApplyDuringUpload TurnOff (off at upload)
 
-**Physbone (`GrabBone`)** — grab-drag with no idle sway; each value deliberate: `pull 1`, `stiffness 0.2`, `spring 0`, `gravity 0`; `immobileType AllMotion` + `immobile 1` (a grab moves it, nothing else does); `radius 0.075`; `grabMovement 1`, `maxStretch 100000`, `maxSquish 1`; `allowGrabbing` on, `allowPosing` off (persistence is the constraint hold, never a pose), `allowCollision` off; `ignoreTransforms: [DropPosition]` (the tip-measure cell must not be dragged by its own bone); `isAnimated 0`, `resetWhenDisabled 0`.
+**Physbone (`GrabBone`)** — grab-drag with no idle sway; each value deliberate: `pull 1`, `stiffness 0.2`, `spring 0`, `gravity 0`; `immobileType AllMotion` + `immobile 1` (a grab moves it, nothing else does); `radius 0.075`; `grabMovement 1`, `maxStretch 100000`, `maxSquish 1`; `allowGrabbing` on, `allowPosing` off (persistence is the constraint hold, never a pose), `allowCollision` off; `ignoreTransforms: [FreezeRotation]` (the tip-measure cell below it must not be dragged by its own bone, and a zero-length node trailing `GrabBone_End` in the chain makes the grab solver assert every frame); `isAnimated 0`, `resetWhenDisabled 0`.

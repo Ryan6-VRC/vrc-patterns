@@ -60,7 +60,7 @@ ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight 
 ARRIVE_DWELL = 2 / FPS_FLOOR          # 2 frames at the floor a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
 SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; 6dof-grab-prop's value, and raising it shows more of the readout's pattern hops
 BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung fires only once a reading has retreated to this fraction of its entry margin, or past 1/this of its entry ceiling, so a reading dithering on its entry threshold cannot flap Settled and Confirm (runtime.md: a bare threshold on a contact reading needs hysteresis)
-GATE_M = 0.1                          # |HandDiff| a decisive hand needs; two palms or none read under it and refuse
+GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
@@ -378,7 +378,8 @@ RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twel
 def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
-    boxes and the gate pair together; the cue pair's filters are never bound (the cue must be able to re-latch). scale selects the
+    boxes; the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
+    reject the palm that leaves it and returns, which a remote's lagging palm does). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
     grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
@@ -395,10 +396,7 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
         s[b['sx']] = scale; s[b['sy']] = scale; s[b['sz']] = scale
         e = HOST_EULER[r] if scale == 1 else (0.0, 0.0, 0.0)
         s[b['rx']] = e[0]; s[b['ry']] = e[1]; s[b['rz']] = e[2]
-    for g in GATES:
-        b = recv_bindings(g)
-        s[b['go']] = recv_go; s[b['self']] = 1 if filters_open else 0; s[b['others']] = 1 if filters_open else 0
-    for c in CUES: s[recv_bindings(c)['go']] = recv_go
+    for c in GATES + CUES: s[recv_bindings(c)['go']] = recv_go
     return s
 
 # grab-prop's seven values per state are its controller.yaml's, replicated; the rotation channel and the receiver
@@ -418,9 +416,9 @@ GLUE_CLIPS = {
     # over to Acquire, which polls the latch every frame (an exit-time rung with conditions re-tests only once per
     # clip period, measured, so the dwell and the poll are two states).
     'acquire': dict(length=ARRIVE_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
-    # The latch: box and gate filters shut at acquisition scale on frame 0 (what is inside now is what stays
-    # latched), box hosts from the coincident cube to the tetrahedral working cage on frame 1 (scale and rotation step
-    # together). Two frames long; Settling takes over at exit time.
+    # The latch: box filters shut at acquisition scale on frame 0 (what is inside now is what stays latched), box hosts
+    # from the coincident cube to the tetrahedral working cage on frame 1 (scale and rotation step together). Two frames
+    # long, played by LatchedR and LatchedL, whose entry drivers record the hand; Settling takes over at exit time.
     'latched': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, False, ACQ_SCALE, 'hold').items()
                                              if not re.search(r'Transform\.(m_LocalScale|localEulerAnglesRaw)\.[xyz]$', k)},
                     curves={**{k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
@@ -455,14 +453,18 @@ GLUE_CLIPS = {
     # Late-join park (grab-prop's waiting): hidden until a witnessed grab; the bone lives outside the hidden branch.
     'waiting': dict(set=glue_clip(0, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
 }
-# Refusal: a cue receiver whose filters a clip could shut is a silent always-"correct" sign (a latched contact that
-# fully breaks cannot re-latch while filters are shut, and the pinky-side contact breaks during a curl).
+# Refusal: a cue or gate receiver whose filters a clip could shut is a receiver that never re-admits a contact that broke
+# (a latched contact that fully breaks cannot re-latch while filters are shut): the pinky-side cue contact breaks during a
+# curl, and a remote grabber's palm leaves the gate sphere on any fast swing.
 for cn, c in GLUE_CLIPS.items():
     for k in list(c['set']) + list(c.get('curves', {})):
-        if re.search(r'/Cue[PN]/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue receiver filter ({k})')
+        if re.search(r'/(Cue[PN]|Hand[LR])/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue or gate receiver filter ({k})')
 
 ENABLE = GLUE + 'Enable'
-HANDS = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}
+HAND = P('Hand')                                                                        # int, driver-set at the latch: 1 = right, 2 = left
+HAND_OF = {'R': 1, 'L': 2}
+LATCH = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}   # the latch rungs: a decisive differential names the hand
+HANDS = {h: f'{HAND} equals {v}' for h, v in HAND_OF.items()}                            # the engage rungs read the recorded hand
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
 def bounce(cond):
     """the Confirm bounce rung for an entry condition: the complement, loosened by BOUNCE_H toward the failing side (a margin
@@ -475,33 +477,35 @@ def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
     en_off = f'{ENABLE} is false'
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
+    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
     common = lambda: [{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}]
     st = {
         'Timer': dict(clip='timer', transitions=[{'to': 'Disabled', 'when': ['IsLocal is true']}, {'to': 'Waiting', 'when': ['IsLocal is false'], 'exitTime': 1.0}]),
-        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': {P(r): 0 for r in READINGS + GATES + CUES}}}],
+        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}],
                          transitions=[{'to': 'Anchored', 'when': [f'{ENABLE} is true'], 'exitTime': 1.0}]),
         'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
         # directly, since the tip is already in the hand.
         'Arrive': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        # A latch is a hand tag reading on the tip sphere: the coincident acquisition cube contains the sphere (ACQ_SCALE), so a
-        # palm the sphere reads is inside all eight boxes and the box readings add no condition. A tip in no palm never latches.
-        'Acquire': dict(clip='acquire', transitions=common() + [{'to': 'Latched', 'when': [grabbed, f'{P(g)} greater 0']} for g in GATES]),
+        # The latch decides the hand: a decisive hand differential on the tip spheres, read at the one instant the tip is provably
+        # in that palm (the snap-on grab put it there), enters the Latched state for that hand, whose entry driver records it. The
+        # coincident acquisition cube contains the spheres (ACQ_SCALE), so a palm a sphere reads is inside all eight boxes and the
+        # box readings add no condition. Two palms reading alike, or none, take no latch; the gate is never read again.
+        'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed, LATCH[h]]} for h in 'RL']),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        'Latched': dict(clip='latched', transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]),
+        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h]}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
-        # Four rungs into the matching Confirm; an undecided hand, sign or lever falls through to the timeout, which
-        # stows: a palm that broke and returned behind the shut filters is inside the boxes and never re-enters.
+        # Four rungs into the Confirm for the recorded hand and the sensed sign; an undecided sign or lever falls through to the
+        # timeout, which stows: a palm that broke and returned behind the shut box filters is inside the boxes and never re-enters.
         'Settled': dict(clip='settled', transitions=common() + stow + [{'to': f'Confirm{h}{s}', 'when': settled + [HANDS[h], SIGNS[s]]} for h in 'RL' for s in 'PN']
                         + [{'to': 'Reacquire', 'when': [], 'exitTime': 1.0}]),
     }
     for h in 'RL':
         for s in 'PN':
-            entry = settled + [HANDS[h], SIGNS[s]]
-            # Any entry condition failing during the dwell returns to Settled; the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in entry]
+            # Any readout condition failing during the dwell returns to Settled (the recorded hand cannot fail); the exit time is the engage.
+            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
@@ -512,7 +516,7 @@ def glue_states():
     })
     return st
 LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Arrive': [-210, 530], 'Acquire': [30, 390],
-          'Latched': [270, 390], 'Settling': [510, 390], 'Settled': [750, 390],
+          'LatchedR': [270, 340], 'LatchedL': [270, 440], 'Settling': [510, 390], 'Settled': [750, 390],
           'ConfirmRP': [990, 250], 'ConfirmRN': [990, 340], 'ConfirmLP': [990, 440], 'ConfirmLN': [990, 530],
           'CarryRP': [1230, 250], 'CarryRN': [1230, 340], 'CarryLP': [1230, 440], 'CarryLN': [1230, 530],
           'Released': [510, 620], 'Dropped': [270, 620]}
@@ -532,10 +536,10 @@ for n, sp in glue_params().items():
 
 def emit_glue():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism: README.md.',
-         '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch, the confirm dwell',
-         '# that decides hand and sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
+         '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch that decides the',
+         '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
          '# the shared FullController.',
-         f'# thresholds: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, gate |HandDiff| > {GATE_M}, cue |Cue| > {CUE_M};',
+         f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M};',
          f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
@@ -543,6 +547,7 @@ def emit_glue():
          f'  {ENABLE}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # off is the reset',
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
+         f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2); 0 = none; read only by conditions',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
     L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
@@ -699,7 +704,7 @@ def check():
             a(re.search(rf'^  {k}: {v:g}\n', b, re.M), f'physbone {k} {v:g} (grab-prop\'s dynamics; the tip\'s rigidity in the hand is now the roll)')
         ign = re.search(r'ignoreTransforms:\n((?:\s+- .*\n)+)', b)
         got = sorted(owner(x) or x for x in re.findall(r'fileID: (\d+)', ign.group(1))) if ign else []
-        a(got == ['Cage', 'DropPosition'], f'ignoreTransforms == [Cage, DropPosition], got {got}')
+        a(got == ['FreezeRotation'], f'ignoreTransforms == [FreezeRotation] (its subtree, DropPosition and Cage included, leaves the chain, and no zero-length node trails GrabBone_End), got {got}')
     a(near(vec3(tf_doc('GrabBone_End'), 'm_LocalPosition'), BONE_END), f'GrabBone_End local position {BONE_END}')
     # The cage tilt: cube diagonal to vertical (Quaternion.FromToRotation((1,1,1)/sqrt3, up)); a world-aligned cage
     # would make palm-down yaw a persistent two-line ambiguity (README SLimits).
