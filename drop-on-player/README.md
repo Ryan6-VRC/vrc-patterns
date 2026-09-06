@@ -74,7 +74,7 @@ The prefab is the shipped artifact and ships no builder — edit it in place. Co
     │  ├─ X+ X- Y+ Z+              4 box receivers — box-tracker's cage; box-tracker owns the geometry
     │  └─ Output                   readout target: Tracked tree writes its exact sender localPosition
     ├─ GrabPosition                grab-prop's rig verbatim (values in that entry's Rig)
-    │  └─ GrabBone → GrabBone_End → FreezeRotation (FreezeToWorld) → DropPosition — measures grabbed tip
+    │  └─ GrabBone → GrabBone_End → FreezeRotation (FreezeToWorld, ignored by the physbone so the chain ends at GrabBone_End) → DropPosition — measures grabbed tip
     ├─ FreezeToWorld               VRCParentConstraint, world-stable frame, ApplyDuringUpload TurnOn
     └─ EditorOnly                  edit-time alignment rig (ApplyDuringUpload TurnOff): pins DropPosition
                                    from GrabPosition, and RideOffset to Container (parked ⇒ RideOffset

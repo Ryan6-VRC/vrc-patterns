@@ -527,7 +527,7 @@ def check():
         a('parameter: GrabBone' in b, 'physbone parameter GrabBone')
         ign = re.search(r'ignoreTransforms:\n((?:\s+- .*\n)+)', b)
         got = sorted(owner(x) or x for x in re.findall(r'fileID: (\d+)', ign.group(1))) if ign else []
-        a(got == ['Cage', 'DropPosition'], f'ignoreTransforms == [Cage, DropPosition], got {got}')
+        a(got == ['FreezeRotation'], f'ignoreTransforms == [FreezeRotation] (its subtree, DropPosition and Cage included, leaves the chain, and no zero-length node trails GrabBone_End), got {got}')
     end_tf = [b for t, i, b in docs if t == '4' and owner(i) == 'GrabBone_End']
     pos = re.search(r'm_LocalPosition: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}', end_tf[0]) if end_tf else None
     a(pos is not None and all(abs(float(pos.group(k + 1)) - BONE_END[k]) < 1e-6 for k in range(3)), f'GrabBone_End local position {BONE_END}, got {pos.groups() if pos else None}')
