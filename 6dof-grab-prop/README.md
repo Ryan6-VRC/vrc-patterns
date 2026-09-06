@@ -49,7 +49,7 @@ Keep `Container`, `Container/SourcePosition`, `Container/Rotor` and `GrabPositio
 - Three co-located wearers of this entry reach the receiver-cluster count that reads wrong values.
 - The remote hand's readout noise is unmeasured: the client floor was measured on the wearer's own hand.
 - Two palms in the core are rejected by residual, not identified: a union that reads like one plausible capsule captures a blend (§How it works).
-- Not ported from Avatar-Prop, deliberately: its distance-too-far reset (`grab-prop`'s unlimited carry plus Enable-off recall covers it) and its left-hand grip mirror (relative capture takes the pose from the grab itself; `absolute-grip-prop` ports it, since an authored grip needs the hand).
+- Not ported from Avatar-Prop, deliberately: its distance-too-far reset (`grab-prop`'s unlimited carry plus Enable-off recall covers it) and its left-hand grip mirror (relative capture takes the pose from the grab itself; `absolute-grip-prop` needs a per-hand grip and authors the two independently, since the sensed frames are reflections, not rotations, of each other).
 
 ## Where this is headed
 

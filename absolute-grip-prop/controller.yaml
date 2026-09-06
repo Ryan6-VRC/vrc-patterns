@@ -3,7 +3,7 @@
 # that decides hand and sign once, and four carry states riding an authored grip. Reads GripReadout_Fx's AAPs through
 # the shared FullController.
 # thresholds: Res settle 0.002 m, S band [0.012, 0.045] m, lever proxy MM > 0.0001 m^2, gate |HandDiff| > 0.1, cue |Cue| > 0.05;
-# arrive dwell 0.03333 s, fill 0.1 s (6 frames at 60 fps), confirm dwell 0.2 s, settle timeout 0.5 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.06 m (= gate radius).
+# arrive dwell 0.04444 s, fill 0.1333 s (8 frames at 60 fps), confirm dwell 0.2 s, settle timeout 0.5 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.06 m (= gate radius).
 schema: 1
 controller: AbsoluteGripProp_Fx
 basis: mount-root
@@ -125,12 +125,12 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Settled, when: [ Palm/Res greater 0.002 ] }
-          - { to: Settled, when: [ Palm/S less 0.012 ] }
-          - { to: Settled, when: [ Palm/S greater 0.045 ] }
-          - { to: Settled, when: [ Palm/MM less 0.0001 ] }
-          - { to: Settled, when: [ Palm/HandDiff greater -0.1 ] }
-          - { to: Settled, when: [ Palm/Cue less 0.05 ] }
+          - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Settled, when: [ Palm/S less 0.0084 ] }
+          - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
+          - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/HandDiff greater -0.07 ] }
+          - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryRP, when: [  ], exitTime: 1.0 }
       ConfirmRN:
         motion: { clip: confirmRN }
@@ -145,12 +145,12 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Settled, when: [ Palm/Res greater 0.002 ] }
-          - { to: Settled, when: [ Palm/S less 0.012 ] }
-          - { to: Settled, when: [ Palm/S greater 0.045 ] }
-          - { to: Settled, when: [ Palm/MM less 0.0001 ] }
-          - { to: Settled, when: [ Palm/HandDiff greater -0.1 ] }
-          - { to: Settled, when: [ Palm/Cue greater -0.05 ] }
+          - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Settled, when: [ Palm/S less 0.0084 ] }
+          - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
+          - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/HandDiff greater -0.07 ] }
+          - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryRN, when: [  ], exitTime: 1.0 }
       ConfirmLP:
         motion: { clip: confirmLP }
@@ -165,12 +165,12 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Settled, when: [ Palm/Res greater 0.002 ] }
-          - { to: Settled, when: [ Palm/S less 0.012 ] }
-          - { to: Settled, when: [ Palm/S greater 0.045 ] }
-          - { to: Settled, when: [ Palm/MM less 0.0001 ] }
-          - { to: Settled, when: [ Palm/HandDiff less 0.1 ] }
-          - { to: Settled, when: [ Palm/Cue less 0.05 ] }
+          - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Settled, when: [ Palm/S less 0.0084 ] }
+          - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
+          - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/HandDiff less 0.07 ] }
+          - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryLP, when: [  ], exitTime: 1.0 }
       ConfirmLN:
         motion: { clip: confirmLN }
@@ -185,12 +185,12 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Settled, when: [ Palm/Res greater 0.002 ] }
-          - { to: Settled, when: [ Palm/S less 0.012 ] }
-          - { to: Settled, when: [ Palm/S greater 0.045 ] }
-          - { to: Settled, when: [ Palm/MM less 0.0001 ] }
-          - { to: Settled, when: [ Palm/HandDiff less 0.1 ] }
-          - { to: Settled, when: [ Palm/Cue greater -0.05 ] }
+          - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Settled, when: [ Palm/S less 0.0084 ] }
+          - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
+          - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/HandDiff less 0.07 ] }
+          - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryLN, when: [  ], exitTime: 1.0 }
       CarryRP:
         motion: { clip: carryRP }
@@ -586,7 +586,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
   acquire:
-    length: 0.033333336
+    length: 0.044444444
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -887,7 +887,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 0
   settling:
-    length: 0.10000001
+    length: 0.13333333
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -987,7 +987,7 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
   settled:
-    length: 0.39999999
+    length: 0.36666667
     set:
       "Container/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GameObject.m_IsActive": 1
@@ -1901,7 +1901,6 @@ clips:
       "Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
       "Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
@@ -1910,7 +1909,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
@@ -1919,7 +1917,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
@@ -1928,7 +1925,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
@@ -1937,7 +1933,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
@@ -1946,7 +1941,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
@@ -1955,7 +1949,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
@@ -1964,7 +1957,6 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
@@ -1973,16 +1965,24 @@ clips:
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/VRCContactReceiver.allowOthers": 1
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowSelf": 1
       "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/VRCContactReceiver.allowOthers": 1
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
-      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
     curves:
       "Container/SourcePosition/VRCPositionConstraint.IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1], [0.5, 0] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
+      "GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": { tangents: stepped, keys: [ [0, 0], [0.25, 1] ] }
   dropped:
     set:
       "Container/GameObject.m_IsActive": 1

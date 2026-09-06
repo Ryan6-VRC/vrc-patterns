@@ -50,14 +50,16 @@ LUT_LO, LUT_HI, LUT_N = 0.0012, 0.03, 24  # sqrt lookup over Disc (m^2); must co
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
 S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
 FRAME = 0.016666668
-SETTLE_FILL = 6 * FRAME               # 6 frames at 60 fps (0.1 s) frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
+FPS_FLOOR = 45                        # the lowest frame rate the frame-count dwells below are sized for (a clip length is wall-clock, so a slower client fills fewer frames): under it Arrive can miss the snap and the fill under-primes, which costs a bounce rather than a wrong latch for as long as CONFIRM_DWELL still outlasts the readout pipeline there
+SETTLE_FILL = 6 / FPS_FLOOR           # 6 frames at the floor frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
 SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident world-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
-ARRIVE_DWELL = 2 * FRAME              # seconds a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
+ARRIVE_DWELL = 2 / FPS_FLOOR          # 2 frames at the floor a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
 SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; 6dof-grab-prop's value, and raising it shows more of the readout's pattern hops
+BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung fires only once a reading has retreated to this fraction of its entry margin, or past 1/this of its entry ceiling, so a reading dithering on its entry threshold cannot flap Settled and Confirm (runtime.md: a bare threshold on a contact reading needs hysteresis)
 GATE_M = 0.1                          # |HandDiff| a decisive hand needs; two palms or none read under it and refuse
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
@@ -372,6 +374,7 @@ def recv_bindings(r):
             'sx': f'{base}/Transform.m_LocalScale.x', 'sy': f'{base}/Transform.m_LocalScale.y', 'sz': f'{base}/Transform.m_LocalScale.z',
             'rx': f'{base}/Transform.localEulerAnglesRaw.x', 'ry': f'{base}/Transform.localEulerAnglesRaw.y', 'rz': f'{base}/Transform.localEulerAnglesRaw.z'}
 
+RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twelve receiver GameObject actives
 def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
@@ -445,8 +448,12 @@ GLUE_CLIPS = {
     'carryLN': dict(set=glue_clip(1, 1, 1, 1, 0, False, 1, 'L', -1, 1, False, 1, 'palm')),
     # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
     # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
-    'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold').items() if k != B_SRC_ACT},
-                     curves={B_SRC_ACT: {'tangents': 'stepped', 'keys': [[0, 0], [0.25, 1], [0.5, 0]]}}),
+    # The receivers ride a stepped off-then-on for the stow dwell at the head: a release can land one frame after a stow
+    # state switched them off, and a receiver toggled off and on inside one evaluation with its sender inside (the tip is in
+    # the hand) is deaf for the session; held off for the dwell, the re-enable is a slow stow that re-acquires.
+    'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold').items() if k != B_SRC_ACT and k not in RECV_GO},
+                     curves={B_SRC_ACT: {'tangents': 'stepped', 'keys': [[0, 0], [0.25, 1], [0.5, 0]]},
+                             **{k: {'tangents': 'stepped', 'keys': [[0, 0], [DISABLED_DWELL, 1]]} for k in RECV_GO}}),
     # World-dropped: both freezes hold (the frozen transform IS the hold); a grab re-enters Acquire.
     'dropped': dict(set=glue_clip(1, 1, 0, 0, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
     # Late-join park (grab-prop's waiting): hidden until a witnessed grab; the bone lives outside the hidden branch.
@@ -461,11 +468,13 @@ for cn, c in GLUE_CLIPS.items():
 ENABLE = GLUE + 'Enable'
 HANDS = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
-def negate(cond):
-    """the complement of a float condition, for the Confirm bounce rungs. Both rungs are strict, so a value sitting exactly on
-    the threshold satisfies neither and rides Confirm's exit time; that is a float equality on a blend-tree sum, not a case
-    worth an epsilon rung (which would turn the point into a dead band the engage could never cross)."""
-    p, op, v = cond.rsplit(' ', 2); return f'{p} {"less" if op == "greater" else "greater"} {v}'
+def bounce(cond):
+    """the Confirm bounce rung for an entry condition: the complement, loosened by BOUNCE_H toward the failing side (a margin
+    must retreat to BOUNCE_H of its entry value, a ceiling be overshot by 1/BOUNCE_H) so the two rungs never share a threshold.
+    A reading between the two satisfies neither and rides Confirm's exit time into Carry, which is the hysteresis working."""
+    p, op, v = cond.rsplit(' ', 2); v = float(v)
+    nv = v * BOUNCE_H if op == 'greater' else (v / BOUNCE_H if v > 0 else v * BOUNCE_H)
+    return f'{p} {"less" if op == "greater" else "greater"} {fmt(nv)}'
 def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
     en_off = f'{ENABLE} is false'
@@ -497,7 +506,7 @@ def glue_states():
         for s in 'PN':
             entry = settled + [HANDS[h], SIGNS[s]]
             # Any entry condition failing during the dwell returns to Settled; the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'confirm{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [negate(c)]} for c in entry]
+            st[f'Confirm{h}{s}'] = dict(clip=f'confirm{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in entry]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
@@ -663,10 +672,12 @@ def check():
     # solves totalLength of them, so a slot filled past the length is a source that works in play mode and is a no-op in-game
     # (measured: a fourth source the left carry weighted moved nothing in the client until the length was 4).
     for t, i, b in docs:
+        if t != '114' or 'FreezeToWorld:' not in b: continue    # every VRC constraint carries FreezeToWorld
         m = re.search(r'^    totalLength: (\d+)$', b, re.M)
-        if t == '114' and m and 'Sources:' in b:
-            filled = len(re.findall(r'SourceTransform: \{fileID: (?!0\})', b))
-            a(int(m.group(1)) == filled, f'{owner(i)} constraint totalLength {m.group(1)} != {filled} filled source slots (the client solves only totalLength of them)')
+        a(m is not None, f'{owner(i)} constraint carries no Sources.totalLength')
+        if not m: continue
+        filled = [int(k) for k in re.findall(r'source(\d+):\n\s+SourceTransform: \{fileID: (?!0\})', b)]
+        a(filled == list(range(int(m.group(1)))), f'{owner(i)} constraint totalLength {m.group(1)} but filled slots {filled} (the client solves exactly the first totalLength slots)')
     # The placement smoother: Damped eases its origin toward the tip at home and toward the latched hand's grip node in carry.
     # Frame's origin is the tip: its rotation is the sensed hand frame, its position the client's grab point, so a grip node's
     # local position trims from the grab point (the same in both hands) and never from the sensed midpoint (per-hand capsule error).

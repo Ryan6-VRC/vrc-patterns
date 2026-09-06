@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 import generate as G
 # The recorded sweeps live in the Atelier workspace's test-output (disposable); override with P8_SWEEPS.
 SWEEPS = os.environ.get('P8_SWEEPS') or os.path.join(HERE, '..', '..', 'test-output', 'p8', 'probe-04')
-READ_COLS = [f'T{j+1}{s}' for j in range(4) for s in 'pm']
+READ_COLS = list(G.READINGS)
 INPUTS = [G.P(c) for c in READ_COLS]
 
 # ---------------- compile the generator's structures into evaluators ----------------
@@ -60,8 +60,15 @@ def compile_tree(m, scale_param=None):
                 aap, val = leaves[i]; out[aap] = out.get(aap, 0.0) + scale * w * val
         return ev
     raise ValueError(kind)
-MATH = compile_tree(G.math_layer['states']['Math (WD ON)']['motion'])
+def written(m):
+    """the AAPs a tree writes: Unity writes every one of them each frame the tree plays, as 0 when every weight on it is 0, so the
+    twin seeds them to 0 rather than carrying last frame's value."""
+    out = set()
+    for c in m['children']: out |= written(c) if 'tree' in c else {G.clips[c['clip']][0]}
+    return out
+MATH = compile_tree(G.math_layer['states']['Math (WD ON)']['motion']); MATH_WRITES = written(G.math_layer['states']['Math (WD ON)']['motion'])
 SELECT = {name: compile_tree(st_['motion']) for name, st_ in G.select_layer['states'].items()}
+SELECT_WRITES = {name: written(st_['motion']) for name, st_ in G.select_layer['states'].items()}
 def parse_cond(c):
     parts = c.rsplit(' ', 2); return parts[0], parts[1], float(parts[2])
 RUNGS = {name: [(r['to'], [parse_cond(c) for c in r['when']]) for r in st_['transitions']] for name, st_ in G.select_layer['states'].items()}
@@ -83,7 +90,7 @@ class Twin:
             if all(cond_ok(vis, p, op, v) for p, op, v in conds): self.state = to; self.hops += 1; break
         inp = dict(vis)
         for c in READ_COLS: inp[G.P(c)] = readings[c]
-        out = {}
+        out = {a: 0.0 for a in MATH_WRITES | SELECT_WRITES[self.state]}
         MATH(inp, 1.0, out); SELECT[self.state](inp, 1.0, out)
         new = dict(inp); new.update(out); self.vis = new
         return new
@@ -147,7 +154,7 @@ def score(rows, sigma, seed=1, fps=60, WIN=12, shift=1):
     m = n / fps / 60; axerr.sort()
     return dict(frames=n, fpm=flips / m, tpm=twitch / m, wrong=wrong / n, orient=orient / n, jit_med=st.median(jit), jit_max=max(jit),
                 ax_med=st.median(axerr), ax_p99=axerr[int(0.99 * len(axerr))], ax_max=axerr[-1], settle_wrong=settle, hops=tw.hops)
-OUT_COLS = ['frame', 'Pattern', 'AxisX', 'AxisY', 'AxisZ', 'S', 'Res', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue']
+OUT_COLS = ['frame'] + list(G.PUBLISHED)
 def dump(rows, path):
     tw = Twin()
     with open(path, 'w', newline='') as f:
