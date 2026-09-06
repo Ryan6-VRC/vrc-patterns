@@ -4,8 +4,7 @@
     python absolute-grip-prop/generate.py           # writes readout.yaml and controller.yaml
     python absolute-grip-prop/generate.py --check   # asserts the prefab's silent surface, writes nothing
 
-readout.yaml (GripReadout_Fx) is 6dof-grab-prop's palm readout with the lever quartic removed and three
-differentials added: eight face-box readings of the grabber's built-in Hand palm-capsule sender -> capsule
+readout.yaml (GripReadout_Fx) is the palm readout plus three differentials: eight face-box readings of the grabber's built-in Hand palm-capsule sender -> capsule
 half-length s, the capsule midpoint, a held ORIENTED sign pattern whose tree writes the signed palm axis to BOTH
 axis proxies (ProxyA = +axis, ProxyB = -axis); plus |Mid|^2 as the lever proxy, HandDiff = HandL - HandR (the
 handedness gate) and Cue = CueP - CueN (the axis sign, read off the FingerIndex sender at the two proxies).
@@ -58,7 +57,7 @@ DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Dis
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident cage-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
 ARRIVE_DWELL = 2 / FPS_FLOOR          # 2 frames at the floor a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
-SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; 6dof-grab-prop's value, and raising it shows more of the readout's pattern hops
+SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; raising it shows more of the readout's pattern hops
 BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung fires only once a reading has retreated to this fraction of its entry margin, or past 1/this of its entry ceiling, so a reading dithering on its entry threshold cannot flap Settled and Confirm (runtime.md: a bare threshold on a contact reading needs hysteresis)
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
@@ -236,7 +235,7 @@ math_children.append(lin(P('HandDiff'), [(P('HandL'), 1.0), (P('HandR'), -1.0)],
 math_children.append(lin(P('Cue'), [(P('CueP'), 1.0), (P('CueN'), -1.0)], name='Cue = CueP - CueN'))
 math_layer = {'name': 'Palm/Math', 'states': {'Math (WD ON)': {'motion': {'tree': 'direct', 'normalized': False, 'name': 'Math', 'children': math_children}}}, 'default': 'Math (WD ON)'}
 
-# ---------------- Select layer: 16 oriented-pattern states (unchanged from 6dof-grab-prop) ----------------
+# ---------------- Select layer: 16 oriented-pattern states, one per sign pattern; rungs hop to Hamming neighbours ----------------
 def D_cond(t, u):
     """condition 't better than u' (|S_t| < |S_u|) on the stored pair AAP."""
     ia, ib = LINES.index(t), LINES.index(u)
