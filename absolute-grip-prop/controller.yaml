@@ -17,7 +17,7 @@ parameters:
   AbsoluteGrip/Enable: { type: bool, default: false, vrc: { synced: true, saved: false } }   # off is the reset
   GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced
   IsLocal: bool                # VRC built-in
-  Palm/Hand: { type: int, default: 0, scratch: true }   # the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2); 0 = none; read only by conditions
+  Palm/Hand: { type: int, default: 0, scratch: true }   # this document's own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it
   # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.
   Palm/T1p: { type: float, scratch: true }
   Palm/T1m: { type: float, scratch: true }
@@ -67,8 +67,8 @@ layers:
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
           - { to: Released, when: [ GrabBone_IsGrabbed is false ] }
-          - { to: LatchedR, when: [ GrabBone_IsGrabbed is true, Palm/HandDiff less -0.1 ] }
-          - { to: LatchedL, when: [ GrabBone_IsGrabbed is true, Palm/HandDiff greater 0.1 ] }
+          - { to: LatchedR, when: [ GrabBone_IsGrabbed is true, Palm/T1p greater 0, Palm/T1m greater 0, Palm/T2p greater 0, Palm/T2m greater 0, Palm/T3p greater 0, Palm/T3m greater 0, Palm/T4p greater 0, Palm/T4m greater 0, Palm/HandDiff less -0.1 ] }
+          - { to: LatchedL, when: [ GrabBone_IsGrabbed is true, Palm/T1p greater 0, Palm/T1m greater 0, Palm/T2p greater 0, Palm/T2m greater 0, Palm/T3p greater 0, Palm/T3m greater 0, Palm/T4p greater 0, Palm/T4m greater 0, Palm/HandDiff greater 0.1 ] }
       Reacquire:
         motion: { clip: reacquire }
         transitions:

@@ -63,7 +63,7 @@ BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the lever is degenerate and the settle branch refuses (m^2): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
+MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.0, 0.0, 0.0, 1.0)         # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose; identity ships
 GRIP_L = (0.0, 0.0, 0.0, 1.0)         # Frame/GripL localRotation: the authored left-hand grip pose, authored, never derived from GRIP_R
 GRIP_R_POS = (0.0, 0.0, 0.0)          # Frame/GripR localPosition, Frame coordinates (origin = the tip, the client's grab point; +Y from the palm midpoint toward it): the right hand's authored trim of the payload origin off the grab point; zero ships. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ. Trimmed from the grab point and not from the sensed midpoint because the grab point is the client's, the same in both hands, while the midpoint carries each hand's capsule error
@@ -378,7 +378,7 @@ RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twel
 def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
-    boxes; the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
+    boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
     reject the palm that leaves it and returns, which a remote's lagging palm does). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
@@ -477,6 +477,7 @@ def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
     en_off = f'{ENABLE} is false'
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
+    all_pos = [f'{P(r)} greater 0' for r in READINGS]
     zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
@@ -491,9 +492,11 @@ def glue_states():
         'Arrive': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         # The latch decides the hand: a decisive hand differential on the tip spheres, read at the one instant the tip is provably
         # in that palm (the snap-on grab put it there), enters the Latched state for that hand, whose entry driver records it. The
-        # coincident acquisition cube contains the spheres (ACQ_SCALE), so a palm a sphere reads is inside all eight boxes and the
-        # box readings add no condition. Two palms reading alike, or none, take no latch; the gate is never read again.
-        'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed, LATCH[h]]} for h in 'RL']),
+        # eight box readings are not geometry (the coincident acquisition cube contains the spheres, ACQ_SCALE) but proof that every
+        # box has acquired the palm before Latched shuts its filter: after a stow each receiver re-acquires a sender already inside
+        # over a few frames drawn per receiver, and a box whose filter shuts first never acquires (runtime.md). Two palms reading
+        # alike, or none, take no latch; the gate is never read again.
+        'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed] + all_pos + [LATCH[h]]} for h in 'RL']),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h]}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
@@ -547,7 +550,7 @@ def emit_glue():
          f'  {ENABLE}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # off is the reset',
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
-         f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2); 0 = none; read only by conditions',
+         f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
     L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
