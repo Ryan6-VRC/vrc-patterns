@@ -657,6 +657,14 @@ def check():
         tb = tf_doc(r)
         a(near(quat(tb, 'm_LocalRotation'), unity_euler_quat(HOST_EULER[r]), 1e-5) or near(quat(tb, 'm_LocalRotation'), tuple(-c for c in unity_euler_quat(HOST_EULER[r])), 1e-5), f'{r} host localRotation == HOST_EULER (local +Z along its tetrahedral direction)')
         a(near(vec3(tb, 'm_LocalScale'), (ACQ_SCALE,) * 3), f'{r} host serialized at the acquisition scale {ACQ_SCALE:g}')
+    # Every VRC constraint's source list is sixteen keyable slots behind a totalLength. The editor solves the filled slots; the client
+    # solves totalLength of them, so a slot filled past the length is a source that works in play mode and is a no-op in-game
+    # (measured: a fourth source the left carry weighted moved nothing in the client until the length was 4).
+    for t, i, b in docs:
+        m = re.search(r'^    totalLength: (\d+)$', b, re.M)
+        if t == '114' and m and 'Sources:' in b:
+            filled = len(re.findall(r'SourceTransform: \{fileID: (?!0\})', b))
+            a(int(m.group(1)) == filled, f'{owner(i)} constraint totalLength {m.group(1)} != {filled} filled source slots (the client solves only totalLength of them)')
     # The placement smoother: Damped eases its origin toward the tip at home and toward the latched hand's grip node in carry.
     # Frame's origin is the tip: its rotation is the sensed hand frame, its position the client's grab point, so a grip node's
     # local position trims from the grab point (the same in both hands) and never from the sensed midpoint (per-hand capsule error).
