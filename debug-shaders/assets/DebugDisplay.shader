@@ -28,6 +28,15 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         // compiled set to buy nothing. Billboard mode has no side and UV mode has no view-dependent
         // basis, so neither reads this.
         [ToggleUI] _Display_Face_Viewer("Object mode: face the viewer", Float) = 0
+        // OBJECT MODE ONLY. Which object axis the readout plane's normal takes: Z (the default, text
+        // along +X, read from -Z) or X (text along -Z, read from -X). Exists because the plane sits
+        // through the object origin and a host mesh's readable wall is not always its +-Z face -- a
+        // hammer head whose strike axis is Z has its flat side walls on +-X, and rotating the
+        // renderer's transform to compensate would move the grip and every other consumer of that
+        // transform. A float for the reason _Display_Face_Viewer is: one vertex-stage select, and a
+        // keyword would double the compiled set. _Display_Face_Viewer still yaws about Y, so both
+        // walls read under either choice.
+        [Enum(Z, 0, X, 1)] _Display_Object_Normal("Object mode: plane normal axis", Float) = 0
         _Font_Size("Font size (m per ascender)", Range(0.001, 0.25)) = 0.0225
         // Billboard and object modes trace against a plane built from NORMALIZED basis vectors, which
         // protects the monospace grid from a stretched mesh but also discards object scale -- leaving
@@ -39,9 +48,13 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         [ToggleUI] _Font_Scale_Relative("Scale text with object", Float) = 1
         // In GLYPH ADVANCES, not metres. With _Font_Size in metres-per-ascender one advance is a derived
         // length, so a metre-valued width would silently rescale the layout every time the font size
-        // moved. In advances the two knobs are independent. A cell needs 12 (label) + 10 (value) = 22
-        // advances to avoid clipping. The layout math wants the TOTAL, so that is what is stored; the
-        // GUI presents it per column (total / columns), which is the number an author reasons in.
+        // moved. In advances the two knobs are independent. A cell needs LABEL GLYPHS + the value's
+        // USED glyphs + rpad: the value is right-aligned and its unused leading columns fall through to
+        // the label (the fragment stage's glyph rule), so "X" beside "-0.00" fits in 7 advances and
+        // "STATE" beside "255" in 9. 12 + 10 = 22 is only the zero-pad worst case, a full 12-char label
+        // beside a 10-glyph value, and sizing every column to it wastes most of the host mesh. The layout math
+        // wants the TOTAL, so that is what is stored; the GUI presents it per column (total / columns),
+        // which is the number an author reasons in.
         _Total_Width("Total width (glyph advances)", Range(10, 200)) = 24
         [IntRange] _Grid_Columns("Grid columns", Range(1, 6)) = 1
         [IntRange] _Grid_Rows("Grid rows", Range(1, 6)) = 3
@@ -170,6 +183,7 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
             #include "debug_display_common.hlsl"
 
             uniform float _Display_Face_Viewer;
+            uniform float _Display_Object_Normal;
             uniform float _Font_Size;
             uniform float _Font_Scale_Relative;
             uniform float _Total_Width;
@@ -234,9 +248,14 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
                     // Normalised so a NON-UNIFORMLY scaled object cannot stretch the monospace grid.
                     // That drops uniform scale too, which _Font_Scale_Relative puts back as a single
                     // scalar in the fragment stage -- consistently with billboard mode.
-                    right = normalize(float3(unity_ObjectToWorld._m00, unity_ObjectToWorld._m10, unity_ObjectToWorld._m20));
+                    float3 obj_x = normalize(float3(unity_ObjectToWorld._m00, unity_ObjectToWorld._m10, unity_ObjectToWorld._m20));
                     up = normalize(float3(unity_ObjectToWorld._m01, unity_ObjectToWorld._m11, unity_ObjectToWorld._m21));
-                    normal = normalize(float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22));
+                    float3 obj_z = normalize(float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22));
+                    // _Display_Object_Normal picks which object axis is the plane normal; `right` is
+                    // up x normal in both cases so the basis stays right-handed and the glyphs upright.
+                    bool normal_is_x = _Display_Object_Normal != 0.0;
+                    normal = normal_is_x ? obj_x : obj_z;
+                    right = normal_is_x ? -obj_z : obj_x;
 
                     // Two-sided readout: yaw the plane 180 degrees about `up` for a viewer behind it,
                     // which is the turn-the-object-around fix applied per camera instead of per

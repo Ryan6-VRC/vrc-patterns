@@ -42,9 +42,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         // Every section's property list, declared once. DrawUnclaimed checks the shader against the union
         // of these rather than against what actually got drawn: a collapsed section draws nothing, and a
         // coverage check keyed on drawing would call all of its properties orphans.
-        // Drawn under the mode bar rather than in a section: it configures _Display_Mode's Object case
-        // and is inert in the other two.
-        static readonly string[] FaceViewerProps = { "_Display_Face_Viewer" };
+        // Drawn under the mode bar rather than in a section: they configure _Display_Mode's Object case
+        // and are inert in the other two.
+        static readonly string[] FaceViewerProps = { "_Display_Face_Viewer", "_Display_Object_Normal" };
         static readonly string[] LayoutProps = { "_Grid_Columns", "_Grid_Rows" };
         static readonly string[] TextMetricProps =
             { "_MSDF_Glyph_Atlas", "_Font_Size", "_Font_Scale_Relative", "_Text_Depth_Offset" };
@@ -295,13 +295,15 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 return;
             }
 
-            int needed = DisplayGlyphs.MaxLabelChars + DisplayGlyphs.ValueGlyphs;
+            int worst = DisplayGlyphs.MaxLabelChars + DisplayGlyphs.ValueGlyphs;
             var label = new GUIContent(
                 "Column width",
-                "Glyph advances per grid column. A column needs " + DisplayGlyphs.MaxLabelChars +
-                " (label) + " + DisplayGlyphs.ValueGlyphs + " (value) = " + needed + " for a full-width " +
-                "label to stay clear of its value. Stored on the material as the total across all " +
-                cols + " column(s).");
+                "Glyph advances per grid column. A column needs its longest label + that value's USED " +
+                "glyphs + right pad: the value is right-aligned and its unused leading columns fall " +
+                "through to the label, so 'X' beside '-0.00' fits in 7. " + DisplayGlyphs.MaxLabelChars +
+                " (label) + " + DisplayGlyphs.ValueGlyphs + " (value) = " + worst + " is only the zero-pad " +
+                "worst case; the per-entry check below measures the real collision. Stored on the material as " +
+                "the total across all " + cols + " column(s).");
 
             EditorGUI.BeginChangeCheck();
             // Ranged so the product stays inside the shader's own Range(10, 200) at any column count.
@@ -335,7 +337,6 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
         static EntryState[] Scan(Material mat, int cols, int rows, float cellAdv, int visible)
         {
-            int maxUsable = DisplayGlyphs.MaxUsableRpad(cellAdv);
             int cellW = Mathf.Max(1, (int)Mathf.Floor(cellAdv));
             var states = new EntryState[DisplayGlyphs.MaxEntries];
 
@@ -359,20 +360,25 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 // label-only entry draws none — raising either would report a fault about a field the
                 // shader never touches. The unreachable-entry warning below is not value-side and still
                 // applies.
+                // Both tests key on the value's USED width (the sample, trimmed), never the reserved
+                // 10-glyph field: unused leading columns are blank and fall through to the label, so a
+                // narrow cell is legal as long as the digits themselves stay inside it.
+                int valueWidth = DisplayGlyphs
+                    .FormatValue(SampleValue(st.Source, GetFloat(mat, DisplayGlyphs.ValueProperty(i), 0f)),
+                                 st.Decimals)
+                    .TrimStart(' ').Length;
+                int maxUsable = DisplayGlyphs.MaxUsableRpad(cellAdv, valueWidth);
                 if (!st.LabelOnly && st.Rpad > maxUsable)
                     st.Error = "Right pad " + st.Rpad + " exceeds " + maxUsable + " for a " +
-                               cellAdv.ToString("0.##") + "-advance cell. The value slides off the left " +
-                               "of its cell and vanishes with no on-screen diagnostic.";
+                               valueWidth + "-glyph value in a " + cellAdv.ToString("0.##") +
+                               "-advance cell. The value slides off the left of its cell and vanishes " +
+                               "with no on-screen diagnostic.";
 
                 // The real collision test: this label's actual length against where its value starts.
                 // rpad knows nothing about the label, so the shader draws the value over the label's tail
                 // and nothing objects — this is what objects.
                 if (!st.LabelOnly && !st.Unreachable && st.Error == null)
                 {
-                    int valueWidth = DisplayGlyphs
-                        .FormatValue(SampleValue(st.Source, GetFloat(mat, DisplayGlyphs.ValueProperty(i), 0f)),
-                                     st.Decimals)
-                        .TrimStart(' ').Length;
                     int valueStart = cellW - st.Rpad - valueWidth;
                     if (st.Label.Length > valueStart)
                         st.Warning = "Label is " + st.Label.Length + " chars but the value starts at " +
@@ -591,7 +597,10 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                     int d, p, rp; DisplayGlyphs.ValueSource s; bool lo;
                     DisplayGlyphs.UnpackFormat(mat.GetFloat(DisplayGlyphs.FormatProperty(i)), out d, out p, out rp, out s, out lo);
                     if (lo) continue;
-                    int want = Mathf.Min(maxDecimals - d, DisplayGlyphs.MaxUsableRpad(cellAdv));
+                    int used = DisplayGlyphs
+                        .FormatValue(SampleValue(s, GetFloat(mat, DisplayGlyphs.ValueProperty(i), 0f)), d)
+                        .TrimStart(' ').Length;
+                    int want = Mathf.Min(maxDecimals - d, DisplayGlyphs.MaxUsableRpad(cellAdv, used));
                     float packed;
                     string error;
                     if (DisplayGlyphs.TryPackFormat(d, p, want, s, lo, out packed, out error))
