@@ -51,8 +51,8 @@ Shader "Ryan6VRC/Overlay/DebugDisplay"
         // moved. In advances the two knobs are independent. A cell needs LABEL GLYPHS + the value's
         // USED glyphs + rpad: the value is right-aligned and its unused leading columns fall through to
         // the label (the fragment stage's glyph rule), so "X" beside "-0.00" fits in 7 advances and
-        // "STATE" beside "255" in 9. 12 + 10 = 22 is only the worst case, a full 12-char label beside a
-        // 10-glyph value, and sizing every column to it wastes most of the host mesh. The layout math
+        // "STATE" beside "255" in 9. 12 + 10 = 22 is only the zero-pad worst case, a full 12-char label
+        // beside a 10-glyph value, and sizing every column to it wastes most of the host mesh. The layout math
         // wants the TOTAL, so that is what is stored; the GUI presents it per column (total / columns),
         // which is the number an author reasons in.
         _Total_Width("Total width (glyph advances)", Range(10, 200)) = 24

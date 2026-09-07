@@ -337,14 +337,19 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
         /// <summary>
         /// The largest rpad that leaves the value inside its own cell, given a cell width in glyph
-        /// advances. The value's left edge sits at <c>cell_w_adv − rpad − ValueGlyphs</c>, so past this
-        /// the value slides off the left of its cell and vanishes with NO on-screen diagnostic — which
-        /// is why the bound is enforced here and previewed in the inspector rather than left to the
-        /// 4-bit field's range.
+        /// advances and how many of the <see cref="ValueGlyphs"/> columns the value actually uses
+        /// (<see cref="FormatValue"/> trimmed). The value is right-aligned, so its used glyphs sit at
+        /// <c>cell_w_adv − rpad − used .. cell_w_adv − rpad</c>; past this bound the leftmost digit slides
+        /// off the left of its cell and vanishes with NO on-screen diagnostic — which is why the bound is
+        /// enforced here and previewed in the inspector rather than left to the 4-bit field's range. The
+        /// reserved field's unused leading columns are blank and fall through to the label, so they are
+        /// NOT part of the bound: a 7-advance cell holds <c>-0.00</c> at rpad 1. Omitting the width
+        /// assumes a full 10-glyph value, the zero-information worst case.
         /// </summary>
-        public static int MaxUsableRpad(float cellWidthAdvances)
+        public static int MaxUsableRpad(float cellWidthAdvances, int usedValueGlyphs = ValueGlyphs)
         {
-            int bound = (int)Math.Floor(cellWidthAdvances) - ValueGlyphs;
+            int used = Mathf.Clamp(usedValueGlyphs, 1, ValueGlyphs);
+            int bound = (int)Math.Floor(cellWidthAdvances) - used;
             return Mathf.Clamp(bound, 0, MaxRpad);
         }
 
