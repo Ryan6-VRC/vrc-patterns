@@ -249,7 +249,7 @@ def parse_clips(path):
             continue
         if cur is None:
             continue
-        m = re.match(r"^    length: ([\d.]+)", line)
+        m = re.match(r"^    (?:length|seconds): ([\d.]+)", line)
         if m:
             clips[cur]["len"] = m.group(1)
             continue
@@ -262,6 +262,11 @@ def parse_clips(path):
         m = re.match(r'^      "([^"]+)": (.+?)\s*$', line)
         if m and sect:
             clips[cur][sect][m.group(1)] = m.group(2)
+            continue
+        if line.strip() and not line.lstrip().startswith("#"):
+            # A row this bounded parser does not model would otherwise vanish from the emitted table
+            # (a dwell dropping to one frame, a binding unwritten) with nothing failing anywhere.
+            raise SystemExit(f"REFUSE: unparsed clip-table row in {os.path.basename(path)} under `{cur}`: {line.rstrip()}")
     return clips
 
 
@@ -280,6 +285,8 @@ def emit_clips(cell):
             rows[PREFIX + k] = v
         for k, v in e["curves"].items():
             curves[PREFIX + k] = v
+        if GP0 not in rows or GP1 not in rows:
+            raise SystemExit(f"REFUSE: cell clip `{src}` does not write GrabPosition's two source weights — the GrabPosition carve has nothing to carve")
         if ROTOR_EN not in rows or ROTOR_S0 not in rows:
             raise SystemExit(f"REFUSE: cell clip `{src}` does not write Rotor's enable and home "
                              "weight — the Rotor carve has nothing to carve")
@@ -407,8 +414,9 @@ def check():
 
     fc_go = int(re.search(r"m_GameObject: \{fileID: (\d+)\}", fc).group(1)) if fc else None
     root_tf = tf_of_go.get(fc_go)
-    sync_guid, sync_tf, sync_comps, _ = entry_prefab("object-sync/ObjectSync.prefab")
-    cell_guid, cell_tf, cell_comps, _ = entry_prefab("absolute-grip-prop/AbsoluteGripProp.prefab")
+    sync_guid, sync_tf, sync_comps, sync_docs = entry_prefab("object-sync/ObjectSync.prefab")
+    sync_gos = {a: re.search(r"m_Name: (.*)", b).group(1).strip() for c, a, b in sync_docs if c == 1}
+    cell_guid, cell_tf, cell_comps, cell_docs = entry_prefab("absolute-grip-prop/AbsoluteGripProp.prefab")
     entry_names.update({(sync_guid, a): nm for a, (nm, _p) in sync_tf.items()})
     entry_names.update({(cell_guid, a): nm for a, (nm, _p) in cell_tf.items()})
     s_id, s_inst = instance(sync_guid)
@@ -449,20 +457,24 @@ def check():
             "Sync_Target Drop toggle": comps_named(sync_comps, "class: Toggle", "Sync_Target")}
     for label, ids_ in want.items():
         assert_(ids_ and ids_ <= s_rm, f"sync instance removes the entry's {label} ({sorted(ids_)})")
+    s_want = set().union(*want.values())
+    assert_(s_rm == s_want, f"sync instance removes NOTHING beyond the declared set — extra: {sorted(s_rm - s_want)}")
     assert_(len(want["root pin pair"]) == 2, "the entry root carries exactly its pin pair (parent + scale)")
     # absolute-grip-prop: FullController, Toggle removed; Payload GO and the root FreezeToWorld GO removed; EditorOnly kept.
     c_rm, c_rmgo = removed(c_inst), removed_gos(c_inst)
     for label, ids_ in {"FullController": comps_named(cell_comps, "class: FullController", CELL_MOUNT),
                         "Toggle": comps_named(cell_comps, "class: Toggle", CELL_MOUNT)}.items():
         assert_(ids_ and ids_ <= c_rm, f"cell instance removes the entry's {label} ({sorted(ids_)})")
-    cell_go = {a: nm for a, (nm, par) in cell_tf.items()}
-    _, _, _, cell_docs = entry_prefab("absolute-grip-prop/AbsoluteGripProp.prefab")
     cell_gos = {a: re.search(r"m_Name: (.*)", b).group(1).strip() for c, a, b in cell_docs if c == 1}
     for node in ("Payload", "FreezeToWorld"):
         gid = {a for a, n in cell_gos.items() if n == node}
         assert_(gid and gid <= c_rmgo, f"cell instance removes the entry's {node} GameObject ({sorted(gid)})")
     eo = {a for a, n in cell_gos.items() if n == "EditorOnly"}
     assert_(eo and not (eo & c_rmgo), "cell instance KEEPS EditorOnly (its TurnOff ApplyDuringUpload rides it)")
+    c_want = comps_named(cell_comps, "class: FullController", CELL_MOUNT) | comps_named(cell_comps, "class: Toggle", CELL_MOUNT)
+    assert_(c_rm == c_want, f"cell instance removes NO component beyond FullController + Toggle — extra: {sorted(c_rm - c_want)}")
+    go_want = {a for a, n in cell_gos.items() if n in ("Payload", "FreezeToWorld")}
+    assert_(c_rmgo == go_want, f"cell instance removes NO GameObject beyond Payload + FreezeToWorld — extra: {sorted(c_rmgo - go_want)}")
 
     # ---- the cell instance's modifications: exactly the declared set, parsed with a count guard.
     mod_re = re.compile(r"- target: \{fileID:\s+(\d+),\s+guid:\s+(\w+),\s+type:\s+3\}\s*\n"
@@ -487,17 +499,17 @@ def check():
     grab = dict((pp, val) for pp, val, _ in by_node.get("GrabBone", []))
     assert_(grab.get("parameter") == "Grab", f"the grab physbone's parameter is `Grab` (got {grab.get('parameter')!r})")
     gp = {pp: ref for pp, _, ref in by_node.get("GrabPosition", [])}
-    disp = next((a for c, a, b in docs if c == 4 and owner(a) == "Display"), None)
+    cont_tf = next((a for c, a, b in docs if c == 4 and owner(a) == "Container" and father.get(a) == prop_tf), None)
+    disp = next((a for c, a, b in docs if c == 4 and owner(a) == "Display" and father.get(a) == cont_tf), None)
     assert_(gp.get("Sources.source0.SourceTransform") == str(disp) and disp is not None,
             "GrabPosition source0 is repointed at Prop/Container/Display (grab-prop's two-source repoint)")
     rot = {pp: (val, ref) for pp, val, ref in by_node.get("Rotor", [])}
-    sync_node = next((a for c, a, b in docs if c == 4 and owner(a) == "Sync"), None)
     # Sync lives inside the nested sync instance, so its transform is a stripped/host reference; resolve by the objectReference target's name.
     ref_name = {str(a): owner(a) for c, a, b in docs if c == 4}
     assert_(rot.get("Sources.totalLength", ("", ""))[0] == "4", "Rotor's source list length is 4 (a slot past the length is a client no-op)")
     assert_(ref_name.get(rot.get("Sources.source3.SourceTransform", ("", ""))[1]) == "Sync",
             f"Rotor source3 targets ObjectSync/Sync (got {ref_name.get(rot.get('Sources.source3.SourceTransform', ('', ''))[1])!r})")
-    assert_(rot.get("Sources.source3.Weight", ("", ""))[0] in ("0", ""), "Rotor source3 ships at weight 0 (the clips select it)")
+    assert_(rot.get("Sources.source3.Weight", ("", ""))[0] in ("0", ""), "Rotor source3 ships at weight 0 — no override row, so the array-fill default (the clips select it)")
     for pp in ("Sources.source3.ParentPositionOffset", "Sources.source3.ParentRotationOffset"):
         assert_(not any(k.startswith(pp) and float(v) != 0 for k, (v, _) in rot.items()), f"Rotor source3 has a zero {pp.split('.')[-1]}")
     sp = [a for a, (nm, par) in cell_tf.items() if nm == "SourcePosition"]
@@ -511,7 +523,20 @@ def check():
     # Sync_Target's constraint is inside the nested sync instance; its added source is an instance modification.
     st_mods = {pp: (val, ref) for fid, guid, pp, val, ref in mod_re.findall(s_inst)
                if guid == sync_guid and sync_comps.get(int(fid), ("",))[0] == "Sync_Target"}
+    s_mods = mod_re.findall(s_inst)
+    s_rows = s_inst.count("\n      propertyPath: ")
+    assert_(len(s_mods) == s_rows, f"sync instance: the modification parser read every row ({len(s_mods)} of {s_rows})")
+    s_by_node = {}
+    for fid, guid, pp, val, ref in s_mods:
+        if guid == sync_guid:
+            s_by_node.setdefault(sync_comps.get(int(fid), (sync_tf.get(int(fid), (sync_gos.get(int(fid), "?"),))[0],))[0], []).append(pp)
+    s_allowed = {"Sync_Target": lambda pp: pp.startswith("Sources.source0.") or pp == "Sources.totalLength",
+                 MOUNT: lambda pp: pp in ("m_Name", "m_RootOrder") or pp.startswith(("m_Local", "m_IsActive"))}
+    s_stray = {nd: [pp for pp in pps if not s_allowed.get(nd, lambda q: False)(pp)] for nd, pps in s_by_node.items()}
+    s_stray = {nd: q for nd, q in s_stray.items() if q}
+    assert_(not s_stray, f"sync instance carries no modification beyond Sync_Target's one source — stray: {s_stray}")
     assert_(st_mods.get("Sources.totalLength", ("", ""))[0] == "1"
+            and st_mods.get("Sources.source0.Weight", ("", ""))[0] == "1"
             and ref_name.get(st_mods.get("Sources.source0.SourceTransform", ("", ""))[1]) == "Source",
             "Sync_Target's one source is Prop/Source (static, weight 1)")
     for node, cls, want_src in (("Source", "PositionAtRest", ["Damped", "Sync", "Offset"]),
@@ -524,9 +549,11 @@ def check():
         assert_(got_src == want_src, f"{node} {cls.replace('AtRest', '')} constraint sources {want_src} (got {got_src})")
     root_cons = [b for c, a, b in docs if c == 114 and go_of.get(a) == fc_go and ("ParentPositionOffset" in b or "ScaleAtRest" in b)]
     assert_(len(root_cons) == 2 and all("m_Enabled: 0" in b for b in root_cons), "the root pin pair ships disabled (ApplyDuringUpload enables it)")
-    offs = [float(x) for b in root_cons for x in re.findall(r"Parent(?:Position|Rotation)Offset: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}", b) for x in x]
+    offs = [float(x) for b in root_cons for t in re.findall(r"Parent(?:Position|Rotation)Offset: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}", b) for x in t]
     assert_(root_cons and all(o == 0 for o in offs), "the root pin's source offsets are all zero (the client scales a pin offset by avatar scale)")
-    assert_(raw.count("class: ApplyDuringUpload") >= 1, "an ApplyDuringUpload on the root enables the pin at build")
+    scale_offs = [float(x) for b in root_cons for t in re.findall(r"ScaleOffset: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}", b) for x in t]
+    assert_(len(scale_offs) == 3 and all(o == 1 for o in scale_offs), "the scale pin's ScaleOffset is identity (1,1,1)")
+    assert_(any(c == 114 and go_of.get(a) == fc_go and "class: ApplyDuringUpload" in b for c, a, b in docs), "an ApplyDuringUpload on the ROOT GameObject enables the pin at build")
 
     # ---- the glue's Palm/* declarations equal the entry glue's, read live.
     def palm_block(p):
