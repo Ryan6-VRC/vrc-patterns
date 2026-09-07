@@ -42,9 +42,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         // Every section's property list, declared once. DrawUnclaimed checks the shader against the union
         // of these rather than against what actually got drawn: a collapsed section draws nothing, and a
         // coverage check keyed on drawing would call all of its properties orphans.
-        // Drawn under the mode bar rather than in a section: it configures _Display_Mode's Object case
-        // and is inert in the other two.
-        static readonly string[] FaceViewerProps = { "_Display_Face_Viewer" };
+        // Drawn under the mode bar rather than in a section: they configure _Display_Mode's Object case
+        // and are inert in the other two.
+        static readonly string[] FaceViewerProps = { "_Display_Face_Viewer", "_Display_Object_Normal" };
         static readonly string[] LayoutProps = { "_Grid_Columns", "_Grid_Rows" };
         static readonly string[] TextMetricProps =
             { "_MSDF_Glyph_Atlas", "_Font_Size", "_Font_Scale_Relative", "_Text_Depth_Offset" };
@@ -295,13 +295,15 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 return;
             }
 
-            int needed = DisplayGlyphs.MaxLabelChars + DisplayGlyphs.ValueGlyphs;
+            int worst = DisplayGlyphs.MaxLabelChars + DisplayGlyphs.ValueGlyphs;
             var label = new GUIContent(
                 "Column width",
-                "Glyph advances per grid column. A column needs " + DisplayGlyphs.MaxLabelChars +
-                " (label) + " + DisplayGlyphs.ValueGlyphs + " (value) = " + needed + " for a full-width " +
-                "label to stay clear of its value. Stored on the material as the total across all " +
-                cols + " column(s).");
+                "Glyph advances per grid column. A column needs its longest label + that value's USED " +
+                "glyphs + right pad: the value is right-aligned and its unused leading columns fall " +
+                "through to the label, so 'X' beside '-0.00' fits in 7. " + DisplayGlyphs.MaxLabelChars +
+                " (label) + " + DisplayGlyphs.ValueGlyphs + " (value) = " + worst + " is only the worst " +
+                "case; the per-entry check below measures the real collision. Stored on the material as " +
+                "the total across all " + cols + " column(s).");
 
             EditorGUI.BeginChangeCheck();
             // Ranged so the product stays inside the shader's own Range(10, 200) at any column count.
