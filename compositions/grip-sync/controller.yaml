@@ -3,7 +3,7 @@
 # The clip table below the BEGIN marker is emitted (generate.py owns it, and its docstring is the design record): cell bindings read live from ../../absolute-grip-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/AbsoluteGripProp/ prefix — plus the glue value-sets and the two carves. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grip Arrive/Grip Acquire→grip_acquire, Grip Reacquire→grip_reacquire, Grip LatchedR/L→grip_latched, Grip Settling→grip_settling, Grip Settled→grip_settled, Grip ConfirmXY/Grip CarryXY→grip_carryXY, Released→released, Dropped→dropped, Waiting→waiting, Acquire→acquire, Bridge→bridge, Synced→synced, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab.
 # Transcription rule, grab-sync side: every rung that entered `Grabbed` enters `Grip Arrive` (Anchored, Dropped, Waiting, Bridge, Reacquire, Resume_Grab) — `Grip Arrive` is the sole gateway into the sub-graph, and its arrive dwell is the entry's first-grabbed-frame guard, which a remote's re-grab needs as much as a fresh grab. Everything else transcribes 1:1: the boot dwell, Waiting's late-join ladder, Released's IsLocal split and its no-early-exit rule, the word states, the Reacquire dwell and the Resume park.
 # Transcription rule, cell side: every `Grip` state's rungs are the entry's, with the polarity map `AbsoluteGrip/Enable is false` → `ObjectSync/Enable less 0.5` (float, so no equality), `Released`/`Disabled`/`Dropped`/`Waiting`/`Anchored` targets landing on this document's states of those names, and ONE added rung per Grip state: the cull pre-arm `IsAnimatorEnabled is false → Resume`, placed immediately after the Enable-off rung. Placement is load-bearing: the ladder is first-match, the pre-halt window is one frame, and eight Grip states end in an unconditional exit-time rung that would shadow a pre-arm appended below it.
-# `Disabled` is the merge of both documents' Disabled: it keeps the cell's `exitTime: 1.0` on the exit to Anchored — the receivers are off for the 0.25 s stow dwell, and a same-evaluation off→on leaves a proximity receiver deaf for the session — and carries two drivers: `Detached: 0` localOnly (a synced bit, the wearer's to write) and the cell's receiver-zeroing driver, NOT localOnly (sensing is per-client; a stowed receiver reads 0 and a stale reading would gate the enable that follows). The cell's `Palm/Hand` and `Palm/Sign` drivers — the hand in Grip LatchedR/L, the sign in each Grip Confirm — stay NOT localOnly for the same reason: remotes reach the sub-graph through Reacquire, Resume_Grab and Bridge, and a localOnly stamp would stall a remote in Grip Acquire forever with no build error.
+# `Disabled` is the merge of both documents' Disabled: it keeps the cell's `exitTime: 1.0` on the exit to Anchored — the receivers are off for the 0.25 s stow dwell, and a same-evaluation off→on leaves a proximity receiver deaf for the session — and carries three drivers: `Detached: 0` localOnly (a synced bit, the wearer's to write), the cell's receiver-zeroing driver, NOT localOnly (sensing is per-client; a stowed receiver reads 0 and a stale reading would gate the enable that follows), and the cell's localOnly `Palm/SignP` / `Palm/SignN` clear. The cell's per-client tag drivers — `Palm/Hand` in Grip LatchedR/L, `Palm/Sign` in each Grip Confirm and each Grip Carry — stay NOT localOnly for the same reason: remotes reach the sub-graph through Reacquire, Resume_Grab and Bridge, and a localOnly stamp would stall a remote in Grip Acquire forever with no build error. The cell's `Palm/SignP` / `Palm/SignN` drivers are the one exception and transcribe localOnly unchanged: that pair is the wearer's authoritative sign on the wire, so a remote writing it would overwrite the value it received with its own read (the entry's README owns why the sign is the wearer's while the hand tag stays per-client).
 # Glue value-sets (home slot on BOTH mux channels; the rotation mux is full-axis because the cell's home slot is its own Rotor's full-axis HomeAnchor/Offset — grab-sync's Y-only mask serves a drag heading this composition has no use for) — digits echo generate.py's VALUE_SETS, their canon:
 #   HOME    = mux w (0,0,1) both channels, damper passthrough   (Timer/Disabled/Waiting hidden; Anchored visible)
 #   CARRY   = mux w (1,0,0) both channels, damper passthrough   (every Grip state, Released, Dropped, Bridge)
@@ -34,7 +34,9 @@ parameters:
   IsAnimatorEnabled:   { type: bool, default: true }   # VRC built-in — longform default-true MATCHES the entry's declaration
   # absolute-grip-prop's glue block, verbatim (its readout declares the twelve receiver floats un-scratch; this document only reads or zeroes them).
   Palm/Hand: { type: int, default: 0, scratch: true }   # this document's own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it
-  Palm/Sign: { type: int, default: 0, scratch: true }   # this document's own: the latched axis sign, driver-set on entry to each Confirm (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it
+  Palm/Sign: { type: int, default: 0, scratch: true }   # this document's own: the latched axis sign as THIS client holds it, driver-set on entry to each Confirm and each Carry (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it
+  Palm/SignP: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wearer's authoritative sign, one-hot with SignN: written localOnly on entry to each Carry, cleared localOnly at every latch and in Disabled, and read by remotes alone (the adoption rungs)
+  Palm/SignN: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the -axis half of that pair; both false = the wearer has not decided, which is what a remote holds its own tentative sign through
   Palm/T1p: { type: float, scratch: true }
   Palm/T1m: { type: float, scratch: true }
   Palm/T2p: { type: float, scratch: true }
@@ -52,6 +54,7 @@ parameters:
   Palm/MM: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
+  Palm/CueVel: { type: float, scratch: true }
 
 layers:
   - name: Prop
@@ -67,6 +70,7 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { Detached: 0 } }   # off-is-reset: recall home
           - driver: { set: { Palm/T1p: 0, Palm/T1m: 0, Palm/T2p: 0, Palm/T2m: 0, Palm/T3p: 0, Palm/T3m: 0, Palm/T4p: 0, Palm/T4m: 0, Palm/HandL: 0, Palm/HandR: 0, Palm/CueP: 0, Palm/CueN: 0, Palm/Hand: 0, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         transitions:
           - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ], exitTime: 1.0 }   # the stow dwell: the receivers stay off the whole clip
       Anchored:
@@ -104,6 +108,7 @@ layers:
       Grip LatchedR:
         behaviours:
           - driver: { set: { Palm/Hand: 1, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: grip_latched }
         transitions:
           - { to: Disabled,      when: [ ObjectSync/Enable less 0.5 ] }
@@ -113,6 +118,7 @@ layers:
       Grip LatchedL:
         behaviours:
           - driver: { set: { Palm/Hand: 2, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: grip_latched }
         transitions:
           - { to: Disabled,      when: [ ObjectSync/Enable less 0.5 ] }
@@ -148,10 +154,10 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
-          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Grip Reacquire, when: [ ], exitTime: 1.0 }
       Grip ConfirmRP:
         behaviours:
@@ -173,6 +179,8 @@ layers:
           - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
           - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
           - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryRP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmRN:
@@ -195,6 +203,8 @@ layers:
           - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
           - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
           - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryRN,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLP:
@@ -217,6 +227,8 @@ layers:
           - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
           - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
           - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryLP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLN:
@@ -239,9 +251,14 @@ layers:
           - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
           - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
           - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Grip Settled,   when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryLN,   when: [ ], exitTime: 1.0 }
       Grip CarryRP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
         motion: { clip: grip_carryRP }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -255,7 +272,11 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/SignN is true ] }
       Grip CarryRN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
         motion: { clip: grip_carryRN }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -269,7 +290,11 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/SignP is true ] }
       Grip CarryLP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
         motion: { clip: grip_carryLP }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -283,7 +308,11 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/SignN is true ] }
       Grip CarryLN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
         motion: { clip: grip_carryLN }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -297,6 +326,7 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/SignP is true ] }
       # ---- grab-sync's skeleton from here on.
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
