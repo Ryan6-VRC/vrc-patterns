@@ -2,7 +2,7 @@
 # absolute-grip-prop glue: grab-prop's cell (clip table replicated binding for binding) + the cage latch that decides the
 # hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip. Reads GripReadout_Fx's AAPs through
 # the shared FullController.
-# thresholds: latch |HandDiff| > 0.1; engage: Res settle 0.002 m, S band [0.012, 0.045] m, lever proxy MM > 0.0001 m^2, cue |Cue| > 0.05;
+# thresholds: latch |HandDiff| > 0.1; engage: Res settle 0.002 m, S band [0.012, 0.045] m, lever proxy MM > 0.0001 m^2, cue |Cue| > 0.05, cue settled |CueVel| < 0.008;
 # arrive dwell 0.04444 s, fill 0.1333 s (8 frames at 60 fps), confirm dwell 0.2 s, settle timeout 0.5 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.06 m (= gate radius).
 schema: 1
 controller: AbsoluteGripProp_Fx
@@ -18,6 +18,9 @@ parameters:
   GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced
   IsLocal: bool                # VRC built-in
   Palm/Hand: { type: int, default: 0, scratch: true }   # this document's own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it
+  Palm/Sign: { type: int, default: 0, scratch: true }   # this document's own: the latched axis sign as THIS client holds it, driver-set on entry to each Confirm and each Carry (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it
+  Palm/SignP: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wearer's authoritative sign, one-hot with SignN: written localOnly on entry to each Carry, cleared localOnly at every latch and in Disabled, and read by remotes alone (the adoption rungs)
+  Palm/SignN: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the -axis half of that pair; both false = the wearer has not decided, which is what a remote holds its own tentative sign through
   # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.
   Palm/T1p: { type: float, scratch: true }
   Palm/T1m: { type: float, scratch: true }
@@ -36,6 +39,7 @@ parameters:
   Palm/MM: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
+  Palm/CueVel: { type: float, scratch: true }
 
 layers:
   - name: AbsoluteGrip/Control
@@ -47,7 +51,8 @@ layers:
           - { to: Waiting, when: [ IsLocal is false ], exitTime: 1.0 }
       Disabled:
         behaviours:
-          - driver: { set: { Palm/T1p: 0, Palm/T1m: 0, Palm/T2p: 0, Palm/T2m: 0, Palm/T3p: 0, Palm/T3m: 0, Palm/T4p: 0, Palm/T4m: 0, Palm/HandL: 0, Palm/HandR: 0, Palm/CueP: 0, Palm/CueN: 0, Palm/Hand: 0 } }
+          - driver: { set: { Palm/T1p: 0, Palm/T1m: 0, Palm/T2p: 0, Palm/T2m: 0, Palm/T3p: 0, Palm/T3m: 0, Palm/T4p: 0, Palm/T4m: 0, Palm/HandL: 0, Palm/HandR: 0, Palm/CueP: 0, Palm/CueN: 0, Palm/Hand: 0, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: disabled }
         transitions:
           - { to: Anchored, when: [ AbsoluteGrip/Enable is true ], exitTime: 1.0 }
@@ -77,7 +82,8 @@ layers:
           - { to: Acquire, when: [  ], exitTime: 1.0 }
       LatchedR:
         behaviours:
-          - driver: { set: { Palm/Hand: 1 } }
+          - driver: { set: { Palm/Hand: 1, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: latched }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -85,7 +91,8 @@ layers:
           - { to: Settling, when: [  ], exitTime: 1.0 }
       LatchedL:
         behaviours:
-          - driver: { set: { Palm/Hand: 2 } }
+          - driver: { set: { Palm/Hand: 2, Palm/Sign: 0 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: latched }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -118,12 +125,14 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
-          - { to: ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
-          - { to: ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
-          - { to: ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
+          - { to: ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
+          - { to: ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
+          - { to: ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
+          - { to: ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/CueVel greater -0.008, Palm/CueVel less 0.008, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Reacquire, when: [  ], exitTime: 1.0 }
       ConfirmRP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
         motion: { clip: carryRP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -140,9 +149,13 @@ layers:
           - { to: Settled, when: [ Palm/S less 0.0084 ] }
           - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
           - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Settled, when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryRP, when: [  ], exitTime: 1.0 }
       ConfirmRN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
         motion: { clip: carryRN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -159,9 +172,13 @@ layers:
           - { to: Settled, when: [ Palm/S less 0.0084 ] }
           - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
           - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Settled, when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryRN, when: [  ], exitTime: 1.0 }
       ConfirmLP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
         motion: { clip: carryLP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -178,9 +195,13 @@ layers:
           - { to: Settled, when: [ Palm/S less 0.0084 ] }
           - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
           - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Settled, when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryLP, when: [  ], exitTime: 1.0 }
       ConfirmLN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
         motion: { clip: carryLN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -197,9 +218,14 @@ layers:
           - { to: Settled, when: [ Palm/S less 0.0084 ] }
           - { to: Settled, when: [ Palm/S greater 0.064285714 ] }
           - { to: Settled, when: [ Palm/MM less 7e-05 ] }
+          - { to: Settled, when: [ Palm/CueVel less -0.011428571 ] }
+          - { to: Settled, when: [ Palm/CueVel greater 0.011428571 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryLN, when: [  ], exitTime: 1.0 }
       CarryRP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
         motion: { clip: carryRP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -212,7 +238,11 @@ layers:
           - { to: Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: CarryRN, when: [ IsLocal is false, Palm/SignN is true ] }
       CarryRN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
         motion: { clip: carryRN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -225,7 +255,11 @@ layers:
           - { to: Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: CarryRP, when: [ IsLocal is false, Palm/SignP is true ] }
       CarryLP:
+        behaviours:
+          - driver: { set: { Palm/Sign: 1 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
         motion: { clip: carryLP }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -238,7 +272,11 @@ layers:
           - { to: Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: CarryLN, when: [ IsLocal is false, Palm/SignN is true ] }
       CarryLN:
+        behaviours:
+          - driver: { set: { Palm/Sign: 2 } }
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
         motion: { clip: carryLN }
         transitions:
           - { to: Disabled, when: [ AbsoluteGrip/Enable is false ] }
@@ -251,7 +289,10 @@ layers:
           - { to: Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: CarryLP, when: [ IsLocal is false, Palm/SignP is true ] }
       Released:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: released }
         transitions:
           - { to: Dropped, when: [  ], exitTime: 1.0 }
