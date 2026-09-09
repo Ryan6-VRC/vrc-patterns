@@ -291,6 +291,8 @@ layers:
           - { to: Acquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: CarryLP, when: [ IsLocal is false, Palm/SignP is true ] }
       Released:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: released }
         transitions:
           - { to: Dropped, when: [  ], exitTime: 1.0 }

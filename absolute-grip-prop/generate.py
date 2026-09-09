@@ -26,8 +26,9 @@ constant; signed values are only ever read through a 1D tree's blend parameter o
   CueVel = Cue - Cue_d1                            the cue's per-frame step, delayed on the two nonnegative halves
 
 Hop structure (one frame per AAP hop, runtime.md SAnimator evaluation):
-  frame n  : E_j, SumE, Mid, G_k, S_L, O_P, HandDiff, Cue and the active state's P_k / T / axis from readings(n), S(n-1)
-  frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; the positive/negative halves of Mid
+  frame n  : E_j, SumE, Mid, G_k, S_L, O_P, HandDiff, Cue, CueVel (contemporaneous with Cue -- it reads the halves'
+             delayed copies, never Cue) and the active state's P_k / T / axis from readings(n), S(n-1)
+  frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; CueP_d1, CueN_d1; the positive/negative halves of Mid
   frame n+2: SqrtDisc = lut(Disc); SumE_d2; MM from the halves
   frame n+3: S = 3/8 (SumE_d2 - SqrtDisc)
 The cue trails the axis by two more stages (AAP write -> constraint solve moves the proxies -> the contacts sample
@@ -63,7 +64,7 @@ BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it
+CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the synced tip position never enters it and a remote grabber's IK smoothing moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.5495252, -0.5495252, -0.4449967, 0.4449967)   # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose, the shipped hammer's, tuned in-client on one base: shaft along the palm axis, head toward the thumb side and leaned 12 degrees about the palm normal so it falls toward the heel of the hand
 GRIP_L = (0.5495252, 0.5495252, 0.4449967, 0.4449967)     # Frame/GripL localRotation: the authored left-hand grip pose, the same lean mirrored, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
@@ -541,7 +542,12 @@ def glue_states():
                                                   {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 1 if s == 'P' else 0, SIGN_BITS['N']: 1 if s == 'N' else 0}}}],
                                       transitions=common() + loss + [{'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false', f'{SIGN_BITS[adopt]} is true']}])
     st.update({
-        'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
+        # The sign word is retired here, not at the next latch: every carry ends through Released, so without this a
+        # remote that settles a fresh grab before the wearer's Carry re-publishes would adopt the PREVIOUS grab's sign
+        # for the fill plus the confirm dwell. The clip is 0.5 s and leaves only on its exit time, so the clear sits a
+        # full clip past the Carry set, well clear of the wire's 0.2 s set-then-clear floor (runtime.md §Parameters).
+        'Released': dict(clip='released', behaviours=[{'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
+                         transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
         'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
     })

@@ -330,6 +330,8 @@ layers:
       # ---- grab-sync's skeleton from here on.
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: released }
         transitions:
           - { to: Resume,  when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
