@@ -1,15 +1,42 @@
-# zone-touch — N-zone touch reaction done right (the corrected vendor touch-spots package; mechanism from
-# a private production avatar's headpat, generalized — gimmicks.md §Contacts "Sync only the divergent outcome").
+# zone-touch — N-zone touch reaction with a tiered rarity table (the corrected vendor touch-spots package;
+# mechanism from a private production avatar's headpat, generalized — gimmicks.md §Contacts "Sync only the
+# divergent outcome"; the tier table and the lockout are the shape of a sibling grip-prop gimmick).
 # Every client's copy of this machine runs on its OWN receivers (localOnly:0, allowSelf+Others):
 # the common-case reaction reproduces per-client at 0 synced bits, 0 latency. Synced bits are
 # spent only on what remotes cannot re-derive:
-#   ZoneTouch/Enable  (1 bit)  — gates REMOTE sensing too: off must silence every client's
-#                                receivers, so the enable is synced (receiver GOs animate off).
-#   ZoneTouch/Special (1 bit)  — the divergent outcome: a local random roll (driver type Random)
-#                                selects the rare special reaction; remotes follow the bool.
-# Level-handshake rearm: the wearer's dwell is the only clock — local drops Special on release
-# (Cooldown entry), remotes leave Special on the FALLING EDGE and re-arm. No remote timers to
+#   ZoneTouch/Enable    (1 bit)  — gates REMOTE sensing too: off must silence every client's
+#                                  receivers, so the enable is synced (receiver GOs animate off).
+#   ZoneTouch/SpecialA  (1 bit)  — the divergent outcome, a 2-bit tier code: A=1, B=2, A+B=3, none=0.
+#   ZoneTouch/SpecialB  (1 bit)    A local int roll selects the tier; remotes follow the pair. Both
+#                                  bits are written by ONE driver so they cross the wire as one snapshot.
+# Level-handshake rearm: the wearer's dwell is the only clock — local drops the pair on release
+# (Cooldown entry), remotes leave the tier on the FALLING EDGE and re-arm. No remote timers to
 # skew; late-join-safe (unsaved default-0).
+#
+# The roll is one uniform int over 0..999 (Roll, unsynced — an unsynced int carries values above 255,
+# runtime.md §Parameters) read by a rarest-first band ladder: the band WIDTHS are the probability
+# table and the ladder ORDER is load-bearing (a wider band listed first would shadow a narrower one).
+#   Roll less 2    -> tier 3   2/1000 = 1 in 500   (super rare; a lockout of at least 3 s, everywhere)
+#   Roll less 7    -> tier 2   5/1000 = 1 in 200   (rare;     0.3 s floor)      [bands are DISJOINT]
+#   Roll less 107  -> tier 1 100/1000 = 1 in 10     (uncommon; 0.3 s floor)
+#   else           -> common, never synced
+# Roll defaults 1000 (outside every band) and is reset there on every tier entry, so an un-rolled or
+# stale copy can never read a tier; the driver's write lands one evaluation after React entry, and the
+# ladder reads it on the next — where the tier rungs outrank the release rung, so a touch already
+# released by then still takes its tier. The sentinel must stay above the widest band cutoff at every
+# site that writes it (the default, Disabled, each Special<k>) whenever the range or the bands move.
+#
+# Every synced tier has a HOLD FLOOR — the set→clear pair on a synced param needs ~0.2 s of separation
+# to be seen remotely (runtime.md §Parameters), and without a floor the pair's width is the touch
+# length, so a tap released inside that window is a special no remote ever shows. Each tier is a
+# state PAIR: Special<k> holds for its clip length (exitTime 1.0, unconditional), then Held<k> keeps
+# the reaction while the touch persists and exits on release. Two states because an exit-time rung
+# carrying conditions re-checks them only when the state's time crosses the exit time again (every
+# clip period at exitTime ≤ 1, never at > 1 — measured on a bare Animator), so a single state would
+# quantize the release to the floor period. Remotes never enter Held: their exit is the falling edge.
+# The observable width of the pair is the clip give or take ~2 frames: the set and the clear each
+# land at a state boundary (runtime.md §Animator evaluation) and the Held hop adds one, so the floor
+# carries a low-frame-rate margin over the wire floor rather than sitting on it.
 #
 # The five vendor defects this structure is built against (each is an emulator assertion):
 #   1 sensing params synced+saved      -> sensing floats never synced/saved, params-asset legible
@@ -33,28 +60,29 @@ defaults:
   transition: { duration: 0, exitTime: none, interruption: none }
 
 parameters:
-  ZoneTouch/Enable:  { type: bool, default: false, vrc: { synced: true, saved: false } }
-  ZoneTouch/Special: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  ZoneTouch/Enable:   { type: bool, default: false, vrc: { synced: true, saved: false } }
+  ZoneTouch/SpecialA: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  ZoneTouch/SpecialB: { type: bool, default: false, vrc: { synced: true, saved: false } }
   # Sensing — never synced/saved; listed in the params asset for legibility. localOnly:0
   # receivers: every client's own copy senses the toucher.
   ZoneTouch/Zone1: float
   ZoneTouch/Zone2: float
   ZoneTouch/Zone3: float
-  # The roll residue — local-only decision memory, kept out of the params asset.
-  ZoneTouch/RollHit: { type: bool, scratch: true }
+  # The roll — local-only decision memory, kept out of the params asset. Default sits outside every band.
+  ZoneTouch/Roll: { type: int, default: 1000, scratch: true }
   IsLocal: bool              # VRC built-in
 
 layers:
   - name: ZoneTouch/Control
     states:
-      # Default OFF (defect 5). Off-is-reset: entry clears Special locally; the clip disables
+      # Default OFF (defect 5). Off-is-reset: entry clears the tier pair locally; the clip disables
       # every receiver GO, so remotes' sensing dies with the synced Enable. A disabled receiver
       # GO freezes its float at the last value — the second driver zeroes the zone floats on
       # every client (localOnly false; unsynced sensing) so a touch held at disable time can't
       # replay a spurious React on re-enable.
       Disabled:
         behaviours:
-          - driver: { localOnly: true, set: { ZoneTouch/Special: 0 } }
+          - driver: { localOnly: true, set: { ZoneTouch/SpecialA: 0, ZoneTouch/SpecialB: 0, ZoneTouch/Roll: 1000 } }
           - driver: { set: { ZoneTouch/Zone1: 0, ZoneTouch/Zone2: 0, ZoneTouch/Zone3: 0 } }
         motion: { clip: zt_disabled }
         transitions:
@@ -63,68 +91,133 @@ layers:
         motion: { clip: zt_idle }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
-          # The synced special outranks local sensing: a remote (or late joiner) lands here and
-          # follows the bool without ever seeing a contact.
-          - { to: Special, when: [ ZoneTouch/Special is true ] }
+          # The synced tier outranks local sensing: a remote (or late joiner, or a mirror clone
+          # replaying the wearer's pair) lands here and follows the code without ever seeing a
+          # contact. Ungated: the wearer's own pair is 0 whenever it is here.
+          - { to: Special3, when: [ ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is true ] }
+          - { to: Special2, when: [ ZoneTouch/SpecialA is false, ZoneTouch/SpecialB is true ] }
+          - { to: Special1, when: [ ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is false ] }
           # Arbitration ladder (defect 3): first match wins, Zone1 > Zone2 > Zone3 on coincident
           # touches; one machine means one writer on the reaction rig.
           - { to: React1, when: [ ZoneTouch/Zone1 greater 0 ] }
           - { to: React2, when: [ ZoneTouch/Zone2 greater 0 ] }
           - { to: React3, when: [ ZoneTouch/Zone3 greater 0 ] }
       # One React state per zone so a per-zone reaction is a clip swap, not surgery. Entry rolls
-      # the special odds ONCE per touch episode (local; chance is the consumer-tunable knob).
-      # The reaction plays once and holds while the zone stays touched (defect 4) — no self edge.
+      # the tier table ONCE per touch episode (local). The reaction plays once and holds while the
+      # zone stays touched (defect 4) — no self edge. The tier ladder sits above the release rung so
+      # a roll wins on the frame both hold; the three ladders MUST agree (README). The follow rungs are
+      # gated IsLocal false here (Idle's are not): the wearer's pair is 0 in React, so the gate is
+      # defence in depth against a stale code, not a live path.
       React1:
         behaviours:
-          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+          - driver: { localOnly: true, random: { ZoneTouch/Roll: { min: 0, max: 999 } } }
         motion: { clip: zt_react }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
-          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
-          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Special3, when: [ IsLocal is true, ZoneTouch/Roll less 2 ] }
+          - { to: Special2, when: [ IsLocal is true, ZoneTouch/Roll less 7 ] }
+          - { to: Special1, when: [ IsLocal is true, ZoneTouch/Roll less 107 ] }
+          - { to: Special3, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is true ] }
+          - { to: Special2, when: [ IsLocal is false, ZoneTouch/SpecialA is false, ZoneTouch/SpecialB is true ] }
+          - { to: Special1, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is false ] }
           - { to: Cooldown, when: [ ZoneTouch/Zone1 less 0.00001 ] }
       React2:
         behaviours:
-          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+          - driver: { localOnly: true, random: { ZoneTouch/Roll: { min: 0, max: 999 } } }
         motion: { clip: zt_react }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
-          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
-          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Special3, when: [ IsLocal is true, ZoneTouch/Roll less 2 ] }
+          - { to: Special2, when: [ IsLocal is true, ZoneTouch/Roll less 7 ] }
+          - { to: Special1, when: [ IsLocal is true, ZoneTouch/Roll less 107 ] }
+          - { to: Special3, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is true ] }
+          - { to: Special2, when: [ IsLocal is false, ZoneTouch/SpecialA is false, ZoneTouch/SpecialB is true ] }
+          - { to: Special1, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is false ] }
           - { to: Cooldown, when: [ ZoneTouch/Zone2 less 0.00001 ] }
       React3:
         behaviours:
-          - driver: { localOnly: true, random: { ZoneTouch/RollHit: { chance: 0.02 } } }
+          - driver: { localOnly: true, random: { ZoneTouch/Roll: { min: 0, max: 999 } } }
         motion: { clip: zt_react }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
-          - { to: Special,  when: [ IsLocal is true, ZoneTouch/RollHit is true ] }
-          - { to: Special,  when: [ IsLocal is false, ZoneTouch/Special is true ] }
+          - { to: Special3, when: [ IsLocal is true, ZoneTouch/Roll less 2 ] }
+          - { to: Special2, when: [ IsLocal is true, ZoneTouch/Roll less 7 ] }
+          - { to: Special1, when: [ IsLocal is true, ZoneTouch/Roll less 107 ] }
+          - { to: Special3, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is true ] }
+          - { to: Special2, when: [ IsLocal is false, ZoneTouch/SpecialA is false, ZoneTouch/SpecialB is true ] }
+          - { to: Special1, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is false ] }
           - { to: Cooldown, when: [ ZoneTouch/Zone3 less 0.00001 ] }
-      # The divergent branch. Local stamps the bool on entry (the roll is why remotes can't
-      # re-derive this); local exit is the WEARER's release (any-zone check — the dwell state is
-      # the clock), remote exit is the falling edge. RollHit clears on entry so the residue
-      # can't re-fire next episode.
-      Special:
+      # The divergent branch, one pair per tier. Special<k>: local stamps the tier code on entry (the
+      # roll is why remotes can't re-derive this) and resets the roll so the residue can't re-fire;
+      # the state holds its clip length with NO zone rung — the floor, and for tier 3 the lockout —
+      # then the wearer moves to Held<k> — that hop's IsLocal gate is constant over the state, which is what
+      # makes an exit-time rung with a condition safe (animator-schema.md §transitions). Remote exit is the
+      # falling edge (the pair no longer codes k),
+      # gated IsLocal false: on the wearer's entry frame the pair still reads 0 (the set lands a
+      # frame later) and an ungated rung would bounce straight out.
+      Special1:
         behaviours:
-          - driver: { localOnly: true, set: { ZoneTouch/Special: 1, ZoneTouch/RollHit: 0 } }
-        motion: { clip: zt_special }
+          - driver: { localOnly: true, set: { ZoneTouch/SpecialA: 1, ZoneTouch/SpecialB: 0, ZoneTouch/Roll: 1000 } }
+        motion: { clip: zt_special1 }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
-          - { to: Cooldown, when: [ IsLocal is true, ZoneTouch/Zone1 less 0.00001, ZoneTouch/Zone2 less 0.00001, ZoneTouch/Zone3 less 0.00001 ] }
-          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/Special is false ] }
+          - { to: Held1,    when: [ IsLocal is true ], exitTime: 1.0 }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialA is false ] }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialB is true ] }
+      Special2:
+        behaviours:
+          - driver: { localOnly: true, set: { ZoneTouch/SpecialA: 0, ZoneTouch/SpecialB: 1, ZoneTouch/Roll: 1000 } }
+        motion: { clip: zt_special2 }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Held2,    when: [ IsLocal is true ], exitTime: 1.0 }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialA is true ] }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialB is false ] }
+      Special3:
+        behaviours:
+          - driver: { localOnly: true, set: { ZoneTouch/SpecialA: 1, ZoneTouch/SpecialB: 1, ZoneTouch/Roll: 1000 } }
+        motion: { clip: zt_special3 }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Held3,    when: [ IsLocal is true ], exitTime: 1.0 }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialA is false ] }
+          - { to: Cooldown, when: [ IsLocal is false, ZoneTouch/SpecialB is false ] }
+      # Held<k>: wearer only — the reaction continues while any zone stays touched (the dwell state
+      # is the clock), and release enters Cooldown, whose entry drops the pair. Held<k> re-enters the
+      # tier clip from t=0 and loops it for the hold: an animated tier clip restarts here.
+      Held1:
+        motion: { clip: zt_special1 }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone1 less 0.00001, ZoneTouch/Zone2 less 0.00001, ZoneTouch/Zone3 less 0.00001 ] }
+      Held2:
+        motion: { clip: zt_special2 }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone1 less 0.00001, ZoneTouch/Zone2 less 0.00001, ZoneTouch/Zone3 less 0.00001 ] }
+      Held3:
+        motion: { clip: zt_special3 }
+        transitions:
+          - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Cooldown, when: [ ZoneTouch/Zone1 less 0.00001, ZoneTouch/Zone2 less 0.00001, ZoneTouch/Zone3 less 0.00001 ] }
       # Debounce dwell (defect 2): no zone edge leaves here, so a re-touch inside the window is
-      # ignored. Entry drops Special — the falling edge remotes rearm on.
+      # ignored. Entry drops the pair — the falling edge remotes rearm on; the dwell is what
+      # guarantees the 0 is on the wire before the next tier can be set. A remote follows a fresh
+      # tier from here without waiting out the dwell (gated IsLocal false: the wearer's pair still
+      # reads the old code on its entry frame).
       Cooldown:
         behaviours:
-          - driver: { localOnly: true, set: { ZoneTouch/Special: 0 } }
+          - driver: { localOnly: true, set: { ZoneTouch/SpecialA: 0, ZoneTouch/SpecialB: 0 } }
         motion: { clip: zt_cooldown }
         transitions:
           - { to: Disabled, when: [ ZoneTouch/Enable is false ] }
+          - { to: Special3, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is true ] }
+          - { to: Special2, when: [ IsLocal is false, ZoneTouch/SpecialA is false, ZoneTouch/SpecialB is true ] }
+          - { to: Special1, when: [ IsLocal is false, ZoneTouch/SpecialA is true,  ZoneTouch/SpecialB is false ] }
           - { to: Idle, when: [], exitTime: 1.0 }
     default: Disabled
-    # Lifecycle descends Disabled -> Idle; the React fan spreads one row below Idle; the
-    # divergent lane (Special) sits right, Cooldown closes the loop under the fan.
+    # Lifecycle descends Disabled -> Idle; the React fan spreads one row below Idle; the tier lanes
+    # sit right, rarest lowest, each with its Held beside it; Cooldown closes the loop under the fan.
     layout:
       nodes:
         Disabled: [30, 180]
@@ -132,7 +225,12 @@ layers:
         React1:   [-270, 340]
         React2:   [30, 340]
         React3:   [330, 340]
-        Special:  [630, 340]
+        Special1: [630, 260]
+        Held1:    [930, 260]
+        Special2: [630, 340]
+        Held2:    [930, 340]
+        Special3: [630, 420]
+        Held3:    [930, 420]
         Cooldown: [30, 420]
       entry: [50, 120]
       any:   [50, 40]
@@ -170,9 +268,13 @@ clips:
       "ReactProxy/Transform.m_LocalScale.x": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
       "ReactProxy/Transform.m_LocalScale.y": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
       "ReactProxy/Transform.m_LocalScale.z": [ [0, 1], [0.15, 1.4], [0.5, 1] ]
-  # Special reaction: sustained double-size while the bool holds — visibly distinct from the
-  # pulse so the divergent branch reads at a glance (and in a render diff).
-  zt_special:
+  # Tier reactions: a sustained size per tier while the code holds — one glance (or a render diff)
+  # tells the tiers apart, and on a clone the scale is the readable tier (its FX has no state names).
+  # Each clip's length is that tier's HOLD FLOOR: the synced pair stays set about this long, give or
+  # take ~2 frames (header). 0.3 s covers the 0.2 s wire floor plus two boundary frames down to ~20 fps
+  # [EMPIRICAL: 0.3 s measured 0.333 s wearer / 0.317 s clone at 60 fps; the sibling's 0.25 s read 0.224 s].
+  zt_special1:
+    seconds: 0.3
     set:
       "Zones/Zone1/GameObject.m_IsActive": 1
       "Zones/Zone2/GameObject.m_IsActive": 1
@@ -180,7 +282,29 @@ clips:
       "ReactProxy/Transform.m_LocalScale.x": 2
       "ReactProxy/Transform.m_LocalScale.y": 2
       "ReactProxy/Transform.m_LocalScale.z": 2
-  # Debounce dwell = this clip's length; no zone edge leaves Cooldown  [EMPIRICAL: emulator sweep]
+  zt_special2:
+    seconds: 0.3
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+      "ReactProxy/Transform.m_LocalScale.x": 3
+      "ReactProxy/Transform.m_LocalScale.y": 3
+      "ReactProxy/Transform.m_LocalScale.z": 3
+  # Tier 3 is the LOCKOUT form: the floor is the whole reaction, zones are ignored on every client
+  # for its length, and a release inside it changes nothing — a special roll plays out in full. The
+  # dead window is at least this plus the Held frame and the Cooldown dwell, longer while the touch persists.
+  zt_special3:
+    seconds: 3.0
+    set:
+      "Zones/Zone1/GameObject.m_IsActive": 1
+      "Zones/Zone2/GameObject.m_IsActive": 1
+      "Zones/Zone3/GameObject.m_IsActive": 1
+      "ReactProxy/Transform.m_LocalScale.x": 4
+      "ReactProxy/Transform.m_LocalScale.y": 4
+      "ReactProxy/Transform.m_LocalScale.z": 4
+  # Debounce dwell = this clip's length; no zone edge leaves Cooldown. Above the 0.2 s wire floor so
+  # the cleared pair is on the wire before the next tier can be set  [EMPIRICAL: emulator sweep]
   zt_cooldown:
     seconds: 0.5
     set:
