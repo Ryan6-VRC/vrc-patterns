@@ -462,6 +462,8 @@ for cn, c in GLUE_CLIPS.items():
 ENABLE = GLUE + 'Enable'
 HAND = P('Hand')                                                                        # int, driver-set at the latch: 1 = right, 2 = left
 HAND_OF = {'R': 1, 'L': 2}
+SIGN = P('Sign')                                                                        # int, driver-set on entry to each Confirm: 1 = +axis (P), 2 = -axis (N)
+SIGN_OF = {'P': 1, 'N': 2}
 LATCH = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}   # the latch rungs: a decisive differential names the hand
 HANDS = {h: f'{HAND} equals {v}' for h, v in HAND_OF.items()}                            # the engage rungs read the recorded hand
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
@@ -477,7 +479,7 @@ def glue_states():
     en_off = f'{ENABLE} is false'
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
     all_pos = [f'{P(r)} greater 0' for r in READINGS]
-    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0
+    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0; zero[SIGN] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
     common = lambda: [{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}]
@@ -497,7 +499,7 @@ def glue_states():
         # alike, or none, take no latch; the gate is never read again.
         'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed] + all_pos + [LATCH[h]]} for h in 'RL']),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h]}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
+        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h], SIGN: 0}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
         # Four rungs into the Confirm for the recorded hand and the sensed sign; an undecided sign or lever falls through to the
         # timeout, which stows: a palm that broke and returned behind the shut box filters is inside the boxes and never re-enters.
@@ -507,7 +509,7 @@ def glue_states():
     for h in 'RL':
         for s in 'PN':
             # Any readout condition failing during the dwell returns to Settled (the recorded hand cannot fail); the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
+            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s]}}}], transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
@@ -550,6 +552,7 @@ def emit_glue():
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
          f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it',
+         f'  {SIGN}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched axis sign, driver-set on entry to each Confirm (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
     L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
