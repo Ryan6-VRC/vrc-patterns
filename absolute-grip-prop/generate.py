@@ -57,8 +57,9 @@ OUT_GLUE = os.path.join(HERE, 'controller.yaml')
 
 # ---------------- config ----------------
 # Box geometry at WORKING scale (host localScale 1). F = +Z face plane from the box centre, D = depth; the box is
-# (2F, 2F, D) full extents. Large so a remote client's IK-lagged hand sender, which trails the synced grab point
-# during motion, stays inside every box's linear range. Any change regenerates everything.
+# (2F, 2F, D) full extents. Far larger than the palm: the grab target and the palm sender both ride the client's own rendered
+# hand (a live grab syncs only the flag and the holding hand, runtime.md SPhysbones), so the palm never trails the tip and the
+# linear range is not a constraint; the size costs nothing and covers the snap frames. Any change regenerates everything.
 F, D = 0.75, 1.5
 K = 0.5                               # r/s on every VRChat Automatic base
 QA = 16 * K * K - 4 / 3               # 8/3
@@ -80,7 +81,7 @@ BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the synced tip position never enters it and a remote grabber's IK smoothing moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
+CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the tip never enters it and a remote grabber's IK interpolation moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
 ORI_M = 0.002                         # metres of cage-axis lead: the wearer's hysteresis on which axis its word names. Out of Idle the bands OVERLAP by this (X, then Y, then Z wins a near-tie by rung order: a world-vertical grip axis, the natural tool grip, has three equal cage components since the cage tilt puts its cube diagonal on world up), a switch to another axis needs the newcomer to lead by it, and a same-axis sign flip re-tests the entry band, never the switch band
 ORI_DB = 0.005                        # metres of a remote's own projection on the word's cage axis before it switches sign on the word: |axis| = 4/3 s >= 0.016 m over the S band, so the wearer's named component is >= 0.009 m and a remote whose line agrees within ~30 deg clears this; a remote under it holds its own cue's sign (its line disagrees too far for the word to say anything about it), and contact noise (~1e-3 m per frame) cannot walk a projection across a band this wide, so the two Carry signs never chatter. Not a dominance test: at the vertical near-tie all three components sit at the floor and a dominance test would refuse the common pose
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
@@ -410,8 +411,8 @@ RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twel
 def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
-    boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
-    reject the palm that leaves it and returns, which a remote's lagging palm does). scale selects the
+    boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and never again, so a shut
+    sphere there buys nothing and can only refuse a re-latch). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
     grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
@@ -487,7 +488,7 @@ GLUE_CLIPS = {
 }
 # Refusal: a cue or gate receiver whose filters a clip could shut is a receiver that never re-admits a contact that broke
 # (a latched contact that fully breaks cannot re-latch while filters are shut): the pinky-side cue contact breaks during a
-# curl, and a remote grabber's palm leaves the gate sphere on any fast swing.
+# curl, and the gate spheres are never read after the latch, so a shut filter there buys nothing and can only refuse a re-latch.
 for cn, c in GLUE_CLIPS.items():
     for k in list(c['set']) + list(c.get('curves', {})):
         if re.search(r'/(Cue[PN]|Hand[LR])/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue or gate receiver filter ({k})')
