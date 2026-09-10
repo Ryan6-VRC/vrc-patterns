@@ -24,8 +24,9 @@ rotation pin to assets/World.prefab (world identity everywhere); a source-less F
 loaded the avatar in, or holds nothing at all, and either way makes the word a per-client reading again (runtime.md
 SConstraints; --check pins it). The bits are driven by Set drivers on states entered through threshold conditions over
 the readout's AAPs (a driver Copy reads the parameter's declared default, never the live AAP). A remote in Carry
-compares its OWN Axis_k against the word and switches to the Carry state whose rendered axis agrees; nothing compares
-patterns, so a small line error on a remote degrades to a small angle, never to a flip.
+compares its OWN Axis_k against the word and switches to the Carry state whose rendered axis agrees, once that projection
+clears ORI_DB; nothing compares patterns, so a small line error on a remote degrades to a small angle, never to a flip,
+and a remote whose line is too far off for its projection to clear the band keeps its own cue's sign.
 
 Arithmetic conventions (the schema's clamp rule: a Direct weight is clamped >= 0, so every sign lives in a clip
 constant; signed values are only ever read through a 1D tree's blend parameter or a transition condition):
@@ -80,7 +81,8 @@ GATE_M = 0.1                          # |HandDiff| the latch needs to decide the
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
 CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the synced tip position never enters it and a remote grabber's IK smoothing moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
-ORI_M = 0.002                         # metres of cage-axis projection: the wearer's hysteresis on which axis dominates (a switch needs the newcomer to lead by this; the first word out of Idle takes the bare argmax so a near-tie still publishes) and a remote's dead band on its own projection before it switches sign. |axis| = 4/3 s >= 0.016 m over the S band, so the dominant component is >= 0.009 m and a genuine mismatch clears this more than fourfold
+ORI_M = 0.002                         # metres of cage-axis lead: the wearer's hysteresis on which axis its word names. Out of Idle the bands OVERLAP by this (X, then Y, then Z wins a near-tie by rung order: a world-vertical grip axis, the natural tool grip, has three equal cage components since the cage tilt puts its cube diagonal on world up), a switch to another axis needs the newcomer to lead by it, and a same-axis sign flip re-tests the entry band, never the switch band
+ORI_DB = 0.005                        # metres of a remote's own projection on the word's cage axis before it switches sign on the word: |axis| = 4/3 s >= 0.016 m over the S band, so the wearer's named component is >= 0.009 m and a remote whose line agrees within ~30 deg clears this; a remote under it holds its own cue's sign (its line disagrees too far for the word to say anything about it), and contact noise (~1e-3 m per frame) cannot walk a projection across a band this wide, so the two Carry signs never chatter. Not a dominance test: at the vertical near-tie all three components sit at the floor and a dominance test would refuse the common pose
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.5495252, -0.5495252, -0.4449967, 0.4449967)   # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose, the shipped hammer's, tuned in-client on one base: shaft along the palm axis, head toward the thumb side and leaned 12 degrees about the palm normal so it falls toward the heel of the hand
 GRIP_L = (0.5495252, 0.5495252, 0.4449967, 0.4449967)     # Frame/GripL localRotation: the authored left-hand grip pose, the same lean mirrored, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
@@ -571,14 +573,14 @@ def glue_states():
             # the carry gate the Word layer publishes under. The six match rungs are a remote's only sign edit and sit last (a broken
             # box reading outranks a sign switch): the word names the cage axis k the wearer's rendered grip axis dominates and its
             # sign there; this client renders +Axis in a P state and -Axis in an N state, so it switches when its own Axis_k puts the
-            # rendered sign on the other side of the word, past the ORI_M dead band. No pattern test: an antipode pattern flips
+            # rendered sign on the other side of the word, past the ORI_DB dead band. No pattern test: an antipode pattern flips
             # Axis_k and the rung reads exactly that. A word of 00 (none yet) matches no rung, so the remote holds its own cue's sign.
             adopt = 'N' if s == 'P' else 'P'
             match = []
             for k in 'XYZ':
                 for neg in (False, True):
                     want = -(-1 if neg else 1) * (1 if s == 'P' else -1)     # the sign of this client's Axis_k that renders the word's opposite
-                    match.append({'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false'] + word_is(k, neg) + [f'{P("Axis" + k)} {"greater" if want > 0 else "less"} {fmt(want * ORI_M)}']})
+                    match.append({'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false'] + word_is(k, neg) + [f'{P("Axis" + k)} {"greater" if want > 0 else "less"} {fmt(want * ORI_DB)}']})
             st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s], CARRY: 1}}}], transitions=common() + loss + match)
     st.update({
         # The carry gate drops here as well as at Acquire: every carry ends through Released, and without it the word would stand
@@ -597,16 +599,18 @@ def word_states():
     Palm/Carry gates the layer: the clear lands one frame after Acquire, Released or Disabled, the set one frame after Carry, so a
     set and the clear before it stand the fill plus the confirm dwell apart at the least -- clear of the wire's 0.2 s set-then-clear
     floor (runtime.md SParameters); a word that changes as the hand turns is a durable set-and-hold the floor does not bind. The
-    first word out of Idle takes the bare argmax; a switch between axes needs the newcomer to lead by ORI_M, so a component pair
-    dithering at a tie holds the current word rather than re-publishing every frame. A remote never leaves Idle (IsLocal), and its
-    localOnly drivers would write nothing if it did."""
+    first word out of Idle is taken on bands that overlap by ORI_M, so a near-tie (the vertical grip: three equal components) always
+    publishes, X before Y before Z by rung order; a switch to another axis needs the newcomer to lead by ORI_M, so a pair dithering
+    at a tie holds the current word rather than re-publishing every frame; a same-axis sign flip (an antipodal readout hop on the
+    wearer) re-tests the overlapping entry band, because demanding the switch band there would leave a stale sign published for as
+    long as the near-tie held. A remote never leaves Idle (IsLocal), and its localOnly drivers would write nothing if it did."""
     def rungs(src):
         out = [] if src == 'Idle' else [{'to': 'Idle', 'when': [f'{CARRY} equals 0']}]
-        margin = 0.0 if src == 'Idle' else ORI_M
         for k in 'XYZ':
             for neg in (False, True):
                 tgt = f'Ori{k}{"N" if neg else "P"}'
                 if tgt == src: continue
+                margin = ORI_M if src != 'Idle' and src[3] != k else -ORI_M
                 for sg in 'PN':
                     # rendered = +Axis in a P carry, -Axis in an N carry: the rendered sign along k is sign(Axis_k), flipped in an N carry
                     op = 'greater' if (sg == 'P') != neg else 'less'
