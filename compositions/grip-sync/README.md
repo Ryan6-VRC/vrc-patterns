@@ -1,12 +1,12 @@
 # grip-sync — an authored-grip prop whose rests are shared truth (Composition)
 
-Take the prop off the wearer and it lands in the same authored grip in every hand on every client; set it down anywhere and everyone in the instance sees it resting exactly there, tilt included, a player who joins later too, and a re-grab picks it up from where it rests with no snap, from any join state. The carry is `absolute-grip-prop`'s: position from the natively synced physbone grab, orientation re-derived on every client from the grabber's palm with the axis sign taken from the wearer's own read, an authored grip pose under that frame. The rest is `object-sync`'s: the wearer's frozen pose crosses the wire as an absolute position and full rotation, so placement is exact rather than replayed. One prefab ships, **`GripSync.prefab`**: one prop on this composition's own full-rotation `object-sync` build at the mount prefix, one `Detached` bit and the cell's two-bit sign word on top of its 27-bit wire, **31 synced bits** with `Enable`, 24 contact receivers (12 on the tip, 12 at the sync rig's park), no FinalIK.
+Take the prop off the wearer and it lands in the same authored grip in every hand on every client; set it down anywhere and everyone in the instance sees it resting exactly there, tilt included, a player who joins later too, and a re-grab picks it up from where it rests with no snap, from any join state. The carry is `absolute-grip-prop`'s: position from the natively synced physbone grab, orientation re-derived on every client from the grabber's palm with its sign along the axis matched to the wearer's published grip orientation, an authored grip pose under that frame. The rest is `object-sync`'s: the wearer's frozen pose crosses the wire as an absolute position and full rotation, so placement is exact rather than replayed. One prefab ships, **`GripSync.prefab`**: one prop on this composition's own full-rotation `object-sync` build at the mount prefix, one `Detached` bit and the cell's three-bit orientation word on top of its 27-bit wire, **32 synced bits** with `Enable`, 24 contact receivers (12 on the tip, 12 at the sync rig's park), no FinalIK.
 
 ## What it composes
 
 | entry | what it contributes |
 |---|---|
-| `absolute-grip-prop` | the grab/release cell, the palm readout, the hand latch and sign confirm, the wearer's two-bit sign word, the authored per-hand grip |
+| `absolute-grip-prop` | the grab/release cell, the palm readout, the hand latch and sign confirm, the wearer's three-bit orientation word and the world pin it is read against, the authored per-hand grip |
 | `object-sync` (entry root: full rotation) | absolute world position + rotation for the rest, late-join included |
 | `word-channel` | the wire underneath (reached through `object-sync`) |
 
