@@ -3,7 +3,7 @@
 # The clip table below the BEGIN marker is emitted (generate.py owns it, and its docstring is the design record): cell bindings read live from ../../absolute-grip-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/AbsoluteGripProp/ prefix — plus the glue value-sets and the two carves. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grip Arrive/Grip Acquire→grip_acquire, Grip Reacquire→grip_reacquire, Grip LatchedR/L→grip_latched, Grip Settling→grip_settling, Grip Settled→grip_settled, Grip ConfirmXY/Grip CarryXY→grip_carryXY, Released→released, Dropped→dropped, Waiting→waiting, Acquire→acquire, Bridge→bridge, Synced→synced, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab.
 # Transcription rule, grab-sync side: every rung that entered `Grabbed` enters `Grip Arrive` (Anchored, Dropped, Waiting, Bridge, Reacquire, Resume_Grab) — `Grip Arrive` is the sole gateway into the sub-graph, and its arrive dwell is the entry's first-grabbed-frame guard, which a remote's re-grab needs as much as a fresh grab. Everything else transcribes 1:1: the boot dwell, Waiting's late-join ladder, Released's IsLocal split and its no-early-exit rule, the word states, the Reacquire dwell and the Resume park.
 # Transcription rule, cell side: every `Grip` state's rungs are the entry's, with the polarity map `AbsoluteGrip/Enable is false` → `ObjectSync/Enable less 0.5` (float, so no equality), `Released`/`Disabled`/`Dropped`/`Waiting`/`Anchored` targets landing on this document's states of those names, and ONE added rung per Grip state: the cull pre-arm `IsAnimatorEnabled is false → Resume`, placed immediately after the Enable-off rung. Placement is load-bearing: the ladder is first-match, the pre-halt window is one frame, and eight Grip states end in an unconditional exit-time rung that would shadow a pre-arm appended below it.
-# `Disabled` is the merge of both documents' Disabled: it keeps the cell's `exitTime: 1.0` on the exit to Anchored — the receivers are off for the 0.25 s stow dwell, and a same-evaluation off→on leaves a proximity receiver deaf for the session — and carries three drivers: `Detached: 0` localOnly (a synced bit, the wearer's to write), the cell's receiver-zeroing driver, NOT localOnly (sensing is per-client; a stowed receiver reads 0 and a stale reading would gate the enable that follows), and the cell's localOnly `Palm/SignP` / `Palm/SignN` clear. The cell's per-client tag drivers — `Palm/Hand` in Grip LatchedR/L, `Palm/Sign` in each Grip Confirm and each Grip Carry — stay NOT localOnly for the same reason: remotes reach the sub-graph through Reacquire, Resume_Grab and Bridge, and a localOnly stamp would stall a remote in Grip Acquire forever with no build error. The cell's `Palm/SignP` / `Palm/SignN` drivers are the one exception and transcribe localOnly unchanged: that pair is the wearer's authoritative sign on the wire, so a remote writing it would overwrite the value it received with its own read (the entry's README owns why the sign is the wearer's while the hand tag stays per-client).
+# `Disabled` is the merge of both documents' Disabled: it keeps the cell's `exitTime: 1.0` on the exit to Anchored — the receivers are off for the 0.25 s stow dwell, and a same-evaluation off→on leaves a proximity receiver deaf for the session — and carries two drivers: `Detached: 0` localOnly (a synced bit, the wearer's to write), and the cell's receiver-zeroing driver, NOT localOnly (sensing is per-client; a stowed receiver reads 0 and a stale reading would gate the enable that follows), which also drops the cell's `Palm/Carry` gate, from which the cell's Word layer (transcribed verbatim as this document's second layer) retires the wearer's orientation word. The cell's per-client tag drivers — `Palm/Hand` in Grip LatchedR/L, `Palm/Sign` in each Grip Confirm and each Grip Carry — stay NOT localOnly for the same reason: remotes reach the sub-graph through Reacquire, Resume_Grab and Bridge, and a localOnly stamp would stall a remote in Grip Acquire forever with no build error. The cell's `Palm/GripK0` / `Palm/GripK1` / `Palm/GripNeg` drivers live on the Word layer alone and transcribe localOnly unchanged: that word is the wearer's rendered grip axis on the wire, so a remote writing it would overwrite the value it received with its own read (the entry's README owns why orientation is the wearer's while the hand tag stays per-client). The Word layer takes no cull pre-arm rung: it runs on the wearer alone (`IsLocal`), whose own avatar is never culled, and `Palm/Carry` is the cell's own gate, dropped at Grip Acquire, Released and Disabled exactly as the entry drops it.
 # Glue value-sets (home slot on BOTH mux channels; the rotation mux is full-axis because the cell's home slot is its own Rotor's full-axis HomeAnchor/Offset — grab-sync's Y-only mask serves a drag heading this composition has no use for) — digits echo generate.py's VALUE_SETS, their canon:
 #   HOME    = mux w (0,0,1) both channels, damper passthrough   (Timer/Disabled/Waiting hidden; Anchored visible)
 #   CARRY   = mux w (1,0,0) both channels, damper passthrough   (every Grip state, Released, Dropped, Bridge)
@@ -35,8 +35,10 @@ parameters:
   # absolute-grip-prop's glue block, verbatim (its readout declares the twelve receiver floats un-scratch; this document only reads or zeroes them).
   Palm/Hand: { type: int, default: 0, scratch: true }   # this document's own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it
   Palm/Sign: { type: int, default: 0, scratch: true }   # this document's own: the latched axis sign as THIS client holds it, driver-set on entry to each Confirm and each Carry (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it
-  Palm/SignP: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wearer's authoritative sign, one-hot with SignN: written localOnly on entry to each Carry, cleared localOnly at every latch and in Disabled, and read by remotes alone (the adoption rungs)
-  Palm/SignN: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the -axis half of that pair; both false = the wearer has not decided, which is what a remote holds its own tentative sign through
+  Palm/Carry: { type: int, default: 0, scratch: true }   # this document's own: 1 while THIS client is in a Carry state (driver-set on entry to each Carry, 0 on entry to Acquire, Released and Disabled); the Word layer publishes under it and retires the word without it
+  Palm/GripK0: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wearer's orientation word, bit 0 of the cage axis its rendered grip axis dominates (K1 K0: 00 none, 01 X, 10 Y, 11 Z): written localOnly by the Word layer from Carry, cleared localOnly in its Idle, read by remotes alone (the match rungs)
+  Palm/GripK1: { type: bool, default: false, vrc: { synced: true, saved: false } }   # bit 1 of that axis id; both false = the wearer has not decided, which is what a remote holds its own tentative sign through
+  Palm/GripNeg: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the sign of the wearer's rendered grip axis along that cage axis: true = negative
   Palm/T1p: { type: float, scratch: true }
   Palm/T1m: { type: float, scratch: true }
   Palm/T2p: { type: float, scratch: true }
@@ -55,6 +57,12 @@ parameters:
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
   Palm/CueVel: { type: float, scratch: true }
+  Palm/AxisX: { type: float, scratch: true }
+  Palm/AxisY: { type: float, scratch: true }
+  Palm/AxisZ: { type: float, scratch: true }
+  Palm/DA_XY: { type: float, scratch: true }
+  Palm/DA_XZ: { type: float, scratch: true }
+  Palm/DA_YZ: { type: float, scratch: true }
 
 layers:
   - name: Prop
@@ -69,8 +77,7 @@ layers:
         motion: { clip: disabled }
         behaviours:
           - driver: { localOnly: true, set: { Detached: 0 } }   # off-is-reset: recall home
-          - driver: { set: { Palm/T1p: 0, Palm/T1m: 0, Palm/T2p: 0, Palm/T2m: 0, Palm/T3p: 0, Palm/T3m: 0, Palm/T4p: 0, Palm/T4m: 0, Palm/HandL: 0, Palm/HandR: 0, Palm/CueP: 0, Palm/CueN: 0, Palm/Hand: 0, Palm/Sign: 0 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
+          - driver: { set: { Palm/T1p: 0, Palm/T1m: 0, Palm/T2p: 0, Palm/T2m: 0, Palm/T3p: 0, Palm/T3m: 0, Palm/T4p: 0, Palm/T4m: 0, Palm/HandL: 0, Palm/HandR: 0, Palm/CueP: 0, Palm/CueN: 0, Palm/Hand: 0, Palm/Sign: 0, Palm/Carry: 0 } }
         transitions:
           - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ], exitTime: 1.0 }   # the stow dwell: the receivers stay off the whole clip
       Anchored:
@@ -91,6 +98,8 @@ layers:
           - { to: Released,     when: [ Grab_IsGrabbed is false ] }
           - { to: Grip Acquire, when: [ ], exitTime: 1.0 }
       Grip Acquire:
+        behaviours:
+          - driver: { set: { Palm/Carry: 0 } }   # every carry loss lands here: the carry gate drops, the Word layer retires the word
         motion: { clip: grip_acquire }
         transitions:
           - { to: Disabled,      when: [ ObjectSync/Enable less 0.5 ] }
@@ -108,7 +117,6 @@ layers:
       Grip LatchedR:
         behaviours:
           - driver: { set: { Palm/Hand: 1, Palm/Sign: 0 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: grip_latched }
         transitions:
           - { to: Disabled,      when: [ ObjectSync/Enable less 0.5 ] }
@@ -118,7 +126,6 @@ layers:
       Grip LatchedL:
         behaviours:
           - driver: { set: { Palm/Hand: 2, Palm/Sign: 0 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
         motion: { clip: grip_latched }
         transitions:
           - { to: Disabled,      when: [ ObjectSync/Enable less 0.5 ] }
@@ -257,8 +264,7 @@ layers:
           - { to: Grip CarryLN,   when: [ ], exitTime: 1.0 }
       Grip CarryRP:
         behaviours:
-          - driver: { set: { Palm/Sign: 1 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
+          - driver: { set: { Palm/Sign: 1, Palm/Carry: 1 } }
         motion: { clip: grip_carryRP }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -272,11 +278,15 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/SignN is true ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is false, Palm/AxisX less -0.005 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is true, Palm/AxisX greater 0.005 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisY less -0.005 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisY greater 0.005 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisZ less -0.005 ] }
+          - { to: Grip CarryRN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisZ greater 0.005 ] }
       Grip CarryRN:
         behaviours:
-          - driver: { set: { Palm/Sign: 2 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
+          - driver: { set: { Palm/Sign: 2, Palm/Carry: 1 } }
         motion: { clip: grip_carryRN }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -290,11 +300,15 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/SignP is true ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is false, Palm/AxisX greater 0.005 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is true, Palm/AxisX less -0.005 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisY greater 0.005 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisY less -0.005 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisZ greater 0.005 ] }
+          - { to: Grip CarryRP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisZ less -0.005 ] }
       Grip CarryLP:
         behaviours:
-          - driver: { set: { Palm/Sign: 1 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 1, Palm/SignN: 0 } }
+          - driver: { set: { Palm/Sign: 1, Palm/Carry: 1 } }
         motion: { clip: grip_carryLP }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -308,11 +322,15 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/SignN is true ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is false, Palm/AxisX less -0.005 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is true, Palm/AxisX greater 0.005 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisY less -0.005 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisY greater 0.005 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisZ less -0.005 ] }
+          - { to: Grip CarryLN, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisZ greater 0.005 ] }
       Grip CarryLN:
         behaviours:
-          - driver: { set: { Palm/Sign: 2 } }
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 1 } }
+          - driver: { set: { Palm/Sign: 2, Palm/Carry: 1 } }
         motion: { clip: grip_carryLN }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
@@ -326,12 +344,17 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/SignP is true ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is false, Palm/AxisX greater 0.005 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is false, Palm/GripNeg is true, Palm/AxisX less -0.005 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisY greater 0.005 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is false, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisY less -0.005 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is false, Palm/AxisZ greater 0.005 ] }
+          - { to: Grip CarryLP, when: [ IsLocal is false, Palm/GripK0 is true, Palm/GripK1 is true, Palm/GripNeg is true, Palm/AxisZ less -0.005 ] }
       # ---- grab-sync's skeleton from here on.
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
         behaviours:
-          - driver: { localOnly: true, set: { Palm/SignP: 0, Palm/SignN: 0 } }
+          - driver: { set: { Palm/Carry: 0 } }   # the carry gate drops at release too, so a re-grab never matches the previous grab's word
         motion: { clip: released }
         transitions:
           - { to: Resume,  when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
@@ -399,6 +422,135 @@ layers:
           - { to: Released,    when: [ Grab_IsGrabbed is false ] }
           - { to: Grip Arrive, when: [], exitTime: 1.0 }
     default: Timer
+  # ---- The cell's Word layer, verbatim: the wearer's orientation word, published from Carry under Palm/Carry (header).
+  - name: AbsoluteGrip/Word
+    states:
+      Idle:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 0, Palm/GripK1: 0, Palm/GripNeg: 0 } }
+        motion: ~
+        transitions:
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ greater 0 ] }
+      OriXP:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 1, Palm/GripK1: 0, Palm/GripNeg: 0 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+      OriXN:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 1, Palm/GripK1: 0, Palm/GripNeg: 1 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater -0.002, Palm/DA_XZ greater -0.002, Palm/AxisX less 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+      OriYP:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 0, Palm/GripK1: 1, Palm/GripNeg: 0 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+      OriYN:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 0, Palm/GripK1: 1, Palm/GripNeg: 1 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less 0.002, Palm/DA_YZ greater -0.002, Palm/AxisY less 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less -0.002, Palm/DA_YZ less -0.002, Palm/AxisZ greater 0 ] }
+      OriZP:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 1, Palm/GripK1: 1, Palm/GripNeg: 0 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ less 0 ] }
+          - { to: OriZN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ greater 0 ] }
+      OriZN:
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/GripK0: 1, Palm/GripK1: 1, Palm/GripNeg: 1 } }
+        motion: ~
+        transitions:
+          - { to: Idle, when: [ Palm/Carry equals 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriXP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX less 0 ] }
+          - { to: OriXN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY greater 0.002, Palm/DA_XZ greater 0.002, Palm/AxisX greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriYP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY less 0 ] }
+          - { to: OriYN, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XY less -0.002, Palm/DA_YZ greater 0.002, Palm/AxisY greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 1, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ greater 0 ] }
+          - { to: OriZP, when: [ IsLocal is true, Palm/Carry equals 1, Palm/Sign equals 2, Palm/DA_XZ less 0.002, Palm/DA_YZ less 0.002, Palm/AxisZ less 0 ] }
+    default: Idle
+    layout:
+      nodes:
+        Idle: [30, 180]
+        OriXP: [270, 100]
+        OriXN: [270, 260]
+        OriYP: [510, 100]
+        OriYN: [510, 260]
+        OriZP: [750, 100]
+        OriZN: [750, 260]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
 # Every clip = the cell's whole binding set (verbatim values under Prop/AbsoluteGripProp/) + Rotor source3 + 12 glue bindings (value-set).
 clips:

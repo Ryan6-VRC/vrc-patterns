@@ -2104,13 +2104,14 @@ MonoBehaviour:
   GlobalWeight: 1
   TargetTransform: {fileID: 0}
   SolveInLocalSpace: 0
-  FreezeToWorld: 1
+  FreezeToWorld: 0
   RebakeOffsetsWhenUnfrozen: 0
   Locked: 1
   Sources:
     source0:
-      SourceTransform: {fileID: 0}
-      Weight: 0
+      SourceTransform: {fileID: 6583096824147166633, guid: 1913910d8f2743c398e0b9526e33507c,
+        type: 3}
+      Weight: 1
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
     source1:
@@ -2188,7 +2189,7 @@ MonoBehaviour:
       Weight: 0
       ParentPositionOffset: {x: 0, y: 0, z: 0}
       ParentRotationOffset: {x: 0, y: 0, z: 0}
-    totalLength: 0
+    totalLength: 1
     overflowList: []
   cachedExecutionGroupIndex: -1
   latestValidExecutionGroupIndex: -1
