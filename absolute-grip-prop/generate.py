@@ -13,21 +13,6 @@ glue: grab-prop's cell (its clip table replicated binding for binding) plus the 
 decides hand and sign once, four carry states that ride an AUTHORED grip pose, and a receiver stow on every latch
 loss before carry (a contact that breaks behind shut filters and returns is only re-acquired by a stow). No capture.
 
-The sign across clients (the wearer's orientation word, the glue's second layer). Palm/Sign picks which way along the
-recovered line the grip points, but the line's two orientations are the held pattern's and its antipode -- a per-client
-choice Select holds for continuity -- so a bare sign means a physical grip only against the pattern it was read in, and
-a client whose readout descended onto the antipode (a late joiner, a fresh latch after a fast swing) renders the same
-sign as the opposite grip. So the wearer publishes its RENDERED grip axis in the cage frame instead: the dominant cage
-component k = argmax |Axis_k| (never degenerate: >= |axis|/sqrt3) and the rendered axis's sign along it, three synced
-bools (GripK0/GripK1 name k, GripNeg the sign). The cage frame is the same on every client because FreezeRotation is a
-rotation pin to assets/World.prefab (world identity everywhere); a source-less FreezeToWorld locks where each client
-loaded the avatar in, or holds nothing at all, and either way makes the word a per-client reading again (runtime.md
-SConstraints; --check pins it). The bits are driven by Set drivers on states entered through threshold conditions over
-the readout's AAPs (a driver Copy reads the parameter's declared default, never the live AAP). A remote in Carry
-compares its OWN Axis_k against the word and switches to the Carry state whose rendered axis agrees, once that projection
-clears ORI_DB; nothing compares patterns, so a small line error on a remote degrades to a small angle, never to a flip,
-and a remote whose line is too far off for its projection to clear the band keeps its own cue's sign.
-
 Arithmetic conventions (the schema's clamp rule: a Direct weight is clamped >= 0, so every sign lives in a clip
 constant; signed values are only ever read through a 1D tree's blend parameter or a transition condition):
   R_j+/-  face readings of the opposed pair along tetrahedral direction d_j (reading = 1 - d_surface / D)
@@ -39,12 +24,11 @@ constant; signed values are only ever read through a 1D tree's blend parameter o
   MM    = |Mid|^2                                  the lever proxy: with the tip's along-axis offset ~0, |Mid| IS the lever
   HandDiff = HandL - HandR ; Cue = CueP - CueN     signed differentials, read only as transition conditions
   CueVel = Cue - Cue_d1                            the cue's per-frame step, delayed on the two nonnegative halves
-  DA_ab = |Axis_a| - |Axis_b|                      over the three cage-axis pairs: which component of the axis dominates
 
 Hop structure (one frame per AAP hop, runtime.md SAnimator evaluation):
   frame n  : E_j, SumE, Mid, G_k, S_L, O_P, HandDiff, Cue, CueVel (contemporaneous with Cue -- it reads the halves'
              delayed copies, never Cue) and the active state's P_k / T / axis from readings(n), S(n-1)
-  frame n+1: Disc; D_ab = |S_a| - |S_b|; DA_ab from the previous frame's axis; SumE_d1; CueP_d1, CueN_d1; the positive/negative halves of Mid
+  frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; CueP_d1, CueN_d1; the positive/negative halves of Mid
   frame n+2: SqrtDisc = lut(Disc); SumE_d2; MM from the halves
   frame n+3: S = 3/8 (SumE_d2 - SqrtDisc)
 The cue trails the axis by two more stages (AAP write -> constraint solve moves the proxies -> the contacts sample
@@ -57,9 +41,8 @@ OUT_GLUE = os.path.join(HERE, 'controller.yaml')
 
 # ---------------- config ----------------
 # Box geometry at WORKING scale (host localScale 1). F = +Z face plane from the box centre, D = depth; the box is
-# (2F, 2F, D) full extents. Far larger than the palm: the grab target and the palm sender both ride the client's own rendered
-# hand (a live grab syncs only the flag and the holding hand, runtime.md SPhysbones), so the palm never trails the tip and the
-# linear range is not a constraint; the size costs nothing and covers the snap frames. Any change regenerates everything.
+# (2F, 2F, D) full extents. Large so a remote client's IK-lagged hand sender, which trails the synced grab point
+# during motion, stays inside every box's linear range. Any change regenerates everything.
 F, D = 0.75, 1.5
 K = 0.5                               # r/s on every VRChat Automatic base
 QA = 16 * K * K - 4 / 3               # 8/3
@@ -81,9 +64,7 @@ BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the tip never enters it and a remote grabber's IK interpolation moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
-ORI_M = 0.002                         # metres of cage-axis lead: the wearer's hysteresis on which axis its word names. Out of Idle the bands OVERLAP by this (X, then Y, then Z wins a near-tie by rung order: a world-vertical grip axis, the natural tool grip, has three equal cage components since the cage tilt puts its cube diagonal on world up), a switch to another axis needs the newcomer to lead by it, and a same-axis sign flip re-tests the entry band, never the switch band
-ORI_DB = 0.005                        # metres of a remote's own projection on the word's cage axis before it switches sign on the word: |axis| = 4/3 s >= 0.016 m over the S band, so the wearer's named component is >= 0.009 m and a remote whose line agrees within ~30 deg clears this; a remote under it holds its own cue's sign (its line disagrees too far for the word to say anything about it), and contact noise (~1e-3 m per frame) cannot walk a projection across a band this wide, so the two Carry signs never chatter. Not a dominance test: at the vertical near-tie all three components sit at the floor and a dominance test would refuse the common pose
+CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the synced tip position never enters it and a remote grabber's IK smoothing moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
 GRIP_R = (0.5495252, -0.5495252, -0.4449967, 0.4449967)   # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose, the shipped hammer's, tuned in-client on one base: shaft along the palm axis, head toward the thumb side and leaned 12 degrees about the palm normal so it falls toward the heel of the hand
 GRIP_L = (0.5495252, 0.5495252, 0.4449967, 0.4449967)     # Frame/GripL localRotation: the authored left-hand grip pose, the same lean mirrored, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
@@ -200,7 +181,7 @@ scratch_aaps = [f'E{j+1}' for j in range(4)] + ['SumE', 'SumE_d1', 'SumE_d2', 'D
     + [f'O{i+1}' for i in range(3)] + [f'P{k+1}' for k in range(4)] + [f'T{i+1}{ab}' for i in range(3) for ab in 'ab'] \
     + [f'Mid{ax}{h}' for ax in 'XYZ' for h in 'pn'] + ['CueP_d1', 'CueN_d1']
 for n in scratch_aaps: param(P(n), {'type': 'float', 'aap': True, 'scratch': True})
-PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue', 'CueVel', 'DA_XY', 'DA_XZ', 'DA_YZ']
+PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue', 'CueVel']
 for n in PUBLISHED: param(P(n), {'type': 'float', 'aap': True})
 
 # ---------------- Math layer (always-on) ----------------
@@ -261,12 +242,6 @@ math_children.append(lin(P('Cue'), [(P('CueP'), 1.0), (P('CueN'), -1.0)], name='
 math_children.append(lin(P('CueP_d1'), [(P('CueP'), 1.0)]))
 math_children.append(lin(P('CueN_d1'), [(P('CueN'), 1.0)]))
 math_children.append(lin(P('CueVel'), [(P('CueP'), 1.0), (P('CueP_d1'), -1.0), (P('CueN'), -1.0), (P('CueN_d1'), 1.0)], name='CueVel = Cue - Cue_d1'))
-# DA_ab = |Axis_a| - |Axis_b| over the three cage-axis pairs: the glue's Word layer names the dominant component off these. The
-# axis AAPs are cage-frame values (ProxyA's local position under Mid, and Mid is unrotated under Cage), which the --check on
-# FreezeRotation's world pin makes the same frame on every client.
-for a, b in itertools.combinations('XYZ', 2):
-    n = P(f'DA_{a}{b}')
-    math_children.append(abs1d(n, P(f'Axis{a}'), 1.0)); math_children.append(abs1d(n, P(f'Axis{b}'), -1.0))
 math_layer = {'name': 'Palm/Math', 'states': {'Math (WD ON)': {'motion': {'tree': 'direct', 'normalized': False, 'name': 'Math', 'children': math_children}}}, 'default': 'Math (WD ON)'}
 
 # ---------------- Select layer: 16 oriented-pattern states, one per sign pattern; rungs hop to Hamming neighbours ----------------
@@ -359,7 +334,7 @@ def param_line(n, sp):
 def emit_readout():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism and measurements: README.md.',
          f'# cage F={F} D={D} k={K} margin={MARGIN} m (|S| units); lut {LUT_N} knots over Disc [{LUT_LO}, {LUT_HI}] m^2;',
-         f'# published: S, Axis*, Res, Pattern, Mid*, MM = |Mid|^2, HandDiff = HandL - HandR, Cue = CueP - CueN, CueVel = Cue - Cue_d1, DA_ab = |Axis_a| - |Axis_b|; axis written to ProxyA (+) and ProxyB (-)',
+         f'# published: S, Axis*, Res, Pattern, Mid*, MM = |Mid|^2, HandDiff = HandL - HandR, Cue = CueP - CueN, CueVel = Cue - Cue_d1; axis written to ProxyA (+) and ProxyB (-)',
          'schema: 1', 'controller: GripReadout_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '', 'parameters:']
     for n, sp in params.items(): L.append(param_line(n, sp))
@@ -411,8 +386,8 @@ RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twel
 def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
-    boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and never again, so a shut
-    sphere there buys nothing and can only refuse a re-latch). scale selects the
+    boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
+    reject the palm that leaves it and returns, which a remote's lagging palm does). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
     grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
@@ -488,7 +463,7 @@ GLUE_CLIPS = {
 }
 # Refusal: a cue or gate receiver whose filters a clip could shut is a receiver that never re-admits a contact that broke
 # (a latched contact that fully breaks cannot re-latch while filters are shut): the pinky-side cue contact breaks during a
-# curl, and the gate spheres are never read after the latch, so a shut filter there buys nothing and can only refuse a re-latch.
+# curl, and a remote grabber's palm leaves the gate sphere on any fast swing.
 for cn, c in GLUE_CLIPS.items():
     for k in list(c['set']) + list(c.get('curves', {})):
         if re.search(r'/(Cue[PN]|Hand[LR])/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue or gate receiver filter ({k})')
@@ -498,20 +473,7 @@ HAND = P('Hand')                                                                
 HAND_OF = {'R': 1, 'L': 2}
 SIGN = P('Sign')                                                                        # int, driver-set on entry to each Confirm and each Carry: 1 = +axis (P), 2 = -axis (N)
 SIGN_OF = {'P': 1, 'N': 2}
-ORI_BITS = {'K0': P('GripK0'), 'K1': P('GripK1'), 'Neg': P('GripNeg')}                 # the wearer's orientation word, three synced bools: K1 K0 name the cage axis the rendered grip axis dominates (00 none, 01 X, 10 Y, 11 Z), Neg its sign along that axis
-AXIS_ID = {'X': (1, 0), 'Y': (0, 1), 'Z': (1, 1)}                                       # (K0, K1) per cage axis
-CARRY = P('Carry')                                                                      # int, driver-set: 1 on entry to each Carry, 0 on entry to Acquire, Released and Disabled; the Word layer's gate, so the word is published from Carry alone
-def word_bits(k, neg): return {ORI_BITS['K0']: AXIS_ID[k][0], ORI_BITS['K1']: AXIS_ID[k][1], ORI_BITS['Neg']: 1 if neg else 0}
-WORD_CLEAR = {b: 0 for b in ORI_BITS.values()}
-def word_is(k, neg): return [f'{ORI_BITS["K0"]} is {"true" if AXIS_ID[k][0] else "false"}', f'{ORI_BITS["K1"]} is {"true" if AXIS_ID[k][1] else "false"}', f'{ORI_BITS["Neg"]} is {"true" if neg else "false"}']
-def dominant(k, margin):
-    """conditions: |Axis_k| leads both other components by margin, read off the DA pair AAPs (named in XYZ order)."""
-    out = []
-    for o in 'XYZ':
-        if o == k: continue
-        a, b = sorted((k, o)); n = P(f'DA_{a}{b}')
-        out.append(f'{n} greater {fmt(margin)}' if a == k else f'{n} less {fmt(-margin if margin else 0.0)}')
-    return out
+SIGN_BITS = {'P': P('SignP'), 'N': P('SignN')}                                          # the wearer's authoritative sign, one-hot over two synced bools: both false = not decided
 LATCH = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}   # the latch rungs: a decisive differential names the hand
 HANDS = {h: f'{HAND} equals {v}' for h, v in HAND_OF.items()}                            # the engage rungs read the recorded hand
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
@@ -531,15 +493,15 @@ def glue_states():
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}',
                f'{P("CueVel")} greater {fmt(-CUE_VEL)}', f'{P("CueVel")} less {fmt(CUE_VEL)}']   # the settled-cue guard: no engage on a cue still moving
     all_pos = [f'{P(r)} greater 0' for r in READINGS]
-    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0; zero[SIGN] = 0; zero[CARRY] = 0
+    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0; zero[SIGN] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
     common = lambda: [{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}]
     st = {
         'Timer': dict(clip='timer', transitions=[{'to': 'Disabled', 'when': ['IsLocal is true']}, {'to': 'Waiting', 'when': ['IsLocal is false'], 'exitTime': 1.0}]),
-        # The receiver/tag zeroing is per-client (a stowed receiver reads 0 everywhere) and drops the carry gate, which is what
-        # retires the wearer's orientation word (the Word layer's Idle clears it localOnly; no state here writes a synced param).
-        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}],
+        # The receiver/tag zeroing is per-client (a stowed receiver reads 0 everywhere); the sign word is the wearer's alone,
+        # so its clear is localOnly — a remote writing a synced param overwrites the value it received with its own.
+        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}, {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
                          transitions=[{'to': 'Anchored', 'when': [f'{ENABLE} is true'], 'exitTime': 1.0}]),
         'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
@@ -551,11 +513,12 @@ def glue_states():
         # box has acquired the palm before Latched shuts its filter: after a stow each receiver re-acquires a sender already inside
         # over a few frames drawn per receiver, and a box whose filter shuts first never acquires (runtime.md). Two palms reading
         # alike, or none, take no latch; the gate is never read again.
-        # Every carry loss lands here (Arrive too), so the carry gate drops here: the Word layer retires the word the next frame.
-        'Acquire': dict(clip='acquire', behaviours=[{'driver': {'set': {CARRY: 0}}}], transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed] + all_pos + [LATCH[h]]} for h in 'RL']),
+        'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed] + all_pos + [LATCH[h]]} for h in 'RL']),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        # The hand tag and the local sign readout are per-client and their driver is not localOnly.
-        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h], SIGN: 0}}}],
+        # The hand tag and the local sign readout are per-client and their driver is not localOnly; the synced sign word is
+        # cleared here and set again at Carry, separated by the fill plus the confirm dwell (SETTLE_FILL + CONFIRM_DWELL, 0.33 s),
+        # which clears the wire's 0.2 s set-then-clear floor (runtime.md §Parameters) with margin.
+        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h], SIGN: 0}}}, {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
                                transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
         # Four rungs into the Confirm for the recorded hand and the sensed sign; an undecided sign or lever falls through to the
@@ -570,60 +533,25 @@ def glue_states():
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
         for s in 'PN':
-            # Carry re-stamps Palm/Sign (an adopted switch re-enters Carry with the other sign and the readout must follow) and raises
-            # the carry gate the Word layer publishes under. The six match rungs are a remote's only sign edit and sit last (a broken
-            # box reading outranks a sign switch): the word names the cage axis k the wearer's rendered grip axis dominates and its
-            # sign there; this client renders +Axis in a P state and -Axis in an N state, so it switches when its own Axis_k puts the
-            # rendered sign on the other side of the word, past the ORI_DB dead band. No pattern test: an antipode pattern flips
-            # Axis_k and the rung reads exactly that. A word of 00 (none yet) matches no rung, so the remote holds its own cue's sign.
+            # Carry re-stamps Palm/Sign because an adopted switch re-enters Carry with the other sign and the readout must
+            # follow; the wearer also publishes that sign as the one-hot synced word, localOnly so only the wearer writes it.
+            # The adoption rung is a remote's only sign edit and sits last: a broken box reading outranks a sign switch.
             adopt = 'N' if s == 'P' else 'P'
-            match = []
-            for k in 'XYZ':
-                for neg in (False, True):
-                    want = -(-1 if neg else 1) * (1 if s == 'P' else -1)     # the sign of this client's Axis_k that renders the word's opposite
-                    match.append({'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false'] + word_is(k, neg) + [f'{P("Axis" + k)} {"greater" if want > 0 else "less"} {fmt(want * ORI_DB)}']})
-            st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s], CARRY: 1}}}], transitions=common() + loss + match)
+            st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}',
+                                      behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s]}}},
+                                                  {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 1 if s == 'P' else 0, SIGN_BITS['N']: 1 if s == 'N' else 0}}}],
+                                      transitions=common() + loss + [{'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false', f'{SIGN_BITS[adopt]} is true']}])
     st.update({
-        # The carry gate drops here as well as at Acquire: every carry ends through Released, and without it the word would stand
-        # through the release clip, and a remote that settles a fresh grab before the wearer's next Carry would match the PREVIOUS
-        # grab's word. The Word layer's clear follows one frame later.
-        'Released': dict(clip='released', behaviours=[{'driver': {'set': {CARRY: 0}}}],
+        # The sign word is retired here, not at the next latch: every carry ends through Released, so without this a
+        # remote that settles a fresh grab before the wearer's Carry re-publishes would adopt the PREVIOUS grab's sign
+        # for the fill plus the confirm dwell. The clip is 0.5 s and leaves only on its exit time, so the clear sits a
+        # full clip past the Carry set, well clear of the wire's 0.2 s set-then-clear floor (runtime.md §Parameters).
+        'Released': dict(clip='released', behaviours=[{'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
                          transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
         'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
     })
     return st
-def word_states():
-    """The Word layer: on the wearer alone, while carrying, publish the rendered grip axis's dominant cage component and its sign.
-    Every rung reads the readout's AAPs as conditions and the target's entry driver writes the three bits localOnly, so the value
-    on the wire is a Set from a decided state, never a Copy of an AAP (which reads the declared default). Idle clears the word.
-    Palm/Carry gates the layer: the clear lands one frame after Acquire, Released or Disabled, the set one frame after Carry, so a
-    set and the clear before it stand the fill plus the confirm dwell apart at the least -- clear of the wire's 0.2 s set-then-clear
-    floor (runtime.md SParameters); a word that changes as the hand turns is a durable set-and-hold the floor does not bind. The
-    first word out of Idle is taken on bands that overlap by ORI_M, so a near-tie (the vertical grip: three equal components) always
-    publishes, X before Y before Z by rung order; a switch to another axis needs the newcomer to lead by ORI_M, so a pair dithering
-    at a tie holds the current word rather than re-publishing every frame; a same-axis sign flip (an antipodal readout hop on the
-    wearer) re-tests the overlapping entry band, because demanding the switch band there would leave a stale sign published for as
-    long as the near-tie held. A remote never leaves Idle (IsLocal), and its localOnly drivers would write nothing if it did."""
-    def rungs(src):
-        out = [] if src == 'Idle' else [{'to': 'Idle', 'when': [f'{CARRY} equals 0']}]
-        for k in 'XYZ':
-            for neg in (False, True):
-                tgt = f'Ori{k}{"N" if neg else "P"}'
-                if tgt == src: continue
-                margin = ORI_M if src != 'Idle' and src[3] != k else -ORI_M
-                for sg in 'PN':
-                    # rendered = +Axis in a P carry, -Axis in an N carry: the rendered sign along k is sign(Axis_k), flipped in an N carry
-                    op = 'greater' if (sg == 'P') != neg else 'less'
-                    out.append({'to': tgt, 'when': ['IsLocal is true', f'{CARRY} equals 1', f'{SIGN} equals {SIGN_OF[sg]}'] + dominant(k, margin) + [f'{P("Axis" + k)} {op} 0']})
-        return out
-    st = {'Idle': dict(clip=None, behaviours=[{'driver': {'localOnly': True, 'set': WORD_CLEAR}}], transitions=rungs('Idle'))}
-    for k in 'XYZ':
-        for neg in (False, True):
-            n = f'Ori{k}{"N" if neg else "P"}'
-            st[n] = dict(clip=None, behaviours=[{'driver': {'localOnly': True, 'set': word_bits(k, neg)}}], transitions=rungs(n))
-    return st
-LAYOUT_WORD = {'Idle': [30, 180], 'OriXP': [270, 100], 'OriXN': [270, 260], 'OriYP': [510, 100], 'OriYN': [510, 260], 'OriZP': [750, 100], 'OriZN': [750, 260]}
 LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Arrive': [-210, 530], 'Acquire': [30, 390],
           'LatchedR': [270, 340], 'LatchedL': [270, 440], 'Settling': [510, 390], 'Settled': [750, 390],
           'ConfirmRP': [990, 250], 'ConfirmRN': [990, 340], 'ConfirmLP': [990, 440], 'ConfirmLN': [990, 530],
@@ -632,7 +560,7 @@ LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Re
 
 # Names this document reads or drives that readout.yaml declares: declared here as scratch so readout.yaml alone
 # emits them into a params asset.
-GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue', 'CueVel', 'AxisX', 'AxisY', 'AxisZ', 'DA_XY', 'DA_XZ', 'DA_YZ']
+GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue', 'CueVel']
 def glue_params(): return {P(n): {'type': 'float', 'scratch': True} for n in GLUE_READS}
 # Refusal: the FullController merges the two documents first-wins per list, glue first, so a name both declare with
 # different type, default or vrc flags silently takes the glue's (a glue-side Palm/One would read 0 and blank every
@@ -646,9 +574,8 @@ for n, sp in glue_params().items():
 def emit_glue():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism: README.md.',
          '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch that decides the',
-         '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip; a second layer (Word) publishes the',
-         '# wearer\'s rendered grip axis in the world-pinned cage frame as three synced bits, which a remote\'s Carry matches its own axis against.',
-         '# Reads GripReadout_Fx\'s AAPs through the shared FullController.',
+         '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
+         '# the shared FullController.',
          f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M}, cue settled |CueVel| < {CUE_VEL};',
          f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
@@ -659,34 +586,29 @@ def emit_glue():
          '  IsLocal: bool                # VRC built-in',
          f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it',
          f'  {SIGN}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched axis sign as THIS client holds it, driver-set on entry to each Confirm and each Carry (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it',
-         f'  {CARRY}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: 1 while THIS client is in a Carry state (driver-set on entry to each Carry, 0 on entry to Acquire, Released and Disabled); the Word layer publishes under it and retires the word without it',
-         f'  {ORI_BITS["K0"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the wearer\'s orientation word, bit 0 of the cage axis its rendered grip axis dominates (K1 K0: 00 none, 01 X, 10 Y, 11 Z): written localOnly by the Word layer from Carry, cleared localOnly in its Idle, read by remotes alone (the match rungs)',
-         f'  {ORI_BITS["K1"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # bit 1 of that axis id; both false = the wearer has not decided, which is what a remote holds its own tentative sign through',
-         f'  {ORI_BITS["Neg"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the sign of the wearer\'s rendered grip axis along that cage axis: true = negative',
+         f'  {SIGN_BITS["P"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the wearer\'s authoritative sign, one-hot with SignN: written localOnly on entry to each Carry, cleared localOnly at every latch and in Disabled, and read by remotes alone (the adoption rungs)',
+         f'  {SIGN_BITS["N"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the -axis half of that pair; both false = the wearer has not decided, which is what a remote holds its own tentative sign through',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
-    L += ['', 'layers:']
-    for lname, lstates, ldefault, llayout in ((f'{GLUE}Control', glue_states(), 'Timer', LAYOUT), (f'{GLUE}Word', word_states(), 'Idle', LAYOUT_WORD)):
-        L += [f'  - name: {lname}', '    states:']
-        for sname, st in lstates.items():
-            L.append(f'      {sname}:')
-            if st.get('behaviours'):
-                L.append('        behaviours:')
-                for b in st['behaviours']:
-                    for kind, body in b.items():
-                        sets = ', '.join(f'{k}: {v}' for k, v in body['set'].items())
-                        lo = 'localOnly: true, ' if body.get('localOnly') else ''
-                        L.append(f'          - {kind}: {{ {lo}set: {{ {sets} }} }}')
-            L.append(f'        motion: {{ clip: {st["clip"]} }}' if st['clip'] else '        motion: ~')
-            L.append('        transitions:')
-            for t in st['transitions']:
-                fields = [f'to: {t["to"]}', f'when: [ {", ".join(t["when"])} ]']
-                if 'exitTime' in t: fields.append(f'exitTime: {fmt(t["exitTime"])}')
-                L.append(f'          - {{ {", ".join(fields)} }}')
-        L += [f'    default: {ldefault}', '    layout:', '      nodes:']
-        for n, xy in llayout.items(): L.append(f'        {n}: [{xy[0]}, {xy[1]}]')
-        L += ['      entry: [50, 120]', '      any:   [50, 40]', '      exit:  [50, 80]']
-    L += ['', 'clips:']
+    L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
+    for sname, st in glue_states().items():
+        L.append(f'      {sname}:')
+        if st.get('behaviours'):
+            L.append('        behaviours:')
+            for b in st['behaviours']:
+                for kind, body in b.items():
+                    sets = ', '.join(f'{k}: {v}' for k, v in body['set'].items())
+                    lo = 'localOnly: true, ' if body.get('localOnly') else ''
+                    L.append(f'          - {kind}: {{ {lo}set: {{ {sets} }} }}')
+        L.append(f'        motion: {{ clip: {st["clip"]} }}')
+        L.append('        transitions:')
+        for t in st['transitions']:
+            fields = [f'to: {t["to"]}', f'when: [ {", ".join(t["when"])} ]']
+            if 'exitTime' in t: fields.append(f'exitTime: {fmt(t["exitTime"])}')
+            L.append(f'          - {{ {", ".join(fields)} }}')
+    L += ['    default: Timer', '    layout:', '      nodes:']
+    for n, xy in LAYOUT.items(): L.append(f'        {n}: [{xy[0]}, {xy[1]}]')
+    L += ['      entry: [50, 120]', '      any:   [50, 40]', '      exit:  [50, 80]', '', 'clips:']
     for cn, c in GLUE_CLIPS.items():
         L.append(f'  {cn}:')
         if 'length' in c: L.append(f'    length: {fmt(c["length"])}')
@@ -713,7 +635,6 @@ def check():
         m = re.search(r'^guid: ([0-9a-f]{32})', open(os.path.join(HERE, meta), encoding='utf-8').read(), re.M); return m.group(1)
     g_glue = guid_of('built/AbsoluteGripProp_Fx.controller.meta'); g_read = guid_of('built/GripReadout_Fx.controller.meta')
     p_glue = guid_of('built/AbsoluteGripProp_Fx_Parameters.asset.meta'); p_read = guid_of('built/GripReadout_Fx_Parameters.asset.meta')
-    g_world = guid_of('assets/World.prefab.meta')
     # FullController: controllers and prms both glue-first (first-wins param merge, in each list); globalParams is the
     # derived wildcard for the one published prefix.
     fc = [b for _, _, b in docs if 'class: FullController' in b]
@@ -831,19 +752,8 @@ def check():
     cage_tf = tf_doc('Cage')
     a(cage_tf is not None, 'one GameObject named Cage')
     a(near(quat(cage_tf, 'm_LocalRotation'), (-0.32505758, 0.0, 0.32505758, 0.88807383), 1e-3), 'Cage localRotation = cube-diagonal-up tilt')
-    # The cage's world frame: FreezeRotation is a rotation pin to assets/World.prefab (a never-instantiated prefab resolves as world
-    # identity on every client), never a source-less FreezeToWorld, which locks where each client loaded the avatar in (measured: the
-    # cage's world yaw moved with the avatar's yaw at play entry). The orientation word is a cage-frame reading compared across
-    # clients, so the frame has to be the same one everywhere (runtime.md SConstraints).
-    fr = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == 'FreezeRotation']
-    a(len(fr) == 1, 'FreezeRotation carries one rotation constraint')
-    if fr:
-        a('FreezeToWorld: 0' in fr[0], 'FreezeRotation FreezeToWorld 0 (a source-less freeze captures each client\'s own load-in attitude)')
-        a(sources(fr[0]) == [(f'guid:{g_world}', 1.0)], f'FreezeRotation sources assets/World.prefab alone at weight 1, got {sources(fr[0])}')
-        a('RotationAtRest: {x: 0, y: 0, z: 0}' in fr[0] and 'RotationOffset: {x: 0, y: 0, z: 0}' in fr[0], 'FreezeRotation zeroed, no offset')
-        a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentRotationOffset: (\{[^}]*\})', fr[0])), 'FreezeRotation source rotation offsets zero')
-        a(all(f'{k}: 1' in fr[0] for k in ('IsActive', 'Locked', 'AffectsRotationX', 'AffectsRotationY', 'AffectsRotationZ')), 'FreezeRotation active, locked, all three axes')
     # The scale pin: Cage's scale constraint sources assets/World.prefab (never instantiated) at unit offset.
+    g_world = guid_of('assets/World.prefab.meta')
     scale = [b for _, i, b in docs if 'ScaleAtRest' in b and owner(i) == 'Cage']
     a(len(scale) == 1 and [s for s, _ in sources(scale[0])] == [f'guid:{g_world}'] and 'ScaleOffset: {x: 1, y: 1, z: 1}' in scale[0],
       'Cage scale constraint sources assets/World.prefab alone at unit offset')
@@ -903,5 +813,4 @@ if __name__ == '__main__':
     def count_leaves(m): return sum(count_leaves(c) if 'tree' in c else 1 for c in m['children'])
     leaves = count_leaves(math_layer['states']['Math (WD ON)']['motion']) + sum(count_leaves(s['motion']) for s in states.values())
     print(f'wrote {OUT_READOUT}: {len(params)} params, {len(clips)} clips, {nstates + 1} states, {ntrans} transitions, {leaves} tree leaves, {len(text.splitlines())} lines')
-    ws = word_states()
-    print(f'wrote {OUT_GLUE}: {len(GLUE_CLIPS)} clips, {len(glue_states())} + {len(ws)} states (Control + Word), {sum(len(s["transitions"]) for s in ws.values())} word rungs, {len(glue.splitlines())} lines')
+    print(f'wrote {OUT_GLUE}: {len(GLUE_CLIPS)} clips, {len(glue_states())} states, {len(glue.splitlines())} lines')
