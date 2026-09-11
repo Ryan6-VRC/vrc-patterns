@@ -23,12 +23,10 @@ constant; signed values are only ever read through a 1D tree's blend parameter o
   axis  = sum_j sigma_j (E_j - s) d_j              the held oriented pattern's vector, |axis| = 4/3 s
   MM    = |Mid|^2                                  the lever proxy: with the tip's along-axis offset ~0, |Mid| IS the lever
   HandDiff = HandL - HandR ; Cue = CueP - CueN     signed differentials, read only as transition conditions
-  CueVel = Cue - Cue_d1                            the cue's per-frame step, delayed on the two nonnegative halves
 
 Hop structure (one frame per AAP hop, runtime.md SAnimator evaluation):
-  frame n  : E_j, SumE, Mid, G_k, S_L, O_P, HandDiff, Cue, CueVel (contemporaneous with Cue -- it reads the halves'
-             delayed copies, never Cue) and the active state's P_k / T / axis from readings(n), S(n-1)
-  frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; CueP_d1, CueN_d1; the positive/negative halves of Mid
+  frame n  : E_j, SumE, Mid, G_k, S_L, O_P, HandDiff, Cue and the active state's P_k / T / axis from readings(n), S(n-1)
+  frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; the positive/negative halves of Mid
   frame n+2: SqrtDisc = lut(Disc); SumE_d2; MM from the halves
   frame n+3: S = 3/8 (SumE_d2 - SqrtDisc)
 The cue trails the axis by two more stages (AAP write -> constraint solve moves the proxies -> the contacts sample
@@ -64,10 +62,9 @@ BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
 CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-CUE_VEL = 0.008                       # per-frame |dCue| an engage tolerates: the cue trails the axis by two pipeline stages, so a decision landing during a gesture blend is taken on a moving reading. A hand-pose blend reads 0.012 to 0.13 per frame at 60 fps in the emulator, and exactly 0 at rest, against client contact noise of order 1e-3 per frame (runtime.md: the 4.5e-5 m sample floor over a 0.06 m sphere) — so the floor sits well above the noise and an order below a blend. A clip length is wall-clock, so at 120 fps a mild blend's tail passes this and the confirm dwell covers it. Measured on a local hand and on a clone at a co-located hand, never at client tier: the reading is finger-against-palm on ONE replicated skeleton (the cue spheres ride Mid's proxies, and Mid is the sensed palm midpoint), so the synced tip position never enters it and a remote grabber's IK smoothing moves both terms together -- but the residual jitter there is unmeasured, and this is the knob if a wearer refuses engages that remotes take (README §In-game checklist)
 MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
-GRIP_R = (0.5495252, -0.5495252, -0.4449967, 0.4449967)   # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose, the shipped hammer's, tuned in-client on one base: shaft along the palm axis, head toward the thumb side and leaned 12 degrees about the palm normal so it falls toward the heel of the hand
-GRIP_L = (0.5495252, 0.5495252, 0.4449967, 0.4449967)     # Frame/GripL localRotation: the authored left-hand grip pose, the same lean mirrored, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
+GRIP_R = (0.5, -0.5, -0.5, 0.5)       # Frame/GripR localRotation (x, y, z, w): the authored right-hand grip pose, the shipped hammer's, tuned in-client on one base: shaft along the palm axis, head toward the thumb side
+GRIP_L = (0.5, 0.5, 0.5, 0.5)         # Frame/GripL localRotation: the authored left-hand grip pose, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
 GRIP_R_POS = (0.0, -0.02, 0.0)        # Frame/GripR localPosition, Frame coordinates (origin = the tip, the client's grab point; +Y from the palm midpoint toward it): the right hand's authored trim of the payload origin off the grab point; the shipped hammer's grab point sits 2 cm back toward the palm. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ. Trimmed from the grab point and not from the sensed midpoint because the grab point is the client's, the same in both hands, while the midpoint carries each hand's capsule error
 GRIP_L_POS = (0.0, -0.02, 0.0)        # Frame/GripL localPosition: the left hand's trim, authored, never derived from GRIP_R_POS
 PREFIX = 'Palm/'
@@ -179,9 +176,9 @@ R_M = 1.5                             # 1D half-tree range for |Mid| components 
 scratch_aaps = [f'E{j+1}' for j in range(4)] + ['SumE', 'SumE_d1', 'SumE_d2', 'Disc', 'SqrtDisc'] + [f'G{k+1}' for k in range(4)] \
     + [f'SL_{tag(L)}' for L in LINES] + [f'D_{tag(a)}_{tag(b)}' for a, b in itertools.combinations(LINES, 2)] \
     + [f'O{i+1}' for i in range(3)] + [f'P{k+1}' for k in range(4)] + [f'T{i+1}{ab}' for i in range(3) for ab in 'ab'] \
-    + [f'Mid{ax}{h}' for ax in 'XYZ' for h in 'pn'] + ['CueP_d1', 'CueN_d1']
+    + [f'Mid{ax}{h}' for ax in 'XYZ' for h in 'pn']
 for n in scratch_aaps: param(P(n), {'type': 'float', 'aap': True, 'scratch': True})
-PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue', 'CueVel']
+PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue']
 for n in PUBLISHED: param(P(n), {'type': 'float', 'aap': True})
 
 # ---------------- Math layer (always-on) ----------------
@@ -236,12 +233,6 @@ math_children.append({'tree': 'direct', 'normalized': False, 'name': 'MM = |Mid|
 # ---- the two differentials: signed, so formed with a negative clip constant and read only as conditions ----
 math_children.append(lin(P('HandDiff'), [(P('HandL'), 1.0), (P('HandR'), -1.0)], name='HandDiff = HandL - HandR'))
 math_children.append(lin(P('Cue'), [(P('CueP'), 1.0), (P('CueN'), -1.0)], name='Cue = CueP - CueN'))
-# CueVel = Cue(n) - Cue(n-1): the settled-cue guard's reading. The one-hop delay is taken on the two NONNEGATIVE halves,
-# never on Cue itself, because a signed value cannot be a Direct weight (the clamp rule above); the difference of the
-# delayed halves reconstructs the signed step in the same hop.
-math_children.append(lin(P('CueP_d1'), [(P('CueP'), 1.0)]))
-math_children.append(lin(P('CueN_d1'), [(P('CueN'), 1.0)]))
-math_children.append(lin(P('CueVel'), [(P('CueP'), 1.0), (P('CueP_d1'), -1.0), (P('CueN'), -1.0), (P('CueN_d1'), 1.0)], name='CueVel = Cue - Cue_d1'))
 math_layer = {'name': 'Palm/Math', 'states': {'Math (WD ON)': {'motion': {'tree': 'direct', 'normalized': False, 'name': 'Math', 'children': math_children}}}, 'default': 'Math (WD ON)'}
 
 # ---------------- Select layer: 16 oriented-pattern states, one per sign pattern; rungs hop to Hamming neighbours ----------------
@@ -334,7 +325,7 @@ def param_line(n, sp):
 def emit_readout():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism and measurements: README.md.',
          f'# cage F={F} D={D} k={K} margin={MARGIN} m (|S| units); lut {LUT_N} knots over Disc [{LUT_LO}, {LUT_HI}] m^2;',
-         f'# published: S, Axis*, Res, Pattern, Mid*, MM = |Mid|^2, HandDiff = HandL - HandR, Cue = CueP - CueN, CueVel = Cue - Cue_d1; axis written to ProxyA (+) and ProxyB (-)',
+         f'# published: S, Axis*, Res, Pattern, Mid*, MM = |Mid|^2, HandDiff = HandL - HandR, Cue = CueP - CueN; axis written to ProxyA (+) and ProxyB (-)',
          'schema: 1', 'controller: GripReadout_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '', 'parameters:']
     for n, sp in params.items(): L.append(param_line(n, sp))
@@ -471,37 +462,28 @@ for cn, c in GLUE_CLIPS.items():
 ENABLE = GLUE + 'Enable'
 HAND = P('Hand')                                                                        # int, driver-set at the latch: 1 = right, 2 = left
 HAND_OF = {'R': 1, 'L': 2}
-SIGN = P('Sign')                                                                        # int, driver-set on entry to each Confirm and each Carry: 1 = +axis (P), 2 = -axis (N)
-SIGN_OF = {'P': 1, 'N': 2}
-SIGN_BITS = {'P': P('SignP'), 'N': P('SignN')}                                          # the wearer's authoritative sign, one-hot over two synced bools: both false = not decided
 LATCH = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}   # the latch rungs: a decisive differential names the hand
 HANDS = {h: f'{HAND} equals {v}' for h, v in HAND_OF.items()}                            # the engage rungs read the recorded hand
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
 def bounce(cond):
     """the Confirm bounce rung for an entry condition: the complement, loosened by BOUNCE_H toward the failing side (a margin
     must retreat to BOUNCE_H of its entry value, a ceiling be overshot by 1/BOUNCE_H) so the two rungs never share a threshold.
-    A reading between the two satisfies neither and rides Confirm's exit time into Carry, which is the hysteresis working.
-    Loosening is a direction, not a factor: a `greater` bounce must move DOWN and a `less` bounce UP, so which of *BOUNCE_H
-    and /BOUNCE_H loosens depends on the threshold's own sign. Multiplying a negative `greater` threshold would tighten it."""
+    A reading between the two satisfies neither and rides Confirm's exit time into Carry, which is the hysteresis working."""
     p, op, v = cond.rsplit(' ', 2); v = float(v)
-    if op == 'greater': nv = v * BOUNCE_H if v > 0 else v / BOUNCE_H     # loosen downward
-    else: nv = v / BOUNCE_H if v > 0 else v * BOUNCE_H                   # loosen upward
+    nv = v * BOUNCE_H if op == 'greater' else (v / BOUNCE_H if v > 0 else v * BOUNCE_H)
     return f'{p} {"less" if op == "greater" else "greater"} {fmt(nv)}'
 def glue_states():
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
     en_off = f'{ENABLE} is false'
-    settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}',
-               f'{P("CueVel")} greater {fmt(-CUE_VEL)}', f'{P("CueVel")} less {fmt(CUE_VEL)}']   # the settled-cue guard: no engage on a cue still moving
+    settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
     all_pos = [f'{P(r)} greater 0' for r in READINGS]
-    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0; zero[SIGN] = 0
+    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
     common = lambda: [{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}]
     st = {
         'Timer': dict(clip='timer', transitions=[{'to': 'Disabled', 'when': ['IsLocal is true']}, {'to': 'Waiting', 'when': ['IsLocal is false'], 'exitTime': 1.0}]),
-        # The receiver/tag zeroing is per-client (a stowed receiver reads 0 everywhere); the sign word is the wearer's alone,
-        # so its clear is localOnly — a remote writing a synced param overwrites the value it received with its own.
-        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}, {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
+        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}],
                          transitions=[{'to': 'Anchored', 'when': [f'{ENABLE} is true'], 'exitTime': 1.0}]),
         'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
@@ -515,11 +497,7 @@ def glue_states():
         # alike, or none, take no latch; the gate is never read again.
         'Acquire': dict(clip='acquire', transitions=common() + [{'to': f'Latched{h}', 'when': [grabbed] + all_pos + [LATCH[h]]} for h in 'RL']),
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
-        # The hand tag and the local sign readout are per-client and their driver is not localOnly; the synced sign word is
-        # cleared here and set again at Carry, separated by the fill plus the confirm dwell (SETTLE_FILL + CONFIRM_DWELL, 0.33 s),
-        # which clears the wire's 0.2 s set-then-clear floor (runtime.md §Parameters) with margin.
-        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h], SIGN: 0}}}, {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
-                               transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
+        **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h]}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
         # Four rungs into the Confirm for the recorded hand and the sensed sign; an undecided sign or lever falls through to the
         # timeout, which stows: a palm that broke and returned behind the shut box filters is inside the boxes and never re-enters.
@@ -529,25 +507,12 @@ def glue_states():
     for h in 'RL':
         for s in 'PN':
             # Any readout condition failing during the dwell returns to Settled (the recorded hand cannot fail); the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s]}}}], transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
+            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
     for h in 'RL':
-        for s in 'PN':
-            # Carry re-stamps Palm/Sign because an adopted switch re-enters Carry with the other sign and the readout must
-            # follow; the wearer also publishes that sign as the one-hot synced word, localOnly so only the wearer writes it.
-            # The adoption rung is a remote's only sign edit and sits last: a broken box reading outranks a sign switch.
-            adopt = 'N' if s == 'P' else 'P'
-            st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}',
-                                      behaviours=[{'driver': {'set': {SIGN: SIGN_OF[s]}}},
-                                                  {'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 1 if s == 'P' else 0, SIGN_BITS['N']: 1 if s == 'N' else 0}}}],
-                                      transitions=common() + loss + [{'to': f'Carry{h}{adopt}', 'when': ['IsLocal is false', f'{SIGN_BITS[adopt]} is true']}])
+        for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
     st.update({
-        # The sign word is retired here, not at the next latch: every carry ends through Released, so without this a
-        # remote that settles a fresh grab before the wearer's Carry re-publishes would adopt the PREVIOUS grab's sign
-        # for the fill plus the confirm dwell. The clip is 0.5 s and leaves only on its exit time, so the clear sits a
-        # full clip past the Carry set, well clear of the wire's 0.2 s set-then-clear floor (runtime.md §Parameters).
-        'Released': dict(clip='released', behaviours=[{'driver': {'localOnly': True, 'set': {SIGN_BITS['P']: 0, SIGN_BITS['N']: 0}}}],
-                         transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
+        'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
         'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
         'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
     })
@@ -560,7 +525,7 @@ LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Re
 
 # Names this document reads or drives that readout.yaml declares: declared here as scratch so readout.yaml alone
 # emits them into a params asset.
-GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue', 'CueVel']
+GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue']
 def glue_params(): return {P(n): {'type': 'float', 'scratch': True} for n in GLUE_READS}
 # Refusal: the FullController merges the two documents first-wins per list, glue first, so a name both declare with
 # different type, default or vrc flags silently takes the glue's (a glue-side Palm/One would read 0 and blank every
@@ -576,7 +541,7 @@ def emit_glue():
          '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch that decides the',
          '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
          '# the shared FullController.',
-         f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M}, cue settled |CueVel| < {CUE_VEL};',
+         f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M};',
          f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
@@ -585,9 +550,6 @@ def emit_glue():
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
          f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it',
-         f'  {SIGN}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched axis sign as THIS client holds it, driver-set on entry to each Confirm and each Carry (1 = +axis, the P states; 2 = -axis, the N states), 0 = none, zeroed at every fresh latch; scratch, but a consumer document in the same FullController can read it',
-         f'  {SIGN_BITS["P"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the wearer\'s authoritative sign, one-hot with SignN: written localOnly on entry to each Carry, cleared localOnly at every latch and in Disabled, and read by remotes alone (the adoption rungs)',
-         f'  {SIGN_BITS["N"]}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the -axis half of that pair; both false = the wearer has not decided, which is what a remote holds its own tentative sign through',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
     L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
@@ -598,8 +560,7 @@ def emit_glue():
             for b in st['behaviours']:
                 for kind, body in b.items():
                     sets = ', '.join(f'{k}: {v}' for k, v in body['set'].items())
-                    lo = 'localOnly: true, ' if body.get('localOnly') else ''
-                    L.append(f'          - {kind}: {{ {lo}set: {{ {sets} }} }}')
+                    L.append(f'          - {kind}: {{ set: {{ {sets} }} }}')
         L.append(f'        motion: {{ clip: {st["clip"]} }}')
         L.append('        transitions:')
         for t in st['transitions']:
