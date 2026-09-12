@@ -582,6 +582,18 @@ def check():
         act_names = sorted(act_name(o) for o, _ in acts)
         assert_(act_names == sorted(["MarkProxy", "MarkZp", "MarkZm", "MarkXp", "MarkXm"]) and all(m == "0" for _, m in acts),
                 f"mode Toggle turns on exactly the nested cell's MarkProxy and four mark receivers (got {act_names})")
+    # ---- every driver the entry gives a synced bit is transcribed: the declarations pin above cannot see drivers, and a dropped
+    # clear latches the bits for the session (a remote then re-engages every later grab on the last word).
+    def bit_drivers(path, prefix):
+        out, state = {}, None
+        for l in open(path, encoding="utf-8"):
+            m = re.match(r"^      (\S.*?):\s*$", l)
+            if m: state = m.group(1)
+            if state and "driver:" in l and ("Palm/Decided" in l or "Palm/Down" in l):
+                out.setdefault(state[len(prefix):] if state.startswith(prefix) else state, []).append(re.search(r"driver: (\{.*\})", l).group(1))
+        return out
+    want_bits, got_bits = bit_drivers(CELL_DOC, ""), bit_drivers(GLUE_DOC, "Grip ")
+    assert_(want_bits == got_bits, f"every Palm/Decided / Palm/Down driver in the entry glue is transcribed, state for state (entry {want_bits} vs composition {got_bits})")
     # ---- the glue's Palm/* declarations equal the entry glue's, read live.
     def palm_block(p):
         return [l.rstrip() for l in open(p, encoding="utf-8") if re.match(r"^  Palm/", l)]
