@@ -94,26 +94,7 @@ Enable on: the prop rests at `HomeAnchor/Offset` on the wearer's hips; at the or
 
 `generate.py --check` asserts the prefab surface no compile reads: FullController order and the `globalParams` wildcard; each receiver's parameter mapping, tag, shape, size, locality and filters serialized open; the cage tilt and scale source; the constraint sources and zero offsets of `Rotor` and `Frame`, the aim pair's targets and up mode, the grip nodes' rotations, positions and absence of constraints; every constraint's source-list length against its filled slots (a slot past the length solves in the editor and not in the client); the absence of any capture or world-up fallback node; and the physbone's snap, dynamics, grab filter, radius, bone length and ignore list. `twin.py` is the per-frame reference the compiled readout is scored against, not a build input: `truth <sweep>` checks the midpoint and lever proxy against a recorded sweep, `compare` scores a Unity edit-tick dump against the twin's. It evaluates the palm half only; the recorded sweeps carry no finger.
 
-The emulator cannot reproduce a snap-on grab (its grab helper applies the offset unrotated) or the client's finger capsule shape, and it has no contact noise. So the real grab point's offset, the sign cue against a real index at real curl and splay, the remote hand against the gate and cue spheres through the IK delay, the confirm dwell against contact noise, cross-client agreement over repeated pickups and late join all need two clients in-game. The checklist below is that run.
-
-## In-game checklist
-
-Two clients: A grabs, B watches; the last item needs a third player. A refusal is a prop that follows position and never turns.
-
-- [ ] **Two-node chain.** Grab, carry, drop and re-grab, wearer and visitor: the snap lands in the hand and the release does not spring.
-- [ ] **Grab and placement.** A grabs as wearer and as visitor at several wrist attitudes: every grab engages and the payload eases into the palm within the confirm dwell on both clients. Note how far the grab point sits from the palm; the gate radius and lever floor were sized without that read.
-- [ ] **Sign never 180° wrong.** A holds still at several attitudes: on B the prop never presents rotated 180° about the palm axis, and any refusal engages within a couple of seconds of holding still.
-- [ ] **Per-hand grip.** Left, drop, right: each hand lands its own authored grip, not a mirror, as seen by A and by B.
-- [ ] **Repeated pickup and drop.** Five or more cycles at varied attitudes: no disagreement between A and B grows cycle to cycle, and whatever a drop leaves is gone at the next grab.
-- [ ] **Fast wrist before release.** A releases mid-rotation: the frozen rest orientations differ by no more than the wrist turned over the sync delay; a still-hand drop afterwards leaves none.
-- [ ] **Two-handed grab.** Both of A's hands on the tip: refusal; releasing one engages within the settle timeout plus the stow dwell.
-- [ ] **Roll at a real grip.** A rolls the wrist a full turn: the prop rolls with it throughout, never spinning free or holding still.
-- [ ] **Remote fast swing during acquisition.** A grabs and swings at once: on B the prop is position-only through the swing and engages once the hand settles.
-- [ ] **Slow observer through a fast swing.** B caps their client at 30 fps (the `--fps=30` launch argument, or the graphics settings' frame-rate limit) and watches A swing the carried prop hard through the horizontal, several times, both hands: on B the prop may present 180° wrong for under a second after a swing and snaps back on its own, never staying wrong for the grab; uncapped, the same swings show no snap. A's own view never snaps.
-- [ ] **Cue margin against real fingers.** With finger tracking, A splays the index hard toward the middle finger while gripping: engage or refuse, never the wrong sign.
-- [ ] **Wearer's idle hand.** Home on the hips with the wearer's hand resting beside it, a visitor grabs: engages once the wearer's hand moves away, never with the wearer's palm as the grip.
-- [ ] **Late join.** B joins after A dropped the prop: B sees it hidden until A's next grab, then carried and dropped where A sees it.
-- [ ] **Bystander's hand.** A third player's hand, index included, near the held or dropped prop: sign, hand and pose never change on any client.
+The emulator cannot reproduce a snap-on grab (its grab helper applies the offset unrotated) or the client's finger capsule shape, and it has no contact noise. So the real grab point's offset, the sign cue against a real index at real curl and splay, the remote hand against the gate and cue spheres through the IK delay, the confirm dwell against contact noise, cross-client agreement over repeated pickups and late join all need two clients in-game.
 
 ## Rig
 
