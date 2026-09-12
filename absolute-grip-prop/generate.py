@@ -10,8 +10,9 @@ axis proxies (ProxyA = +axis, ProxyB = -axis); plus |Mid|^2 as the lever proxy, 
 handedness gate) and Cue = CueP - CueN (the axis sign, read off the FingerIndex sender at the two proxies).
 Mechanism and the measurements behind every constant: README.md. controller.yaml (AbsoluteGripProp_Fx) is the
 glue: grab-prop's cell (its clip table replicated binding for binding) plus the cage latch, a confirm dwell that
-decides hand and sign once, four carry states that ride an AUTHORED grip pose, and a receiver stow on every latch
-loss before carry (a contact that breaks behind shut filters and returns is only re-acquired by a stow). No capture.
+decides hand and sign once, four carry states that ride an AUTHORED grip pose, each with a recheck that re-reads the cue
+and flips the sign after a dwell of steady contradiction, and a receiver stow on every latch loss before carry (a contact
+that breaks behind shut filters and returns is only re-acquired by a stow). No capture.
 
 Arithmetic conventions (the schema's clamp rule: a Direct weight is clamped >= 0, so every sign lives in a clip
 constant; signed values are only ever read through a 1D tree's blend parameter or a transition condition):
@@ -53,6 +54,7 @@ FPS_FLOOR = 45                        # the lowest frame rate the frame-count dw
 SETTLE_FILL = 6 / FPS_FLOOR           # 6 frames at the floor frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
 SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
+RECHECK_DWELL = 0.5                   # seconds the cue must read against the latched sign, never retreating past the bounce threshold, before a carry flips its sign. The readout's line has no orientation across a sample step near 90 degrees (a 30 fps observer watching the recorded fast swing sees 60 to 110 degrees between samples), so the ladder can land on the antipode there and the finger then reads at the other proxy for the rest of the grab; this is the recovery, and the dwell is what makes it not a flicker. Sized above the cue's longest contradiction while the grip was right: 0.13 s in the probe recording (11 bursts at 84 fps, the other-hand fast swing) and 0.23 s in the emulator harness at the 30 fps remote period, and above the transient reversals the ladder undoes by itself on every stretch the harness could score
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident cage-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
@@ -437,8 +439,11 @@ GLUE_CLIPS = {
     # Frame on the aim constraint for the latched sign, and the placement smoother eases the payload origin onto that hand's
     # grip node. Confirm plays it provisionally while every engage condition is re-tested each frame, so the length is Confirm's
     # dwell and its exit time the irreversible decision (Carry has no exit-time rung, so the length is inert there); a bounce
-    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate and cue are never re-read while carrying.
+    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate is never re-read while carrying, the cue is, by Recheck.
     **{f'carry{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
+    # Recheck, one clip per hand and sign: the carry pose unchanged, the length the recheck dwell (a state's exit time is its clip's
+    # length, so the dwell needs a clip of its own). Played while the cue reads against the latched sign; the exit time flips the sign.
+    **{f'recheck{h}{s}': dict(length=RECHECK_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
     # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
     # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
     # The receivers ride a stepped off-then-on for the stow dwell at the head: a release can land one frame after a stow
@@ -509,8 +514,18 @@ def glue_states():
             # Any readout condition failing during the dwell returns to Settled (the recorded hand cannot fail); the exit time is the engage.
             st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
+    OPP = {'P': 'N', 'N': 'P'}
     for h in 'RL':
-        for s in 'PN': st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss)
+        for s in 'PN':
+            # Carry keeps reading the cue: a decisive opposite sign enters Recheck, which plays the same pose for the recheck dwell and
+            # flips the sign at its exit time; the cue retreating past the bounce threshold returns to Carry. A ladder reversal past the
+            # orientation ambiguity is thereby a wrong grip for the dwell, not for the grab, and a cue that flickers (measured runs a
+            # fraction of the dwell) never flips it. The hand is still never re-read. The return rung is Confirm's bounce hysteresis, so a
+            # cue that has retreated only into the dead band still rides to the flip: the dwell is the guard, not the threshold, and a
+            # Carry/Recheck flap only restarts it.
+            st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss + [{'to': f'Recheck{h}{s}', 'when': [SIGNS[OPP[s]]]}])
+            st[f'Recheck{h}{s}'] = dict(clip=f'recheck{h}{s}', transitions=common() + loss + [{'to': f'Carry{h}{s}', 'when': [bounce(SIGNS[OPP[s]])]},
+                                                                                             {'to': f'Carry{h}{OPP[s]}', 'when': [], 'exitTime': 1.0}])
     st.update({
         'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
         'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
@@ -521,6 +536,7 @@ LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Re
           'LatchedR': [270, 340], 'LatchedL': [270, 440], 'Settling': [510, 390], 'Settled': [750, 390],
           'ConfirmRP': [990, 250], 'ConfirmRN': [990, 340], 'ConfirmLP': [990, 440], 'ConfirmLN': [990, 530],
           'CarryRP': [1230, 250], 'CarryRN': [1230, 340], 'CarryLP': [1230, 440], 'CarryLN': [1230, 530],
+          'RecheckRP': [1470, 250], 'RecheckRN': [1470, 340], 'RecheckLP': [1470, 440], 'RecheckLN': [1470, 530],
           'Released': [510, 620], 'Dropped': [270, 620]}
 
 # Names this document reads or drives that readout.yaml declares: declared here as scratch so readout.yaml alone
@@ -539,10 +555,11 @@ for n, sp in glue_params().items():
 def emit_glue():
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism: README.md.',
          '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch that decides the',
-         '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip. Reads GripReadout_Fx\'s AAPs through',
+         '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip, each with a recheck that flips the sign',
+         '# after the cue has read against it for a dwell. Reads GripReadout_Fx\'s AAPs through',
          '# the shared FullController.',
          f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M};',
-         f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
+         f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, recheck dwell {RECHECK_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
