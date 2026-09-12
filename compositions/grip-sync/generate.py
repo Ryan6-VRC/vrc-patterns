@@ -80,6 +80,7 @@ OUT_READOUT = os.path.join(HERE, "readout", "controller.yaml")
 # The nested GO names under the composition root — hand-maintained pairings the
 # emitted bindings prefix and --check reads back off the prefab.
 MOUNT = "ObjectSync"
+BIDIR = "GripSync/Bidir"   # the composition's own mode parameter; a positive globalParams entry (the entry's AbsoluteGrip/* wildcard is not published here)
 CELL_MOUNT = "AbsoluteGripProp"
 PREFIX = f"Prop/{CELL_MOUNT}/"
 
@@ -194,7 +195,9 @@ CLIPS = (
     ("grip_settling", "settling", "CARRY", None,
      ("cell `settling` (fill = clip length) + CARRY",)),
     ("grip_settled", "settled", "CARRY", None,
-     ("cell `settled` (timeout = clip length) + CARRY",)),
+     ("cell `settled` (timeout = clip length) + CARRY; Grip Hold plays it too",)),
+    ("grip_flip", "flip", "CARRY", None,
+     ("cell `flip` (the flip dispatch dwell = clip length) + CARRY",)),
     ("grip_carryRP", "carryRP", "CARRY", None, ("cell `carryRP` + CARRY (Confirm dwell = clip length; Carry loops it)",)),
     ("grip_carryRN", "carryRN", "CARRY", None, ("cell `carryRN` + CARRY",)),
     ("grip_carryLP", "carryLP", "CARRY", None, ("cell `carryLP` + CARRY",)),
@@ -403,10 +406,13 @@ def check():
     porder = re.findall(r"guid: ([0-9a-f]{32})", prms.group(1)) if prms else []
     assert_(porder and porder[0] == p_glue and set(porder) == {p_glue, p_read, p_sync} and len(porder) == 3,
             f"prms: the glue params asset FIRST (the baked Enable default merges in prms order) — got {porder}")
-    want_gp = sync.document(sync_config(sync))[1]["facts"]["globalParams"]
+    # The sync build's derived list plus ONE positive entry: the mode parameter the root Toggle drives by name. A bare Toggle drives
+    # the raw global name, and a name comes out bare only if it matches this list; unlisted, the controller's copy would be
+    # instance-prefixed while the Toggle drove the bare orphan (mode permanently off, no build error).
+    want_gp = sync.document(sync_config(sync))[1]["facts"]["globalParams"] + [BIDIR]
     blocks = re.findall(r"globalParams:\n((?:        - .+\n)+)", fc)
     got = [[ln.split("- ", 1)[1].strip().strip("'\"") for ln in b.splitlines()] for b in blocks]
-    assert_(got == [want_gp], f"globalParams is exactly the sync build's derived list {want_gp} — got {got}")
+    assert_(got == [want_gp], f"globalParams is exactly the sync build's derived list plus the mode {want_gp} — got {got}")
     assert_("rootBindingsApplyToAvatar: 0" in fc, "rootBindingsApplyToAvatar 0 (basis: mount-root)")
     ids = re.findall(r"id: ([0-9a-f]{32}\|[^\n]*)", fc)
     assert_(ids and all(i.split("|", 1)[1].startswith("Packages/com.ryan6vrc.patterns/compositions/grip-sync/") for i in ids),
@@ -559,6 +565,23 @@ def check():
     assert_(len(scale_offs) == 3 and all(o == 1 for o in scale_offs), "the scale pin's ScaleOffset is identity (1,1,1)")
     assert_(any(c == 114 and go_of.get(a) == fc_go and "class: ApplyDuringUpload" in b for c, a, b in docs), "an ApplyDuringUpload on the ROOT GameObject enables the pin at build")
 
+    # ---- the root's two Toggles: the enable (ObjectSync/Enable) and the mode (GripSync/Bidir, saved, default off), the mode's object
+    # action the nested cell's mark rig (MarkProxy and the four mark receivers), which the cell's own removed Toggle no longer owns.
+    tg = [b for c, a, b in docs if c == 114 and "class: Toggle" in b and go_of.get(a) == fc_go]
+    assert_(len(tg) == 2, f"the root carries exactly two Toggles (the enable and the mode), got {len(tg)}")
+    bi = [b for b in tg if re.search(rf"^\s+globalParam: {re.escape(BIDIR)}$", b, re.M)]
+    assert_(len(bi) == 1 and re.search(r"^\s+useGlobalParam: 1$", bi[0], re.M), f"one root Toggle drives the global {BIDIR}")
+    if bi:
+        assert_(re.search(r"^\s+saved: 1$", bi[0], re.M) and re.search(r"^\s+defaultOn: 0$", bi[0], re.M), "mode Toggle saved, default off")
+        acts = re.findall(r"ObjectToggleAction.*?obj: \{fileID: (\d+)\}\n\s+mode: (\d+)", bi[0], re.S)
+        def act_name(o):
+            # the action's object is a GameObject inside the nested cell instance: a stripped document naming its source fileID
+            go = next((b for c, a2, b in docs if c == 1 and a2 == int(o)), "")
+            m = re.search(r"m_CorrespondingSourceObject: \{fileID: (\d+)", go)
+            return cell_gos.get(int(m.group(1)), o) if m else names.get(int(o), o)
+        act_names = sorted(act_name(o) for o, _ in acts)
+        assert_(act_names == sorted(["MarkProxy", "MarkZp", "MarkZm", "MarkXp", "MarkXm"]) and all(m == "0" for _, m in acts),
+                f"mode Toggle turns on exactly the nested cell's MarkProxy and four mark receivers (got {act_names})")
     # ---- the glue's Palm/* declarations equal the entry glue's, read live.
     def palm_block(p):
         return [l.rstrip() for l in open(p, encoding="utf-8") if re.match(r"^  Palm/", l)]

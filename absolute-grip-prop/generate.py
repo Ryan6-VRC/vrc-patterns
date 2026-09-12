@@ -14,6 +14,15 @@ decides hand and sign once, four carry states that ride an AUTHORED grip pose, e
 and flips the sign after a dwell of steady contradiction, and a receiver stow on every latch loss before carry (a contact
 that breaks behind shut filters and returns is only re-acquired by a stow). No capture.
 
+Bidirectional grip (opt-in, CONFIG['flipAxis']): with the mode parameter on, the grab picks between the authored grip and its
+image under a half turn about one frame axis, from where the prop's feature (its head, a lens) sat relative to the sensed hand
+at the moment the readout settled. Only the wearer's copy decides; the decision crosses the wire as two bits (Palm/Decided,
+Palm/Down) and every remote holds the prop's pre-grab attitude on the hand until they land, so a remote never shows the
+authored pose first and then turns. Sensing is four Constant box receivers under Frame reading a sender at the feature's
+direction (MarkProxy copies the prop's attitude to the tip; Mark sits MARK_H along the feature direction); the presented
+frame is a 1D blend on Palm/Flip between the carry clip and its flipped twin. PRESETS ships the +Z-axis flip (a camera's:
+keeps the frame's Z, the up, and reverses the lens) beside the root's +Y flip (a hammer's: head up or head down).
+
 Arithmetic conventions (the schema's clamp rule: a Direct weight is clamped >= 0, so every sign lives in a clip
 constant; signed values are only ever read through a 1D tree's blend parameter or a transition condition):
   R_j+/-  face readings of the opposed pair along tetrahedral direction d_j (reading = 1 - d_surface / D)
@@ -69,6 +78,27 @@ GRIP_R = (0.5495252, -0.5495252, -0.4449967, 0.4449967)   # Frame/GripR localRot
 GRIP_L = (0.5495252, 0.5495252, 0.4449967, 0.4449967)     # Frame/GripL localRotation: the authored left-hand grip pose, the same lean mirrored, authored, never derived from GRIP_R (the two differ in one sign: the reflection between the hands' sensed frames)
 GRIP_R_POS = (0.0, -0.02, 0.0)        # Frame/GripR localPosition, Frame coordinates (origin = the tip, the client's grab point; +Y from the palm midpoint toward it): the right hand's authored trim of the payload origin off the grab point; the shipped hammer's grab point sits 2 cm back toward the palm. Hand-frame, so it lives here and never on the payload, whose local position is prop-frame and lands on a different side of the hand once the two grips differ. Trimmed from the grab point and not from the sensed midpoint because the grab point is the client's, the same in both hands, while the midpoint carries each hand's capsule error
 GRIP_L_POS = (0.0, -0.02, 0.0)        # Frame/GripL localPosition: the left hand's trim, authored, never derived from GRIP_R_POS
+# ---- bidirectional grip: the mark rig and the flip (README SHow it works). Every value here is mirrored in the prefab and pinned by --check.
+MARK_H = 0.1                          # metres from the tip to the virtual feature the Mark sender stands at, along CONFIG['markDir'] in the prop's frame; any value past the dead band and inside the boxes
+MARK_BAND = 20.0                      # degrees: a feature within this many degrees of the flip plane reads neither box and takes the authored grip (the dead band defaults to the authored grip); the box plane sits MARK_H*sin(MARK_BAND) off the flip plane
+MARK_L = 0.3                          # metres: each box's extent past its plane and to either side, so the mark never leaves a box laterally (MARK_H < MARK_L)
+MARK_R = 0.005                        # Mark sender sphere radius; folded into the box plane offset so the sphere's edge, not its centre, marks the band
+FLIP_DWELL = 2 / FPS_FLOOR            # seconds the dispatch state holds after its driver sets Palm/Flip before Confirm's blend can sample it: a driver write reaches no reader on the evaluation that runs it, and a zero-length dispatch would let Confirm sample the unflipped blend once and bounce [EMPIRICAL: measured on the harness, the Frame weights move on the evaluation after the write]
+MARK_TAG = 'GripMark'                 # the mark pair's own tag: the Hand boxes must never read the Mark, nor the mark boxes a palm
+MARKS = ['MarkZp', 'MarkZm', 'MarkXp', 'MarkXm']   # the two receiver pairs under Frame: the +/-Z pair decides the +Y flip, the +/-X pair the +Z flip
+if not MARK_H < MARK_L: raise SystemExit('REFUSE: MARK_H must sit inside the boxes (MARK_H < MARK_L)')
+# The flip axis names the rotation; its pair is the receiver pair straddling the plane the flipped image crosses. A +Y flip (the
+# cell's own sign flip, ReconN for Recon) reverses X and Z, so the +/-Z pair decides it; a +Z flip (ReconU for Recon) reverses X
+# and Y and keeps Z, so the +/-X pair decides it. flippedClip says which twin the blend plays at Palm/Flip = 1.
+FLIP_AXES = {'Y': dict(pair='Z', flippedClip='other-sign'), 'Z': dict(pair='X', flippedClip='u-pair')}
+CONFIG = dict(flipAxis='Y', markDir=(0.0, 1.0, 0.0), glueName='AbsoluteGripProp_Fx')   # the root build: the placeholder hammer's head is along the payload's +Y
+PRESETS = {'z-flip': dict(flipAxis='Z', markDir=(0.0, 0.0, 1.0), glueName='AbsoluteGripPropZ_Fx')}   # the camera-shaped build: the feature is the head's +Z marker face, which the authored grip lands on the frame's -/+X, where a lens sits
+def preset_dir(label): return () if label == 'root' else (label,)
+def committed_configs():
+    out = {'root': CONFIG}
+    for name, over in PRESETS.items():
+        cfg = dict(CONFIG); cfg.update(over); out[name] = cfg
+    return out
 PREFIX = 'Palm/'
 GLUE = 'AbsoluteGrip/'
 MOUNT = 'GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage'
@@ -363,6 +393,8 @@ B_ROT_W1 = 'Container/Rotor/VRCRotationConstraint.Sources.source1.Weight'   # Fr
 B_ROT_W2 = 'Container/Rotor/VRCRotationConstraint.Sources.source2.Weight'   # Frame/GripL
 B_FRM_W0 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source0.Weight'   # Recon  (+Z at ProxyA = +axis)
 B_FRM_W1 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source1.Weight'   # ReconN (+Z at ProxyB = -axis)
+B_FRM_W2 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source2.Weight'   # ReconU  (Recon turned half about its own +Z: the +Z flip of sign P)
+B_FRM_W3 = f'{MOUNT}/Frame/VRCRotationConstraint.Sources.source3.Weight'   # ReconNU (the +Z flip of sign N)
 B_DMP_EN = 'Container/Damped/VRCPositionConstraint.m_Enabled'                   # the placement smoother: source0 = self (never bound)
 B_DMP_W1 = 'Container/Damped/VRCPositionConstraint.Sources.source1.Weight'      # Container (the tip): home
 B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      # Frame/GripR (the grab point plus the right-hand trim): right carry
@@ -376,19 +408,21 @@ def recv_bindings(r):
             'rx': f'{base}/Transform.localEulerAnglesRaw.x', 'ry': f'{base}/Transform.localEulerAnglesRaw.y', 'rz': f'{base}/Transform.localEulerAnglesRaw.z'}
 
 RECV_GO = [recv_bindings(r)['go'] for r in READINGS + GATES + CUES]   # the twelve receiver GameObject actives
-def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place):
+def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_src, frame_sign, recv_go, filters_open, scale, place, frame_u=False):
     """The full binding set as one `set:` map. gp_home selects GrabPosition source0 (home) vs source1; rot_src in
     {home, R, L} selects Rotor's source; frame_sign +1/-1 selects Frame's Recon/ReconN. filters_open shuts the eight
     boxes' filters when False (the latch shuts them; True is open); the gate and cue pairs' filters are never bound (the hand is read once, at the latch, and a shut sphere would
     reject the palm that leaves it and returns, which a remote's lagging palm does). scale selects the
     box hosts' pose as a unit: ACQ_SCALE = one coincident cage-aligned cube (identity rotation), 1 = the tetrahedral working cage.
     place in {home, hold, palm} drives the placement smoother on Damped: toward the tip, frozen, or toward the latched hand's
-    grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point."""
+    grip node (rot_src picks which), whose local position is that hand's authored trim off the grab point. frame_u selects the
+    U aim pair for the sign (the +Z flip); the mark rig's GameObjects are the mode Toggle's and no clip binds them."""
     if place == 'palm' and rot_src not in ('R', 'L'): raise SystemExit(f'REFUSE: palm placement with no latched hand (rot_src={rot_src})')
     s = {B_CONT_GO: cont_go, B_BONE_GO: bone_go, B_CONT_POS: cont_pos, B_SRC_ACT: src_act, B_GP_ACT: gp_act,
          B_GP_W0: 1 if gp_home else 0, B_GP_W1: 0 if gp_home else 1,
          B_ROT_EN: rot_en, B_ROT_W0: 1 if rot_src == 'home' else 0, B_ROT_W1: 1 if rot_src == 'R' else 0, B_ROT_W2: 1 if rot_src == 'L' else 0,
-         B_FRM_W0: 1 if frame_sign > 0 else 0, B_FRM_W1: 0 if frame_sign > 0 else 1,
+         B_FRM_W0: 1 if frame_sign > 0 and not frame_u else 0, B_FRM_W1: 1 if frame_sign < 0 and not frame_u else 0,
+         B_FRM_W2: 1 if frame_sign > 0 and frame_u else 0, B_FRM_W3: 1 if frame_sign < 0 and frame_u else 0,
          B_DMP_EN: 0 if place == 'hold' else 1, B_DMP_W1: SMOOTH_W if place == 'home' else 0,
          B_DMP_W2: SMOOTH_W if place == 'palm' and rot_src == 'R' else 0, B_DMP_W3: SMOOTH_W if place == 'palm' and rot_src == 'L' else 0}
     for r in READINGS:
@@ -403,73 +437,89 @@ def glue_clip(cont_go, bone_go, cont_pos, src_act, gp_act, gp_home, rot_en, rot_
 # grab-prop's seven values per state are its controller.yaml's, replicated; the rotation channel and the receiver
 # set are this entry's. Comments beside each state carry the rationale.
 FROZEN = dict(cont_go=1, bone_go=1, cont_pos=1, src_act=1, gp_act=0, gp_home=False, rot_en=0, rot_src='home', frame_sign=1, recv_go=1, filters_open=False, scale=1, place='hold')
-GLUE_CLIPS = {
-    # Off: receiver GOs and bone GO off; Container hidden. A stowed receiver reads exactly 0, and the Disabled
-    # state's entry driver zeroes the twelve params so nothing stale gates the next enable. Held for DISABLED_DWELL
-    # so the receiver off outlives one evaluation (a same-frame off/on leaves a receiver deaf for the session).
-    'disabled': dict(length=DISABLED_DWELL, set=glue_clip(0, 0, 1, 1, 0, True, 1, 'home', 1, 0, True, ACQ_SCALE, 'home')),
-    # Remote boot dwell (grab-prop's timer): hidden, bone alive so a grab in progress is not missed.
-    'timer': dict(length=1.0, set=glue_clip(0, 1, 1, 1, 0, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
-    # Home: prop on the hip offset, Rotor riding the home attitude, cage at acquisition scale with filters open.
-    'anchored': dict(set=glue_clip(1, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
-    # Grabbed, palm not yet latched: position rides the tip (grab-prop's grabbed), Rotor disabled = the prop holds
-    # its pose, the eight boxes one coincident cube with filters open. Arrive plays it for the arrive dwell and hands
-    # over to Acquire, which polls the latch every frame (an exit-time rung with conditions re-tests only once per
-    # clip period, measured, so the dwell and the poll are two states).
-    'acquire': dict(length=ARRIVE_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
-    # The latch: box filters shut at acquisition scale on frame 0 (what is inside now is what stays latched), box hosts
-    # from the coincident cube to the tetrahedral working cage on frame 1 (scale and rotation step together). Two frames
-    # long, played by LatchedR and LatchedL, whose entry drivers record the hand; Settling takes over at exit time.
-    'latched': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, False, ACQ_SCALE, 'hold').items()
-                                             if not re.search(r'Transform\.(m_LocalScale|localEulerAnglesRaw)\.[xyz]$', k)},
-                    curves={**{k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
-                               for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])},
-                            **{recv_bindings(r)['r' + ax]: {'tangents': 'stepped', 'keys': [[0, 0.0], [FRAME, HOST_EULER[r][i]]]}
-                               for r in READINGS for i, ax in enumerate('xyz')}}),
-    # A latched contact that broke while the filters were shut and came back is never re-acquired by reopening
-    # them (acquisition is an enter event); a slow receiver stow re-acquires a sender already inside. So every
-    # loss after the latch and the settle timeout pass through here: all twelve receiver GOs off for the same dwell
-    # Disabled uses, cage at acquisition scale with filters open, then Acquire.
-    'reacquire': dict(length=DISABLED_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 0, True, ACQ_SCALE, 'hold')),
-    # Latched, readout pipeline priming: working scale, filters shut, Rotor frozen. Nothing is polled here.
-    'settling': dict(length=SETTLE_FILL, set=glue_clip(**FROZEN)),
-    # Same pose; the engage rungs are conditional here (polled every frame), the timeout is the length.
-    'settled': dict(length=SETTLE_TIMEOUT - SETTLE_FILL, set=glue_clip(**FROZEN)),
-    # Carry, one clip per hand and sign, played by Confirm and Carry alike: Rotor rides the authored grip for the latched hand,
-    # Frame on the aim constraint for the latched sign, and the placement smoother eases the payload origin onto that hand's
-    # grip node. Confirm plays it provisionally while every engage condition is re-tested each frame, so the length is Confirm's
-    # dwell and its exit time the irreversible decision (Carry has no exit-time rung, so the length is inert there); a bounce
-    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate is never re-read while carrying, the cue is, by Recheck.
-    **{f'carry{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
-    # Recheck, one clip per hand and sign: the carry pose unchanged, the length the recheck dwell (a state's exit time is its clip's
-    # length, so the dwell needs a clip of its own). Played while the cue reads against the latched sign; the exit time flips the sign.
-    **{f'recheck{h}{s}': dict(length=RECHECK_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
-    # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
-    # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
-    # The receivers ride a stepped off-then-on for the stow dwell at the head: a release can land one frame after a stow
-    # state switched them off, and a receiver toggled off and on inside one evaluation with its sender inside (the tip is in
-    # the hand) is deaf for the session; held off for the dwell, the re-enable is a slow stow that re-acquires.
-    'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold').items() if k != B_SRC_ACT and k not in RECV_GO},
-                     curves={B_SRC_ACT: {'tangents': 'stepped', 'keys': [[0, 0], [0.25, 1], [0.5, 0]]},
-                             **{k: {'tangents': 'stepped', 'keys': [[0, 0], [DISABLED_DWELL, 1]]} for k in RECV_GO}}),
-    # World-dropped: both freezes hold (the frozen transform IS the hold); a grab re-enters Acquire.
-    'dropped': dict(set=glue_clip(1, 1, 0, 0, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
-    # Late-join park (grab-prop's waiting): hidden until a witnessed grab; the bone lives outside the hidden branch.
-    'waiting': dict(set=glue_clip(0, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
-}
+def glue_clips(cfg):
+  """The clip table for one build. The root build's is the shipped default; a preset differs only in the flipped twins it adds."""
+  return {
+      # Off: receiver GOs and bone GO off; Container hidden. A stowed receiver reads exactly 0, and the Disabled
+      # state's entry driver zeroes the twelve params so nothing stale gates the next enable. Held for DISABLED_DWELL
+      # so the receiver off outlives one evaluation (a same-frame off/on leaves a receiver deaf for the session).
+      'disabled': dict(length=DISABLED_DWELL, set=glue_clip(0, 0, 1, 1, 0, True, 1, 'home', 1, 0, True, ACQ_SCALE, 'home')),
+      # Remote boot dwell (grab-prop's timer): hidden, bone alive so a grab in progress is not missed.
+      'timer': dict(length=1.0, set=glue_clip(0, 1, 1, 1, 0, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
+      # Home: prop on the hip offset, Rotor riding the home attitude, cage at acquisition scale with filters open.
+      'anchored': dict(set=glue_clip(1, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
+      # Grabbed, palm not yet latched: position rides the tip (grab-prop's grabbed), Rotor disabled = the prop holds
+      # its pose, the eight boxes one coincident cube with filters open. Arrive plays it for the arrive dwell and hands
+      # over to Acquire, which polls the latch every frame (an exit-time rung with conditions re-tests only once per
+      # clip period, measured, so the dwell and the poll are two states).
+      'acquire': dict(length=ARRIVE_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
+      # The latch: box filters shut at acquisition scale on frame 0 (what is inside now is what stays latched), box hosts
+      # from the coincident cube to the tetrahedral working cage on frame 1 (scale and rotation step together). Two frames
+      # long, played by LatchedR and LatchedL, whose entry drivers record the hand; Settling takes over at exit time.
+      'latched': dict(length=2 * FRAME, set={k: v for k, v in glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 1, False, ACQ_SCALE, 'hold').items()
+                                               if not re.search(r'Transform\.(m_LocalScale|localEulerAnglesRaw)\.[xyz]$', k)},
+                      curves={**{k: {'tangents': 'stepped', 'keys': [[0, ACQ_SCALE], [FRAME, 1]]}
+                                 for r in READINGS for k in (recv_bindings(r)['sx'], recv_bindings(r)['sy'], recv_bindings(r)['sz'])},
+                              **{recv_bindings(r)['r' + ax]: {'tangents': 'stepped', 'keys': [[0, 0.0], [FRAME, HOST_EULER[r][i]]]}
+                                 for r in READINGS for i, ax in enumerate('xyz')}}),
+      # A latched contact that broke while the filters were shut and came back is never re-acquired by reopening
+      # them (acquisition is an enter event); a slow receiver stow re-acquires a sender already inside. So every
+      # loss after the latch and the settle timeout pass through here: all twelve receiver GOs off for the same dwell
+      # Disabled uses, cage at acquisition scale with filters open, then Acquire.
+      'reacquire': dict(length=DISABLED_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 0, 'home', 1, 0, True, ACQ_SCALE, 'hold')),
+      # Latched, readout pipeline priming: working scale, filters shut, Rotor frozen. Nothing is polled here.
+      'settling': dict(length=SETTLE_FILL, set=glue_clip(**FROZEN)),
+      # Same pose; the engage rungs are conditional here (polled every frame), the timeout is the length.
+      'settled': dict(length=SETTLE_TIMEOUT - SETTLE_FILL, set=glue_clip(**FROZEN)),
+      # Carry, one clip per hand and sign, played by Confirm and Carry alike: Rotor rides the authored grip for the latched hand,
+      # Frame on the aim constraint for the latched sign, and the placement smoother eases the payload origin onto that hand's
+      # grip node. Confirm plays it provisionally while every engage condition is re-tested each frame, so the length is Confirm's
+      # dwell and its exit time the irreversible decision (Carry has no exit-time rung, so the length is inert there); a bounce
+      # back to Settled freezes the pose it reached. Hand and sign are the state; the gate is never re-read while carrying, the cue is, by Recheck.
+      **{f'carry{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
+      # Recheck, one clip per hand and sign: the carry pose unchanged, the length the recheck dwell (a state's exit time is its clip's
+      # length, so the dwell needs a clip of its own). Played while the cue reads against the latched sign; the exit time flips the sign.
+      **{f'recheck{h}{s}': dict(length=RECHECK_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
+      # grab-prop's release pulse (its sample window verbatim) plus the rotation freeze: Rotor disabled at t = 0.
+      # Filters reopen and the cage collapses at t = 0, so the readout stops being consumed on the release frame.
+      # The receivers ride a stepped off-then-on for the stow dwell at the head: a release can land one frame after a stow
+      # state switched them off, and a receiver toggled off and on inside one evaluation with its sender inside (the tip is in
+      # the hand) is deaf for the session; held off for the dwell, the re-enable is a slow stow that re-acquires.
+      'released': dict(length=0.5, set={k: v for k, v in glue_clip(1, 1, 0, 1, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold').items() if k != B_SRC_ACT and k not in RECV_GO},
+                       curves={B_SRC_ACT: {'tangents': 'stepped', 'keys': [[0, 0], [0.25, 1], [0.5, 0]]},
+                               **{k: {'tangents': 'stepped', 'keys': [[0, 0], [DISABLED_DWELL, 1]]} for k in RECV_GO}}),
+      # World-dropped: both freezes hold (the frozen transform IS the hold); a grab re-enters Acquire.
+      'dropped': dict(set=glue_clip(1, 1, 0, 0, 1, False, 0, 'home', 1, 1, True, ACQ_SCALE, 'hold')),
+      # Late-join park (grab-prop's waiting): hidden until a witnessed grab; the bone lives outside the hidden branch.
+      'waiting': dict(set=glue_clip(0, 1, 1, 1, 1, True, 1, 'home', 1, 1, True, ACQ_SCALE, 'home')),
+      # The flip dispatch: the settled pose held for FLIP_DWELL after the state's entry driver set Palm/Flip, so the blend in the
+      # Confirm that follows has seen the new value on its first evaluation. The `latched` clip's stepped curves make it unusable here.
+      'flip': dict(length=FLIP_DWELL, set=glue_clip(**FROZEN)),
+      # The +Z flip's twins: the carry and recheck clips with Frame on the U aim pair (ReconU for sign P, ReconNU for sign N), the
+      # blend's 1-end for that axis. The +Y flip needs no twin: its flipped clip is the other sign's own carry clip.
+      **({f'carry{h}{s}U': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm', frame_u=True)) for h in 'RL' for s in 'PN'}
+         if FLIP_AXES[cfg['flipAxis']]['flippedClip'] == 'u-pair' else {}),
+      **({f'recheck{h}{s}U': dict(length=RECHECK_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm', frame_u=True)) for h in 'RL' for s in 'PN'}
+         if FLIP_AXES[cfg['flipAxis']]['flippedClip'] == 'u-pair' else {}),
+  }
 # Refusal: a cue or gate receiver whose filters a clip could shut is a receiver that never re-admits a contact that broke
 # (a latched contact that fully breaks cannot re-latch while filters are shut): the pinky-side cue contact breaks during a
 # curl, and a remote grabber's palm leaves the gate sphere on any fast swing.
-for cn, c in GLUE_CLIPS.items():
+for cn, c in glue_clips(CONFIG).items():
     for k in list(c['set']) + list(c.get('curves', {})):
-        if re.search(r'/(Cue[PN]|Hand[LR])/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue or gate receiver filter ({k})')
+        if re.search(r'/(Cue[PN]|Hand[LR]|Mark[ZX][pm])/VRCContactReceiver\.allow', k): raise SystemExit(f'REFUSE: clip {cn} binds a cue, gate or mark receiver filter ({k})')
+        if re.search(r'/(MarkProxy|Mark[ZX][pm])/GameObject', k): raise SystemExit(f'REFUSE: clip {cn} binds a mark rig GameObject ({k}); the mode Toggle owns those')
 
 ENABLE = GLUE + 'Enable'
+BIDIR = GLUE + 'Bidir'                                                                  # the bidirectional mode: unsynced, saved, the second Toggle's global parameter
 HAND = P('Hand')                                                                        # int, driver-set at the latch: 1 = right, 2 = left
+FLIP = P('Flip')                                                                        # float, driver-set: 1 = present the flipped grip; read only by the carry blends
+DECIDED, DOWN = P('Decided'), P('Down')                                                 # the two synced bits, written by the wearer's copy alone (every driver on them is localOnly)
 HAND_OF = {'R': 1, 'L': 2}
 LATCH = {'R': f'{P("HandDiff")} less {fmt(-GATE_M)}', 'L': f'{P("HandDiff")} greater {fmt(GATE_M)}'}   # the latch rungs: a decisive differential names the hand
 HANDS = {h: f'{HAND} equals {v}' for h, v in HAND_OF.items()}                            # the engage rungs read the recorded hand
 SIGNS = {'P': f'{P("Cue")} greater {fmt(CUE_M)}', 'N': f'{P("Cue")} less {fmt(-CUE_M)}'}
+OPP = {'P': 'N', 'N': 'P'}
 def bounce(cond):
     """the Confirm bounce rung for an entry condition: the complement, loosened by BOUNCE_H toward the failing side (a margin
     must retreat to BOUNCE_H of its entry value, a ceiling be overshot by 1/BOUNCE_H) so the two rungs never share a threshold.
@@ -477,23 +527,52 @@ def bounce(cond):
     p, op, v = cond.rsplit(' ', 2); v = float(v)
     nv = v * BOUNCE_H if op == 'greater' else (v / BOUNCE_H if v > 0 else v * BOUNCE_H)
     return f'{p} {"less" if op == "greater" else "greater"} {fmt(nv)}'
-def glue_states():
+def flip_receiver(cfg, h, s):
+    """The mark receiver whose reading means 'the feature sits on the flipped side' for hand h at sign s, read in Settled, where Frame
+    presents sign P. The authored grip puts the feature at GRIP_h . markDir in the latched frame; the flip plane is the pair axis's
+    zero plane; the feature past it on the far side wants the flipped pose. The sign-N frame is the sign-P frame turned half about
+    +Y, which reverses X and Z alike, so at sign N the pair's sides swap. Refuses an authored grip whose feature sits inside the
+    dead band of its own flip plane: every grab of that prop would read the band."""
+    pair = FLIP_AXES[cfg['flipAxis']]['pair']
+    v = rot_vec(GRIP_R if h == 'R' else GRIP_L, cfg['markDir'])
+    comp = v['XYZ'.index(pair)]
+    if abs(comp) < math.sin(math.radians(MARK_BAND)):
+        raise SystemExit(f'REFUSE: the {h} grip puts the feature {math.degrees(math.asin(abs(comp))):.1f} deg off the {pair} flip plane, inside the {MARK_BAND} deg dead band (markDir {cfg["markDir"]}, flipAxis {cfg["flipAxis"]})')
+    authored = 1 if comp > 0 else -1
+    if s == 'N': authored = -authored
+    return f'Mark{pair}{"m" if authored > 0 else "p"}'
+def flipped_clip(cfg, kind, h, s):
+    """the blend's 1-end for carry/recheck {h}{s}: the other sign's clip for the +Y flip, the U twin for the +Z flip."""
+    return f'{kind}{h}{OPP[s]}' if FLIP_AXES[cfg['flipAxis']]['flippedClip'] == 'other-sign' else f'{kind}{h}{s}U'
+def glue_states(cfg):
     grabbed = 'GrabBone_IsGrabbed is true'; released = 'GrabBone_IsGrabbed is false'
-    en_off = f'{ENABLE} is false'
+    en_off = f'{ENABLE} is false'; bidir_on = f'{BIDIR} is true'
+    local, remote = 'IsLocal is true', 'IsLocal is false'
+    dec_t, dec_f, down_t, down_f = f'{DECIDED} is true', f'{DECIDED} is false', f'{DOWN} is true', f'{DOWN} is false'
+    flip_lo, flip_hi = f'{FLIP} less 0.5', f'{FLIP} greater 0.5'
     settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
     all_pos = [f'{P(r)} greater 0' for r in READINGS]
-    zero = {P(r): 0 for r in READINGS + GATES + CUES}; zero[HAND] = 0
+    zero = {P(r): 0 for r in READINGS + GATES + CUES + MARKS}; zero[HAND] = 0
     loss = [{'to': 'Acquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]         # carry: the reopen precedes any plausible return
     stow = [{'to': 'Reacquire', 'when': [f'{P(r)} less 0.00001']} for r in READINGS]      # latched but not carrying: the hand can be back before the reopen
     common = lambda: [{'to': 'Disabled', 'when': [en_off]}, {'to': 'Released', 'when': [released]}]
+    # The two bits are the wearer's alone: every driver naming them is localOnly, and the bit writes never share a driver entry
+    # with a Palm/Flip write. Cleared where a grab ends (Released) and where the module resets (Disabled), never in Settled: a
+    # Confirm bounce must not put a set-then-clear pair on the wire.
+    bits_clear = {'driver': {'localOnly': True, 'set': {DECIDED: 0, DOWN: 0}}}
+    # Every grab enters Arrive, or ArriveBi with the mode on. Arrive stamps the "decided, authored" word at once, so with the mode
+    # off a remote's wait (Hold below) lasts at most the sync tick between its own grab and the wearer's write; ArriveBi leaves
+    # both bits clear, so a remote holds the pre-grab attitude on the hand until the wearer's copy has decided.
+    grab_rungs = lambda: [{'to': 'ArriveBi', 'when': [grabbed, bidir_on]}, {'to': 'Arrive', 'when': [grabbed]}]
     st = {
         'Timer': dict(clip='timer', transitions=[{'to': 'Disabled', 'when': ['IsLocal is true']}, {'to': 'Waiting', 'when': ['IsLocal is false'], 'exitTime': 1.0}]),
-        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}],
+        'Disabled': dict(clip='disabled', behaviours=[{'driver': {'set': zero}}, bits_clear],
                          transitions=[{'to': 'Anchored', 'when': [f'{ENABLE} is true'], 'exitTime': 1.0}]),
-        'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
+        'Anchored': dict(clip='anchored', transitions=[{'to': 'Disabled', 'when': [en_off]}] + grab_rungs()),
         # A fresh grab waits here while the bone snaps to the hand grab point; loss and stow paths re-enter Acquire
         # directly, since the tip is already in the hand.
-        'Arrive': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
+        'Arrive': dict(clip='acquire', behaviours=[{'driver': {'localOnly': True, 'set': {DECIDED: 1, DOWN: 0}}}], transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
+        'ArriveBi': dict(clip='acquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         # The latch decides the hand: a decisive hand differential on the tip spheres, read at the one instant the tip is provably
         # in that palm (the snap-on grab put it there), enters the Latched state for that hand, whose entry driver records it. The
         # eight box readings are not geometry (the coincident acquisition cube contains the spheres, ACQ_SCALE) but proof that every
@@ -504,17 +583,39 @@ def glue_states():
         'Reacquire': dict(clip='reacquire', transitions=common() + [{'to': 'Acquire', 'when': [], 'exitTime': 1.0}]),
         **{f'Latched{h}': dict(clip='latched', behaviours=[{'driver': {'set': {HAND: HAND_OF[h]}}}], transitions=common() + [{'to': 'Settling', 'when': [], 'exitTime': 1.0}]) for h in 'RL'},
         'Settling': dict(clip='settling', transitions=common() + stow + [{'to': 'Settled', 'when': [], 'exitTime': 1.0}]),
-        # Four rungs into the Confirm for the recorded hand and the sensed sign; an undecided sign or lever falls through to the
-        # timeout, which stows: a palm that broke and returned behind the shut box filters is inside the boxes and never re-enters.
-        'Settled': dict(clip='settled', transitions=common() + stow + [{'to': f'Confirm{h}{s}', 'when': settled + [HANDS[h], SIGNS[s]]} for h in 'RL' for s in 'PN']
+        # Settled polls the engage conditions every frame. Ahead of the four engage rungs, in this order: the wearer's flip rungs
+        # (mode on, the feature reads on the flipped side of the axis's pair for the recorded hand and the sensed sign: a Flip
+        # dispatch); a remote whose word is undecided holds; a remote whose word says flipped dispatches. A remote whose word says
+        # the authored grip, and the wearer with the mode off or the feature on the authored side or in the dead band, fall through
+        # to the engage rungs. An undecided sign or lever falls through to the timeout, which stows: a palm that broke and returned
+        # behind the shut box filters is inside the boxes and never re-enters. Entry clears Palm/Flip, so a bounce re-decides.
+        'Settled': dict(clip='settled', behaviours=[{'driver': {'set': {FLIP: 0}}}],
+                        transitions=common() + stow
+                        + [{'to': f'Flip{s}', 'when': settled + [HANDS[h], SIGNS[s], local, bidir_on, f'{P(flip_receiver(cfg, h, s))} greater 0.5']} for h in 'RL' for s in 'PN']
+                        + [{'to': 'Hold', 'when': [remote, dec_f] + settled + [SIGNS[s]]} for s in 'PN']
+                        + [{'to': f'Flip{s}', 'when': [remote, dec_t, down_t] + settled + [SIGNS[s]]} for s in 'PN']
+                        + [{'to': f'Confirm{h}{s}', 'when': settled + [HANDS[h], SIGNS[s]]} for h in 'RL' for s in 'PN']
                         + [{'to': 'Reacquire', 'when': [], 'exitTime': 1.0}]),
+        # The flip dispatch, one per sign so its bounce rung is the sign's own: the entry driver sets Palm/Flip, the settled pose holds
+        # for FLIP_DWELL, and the exit time engages the recorded hand's Confirm for this sign, whose blend then samples the flipped
+        # clip on its first evaluation. A reading retreating past the bounce threshold returns to Settled, which clears the flip.
+        # Remotes enter it too (from Settled on the word, from Carry on a changed word), so the driver is not localOnly.
+        **{f'Flip{s}': dict(clip='flip', behaviours=[{'driver': {'set': {FLIP: 1}}}],
+                            transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
+                            + [{'to': f'Confirm{h}{s}', 'when': [HANDS[h]], 'exitTime': 1.0} for h in 'RL']) for s in 'PN'},
+        # A remote's wait for the wearer's word: the settled pose (attitude frozen, position riding the hand, exactly the acquisition
+        # states' hold), left only when the word lands or the gate bounce-fails. Gated on the bit, not the mode (a remote reads the
+        # unsynced mode's default), so with the mode off a fast third-party grab can hold for up to about one sync tick before
+        # Arrive's write lands: position-only and benign. No timeout of its own; Settled's handles a stuck readout as today.
+        'Hold': dict(clip='settled', transitions=common() + stow + [{'to': 'Settled', 'when': [dec_t]}] + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled]),
     }
     for h in 'RL':
         for s in 'PN':
             # Any readout condition failing during the dwell returns to Settled (the recorded hand cannot fail); the exit time is the engage.
-            st[f'Confirm{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
+            # The motion is a blend on Palm/Flip between the carry clip and its flipped twin: the state's sign stays the cue's thumb
+            # truth, and presenting the other pose does not change which end of the palm line the thumb is on.
+            st[f'Confirm{h}{s}'] = dict(blend=(f'carry{h}{s}', flipped_clip(cfg, 'carry', h, s)), transitions=common() + stow + [{'to': 'Settled', 'when': [bounce(c)]} for c in settled + [SIGNS[s]]]
                                         + [{'to': f'Carry{h}{s}', 'when': [], 'exitTime': 1.0}])
-    OPP = {'P': 'N', 'N': 'P'}
     for h in 'RL':
         for s in 'PN':
             # Carry keeps reading the cue: a decisive opposite sign enters Recheck, which plays the same pose for the recheck dwell and
@@ -523,25 +624,40 @@ def glue_states():
             # fraction of the dwell) never flips it. The hand is still never re-read. The return rung is Confirm's bounce hysteresis, so a
             # cue that has retreated only into the dead band still rides to the flip: the dwell is the guard, not the threshold, and a
             # Carry/Recheck flap only restarts it.
-            st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss + [{'to': f'Recheck{h}{s}', 'when': [SIGNS[OPP[s]]]}])
-            st[f'Recheck{h}{s}'] = dict(clip=f'recheck{h}{s}', transitions=common() + loss + [{'to': f'Carry{h}{s}', 'when': [bounce(SIGNS[OPP[s]])]},
-                                                                                             {'to': f'Carry{h}{OPP[s]}', 'when': [], 'exitTime': 1.0}])
+            # Entry stamps the wearer's decision on the wire: Decided, and Down copied from the flip the blend is presenting (a copy, not
+            # a Set, so one driver serves both dispatch paths and a re-entry from Recheck re-asserts the same values). A remote whose
+            # word changed under it (the wearer re-acquired mid-grab and decided the other way) re-confirms through Flip or Settled.
+            st[f'Carry{h}{s}'] = dict(blend=(f'carry{h}{s}', flipped_clip(cfg, 'carry', h, s)),
+                                      behaviours=[{'driver': {'localOnly': True, 'set': {DECIDED: 1}}}, {'driver': {'localOnly': True, 'copy': {DOWN: FLIP}}}],
+                                      transitions=common() + loss + [{'to': f'Recheck{h}{s}', 'when': [SIGNS[OPP[s]]]},
+                                                                     {'to': f'Flip{s}', 'when': [remote, dec_t, down_t, flip_lo]},
+                                                                     {'to': 'Settled', 'when': [remote, dec_t, down_f, flip_hi]}])
+            st[f'Recheck{h}{s}'] = dict(blend=(f'recheck{h}{s}', flipped_clip(cfg, 'recheck', h, s)), transitions=common() + loss + [{'to': f'Carry{h}{s}', 'when': [bounce(SIGNS[OPP[s]])]},
+                                                                                                                                {'to': f'Carry{h}{OPP[s]}', 'when': [], 'exitTime': 1.0}])
     st.update({
-        'Released': dict(clip='released', transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
-        'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
-        'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}, {'to': 'Arrive', 'when': [grabbed]}]),
+        'Released': dict(clip='released', behaviours=[bits_clear], transitions=[{'to': 'Dropped', 'when': [], 'exitTime': 1.0}]),
+        'Dropped': dict(clip='dropped', transitions=[{'to': 'Disabled', 'when': [en_off]}] + grab_rungs()),
+        'Waiting': dict(clip='waiting', transitions=[{'to': 'Disabled', 'when': [en_off]}] + grab_rungs()),
     })
+    # Refusal: a driver naming a synced bit without localOnly would run on every remote's copy of the animator; VRCFury's make-
+    # synced-drivers-local pass skips merged layers, so nothing downstream rewrites the flag.
+    for sname, s_ in st.items():
+        for b in s_.get('behaviours', []):
+            d = b['driver']
+            names = set(d.get('set', {})) | set(d.get('copy', {}))
+            if names & {DECIDED, DOWN} and not d.get('localOnly'): raise SystemExit(f'REFUSE: {sname} drives a synced bit without localOnly')
+            if names & {DECIDED, DOWN} and FLIP in names: raise SystemExit(f'REFUSE: {sname} writes a synced bit and Palm/Flip in one driver entry')
     return st
-LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Arrive': [-210, 530], 'Acquire': [30, 390],
-          'LatchedR': [270, 340], 'LatchedL': [270, 440], 'Settling': [510, 390], 'Settled': [750, 390],
+LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Reacquire': [270, 250], 'Anchored': [-210, 390], 'Arrive': [-210, 530], 'ArriveBi': [-210, 620], 'Acquire': [30, 390],
+          'LatchedR': [270, 340], 'LatchedL': [270, 440], 'Settling': [510, 390], 'Settled': [750, 390], 'FlipP': [870, 250], 'FlipN': [870, 530], 'Hold': [750, 620],
           'ConfirmRP': [990, 250], 'ConfirmRN': [990, 340], 'ConfirmLP': [990, 440], 'ConfirmLN': [990, 530],
           'CarryRP': [1230, 250], 'CarryRN': [1230, 340], 'CarryLP': [1230, 440], 'CarryLN': [1230, 530],
           'RecheckRP': [1470, 250], 'RecheckRN': [1470, 340], 'RecheckLP': [1470, 440], 'RecheckLN': [1470, 530],
           'Released': [510, 620], 'Dropped': [270, 620]}
 
 # Names this document reads or drives that readout.yaml declares: declared here as scratch so readout.yaml alone
-# emits them into a params asset.
-GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue']
+# emits them into a params asset. The four mark receivers are this document's own (no readout tree reads them).
+GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue'] + MARKS
 def glue_params(): return {P(n): {'type': 'float', 'scratch': True} for n in GLUE_READS}
 # Refusal: the FullController merges the two documents first-wins per list, glue first, so a name both declare with
 # different type, default or vrc flags silently takes the glue's (a glue-side Palm/One would read 0 and blank every
@@ -552,7 +668,14 @@ for n, sp in glue_params().items():
             a, b = sp.get(f, 0.0 if f == 'default' else None), params[n].get(f, 0.0 if f == 'default' else None)
             if a != b: raise SystemExit(f'REFUSE: {n} declared {f}={a!r} by the glue and {f}={b!r} by the readout; glue-first merge would win silently')
 
-def emit_glue():
+def emit_driver(d):
+    parts = []
+    if d.get('localOnly'): parts.append('localOnly: true')
+    for op in ('set', 'copy'):
+        if op in d: parts.append(f'{op}: {{ {", ".join(f"{k}: {v}" for k, v in d[op].items())} }}')
+    return '{ ' + ', '.join(parts) + ' }'
+def emit_glue(cfg=CONFIG):
+    axis = cfg['flipAxis']
     L = ['# GENERATED by generate.py -- edit the generator, not this file. Mechanism: README.md.',
          '# absolute-grip-prop glue: grab-prop\'s cell (clip table replicated binding for binding) + the cage latch that decides the',
          '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip, each with a recheck that flips the sign',
@@ -560,25 +683,33 @@ def emit_glue():
          '# the shared FullController.',
          f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M};',
          f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, recheck dwell {RECHECK_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
-         'schema: 1', 'controller: AbsoluteGripProp_Fx', 'basis: mount-root', 'role: fx', '',
+         f'# bidirectional grip ({BIDIR}, off by default): flip axis +{axis}, decided by the +/-{FLIP_AXES[axis]["pair"]} mark pair (feature direction {cfg["markDir"]} in the prop frame, {MARK_H} m out, dead band {MARK_BAND} deg); flip dwell {FLIP_DWELL:.4g} s; the wearer decides, two synced bits carry it, a remote holds its pre-grab attitude until they land.',
+         'schema: 1', f'controller: {cfg["glueName"]}', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
          f'  {ENABLE}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # off is the reset',
+         f'  {BIDIR}: {{ type: bool, default: false, vrc: {{ synced: false, saved: true }} }}   # the bidirectional mode, the second Toggle\'s: unsynced (a remote reads its default and waits for the bits instead), saved',
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
          f'  {HAND}: {{ type: int, default: 0, scratch: true }}   # this document\'s own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it',
+         f'  {FLIP}: {{ type: float, default: 0.0, scratch: true }}   # this document\'s own: 1 = present the flipped grip, driver-set on entry to FlipP / FlipN (1) and Settled (0), read only by the carry blends; scratch because nothing outside the animator reads it',
+         f'  {DECIDED}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the wire: the wearer\'s copy has decided this grab (Carry, or Arrive with the mode off); cleared at Released and Disabled; every driver on it is localOnly',
+         f'  {DOWN}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the wire: the wearer\'s decision was the flipped grip, read only beside Decided; every driver on it is localOnly',
          '  # Readout names this document only reads or zeroes: declared scratch so readout.yaml alone emits them into a params asset.']
     for n, sp in glue_params().items(): L.append(param_line(n, sp))
     L += ['', 'layers:', f'  - name: {GLUE}Control', '    states:']
-    for sname, st in glue_states().items():
+    for sname, st in glue_states(cfg).items():
         L.append(f'      {sname}:')
         if st.get('behaviours'):
             L.append('        behaviours:')
             for b in st['behaviours']:
-                for kind, body in b.items():
-                    sets = ', '.join(f'{k}: {v}' for k, v in body['set'].items())
-                    L.append(f'          - {kind}: {{ set: {{ {sets} }} }}')
-        L.append(f'        motion: {{ clip: {st["clip"]} }}')
+                for kind, body in b.items(): L.append(f'          - {kind}: {emit_driver(body)}')
+        if 'blend' in st:
+            c0, c1 = st['blend']
+            L += ['        motion:', '          tree: 1d', f'          param: {FLIP}', '          children:',
+                  f'            - {{ clip: {c0}, threshold: 0.0 }}', f'            - {{ clip: {c1}, threshold: 1.0 }}']
+        else:
+            L.append(f'        motion: {{ clip: {st["clip"]} }}')
         L.append('        transitions:')
         for t in st['transitions']:
             fields = [f'to: {t["to"]}', f'when: [ {", ".join(t["when"])} ]']
@@ -587,7 +718,7 @@ def emit_glue():
     L += ['    default: Timer', '    layout:', '      nodes:']
     for n, xy in LAYOUT.items(): L.append(f'        {n}: [{xy[0]}, {xy[1]}]')
     L += ['      entry: [50, 120]', '      any:   [50, 40]', '      exit:  [50, 80]', '', 'clips:']
-    for cn, c in GLUE_CLIPS.items():
+    for cn, c in glue_clips(cfg).items():
         L.append(f'  {cn}:')
         if 'length' in c: L.append(f'    length: {fmt(c["length"])}')
         L.append('    set:')
@@ -655,17 +786,33 @@ def check():
     # Receivers: twelve, one per parameter, each writing the parameter its own name says, self+others, not local-only,
     # content type Avatar, and every host under Cage so the physbone's one ignore entry covers them all.
     recv = [(i, b) for _, i, b in docs if 'collisionTags' in b and 'receiverType' in b]
-    want_recv = sorted(READINGS + GATES + CUES)
+    want_recv = sorted(READINGS + GATES + CUES + MARKS)
     a(sorted(owner(i) or '' for i, _ in recv) == want_recv, f'receivers named exactly {want_recv}, got {sorted(owner(i) or "" for i, _ in recv)}')
-    a(len(recv) == 12, f'receiver count == 12 (the performance tier turns on it), got {len(recv)}')
+    a(len(recv) == 16, f'receiver count == 16 (the performance tier turns on it), got {len(recv)}')
+    # The mark boxes: Constant (a bounced Constant receiver reads correctly where a Proximity one comes back deaf, and "outside every
+    # box" must read as the dead band), self-only and local-only (the Mark is the wearer's own sender and the decision is the
+    # wearer's alone), one per pair side, each box's near face MARK_H*sin(MARK_BAND) + MARK_R off the flip plane and reaching past MARK_H.
+    z0 = MARK_H * math.sin(math.radians(MARK_BAND)) + MARK_R; cc = (z0 + MARK_L) / 2; along = MARK_L - z0; lat = 2 * MARK_L
+    MARK_BOX = {'MarkZp': ((0, 0, cc), (lat, lat, along)), 'MarkZm': ((0, 0, -cc), (lat, lat, along)), 'MarkXp': ((cc, 0, 0), (along, lat, lat)), 'MarkXm': ((-cc, 0, 0), (along, lat, lat))}
     for i, b in recv:
         node = owner(i) or ''
         a(re.search(r'^  parameter: (.*)$', b, re.M).group(1) == P(node), f'receiver {node} writes {P(node)}')
+        a('contentTypes: 1' in b, f'receiver {node} contentTypes Avatar')
+        a('Cage' in ancestors(go_of[i]), f'receiver {node} sits under Cage (the physbone ignore entry)')
+        if node in MARKS:
+            a('allowSelf: 1' in b and 'allowOthers: 0' in b, f'receiver {node} allowSelf 1 allowOthers 0 (the Mark is the wearer\'s own sender)')
+            a('localOnly: 1' in b, f'receiver {node} localOnly 1 (the decision is the wearer\'s alone)')
+            a('receiverType: 0' in b, f'receiver {node} Constant')
+            a(re.search(rf'collisionTags:\n\s+- {MARK_TAG}\n(?!\s+- )', b), f'receiver {node} tag exactly [{MARK_TAG}]')
+            a('shapeType: 2' in b and 'useFaceProximity: 0' in b, f'receiver {node} box, centre mode')
+            a(near(vec3(b, 'position'), MARK_BOX[node][0], 1e-5) and near(vec3(b, 'size'), MARK_BOX[node][1], 1e-5), f'receiver {node} box at {MARK_BOX[node][0]} size {MARK_BOX[node][1]} (MARK_H, MARK_BAND, MARK_R, MARK_L)')
+            a(ancestors(go_of[i])[:1] == ['Frame'], f'{node} hosted on Frame (the sensed hand frame)')
+            tb = tf_doc(node)
+            a(near(vec3(tb, 'm_LocalPosition'), (0, 0, 0)) and near(quat(tb, 'm_LocalRotation'), (0, 0, 0, 1)), f'{node} host at Frame\'s origin and attitude')
+            continue
         a('allowSelf: 1' in b and 'allowOthers: 1' in b, f'receiver {node} allowSelf 1 allowOthers 1 (serialized open)')
         a('localOnly: 0' in b, f'receiver {node} localOnly 0 (remotes re-derive)')
-        a('contentTypes: 1' in b, f'receiver {node} contentTypes Avatar')
         a('receiverType: 2' in b, f'receiver {node} proximity')
-        a('Cage' in ancestors(go_of[i]), f'receiver {node} sits under Cage (the physbone ignore entry)')
         if node in READINGS:
             a(re.search(r'collisionTags:\n\s+- Hand\n(?!\s+- )', b), f'receiver {node} tag exactly [Hand]')
             a('shapeType: 2' in b and 'useFaceProximity: 1' in b, f'receiver {node} box / face mode')
@@ -735,9 +882,19 @@ def check():
     scale = [b for _, i, b in docs if 'ScaleAtRest' in b and owner(i) == 'Cage']
     a(len(scale) == 1 and [s for s, _ in sources(scale[0])] == [f'guid:{g_world}'] and 'ScaleOffset: {x: 1, y: 1, z: 1}' in scale[0],
       'Cage scale constraint sources assets/World.prefab alone at unit offset')
+    # The mark rig: MarkProxy at the tip copies Damped's attitude (a translation-immune copy of the prop's pose, frozen through
+    # acquisition), Mark stands MARK_H along the feature direction in that frame, and the sender is the wearer's own (localOnly).
+    a(ancestors(go_id_of('MarkProxy'))[:1] == ['Cage'] and near(vec3(tf_doc('MarkProxy'), 'm_LocalPosition'), (0, 0, 0)), 'MarkProxy is a child of Cage at its origin (the tip)')
+    snd = [b for _, i, b in docs if 'collisionTags' in b and 'receiverType' not in b and owner(i) == 'Mark']
+    a(len(snd) == 1, 'one contact sender named Mark')
+    if snd:
+        a('shapeType: 0' in snd[0] and re.search(rf'^  radius: {MARK_R:g}\n', snd[0], re.M) and 'localOnly: 1' in snd[0], f'Mark is a localOnly sphere sender of radius {MARK_R:g}')
+        a(re.search(rf'collisionTags:\n\s+- {MARK_TAG}\n(?!\s+- )', snd[0]), f'Mark tag exactly [{MARK_TAG}]')
+        a(ancestors(go_id_of('Mark'))[:1] == ['MarkProxy'], 'Mark is a child of MarkProxy')
+        a(near(vec3(tf_doc('Mark'), 'm_LocalPosition'), tuple(c * MARK_H for c in CONFIG['markDir']), 1e-6), f'Mark local position == markDir * MARK_H {tuple(c * MARK_H for c in CONFIG["markDir"])}')
     # The rotation channel: exact sources per node, zeroed (never activated) with identity source offsets, or the
     # authored grip lands wrong by the offset.
-    for node, want_src in (('Rotor', ['Offset', 'GripR', 'GripL']), ('Frame', ['Recon', 'ReconN']), ('Damped', ['Damped', 'Rotor'])):
+    for node, want_src in (('Rotor', ['Offset', 'GripR', 'GripL']), ('Frame', ['Recon', 'ReconN', 'ReconU', 'ReconNU']), ('Damped', ['Damped', 'Rotor']), ('MarkProxy', ['Damped'])):
         rc = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == node]
         a(len(rc) == 1, f'{node} carries one rotation constraint')
         if rc:
@@ -746,12 +903,14 @@ def check():
             a(all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'ParentRotationOffset: (\{[^}]*\})', rc[0])), f'{node} source rotation offsets zero')
     # The sign mux: two aim constraints, +Z at ProxyA / ProxyB, both ObjectRotationUp against UpAim (ObjectUp
     # silently degenerates to world-up; object-sync SRig owns that measurement).
-    for node, src in (('Recon', 'ProxyA'), ('ReconN', 'ProxyB')):
+    # The U pair (ReconU, ReconNU) is the same aim with the up axis negated: each is its twin turned half about its own +Z, the +Z flip.
+    for node, src, up in (('Recon', 'ProxyA', 1), ('ReconN', 'ProxyB', 1), ('ReconU', 'ProxyA', -1), ('ReconNU', 'ProxyB', -1)):
         ac = [b for _, i, b in docs if 'AimAxis' in b and owner(i) == node]
         a(len(ac) == 1, f'{node} carries one aim constraint')
         if ac:
             a([s for s, _ in sources(ac[0])] == [src], f'{node} aims at {src}, got {[s for s, _ in sources(ac[0])]}')
-            a('AimAxis: {x: 0, y: 0, z: 1}' in ac[0] and 'UpAxis: {x: 0, y: 1, z: 0}' in ac[0], f'{node} AimAxis +Z, UpAxis +Y')
+            a('AimAxis: {x: 0, y: 0, z: 1}' in ac[0] and f'UpAxis: {{x: 0, y: {up}, z: 0}}' in ac[0], f'{node} AimAxis +Z, UpAxis {"+" if up > 0 else "-"}Y')
+            a(ancestors(go_id_of(node))[:1] == ['UpAim'], f'{node} sits under UpAim (one solve group with its up helper)')
             m = re.search(r'WorldUpTransform: \{fileID: (\d+)\}', ac[0])
             a('WorldUp: 2' in ac[0] and m and owner(m.group(1)) == 'UpAim', f'{node} up mode ObjectRotationUp against UpAim')
     # The authored grip: the single most silent surface in the entry. No constraint, exactly the generator's rotation and
@@ -766,11 +925,22 @@ def check():
             a(not any(('RotationAtRest' in b or 'AimAxis' in b or 'PositionAtRest' in b) and owner(i) == node for _, i, b in docs), f'{node} carries no constraint')
     # The hand-maintained seam pieces no compile reads: the Toggle's global parameter is the one published name (a rename
     # strands the menu with no error), the home BoneProxy targets Hips, and Damped's smoother weights are the entry's own.
+    # Two bare Toggles, an exception to the one-bare-Toggle rule (CONVENTIONS.md) the two-instance collision already binding this
+    # module makes cheap: the enable, and the mode, whose object action is the mark rig's hygiene (off, the receivers cost no frame time).
     tg = [b for _, _, b in docs if 'class: Toggle' in b and 'ns: VF.Model.Feature' in b]
-    a(len(tg) == 1, 'exactly one VRCFury Toggle')
-    if tg:
-        a(re.search(r'^\s+useGlobalParam: 1$', tg[0], re.M) and re.search(rf'^\s+globalParam: {re.escape(ENABLE)}$', tg[0], re.M), f'Toggle drives the global {ENABLE}')
-        a(re.search(r'^\s+saved: 0$', tg[0], re.M) and re.search(r'^\s+defaultOn: 0$', tg[0], re.M), 'Toggle unsaved, default off (off is the reset)')
+    a(len(tg) == 2, f'exactly two VRCFury Toggles (the enable and the mode), got {len(tg)}')
+    en = [b for b in tg if re.search(rf'^\s+globalParam: {re.escape(ENABLE)}$', b, re.M)]
+    bi = [b for b in tg if re.search(rf'^\s+globalParam: {re.escape(BIDIR)}$', b, re.M)]
+    a(len(en) == 1 and len(bi) == 1, f'one Toggle drives {ENABLE} and one drives {BIDIR}')
+    if en:
+        a(re.search(r'^\s+useGlobalParam: 1$', en[0], re.M), f'enable Toggle drives the global {ENABLE}')
+        a(re.search(r'^\s+saved: 0$', en[0], re.M) and re.search(r'^\s+defaultOn: 0$', en[0], re.M), 'enable Toggle unsaved, default off (off is the reset)')
+        a('ObjectToggleAction' not in en[0], 'enable Toggle carries no object action')
+    if bi:
+        a(re.search(r'^\s+useGlobalParam: 1$', bi[0], re.M), f'mode Toggle drives the global {BIDIR}')
+        a(re.search(r'^\s+saved: 1$', bi[0], re.M) and re.search(r'^\s+defaultOn: 0$', bi[0], re.M), 'mode Toggle saved, default off (the shipped default behaviour is the authored grip)')
+        acts = re.findall(r'ObjectToggleAction.*?obj: \{fileID: (\d+)\}\n\s+mode: (\d+)', bi[0], re.S)
+        a(sorted(names.get(o, o) for o, _ in acts) == sorted(['MarkProxy'] + MARKS) and all(m == '0' for _, m in acts), f'mode Toggle turns on exactly MarkProxy and the four mark receivers (got {[(names.get(o, o), m) for o, m in acts]})')
     bp = [b for _, i, b in docs if 'boneReference' in b and owner(i) == 'HomeAnchor']
     a(len(bp) == 1 and re.search(r'^\s+boneReference: 0$', bp[0], re.M), 'HomeAnchor BoneProxy targets Hips')
     dm = [b for _, i, b in docs if 'RotationAtRest' in b and 'AimVector' not in b and owner(i) == 'Damped']
@@ -779,16 +949,47 @@ def check():
     for gone in ('Held', 'ReconW'):
         a(gone not in names.values(), f'no node named {gone}')
         a(not any(gone in [s for s, _ in sources(b)] for _, _, b in docs if 'SourceTransform' in b), f'no constraint sources {gone}')
+    # Presets: a prefab variant of THIS root prefab whose own FullController plays the preset's glue beside the root readout, and
+    # whose one rig override is the Mark's local position (the feature direction). Anything else overridden is a second author.
+    root_guid = re.search(r'^guid: ([0-9a-f]{32})', open(prefab + '.meta', encoding='utf-8').read(), re.M).group(1)
+    root_fc_id = next((i for _, i, b in docs if 'class: FullController' in b), None)
+    mark_tf = next((i for t, i, b in docs if t == '4' and owner(i) == 'Mark'), None)
+    for label, cfg in committed_configs().items():
+        if label == 'root': continue
+        vp = os.path.join(HERE, *preset_dir(label), 'AbsoluteGripProp.prefab')
+        a(os.path.exists(vp), f'{label}: AbsoluteGripProp.prefab exists')
+        if not os.path.exists(vp): continue
+        v = open(vp, encoding='utf-8').read()
+        a(re.search(rf'm_SourcePrefab: \{{fileID: 100100000, guid: {root_guid}', v) is not None, f'{label}: a prefab variant of this entry\'s root prefab')
+        vfc = [b for b in re.findall(r'^--- !u!114 &\d+\n(.*?)(?=^--- |\Z)', v, re.M | re.S) if 'class: FullController' in b]
+        a(len(vfc) == 1, f'{label}: exactly one FullController of its own')
+        g_v = guid_of(os.path.join(*preset_dir(label), 'built', cfg['glueName'] + '.controller.meta')); p_v = guid_of(os.path.join(*preset_dir(label), 'built', cfg['glueName'] + '_Parameters.asset.meta'))
+        if vfc:
+            a(re.findall(r'guid: ([0-9a-f]{32})', re.findall(r'controllers:.*?prms:', vfc[0], re.S)[0]) == [g_v, g_read], f'{label}: controllers: [its glue, the root readout] in that order, by GUID')
+            a(re.findall(r'guid: ([0-9a-f]{32})', re.findall(r'prms:.*?globalParams:', vfc[0], re.S)[0]) == [p_v, p_read], f'{label}: prms: [its glue, the root readout] in that order, by GUID')
+            gpv = re.search(r'globalParams:\n((?:\s+- .*\n)*)', vfc[0]); a((re.findall(r'- (\S+)', gpv.group(1)) if gpv else []) == [GLUE + '*'], f'{label}: globalParams == [{GLUE}*]')
+            a(f'Packages/com.ryan6vrc.patterns/' in vfc[0] and 'Assets/' not in re.sub(r'id: [0-9a-f]{32}\|Packages[^\n]*', '', vfc[0]), f'{label}: cached ids name the package, never a venue')
+        rm = re.search(r'm_RemovedComponents:\n((?:\s+- \{fileID: .+\n)+)', v)
+        a(rm is not None and re.findall(r'fileID: (\d+)', rm.group(1)) == [root_fc_id], f'{label}: removes exactly the root FullController ({root_fc_id})')
+        mods = re.findall(r'- target: \{fileID: (\d+), guid: [0-9a-f]{32},\s+type: 3\}\s+propertyPath: ([^\n]+)\n\s+value: ([^\n]*)', v)
+        stray = [(t, pp) for t, pp, _ in mods if not ((t == mark_tf and pp.startswith('m_LocalPosition.')) or (t == go_of.get(root_fc_id) and pp == 'm_Name') or (t == tf_of_go.get(go_of.get(root_fc_id)) and pp.startswith(('m_Local'))))]
+        a(not stray, f'{label}: overrides nothing beyond the Mark position and the root transform (stray: {stray})')
+        got = {pp[-1]: float(val) for t, pp, val in mods if t == mark_tf}
+        want = dict(zip('xyz', (c * MARK_H for c in cfg['markDir'])))
+        a(all(abs(got.get(ax, 0.0) - want[ax]) < 1e-6 for ax in 'xyz'), f'{label}: Mark local position == markDir * MARK_H {want} (overrides {got})')
     if fails:
         print('\n'.join('FAIL: ' + f for f in fails)); raise SystemExit(1)
-    print(f'ok: prefab surface holds ({len(recv)} receivers)')
+    print(f'ok: prefab surface holds ({len(recv)} receivers, {len(committed_configs()) - 1} presets)')
 
 if __name__ == '__main__':
     if '--check' in sys.argv: check(); sys.exit(0)
     text = emit_readout(); open(OUT_READOUT, 'w', newline='\n').write(text)
-    glue = emit_glue(); open(OUT_GLUE, 'w', newline='\n').write(glue)
     nstates = len(states); ntrans = sum(len(s['transitions']) for s in states.values())
     def count_leaves(m): return sum(count_leaves(c) if 'tree' in c else 1 for c in m['children'])
     leaves = count_leaves(math_layer['states']['Math (WD ON)']['motion']) + sum(count_leaves(s['motion']) for s in states.values())
     print(f'wrote {OUT_READOUT}: {len(params)} params, {len(clips)} clips, {nstates + 1} states, {ntrans} transitions, {leaves} tree leaves, {len(text.splitlines())} lines')
-    print(f'wrote {OUT_GLUE}: {len(GLUE_CLIPS)} clips, {len(glue_states())} states, {len(glue.splitlines())} lines')
+    # The root glue and each preset's, one readout shared: a preset is a prefab variant whose FullController plays its own glue beside the root readout.
+    for label, cfg in committed_configs().items():
+        out = os.path.join(HERE, *preset_dir(label), 'controller.yaml'); os.makedirs(os.path.dirname(out), exist_ok=True)
+        glue = emit_glue(cfg); open(out, 'w', newline='\n').write(glue)
+        print(f'wrote {out}: {len(glue_clips(cfg))} clips, {len(glue_states(cfg))} states, {len(glue.splitlines())} lines')

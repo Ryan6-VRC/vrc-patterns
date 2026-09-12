@@ -1,8 +1,8 @@
 # GripSync glue controller — the ONE glue controller of the grip-sync composition; the README owns the arc, this header owns only what the graph cannot say.
-# grab-sync's skeleton transcribed (its controller.yaml is the source; the transcription rule is below), with its one `Grabbed` state replaced by absolute-grip-prop's nineteen-state grip sub-graph (`Grip …`), transcribed from that entry's controller.yaml. An edit to either source document re-runs this transcription.
-# The clip table below the BEGIN marker is emitted (generate.py owns it, and its docstring is the design record): cell bindings read live from ../../absolute-grip-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/AbsoluteGripProp/ prefix — plus the glue value-sets and the two carves. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grip Arrive/Grip Acquire→grip_acquire, Grip Reacquire→grip_reacquire, Grip LatchedR/L→grip_latched, Grip Settling→grip_settling, Grip Settled→grip_settled, Grip ConfirmXY/Grip CarryXY→grip_carryXY, Grip RecheckXY→grip_recheckXY, Released→released, Dropped→dropped, Waiting→waiting, Acquire→acquire, Bridge→bridge, Synced→synced, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab.
-# Transcription rule, grab-sync side: every rung that entered `Grabbed` enters `Grip Arrive` (Anchored, Dropped, Waiting, Bridge, Reacquire, Resume_Grab) — `Grip Arrive` is the sole gateway into the sub-graph, and its arrive dwell is the entry's first-grabbed-frame guard, which a remote's re-grab needs as much as a fresh grab. Everything else transcribes 1:1: the boot dwell, Waiting's late-join ladder, Released's IsLocal split and its no-early-exit rule, the word states, the Reacquire dwell and the Resume park.
-# Transcription rule, cell side: every `Grip` state's rungs are the entry's, with the polarity map `AbsoluteGrip/Enable is false` → `ObjectSync/Enable less 0.5` (float, so no equality), `Released`/`Disabled`/`Dropped`/`Waiting`/`Anchored` targets landing on this document's states of those names, and ONE added rung per Grip state: the cull pre-arm `IsAnimatorEnabled is false → Resume`, placed immediately after the Enable-off rung. Placement is load-bearing: the ladder is first-match, the pre-halt window is one frame, and the Grip states that end in an unconditional exit-time rung (the four Recheck states among them) would shadow a pre-arm appended below it.
+# grab-sync's skeleton transcribed (its controller.yaml is the source; the transcription rule is below), with its one `Grabbed` state replaced by absolute-grip-prop's twenty-three-state grip sub-graph (`Grip …`), transcribed from that entry's controller.yaml. An edit to either source document re-runs this transcription.
+# The clip table below the BEGIN marker is emitted (generate.py owns it, and its docstring is the design record): cell bindings read live from ../../absolute-grip-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/AbsoluteGripProp/ prefix — plus the glue value-sets and the two carves. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grip Arrive/Grip ArriveBi/Grip Acquire→grip_acquire, Grip Reacquire→grip_reacquire, Grip LatchedR/L→grip_latched, Grip Settling→grip_settling, Grip Settled/Grip Hold→grip_settled, Grip FlipP/N→grip_flip, Grip ConfirmXY/Grip CarryXY→a 1D blend on Palm/Flip of grip_carryXY and the other sign's grip_carryXY', Grip RecheckXY→the same blend of grip_recheckXY, Released→released, Dropped→dropped, Waiting→waiting, Acquire→acquire, Bridge→bridge, Synced→synced, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab.
+# Transcription rule, grab-sync side: every rung that entered `Grabbed` enters `Grip Arrive`, twinned by a rung into `Grip ArriveBi` conditioned on `GripSync/Bidir` and placed first (Anchored, Dropped, Waiting, Bridge, Reacquire, Resume_Grab) — the two Arrive states are the only gateways into the sub-graph, both carry the Detached write, and their arrive dwell is the entry's first-grabbed-frame guard, which a remote's re-grab needs as much as a fresh grab. Everything else transcribes 1:1: the boot dwell, Waiting's late-join ladder, Released's IsLocal split and its no-early-exit rule, the word states, the Reacquire dwell and the Resume park.
+# Transcription rule, cell side: every `Grip` state's rungs are the entry's, with the polarity map `AbsoluteGrip/Enable is false` → `ObjectSync/Enable less 0.5` (float, so no equality) and `AbsoluteGrip/Bidir` → `GripSync/Bidir` (this composition's own mode name, a positive globalParams entry: the entry's wildcard is not published here), `Released`/`Disabled`/`Dropped`/`Waiting`/`Anchored` targets landing on this document's states of those names, and ONE added rung per Grip state: the cull pre-arm `IsAnimatorEnabled is false → Resume`, placed immediately after the Enable-off rung. Placement is load-bearing: the ladder is first-match, the pre-halt window is one frame, and the Grip states that end in an unconditional exit-time rung (the four Recheck states among them) would shadow a pre-arm appended below it.
 # `Disabled` is the merge of both documents' Disabled: it keeps the cell's `exitTime: 1.0` on the exit to Anchored — the receivers are off for the 0.25 s stow dwell, and a same-evaluation off→on leaves a proximity receiver deaf for the session — and carries two drivers: `Detached: 0` localOnly (a synced bit, the wearer's to write) and the cell's receiver-zeroing driver, NOT localOnly (sensing is per-client; a stowed receiver reads 0 and a stale reading would gate the enable that follows). The cell's `Palm/Hand` drivers in Grip LatchedR/L stay NOT localOnly for the same reason: remotes reach the sub-graph through Reacquire, Resume_Grab and Bridge, and a localOnly stamp would stall a remote in Grip Acquire forever with no build error.
 # Glue value-sets (home slot on BOTH mux channels; the rotation mux is full-axis because the cell's home slot is its own Rotor's full-axis HomeAnchor/Offset — grab-sync's Y-only mask serves a drag heading this composition has no use for) — digits echo generate.py's VALUE_SETS, their canon:
 #   HOME    = mux w (0,0,1) both channels, damper passthrough   (Timer/Disabled/Waiting hidden; Anchored visible)
@@ -11,7 +11,8 @@
 #   SYNC    = mux w (0,1,0), damper pos (0.1,1) rot (0.2,1)     (Synced/Reacquire — grab-sync's shipped damped values)
 # Two carves on the cell values, both in the word states Acquire/Synced/Resume and only there: GrabPosition weights (1,0) — grab-sync's, the parked cell root rides the word through the repointed Display — and the Rotor park: `Container/Rotor` enabled with home at 0 and its added fourth source (ObjectSync/Sync) at 1, so the freeze the cell's re-grab states hold is the WORD's attitude on a remote and the grip eases from it at Confirm (generate.py's docstring owns the mechanism and why no second writer is needed).
 # Engage gates read OS/Ready, the entry's SEALED certification — reachable only because this glue merges through the same FullController component as the sync build. Enable and OS/Ready declarations MATCH the entry's (float, vrc bool); Enable is un-scratch with default 1, and this controller sits FIRST in the component's controllers list AND its prms list so that default wins first-wins in each (generate.py --check pins both; the failure symptom is Enable baking 0, the prop invisible on spawn). The readout controller sits between and declares nothing the other two declare. `Palm/*` here is the entry glue's block verbatim (--check reads it live) because a type or default mismatch merges first-wins silently.
-# Detached (synced, unsaved, default false): set on the first grab state (Grip Arrive), not release — true means "away from home" (carried or placed); false means home, which is also the rejoin/default reading. Set and held, never pulsed, so it needs no remote-visible hold and survives a cull.
+# Detached (synced, unsaved, default false): set on the first grab state (Grip Arrive / Grip ArriveBi), not release — true means "away from home" (carried or placed); false means home, which is also the rejoin/default reading. Set and held, never pulsed, so it needs no remote-visible hold and survives a cull.
+# Palm/Decided and Palm/Down (synced, unsaved) are the entry's bidirectional-grip word, transcribed verbatim with their localOnly drivers (the entry's README §How it works owns the shape); Grip Arrive's "decided, authored" stamp and Grip Carry's copy of Palm/Flip are the wearer's alone, and Grip Hold is where a remote waits for them.
 # Resume/Resume_Grab — the cull park, grab-sync's reasoning verbatim: a resume is not detectable, so every state that could hand a stale pose to the damper pre-arms on the pre-halt frame — the whole Grip sub-graph (it is `Grabbed`), Released, Acquire, Bridge, Synced, Reacquire.
 # Routing trap, non-derivable: entry rungs evaluate at playable frame 0, before the runtime writes IsLocal — all boot routing is level transitions on the dwell state (Timer), never entry-edge rungs.
 # Bridge timer [EMPIRICAL]: pulse 0.5 + bridge 2.4 ≈ 2.9 s — derived in generate.py from the full-rotation build's ~1.32 s worst-case release-to-word latency under grab-sync's proportional buffer.
@@ -29,11 +30,15 @@ parameters:
   Detached:            { type: bool, default: false, vrc: { synced: true, saved: false } }
   Grab_IsGrabbed:      bool               # sensing — minted by the grab physbone (parameter: Grab)
   ObjectSync/Enable:   { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
+  GripSync/Bidir:      { type: bool, default: false, vrc: { synced: false, saved: true } }   # the bidirectional mode, this composition's own root Toggle's (a positive globalParams entry keeps it bare); unsynced, saved
   OS/Ready:            { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal:             bool               # VRC built-in
   IsAnimatorEnabled:   { type: bool, default: true }   # VRC built-in — longform default-true MATCHES the entry's declaration
   # absolute-grip-prop's glue block, verbatim (its readout declares the twelve receiver floats un-scratch; this document only reads or zeroes them).
   Palm/Hand: { type: int, default: 0, scratch: true }   # this document's own: the latched hand, driver-set on entry to LatchedR / LatchedL (1 / 2), 0 = none, read only by conditions; scratch because nothing outside the animator reads it
+  Palm/Flip: { type: float, default: 0.0, scratch: true }   # this document's own: 1 = present the flipped grip, driver-set on entry to FlipP / FlipN (1) and Settled (0), read only by the carry blends; scratch because nothing outside the animator reads it
+  Palm/Decided: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wire: the wearer's copy has decided this grab (Carry, or Arrive with the mode off); cleared at Released and Disabled; every driver on it is localOnly
+  Palm/Down: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the wire: the wearer's decision was the flipped grip, read only beside Decided; every driver on it is localOnly
   Palm/T1p: { type: float, scratch: true }
   Palm/T1m: { type: float, scratch: true }
   Palm/T2p: { type: float, scratch: true }
@@ -51,6 +56,10 @@ parameters:
   Palm/MM: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
+  Palm/MarkZp: { type: float, scratch: true }
+  Palm/MarkZm: { type: float, scratch: true }
+  Palm/MarkXp: { type: float, scratch: true }
+  Palm/MarkXm: { type: float, scratch: true }
 
 layers:
   - name: Prop
@@ -72,14 +81,25 @@ layers:
         motion: { clip: anchored }
         transitions:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grip ArriveBi, when: [ Grab_IsGrabbed is true, GripSync/Bidir is true ] }
           - { to: Grip Arrive, when: [ Grab_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing home.
           - { to: Synced,      when: [ IsLocal is false, Detached is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-      # ---- The grip sub-graph: absolute-grip-prop's Arrive … Carry, one added pre-arm rung each (header).
+      # ---- The grip sub-graph: absolute-grip-prop's Arrive … Recheck, one added pre-arm rung each (header).
       Grip Arrive:
-        motion: { clip: grip_acquire }
         behaviours:
           - driver: { localOnly: true, set: { Detached: 1 } }   # detached-on-grab: the bit means "away from home"
+          - driver: { localOnly: true, set: { Palm/Decided: 1, Palm/Down: 0 } }
+        motion: { clip: grip_acquire }
+        transitions:
+          - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,     when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Acquire, when: [ ], exitTime: 1.0 }
+      Grip ArriveBi:
+        behaviours:
+          - driver: { localOnly: true, set: { Detached: 1 } }   # detached-on-grab: the bit means "away from home"
+        motion: { clip: grip_acquire }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
@@ -134,6 +154,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ ], exitTime: 1.0 }
       Grip Settled:
+        behaviours:
+          - driver: { set: { Palm/Flip: 0 } }
         motion: { clip: grip_settled }
         transitions:
           - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
@@ -147,13 +169,91 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip FlipP,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true, Palm/MarkZm greater 0.5 ] }
+          - { to: Grip FlipN,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true, Palm/MarkZp greater 0.5 ] }
+          - { to: Grip FlipP,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true, Palm/MarkZm greater 0.5 ] }
+          - { to: Grip FlipN,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true, Palm/MarkZp greater 0.5 ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue greater 0.05 ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue less -0.05 ] }
+          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue greater 0.05 ] }
+          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue less -0.05 ] }
           - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
           - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
           - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
           - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Grip Reacquire, when: [ ], exitTime: 1.0 }
+      Grip FlipP:
+        behaviours:
+          - driver: { set: { Palm/Flip: 1 } }
+        motion: { clip: grip_flip }
+        transitions:
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Reacquire, when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
+          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
+          - { to: Grip ConfirmRP, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
+          - { to: Grip ConfirmLP, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
+      Grip FlipN:
+        behaviours:
+          - driver: { set: { Palm/Flip: 1 } }
+        motion: { clip: grip_flip }
+        transitions:
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Reacquire, when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
+          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
+          - { to: Grip ConfirmRN, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
+          - { to: Grip ConfirmLN, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
+      Grip Hold:
+        motion: { clip: grip_settled }
+        transitions:
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Reacquire, when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Grip Settled,   when: [ Palm/Decided is true ] }
+          - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
+          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
       Grip ConfirmRP:
-        motion: { clip: grip_carryRP }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryRP, threshold: 0.0 }
+            - { clip: grip_carryRN, threshold: 1.0 }
         transitions:
           - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
@@ -173,7 +273,12 @@ layers:
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryRP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmRN:
-        motion: { clip: grip_carryRN }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryRN, threshold: 0.0 }
+            - { clip: grip_carryRP, threshold: 1.0 }
         transitions:
           - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
@@ -193,7 +298,12 @@ layers:
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryRN,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLP:
-        motion: { clip: grip_carryLP }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryLP, threshold: 0.0 }
+            - { clip: grip_carryLN, threshold: 1.0 }
         transitions:
           - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
@@ -213,7 +323,12 @@ layers:
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryLP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLN:
-        motion: { clip: grip_carryLN }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryLN, threshold: 0.0 }
+            - { clip: grip_carryLP, threshold: 1.0 }
         transitions:
           - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
@@ -233,22 +348,37 @@ layers:
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryLN,   when: [ ], exitTime: 1.0 }
       Grip CarryRP:
-        motion: { clip: grip_carryRP }
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/Decided: 1 } }
+          - driver: { localOnly: true, copy: { Palm/Down: Palm/Flip } }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryRP, threshold: 0.0 }
+            - { clip: grip_carryRN, threshold: 1.0 }
         transitions:
-          - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
-          - { to: Released,     when: [ Grab_IsGrabbed is false ] }
-          - { to: Grip Acquire, when: [ Palm/T1p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T1m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Acquire,   when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip RecheckRP, when: [ Palm/Cue less -0.05 ] }
+          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Flip less 0.5 ] }
+          - { to: Grip Settled,   when: [ IsLocal is false, Palm/Decided is true, Palm/Down is false, Palm/Flip greater 0.5 ] }
       Grip RecheckRP:
-        motion: { clip: grip_recheckRP }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_recheckRP, threshold: 0.0 }
+            - { clip: grip_recheckRN, threshold: 1.0 }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
@@ -264,22 +394,37 @@ layers:
           - { to: Grip CarryRP, when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryRN, when: [ ], exitTime: 1.0 }
       Grip CarryRN:
-        motion: { clip: grip_carryRN }
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/Decided: 1 } }
+          - driver: { localOnly: true, copy: { Palm/Down: Palm/Flip } }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryRN, threshold: 0.0 }
+            - { clip: grip_carryRP, threshold: 1.0 }
         transitions:
-          - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
-          - { to: Released,     when: [ Grab_IsGrabbed is false ] }
-          - { to: Grip Acquire, when: [ Palm/T1p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T1m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Acquire,   when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip RecheckRN, when: [ Palm/Cue greater 0.05 ] }
+          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Flip less 0.5 ] }
+          - { to: Grip Settled,   when: [ IsLocal is false, Palm/Decided is true, Palm/Down is false, Palm/Flip greater 0.5 ] }
       Grip RecheckRN:
-        motion: { clip: grip_recheckRN }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_recheckRN, threshold: 0.0 }
+            - { clip: grip_recheckRP, threshold: 1.0 }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
@@ -295,22 +440,37 @@ layers:
           - { to: Grip CarryRN, when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryRP, when: [ ], exitTime: 1.0 }
       Grip CarryLP:
-        motion: { clip: grip_carryLP }
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/Decided: 1 } }
+          - driver: { localOnly: true, copy: { Palm/Down: Palm/Flip } }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryLP, threshold: 0.0 }
+            - { clip: grip_carryLN, threshold: 1.0 }
         transitions:
-          - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
-          - { to: Released,     when: [ Grab_IsGrabbed is false ] }
-          - { to: Grip Acquire, when: [ Palm/T1p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T1m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Acquire,   when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip RecheckLP, when: [ Palm/Cue less -0.05 ] }
+          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Flip less 0.5 ] }
+          - { to: Grip Settled,   when: [ IsLocal is false, Palm/Decided is true, Palm/Down is false, Palm/Flip greater 0.5 ] }
       Grip RecheckLP:
-        motion: { clip: grip_recheckLP }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_recheckLP, threshold: 0.0 }
+            - { clip: grip_recheckLN, threshold: 1.0 }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
@@ -326,22 +486,37 @@ layers:
           - { to: Grip CarryLP, when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryLN, when: [ ], exitTime: 1.0 }
       Grip CarryLN:
-        motion: { clip: grip_carryLN }
+        behaviours:
+          - driver: { localOnly: true, set: { Palm/Decided: 1 } }
+          - driver: { localOnly: true, copy: { Palm/Down: Palm/Flip } }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_carryLN, threshold: 0.0 }
+            - { clip: grip_carryLP, threshold: 1.0 }
         transitions:
-          - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
-          - { to: Released,     when: [ Grab_IsGrabbed is false ] }
-          - { to: Grip Acquire, when: [ Palm/T1p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T1m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T2m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T3m less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4p less 0.00001 ] }
-          - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
+          - { to: Disabled,       when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Resume,         when: [ IsAnimatorEnabled is false ] }
+          - { to: Released,       when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip Acquire,   when: [ Palm/T1p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T1m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T2m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T3m less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4p less 0.00001 ] }
+          - { to: Grip Acquire,   when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip RecheckLN, when: [ Palm/Cue greater 0.05 ] }
+          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Flip less 0.5 ] }
+          - { to: Grip Settled,   when: [ IsLocal is false, Palm/Decided is true, Palm/Down is false, Palm/Flip greater 0.5 ] }
       Grip RecheckLN:
-        motion: { clip: grip_recheckLN }
+        motion:
+          tree: 1d
+          param: Palm/Flip
+          children:
+            - { clip: grip_recheckLN, threshold: 0.0 }
+            - { clip: grip_recheckLP, threshold: 1.0 }
         transitions:
           - { to: Disabled,     when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,       when: [ IsAnimatorEnabled is false ] }
@@ -368,11 +543,13 @@ layers:
         motion: { clip: dropped }
         transitions:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grip ArriveBi, when: [ Grab_IsGrabbed is true, GripSync/Bidir is true ] }
           - { to: Grip Arrive, when: [ Grab_IsGrabbed is true ] }
       Waiting:
         motion: { clip: waiting }
         transitions:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Grip ArriveBi, when: [ Grab_IsGrabbed is true, GripSync/Bidir is true ] }
           - { to: Grip Arrive, when: [ Grab_IsGrabbed is true ] }
           # the late-join level path
           - { to: Acquire,     when: [ Detached is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
@@ -391,6 +568,7 @@ layers:
         transitions:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,      when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
+          - { to: Grip ArriveBi, when: [ Grab_IsGrabbed is true, GripSync/Bidir is true ] }
           - { to: Grip Arrive, when: [ Grab_IsGrabbed is true ] }
           - { to: Synced,      when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5, Detached is true ], exitTime: 1.0 }
           - { to: Waiting,     when: [ Detached is false ], exitTime: 1.0 }
@@ -408,6 +586,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,      when: [ IsAnimatorEnabled is false ] }   # pre-arm: the pre-halt frame
           - { to: Released,    when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip ArriveBi, when: [ GripSync/Bidir is true ], exitTime: 1.0 }
           - { to: Grip Arrive, when: [], exitTime: 1.0 }
       # The cull park (grab-sync's header owns the reasoning). Entered on the pre-halt frame, so the pause BEGINS here.
       Resume:
@@ -424,6 +603,7 @@ layers:
           - { to: Disabled,    when: [ ObjectSync/Enable less 0.5 ] }
           - { to: Resume,      when: [ IsAnimatorEnabled is false ] }   # a second cull re-arms rather than resuming visible
           - { to: Released,    when: [ Grab_IsGrabbed is false ] }
+          - { to: Grip ArriveBi, when: [ GripSync/Bidir is true ], exitTime: 1.0 }
           - { to: Grip Arrive, when: [], exitTime: 1.0 }
     default: Timer
 
@@ -447,6 +627,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0.5
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -556,6 +738,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0.5
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -664,6 +848,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0.5
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -774,6 +960,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -883,6 +1071,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -992,6 +1182,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -1102,6 +1294,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -1194,7 +1388,7 @@ clips:
       "Prop/Container/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/Container/VRCRotationConstraint.Sources.source1.Weight": 0
       "Prop/Container/Display/GameObject.m_IsActive": 1
-  grip_settled:   # cell `settled` (timeout = clip length) + CARRY
+  grip_settled:   # cell `settled` (timeout = clip length) + CARRY; Grip Hold plays it too
     length: 0.3667
     set:
       "Prop/GameObject.m_IsActive": 1
@@ -1211,6 +1405,119 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
+      "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
+      "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 324.7356
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 45.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 35.2644
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 225.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 35.2644
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 135.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 324.7356
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 315.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 324.7356
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 225.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 35.2644
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 45.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 35.2644
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 315.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 324.7356
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 135.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandL/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/HandR/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source3.Weight": 0
+      "Prop/Source/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop/Source/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/Source/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Prop/Source/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop/Source/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/Source/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/Container/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Prop/Container/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Prop/Container/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop/Container/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/Container/Display/GameObject.m_IsActive": 1
+  grip_flip:      # cell `flip` (the flip dispatch dwell = clip length) + CARRY
+    length: 0.0444
+    set:
+      "Prop/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/Container/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GameObject.m_IsActive": 1
+      "Prop/AbsoluteGripProp/Container/VRCPositionConstraint.m_Enabled": 1
+      "Prop/AbsoluteGripProp/Container/SourcePosition/VRCPositionConstraint.IsActive": 1
+      "Prop/AbsoluteGripProp/GrabPosition/VRCPositionConstraint.IsActive": 0
+      "Prop/AbsoluteGripProp/GrabPosition/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.m_Enabled": 0
+      "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -1320,6 +1627,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
@@ -1429,6 +1738,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
@@ -1538,6 +1849,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -1647,6 +1960,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -1756,6 +2071,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
@@ -1865,6 +2182,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0.5
@@ -1974,6 +2293,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2083,6 +2404,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 1
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2191,6 +2514,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2301,6 +2626,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2409,6 +2736,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 1
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0.5
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2519,6 +2848,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2629,6 +2960,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2737,6 +3070,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2846,6 +3181,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -2956,6 +3293,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0
@@ -3065,6 +3404,8 @@ clips:
       "Prop/AbsoluteGripProp/Container/Rotor/VRCRotationConstraint.Sources.source2.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source0.Weight": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Frame/VRCRotationConstraint.Sources.source3.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.m_Enabled": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source1.Weight": 0
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source2.Weight": 0

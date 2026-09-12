@@ -415,6 +415,7 @@ GameObject:
   - component: {fileID: 4518410120756449758}
   - component: {fileID: 3735435693517429852}
   - component: {fileID: 4878978941320629750}
+  - component: {fileID: 6875498603441768753}
   m_Layer: 0
   m_Name: GripSync
   m_TagString: Untagged
@@ -734,6 +735,7 @@ MonoBehaviour:
         smoothedPrms: []
         globalParams:
         - ObjectSync/*
+        - GripSync/Bidir
         allNonsyncedAreGlobal: 0
         ignoreSaved: 0
         toggleParam: 
@@ -883,6 +885,134 @@ MonoBehaviour:
           guid: 
           id: 47cb234dadfab214e8d7adffc703bb82|Packages/com.ryan6vrc.patterns/object-sync/assets/PinEnable.anim
           objRef: {fileID: 7400000, guid: 47cb234dadfab214e8d7adffc703bb82, type: 2}
+--- !u!114 &6875498603441768753
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3050071314305905142}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 3
+  unityVersion: 2022.3.22f1
+  vrcfuryVersion: 1.1427.0
+  somethingIsBroken: 0
+  config:
+    features: []
+  content:
+    rid: 131359894187016679
+  references:
+    version: 2
+    RefIds:
+    - rid: 131359894187016679
+      type: {class: Toggle, ns: VF.Model.Feature, asm: VRCFury}
+      data:
+        version: 3
+        name: GripSync Bidirectional
+        state:
+          actions:
+          - rid: 131360024439292039
+          - rid: 131360024439292040
+          - rid: 131360024439292041
+          - rid: 131360024439292042
+          - rid: 131360024439292043
+        saved: 1
+        slider: 0
+        sliderInactiveAtZero: 0
+        securityEnabled: 0
+        defaultOn: 0
+        includeInRest: 0
+        exclusiveOffState: 0
+        enableExclusiveTag: 0
+        exclusiveTag: 
+        resetPhysbones: []
+        hasExitTime: 0
+        enableIcon: 0
+        icon:
+          version: 1
+          fileID: 0
+          guid: 
+          id: 
+          objRef: {fileID: 0}
+        enableDriveGlobalParam: 0
+        driveGlobalParam: 
+        separateLocal: 0
+        localState:
+          actions: []
+        hasTransition: 0
+        transitionStateIn:
+          actions: []
+        transitionStateOut:
+          actions: []
+        transitionTimeIn: 0
+        transitionTimeOut: 0
+        localTransitionStateIn:
+          actions: []
+        localTransitionStateOut:
+          actions: []
+        localTransitionTimeIn: 0
+        localTransitionTimeOut: 0
+        simpleOutTransition: 1
+        defaultSliderValue: 0
+        useGlobalParam: 1
+        globalParam: GripSync/Bidir
+        holdButton: 0
+        invertRestLogic: 0
+        expandIntoTransition: 1
+    - rid: 131360024439292039
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 3480179716396042935}
+        mode: 0
+    - rid: 131360024439292040
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 684809105270218997}
+        mode: 0
+    - rid: 131360024439292041
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 3441011652632496814}
+        mode: 0
+    - rid: 131360024439292042
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 374486430162300792}
+        mode: 0
+    - rid: 131360024439292043
+      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
+      data:
+        version: 1
+        desktopActive: 0
+        androidActive: 0
+        localOnly: 0
+        remoteOnly: 0
+        obj: {fileID: 1584425784501402931}
+        mode: 0
 --- !u!1 &6163220387924647506
 GameObject:
   m_ObjectHideFlags: 0
@@ -1521,12 +1651,43 @@ PrefabInstance:
     m_RemovedComponents:
     - {fileID: 3513548472707984526, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
     - {fileID: 1926521021784116912, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
+    - {fileID: 6571613862155785327, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
     m_RemovedGameObjects:
     - {fileID: 4257538466046114012, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
     - {fileID: 5357166626291679158, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
+--- !u!1 &374486430162300792 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4134392058988791255, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 4346605587492907695}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &684809105270218997 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3878391479033104986, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 4346605587492907695}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1584425784501402931 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3003685565810005916, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 4346605587492907695}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &3441011652632496814 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1410421755937153025, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 4346605587492907695}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &3480179716396042935 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 873183497553993752, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 4346605587492907695}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4542841581658845840 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 241317074848716863, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
