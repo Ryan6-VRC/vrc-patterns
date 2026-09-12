@@ -68,7 +68,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             if (queue < 0 && mat.shader != null) queue = mat.shader.renderQueue;
 
             string clips =
-                queue < 2450 ? "cutout materials and transparents alike — the legacy behaviour"
+                queue < 2450 ? "cutout materials and transparents alike — the default"
               : queue == 2450 ? "transparents, and cutout materials only by per-object sort order: 2450 is " +
                 "the cutout queue itself, so which of the two draws first is not decided by the queue — use " +
                 "2449 or 2451 for a definite answer"

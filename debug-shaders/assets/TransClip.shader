@@ -2,7 +2,7 @@
 // writes depth early, so every transparent material behind its surface is skipped. Put your head inside it
 // and the view renders geometry only, with no shell in the way.
 //
-// TransClip is short for transparent-clip, and keeps the name of the legacy lilToon material (AlphaClip) it
+// TransClip is short for transparent-clip, and keeps the name of the lilToon alpha-clip material it
 // replaces recognizable while saying what the effect is rather than how that material reached it -- an alpha
 // near zero under a cutout queue, which is the mechanism this shader stops needing.
 //
@@ -60,7 +60,7 @@ Shader "Ryan6VRC/Overlay/TransClip"
             // THE ONE KNOB THAT DECIDES WHAT GETS CLIPPED, and the only queue in the family that is not
             // Overlay. Geometry+440 = 2440, which sorts before AlphaTest (2450) and before Transparent
             // (3000), so the wall's depth is already in the buffer when either kind draws and both are
-            // clipped -- the legacy material's behaviour. Move the MATERIAL to 2451..2999 to clip
+            // clipped -- the default. Move the MATERIAL to 2451..2999 to clip
             // transparents only and let cutout materials through; that is a per-material override
             // (m_CustomRenderQueue), reached from the inspector's Rendering > Render Queue field, never an
             // edit here. The wall only ever removes what draws AFTER it: a material queued at or before the
