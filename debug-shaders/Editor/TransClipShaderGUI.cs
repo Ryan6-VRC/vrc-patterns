@@ -69,6 +69,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
             string clips =
                 queue < 2450 ? "cutout materials and transparents alike — the legacy behaviour"
+              : queue == 2450 ? "transparents, and cutout materials only by per-object sort order: 2450 is " +
+                "the cutout queue itself, so which of the two draws first is not decided by the queue — use " +
+                "2449 or 2451 for a definite answer"
               : queue < 3000 ? "transparents only; cutout materials draw through it"
               : "nothing useful: the wall sorts with the transparents it is meant to clip, so what it hides " +
                 "depends on per-object sort order";

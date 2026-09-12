@@ -63,8 +63,10 @@ Shader "Ryan6VRC/Overlay/TransClip"
             // clipped -- the legacy material's behaviour. Move the MATERIAL to 2451..2999 to clip
             // transparents only and let cutout materials through; that is a per-material override
             // (m_CustomRenderQueue), reached from the inspector's Rendering > Render Queue field, never an
-            // edit here. Below 2440 the wall stops clipping opaque geometry it is in front of, which is not
-            // an effect anyone wants: opaque geometry already depth-tests correctly.
+            // edit here. The wall only ever removes what draws AFTER it: a material queued at or before the
+            // wall's own queue has already written its colour and cannot be erased, which is why opaque
+            // geometry (Geometry, 2000) is never affected at any value here, and why lowering the queue
+            // buys nothing -- it only narrows the set of later queues the wall reaches.
             "Queue" = "Geometry+440"
             // Descriptive only -- nothing here is replaced by RenderType and this shader has no ShadowCaster
             // pass, so it contributes nothing to _CameraDepthTexture either. The queue above is the
