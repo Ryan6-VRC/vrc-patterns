@@ -54,7 +54,7 @@ FPS_FLOOR = 45                        # the lowest frame rate the frame-count dw
 SETTLE_FILL = 6 / FPS_FLOOR           # 6 frames at the floor frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
 SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
-RECHECK_DWELL = 0.5                   # seconds the cue must read against the latched sign, never retreating past the bounce threshold, before a carry flips its sign. The readout's line has no orientation across a sample step near 90 degrees (a 30 fps observer watching the recorded fast swing sees 60 to 110 degrees between samples), so the ladder can land on the antipode there and the finger then reads at the other proxy for the rest of the grab; this is the recovery, and the dwell is what makes it not a flicker. Sized above the cue's longest contradiction while the grip was right: 0.13 s in the probe recording (11 bursts at 84 fps, the other-hand fast swing) and 0.23 s in the emulator harness at the 30 fps remote period, and above the transient reversals the ladder undoes by itself, under 0.5 s in every harness run
+RECHECK_DWELL = 0.5                   # seconds the cue must read against the latched sign, never retreating past the bounce threshold, before a carry flips its sign. The readout's line has no orientation across a sample step near 90 degrees (a 30 fps observer watching the recorded fast swing sees 60 to 110 degrees between samples), so the ladder can land on the antipode there and the finger then reads at the other proxy for the rest of the grab; this is the recovery, and the dwell is what makes it not a flicker. Sized above the cue's longest contradiction while the grip was right: 0.13 s in the probe recording (11 bursts at 84 fps, the other-hand fast swing) and 0.23 s in the emulator harness at the 30 fps remote period, and above the transient reversals the ladder undoes by itself on every stretch the harness could score
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
 GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident cage-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
@@ -439,7 +439,7 @@ GLUE_CLIPS = {
     # Frame on the aim constraint for the latched sign, and the placement smoother eases the payload origin onto that hand's
     # grip node. Confirm plays it provisionally while every engage condition is re-tested each frame, so the length is Confirm's
     # dwell and its exit time the irreversible decision (Carry has no exit-time rung, so the length is inert there); a bounce
-    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate and cue are never re-read while carrying.
+    # back to Settled freezes the pose it reached. Hand and sign are the state; the gate is never re-read while carrying, the cue is, by Recheck.
     **{f'carry{h}{s}': dict(length=CONFIRM_DWELL, set=glue_clip(1, 1, 1, 1, 0, False, 1, h, 1 if s == 'P' else -1, 1, False, 1, 'palm')) for h in 'RL' for s in 'PN'},
     # Recheck, one clip per hand and sign: the carry pose unchanged, the length the recheck dwell (a state's exit time is its clip's
     # length, so the dwell needs a clip of its own). Played while the cue reads against the latched sign; the exit time flips the sign.
@@ -520,7 +520,9 @@ def glue_states():
             # Carry keeps reading the cue: a decisive opposite sign enters Recheck, which plays the same pose for the recheck dwell and
             # flips the sign at its exit time; the cue retreating past the bounce threshold returns to Carry. A ladder reversal past the
             # orientation ambiguity is thereby a wrong grip for the dwell, not for the grab, and a cue that flickers (measured runs a
-            # fraction of the dwell) never flips it. The hand is still never re-read.
+            # fraction of the dwell) never flips it. The hand is still never re-read. The return rung is Confirm's bounce hysteresis, so a
+            # cue that has retreated only into the dead band still rides to the flip: the dwell is the guard, not the threshold, and a
+            # Carry/Recheck flap only restarts it.
             st[f'Carry{h}{s}'] = dict(clip=f'carry{h}{s}', transitions=common() + loss + [{'to': f'Recheck{h}{s}', 'when': [SIGNS[OPP[s]]]}])
             st[f'Recheck{h}{s}'] = dict(clip=f'recheck{h}{s}', transitions=common() + loss + [{'to': f'Carry{h}{s}', 'when': [bounce(SIGNS[OPP[s]])]},
                                                                                              {'to': f'Carry{h}{OPP[s]}', 'when': [], 'exitTime': 1.0}])
