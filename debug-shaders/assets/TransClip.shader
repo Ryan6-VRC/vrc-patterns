@@ -166,10 +166,10 @@ Shader "Ryan6VRC/Overlay/TransClip"
             #pragma warning (error : 3206)
 
             #pragma target 5.0
-            #pragma multi_compile_instancing
-            #pragma shader_feature_local _SHELL_ON
             #pragma vertex shell_vertex_stage
             #pragma fragment shell_fragment_stage
+            #pragma multi_compile_instancing
+            #pragma shader_feature_local _SHELL_ON
 
             #include "crystal_shell.hlsl"
 
