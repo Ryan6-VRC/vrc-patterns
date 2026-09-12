@@ -19,7 +19,7 @@ Doctrine an entry *embodies* — seams, build order, gimmick packaging, the bind
 
 **No two committed `.meta` under one top-level tree may declare the same GUID.** After copying an entry, re-GUID the copy's `built/` `.meta`s and repoint its prefab in the same edit; the gate names both offenders.
 
-A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name). A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
+A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name), and a module already bound single-instance by that enable may add a second bare `Toggle` for a control whose object action must switch GameObjects with no animator layer of its own; the entry README states why the layer is not worth having. A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
 
 ## Tier is derived, not assigned
 

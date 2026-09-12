@@ -1,0 +1,182 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &9217441858007100927
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 80760796509721316, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 80760796509721316, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4462206639406320095, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_Name
+      value: AbsoluteGripProp
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents:
+    - {fileID: 3513548472707984526, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4462206639406320095, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2674873638592809441}
+  m_SourcePrefab: {fileID: 100100000, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
+--- !u!1 &4757524980292412448 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4462206639406320095, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
+    type: 3}
+  m_PrefabInstance: {fileID: 9217441858007100927}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2674873638592809441
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4757524980292412448}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 3
+  unityVersion: 2022.3.22f1
+  vrcfuryVersion: 1.1427.0
+  somethingIsBroken: 0
+  config:
+    features: []
+  content:
+    rid: 1848182652504113152
+  references:
+    version: 2
+    RefIds:
+    - rid: 1848182652504113152
+      type: {class: FullController, ns: VF.Model.Feature, asm: VRCFury}
+      data:
+        version: 4
+        controllers:
+        - controller:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 2019bf30c808ee84bb6ce066f8533455|Packages/com.ryan6vrc.patterns/absolute-grip-prop/z-flip/built/AbsoluteGripPropZ_Fx.controller
+            objRef: {fileID: 9100000, guid: 2019bf30c808ee84bb6ce066f8533455, type: 2}
+          type: 5
+        - controller:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 3e29e761dfa94406b4cdf038831b22f5|Packages/com.ryan6vrc.patterns/absolute-grip-prop/built/GripReadout_Fx.controller
+            objRef: {fileID: 9100000, guid: 3e29e761dfa94406b4cdf038831b22f5, type: 2}
+          type: 5
+        menus: []
+        prms:
+        - parameters:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 4af97350b7de0f243a9dd7442c68fa15|Packages/com.ryan6vrc.patterns/absolute-grip-prop/z-flip/built/AbsoluteGripPropZ_Fx_Parameters.asset
+            objRef: {fileID: 11400000, guid: 4af97350b7de0f243a9dd7442c68fa15, type: 2}
+        - parameters:
+            version: 1
+            fileID: 0
+            guid: 
+            id: 7d4102ab26834193b65729b575d50200|Packages/com.ryan6vrc.patterns/absolute-grip-prop/built/GripReadout_Fx_Parameters.asset
+            objRef: {fileID: 11400000, guid: 7d4102ab26834193b65729b575d50200, type: 2}
+        smoothedPrms: []
+        globalParams:
+        - AbsoluteGrip/*
+        allNonsyncedAreGlobal: 0
+        ignoreSaved: 0
+        toggleParam: 
+        rootObjOverride: {fileID: 0}
+        rootBindingsApplyToAvatar: 0
+        rewriteBindings: []
+        allowMissingAssets: 0
+        injectParams: []
+        injectSpsDepthParam: 
+        injectSpsVelocityParam: 
+        controller:
+          version: 1
+          fileID: 0
+          guid: 
+          id: 
+          objRef: {fileID: 0}
+        menu:
+          version: 1
+          fileID: 0
+          guid: 
+          id: 
+          objRef: {fileID: 0}
+        parameters:
+          version: 1
+          fileID: 0
+          guid: 
+          id: 
+          objRef: {fileID: 0}
+        submenu: 
+        removePrefixes: []
+        addPrefix: 
+        useSecurityForToggle: 0
