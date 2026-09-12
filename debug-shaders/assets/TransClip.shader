@@ -1,5 +1,5 @@
-// Ryan6VRC/Overlay/TransClip -- a depth wall with a front-face shell: an almost invisible glass sphere that
-// writes depth early, so every transparent material behind its surface is skipped. Put your head inside it
+// Ryan6VRC/Overlay/TransClip -- a depth wall with a front-face shell: the family's crystal sphere, which also
+// writes depth early so every transparent material behind its surface is skipped. Put your head inside it
 // and the view renders geometry only, with no shell in the way.
 //
 // TransClip is short for transparent-clip, and keeps the name of the lilToon alpha-clip material it
@@ -25,13 +25,8 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // renders a property's header inside whichever section drew it, so a header would title the fold
         // twice.
 
-        // The shell's coverage where the rim contributes nothing, which for this shader is nearly everywhere.
-        // Under Blend SrcAlpha OneMinusSrcAlpha this is what makes the sphere almost invisible while still
-        // reading as glass at a grazing angle: the cubemap is blended in at this fraction across the body and
-        // at the rim-boosted fraction at the silhouette. Authored low on purpose -- the point of the object
-        // is the depth it writes, not the surface.
-        _Shell_Alpha("Base alpha", Range(0, 1)) = 0.015
-
+        // The family's shell block, name for name and default for default: this shell IS the debug crystal
+        // shell, so a value that differs from a sibling's is drift, not tuning.
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
         [HDR] _Shell_Reflection_Color("Color / Mask", Color) = (1,1,1,1)
         [NoScaleOffset] _Shell_ReflectionCube("Reflection cubemap", Cube) = "" {}
@@ -41,10 +36,6 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // already near-flat there and the slider's top third was dead travel.
         _Shell_Reflection_BlurMaxMip("Blur max mip (LOD steps)", Range(0, 6)) = 6
 
-        // The rim's alpha is coverage here, not just tint: the shell pass adds rim_mask * a * strength on top
-        // of _Shell_Alpha, so the silhouette is where the cubemap actually becomes visible. The siblings
-        // blend One One and use this alpha for brightness alone, which is why the same default reads
-        // differently across the family.
         [HDR] _Shell_Rim_Color("Color / Alpha", Color) = (1,1,1,0.05)
         _Shell_Rim_Strength("Strength", Range(0, 4)) = 1
         _Shell_Rim_Border("Border", Range(0, 1)) = 0.6
@@ -153,21 +144,19 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // ────────────────────────────────────────────────────────────────────────────────────────────
         // PASS 2: CRYSTAL_SHELL
         //
-        // The family's shell, alpha-blended rather than additive. Cull Back with ZWrite Off and the depth
-        // wall already holding the nearest surface, so exactly one shell layer survives the depth test per
-        // pixel and there is nothing to double-blend. From inside the sphere no front face points at the
+        // The family's shell, verbatim: Blend One One, half4(shell_rgb, 0), the same pass DebugOverlay and
+        // DebugDisplay draw, so this sphere looks exactly like its siblings and is found the same way. Cull
+        // Back with ZWrite Off and the depth wall already holding the nearest surface, so exactly one shell
+        // layer survives the depth test per pixel. From inside the sphere no front face points at the
         // camera, so this pass draws nothing at all -- which is the inside-view behaviour, reached by the
-        // culling rule rather than by any switch.
-        //
-        // Alpha, not additive: the siblings return half4(shell, 0) under Blend One One, where the shell adds
-        // light and can only brighten. This one has to read as a faint transmissive surface that the scene
-        // shows through, which is what SrcAlpha OneMinusSrcAlpha at a very low alpha gives.
+        // culling rule rather than by any switch. Not an alpha blend at a low alpha: that reads as no shell
+        // at all, and the shell is the family's or it is nothing.
         // ────────────────────────────────────────────────────────────────────────────────────────────
         Pass
         {
             Name "CRYSTAL_SHELL"
 
-            Blend SrcAlpha OneMinusSrcAlpha
+            Blend One One
             Cull Back
             ZWrite Off
             ZTest LEqual
@@ -184,29 +173,17 @@ Shader "Ryan6VRC/Overlay/TransClip"
 
             #include "crystal_shell.hlsl"
 
-            uniform float _Shell_Alpha;
-
             half4 shell_fragment_stage(ShellFragmentInput input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
             #if !defined(_SHELL_ON)
-                // Alpha 0 under SrcAlpha OneMinusSrcAlpha leaves the framebuffer untouched, so the shell-off
-                // variant costs a rasterised fragment and changes nothing. The depth wall is unaffected: it
-                // is its own pass and carries no keyword.
+                // Black under Blend One One leaves the framebuffer untouched, so the shell-off variant costs
+                // a rasterised fragment and changes nothing. The depth wall is unaffected: it is its own
+                // pass and carries no keyword.
                 return half4(0, 0, 0, 0);
             #else
-                half3 shell = shell_rgb(input.normal_ws, input.position_ws);
-
-                // Coverage, not colour. The rim term rides on top of the base so the silhouette is where the
-                // cubemap actually becomes visible -- at the authored defaults the body blends in ~1.5% of
-                // the reflection and the rim ~6.5%. Saturated because both inputs are free floats and an
-                // alpha past 1 would make the shell opaque, defeating the object.
-                float rim = shell_rim_mask(normalize(input.normal_ws), input.position_ws);
-                half alpha = (half) saturate(_Shell_Alpha
-                                             + rim * _Shell_Rim_Color.a * _Shell_Rim_Strength);
-
-                return half4(shell, alpha);
+                return half4(shell_rgb(input.normal_ws, input.position_ws), 0);
             #endif
             }
             ENDCG

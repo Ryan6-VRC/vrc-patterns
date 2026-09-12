@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,9 +6,8 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 {
     /// <summary>
     /// Material inspector for <c>Ryan6VRC/Overlay/TransClip</c> — a depth wall with a front-face shell. The
-    /// shell half is the family's, so this class exists for two things the shared base cannot supply: the
-    /// base-alpha control (an unclaimed property raises <see cref="CrystalShellShaderGUI.DrawUnclaimed"/>'s
-    /// error box, and <see cref="CrystalShellShaderGUI"/> is abstract besides), and the render queue.
+    /// shell half is the family's and the shared base draws it whole (<see cref="CrystalShellShaderGUI"/> is
+    /// abstract, so a subclass has to exist), which leaves this class one job of its own: the render queue.
     ///
     /// <para><b>The queue is this shader's main knob and it is not a shader property.</b> What gets clipped
     /// is decided entirely by where the material sorts, so the Rendering fold's Render Queue field is the
@@ -20,13 +18,6 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
     /// </summary>
     public class TransClipShaderGUI : CrystalShellShaderGUI
     {
-        static readonly string[] AlphaProps = { "_Shell_Alpha" };
-
-        protected override IEnumerable<string> ClaimedProperties
-        {
-            get { return base.ClaimedProperties.Concat(AlphaProps); }
-        }
-
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
             var mat = materialEditor.target as Material;
@@ -41,23 +32,13 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
             DrawSummary(mat);
 
             DrawShellSection(materialEditor, properties, mat);
-
-            // Outside the shell fold on purpose: with the shell disabled this material is a pure depth wall,
-            // and the alpha is then the one number explaining why nothing is visible. A control that
-            // disappears with the section is a control an operator looks for and cannot find.
-            using (Body())
-            {
-                EditorGUILayout.LabelField("Shell coverage", EditorStyles.boldLabel);
-                DrawNamed(materialEditor, properties, AlphaProps);
-            }
-
             DrawRenderingSection(materialEditor);
             DrawUnclaimed(properties);
         }
 
         /// <summary>
         /// Never inside a fold, same role as the sibling inspectors': what this material is currently
-        /// clipping, read off the effective queue, plus the two states that render as "nothing happened".
+        /// clipping, read off the effective queue, plus the one state that renders as "nothing happened".
         /// </summary>
         static void DrawSummary(Material mat)
         {
@@ -87,17 +68,6 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                              "invisible from every angle. That is a legitimate setting — it is also " +
                              "indistinguishable from a broken install, so expect to verify it by what " +
                              "disappears behind the object rather than by looking at the object.");
-            else if (GetFloat(mat, "_Shell_Alpha", 0.015f) <= 0f)
-            {
-                // Read as a Color: GetFloat on a colour property is not a type Unity coerces.
-                float rimAlpha = mat.HasProperty("_Shell_Rim_Color")
-                    ? mat.GetColor("_Shell_Rim_Color").a * GetFloat(mat, "_Shell_Rim_Strength", 1f)
-                    : 0f;
-                if (rimAlpha <= 0f)
-                    warnings.Add("Base alpha and rim alpha are both 0, so the shell pass writes nothing " +
-                                 "and only the depth wall remains. Raise one, or turn the shell off and " +
-                                 "mean it.");
-            }
 
             if (warnings.Count > 0)
                 EditorGUILayout.HelpBox(string.Join("\n\n", warnings), MessageType.Warning);
