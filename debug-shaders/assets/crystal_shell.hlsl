@@ -64,8 +64,30 @@ void shell_vertex_stage(ShellVertexInput input, out ShellFragmentInput output)
 
 // ── Shading ─────────────────────────────────────────────────────────────────────────────────────────
 
-/// The shell's colour at one fragment. Additive by construction: the caller blends One One and passes
-/// alpha 0, so nothing here needs to know about the surface behind it.
+/// The fresnel rim's coverage at one fragment: 0 off the silhouette, 1 on it. Its own function because
+/// TransClip needs the mask as an ALPHA while shell_rgb() below needs it as a colour weight, and a fresnel
+/// computed in two places is a fresnel that drifts. Takes an ALREADY-NORMALIZED N.
+float shell_rim_mask(float3 N, float3 position_ws)
+{
+    // The rim's viewpoint lerps between stereo centre and per-eye: at 0 both eyes see the same rim (flat
+    // but stable), at 1 it parallaxes properly.
+    float3 cam_rim_ws = lerp(dbg_camera_center_ws(), dbg_camera_eye_ws(),
+                             saturate(_Shell_Rim_VRParallaxStrength));
+    float3 V_rim = normalize(cam_rim_ws - position_ws);
+
+    float ndv = saturate(dot(N, V_rim));
+    float rim_base = pow(saturate(1.0 - ndv), max(_Shell_Rim_FresnelPower, 0.0001));
+
+    float rim_min = saturate(_Shell_Rim_Border - _Shell_Rim_Blur * 0.5);
+    float rim_max = saturate(_Shell_Rim_Border + _Shell_Rim_Blur * 0.5);
+    rim_max = max(rim_max, rim_min + 0.0001);
+
+    return smoothstep(rim_min, rim_max, rim_base);
+}
+
+/// The shell's colour at one fragment. Additive for the three overlay members: those callers blend One One
+/// and pass alpha 0, so nothing here needs to know about the surface behind it. TransClip blends the same
+/// colour at a real alpha instead — a property of its pass, not of this function.
 half3 shell_rgb(float3 normal_ws, float3 position_ws)
 {
     float3 N = normalize(normal_ws);
@@ -90,20 +112,7 @@ half3 shell_rgb(float3 normal_ws, float3 position_ws)
                          * _Shell_Reflection_Color.rgb
                          * (_Shell_Reflection_Color.a * _Shell_Reflection_Strength);
 
-    // The rim's viewpoint lerps between stereo centre and per-eye: at 0 both eyes see the same rim (flat
-    // but stable), at 1 it parallaxes properly.
-    float3 cam_rim_ws = lerp(dbg_camera_center_ws(), cam_eye_ws,
-                             saturate(_Shell_Rim_VRParallaxStrength));
-    float3 V_rim = normalize(cam_rim_ws - position_ws);
-
-    float ndv = saturate(dot(N, V_rim));
-    float rim_base = pow(saturate(1.0 - ndv), max(_Shell_Rim_FresnelPower, 0.0001));
-
-    float rim_min = saturate(_Shell_Rim_Border - _Shell_Rim_Blur * 0.5);
-    float rim_max = saturate(_Shell_Rim_Border + _Shell_Rim_Blur * 0.5);
-    rim_max = max(rim_max, rim_min + 0.0001);
-
-    float rim_mask = smoothstep(rim_min, rim_max, rim_base);
+    float rim_mask = shell_rim_mask(N, position_ws);
     half3 rim_rgb = _Shell_Rim_Color.rgb * (_Shell_Rim_Color.a * _Shell_Rim_Strength) * rim_mask;
 
     return reflection_rgb + rim_rgb;
