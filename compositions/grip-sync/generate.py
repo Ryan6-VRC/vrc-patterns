@@ -19,8 +19,9 @@ Three documents, three builds, ONE FullController on the prefab root:
                                 after the emit, the same shape the cell prefix
                                 below takes. The entry generator has no mount
                                 knob and this composition does not add one.
-  controller.yaml               the glue (hand-authored graph above the marker;
-                                the clip table below it is emitted here).
+  controller.yaml               the glue: two marker pairs, both emitted here —
+                                the Grip sub-graph and the clip table. Everything
+                                outside them is hand-authored.
 
 Why one component: the glue reads the sync build's sealed `OS/Ready` and the
 readout's `Palm/*` AAPs. One FullController prefixes every controller it merges
@@ -31,6 +32,18 @@ list, so its `ObjectSync/Enable` declaration (default 1) wins the first-wins
 parameter merge in each (controller.yaml's header owns the mechanism; --check
 pins both orders). The readout sits between; it declares no name the other two
 declare, so its position is free and is not pinned.
+
+THE GENERATED GRIP STATES
+-------------------------
+The `Grip *` states between the GRIP markers are rendered from
+`absolute-grip-prop`'s `glue_states(CONFIG)` at emit time under the cell-side
+transcription rule controller.yaml's header states — so an entry state, rung or
+driver that changes lands here on the next run instead of drifting. The six
+states this composition's skeleton owns by name are not emitted, and neither are
+the two exit-time `Grip ArriveBi` twins the skeleton's rungs reach in with; both
+stay hand-authored below the END marker. `emit_grip_states` refuses rather than
+emits a short list, because a state dropped on a name collision shows up only as
+a rung into nothing, far from its cause.
 
 THE GLUE CLIP TABLE
 -------------------
@@ -45,10 +58,10 @@ Two carves, and only two, depart from the cell's values:
   GP_CARVE     grab-sync's: GrabPosition weights (1,0) in the word states, so the
                parked cell root rides the word through the repointed Display
                (../../grab-prop/README.md §How it works sanctions the repoint).
-  ROTOR_CARVE  this composition's own: `Container/Rotor` gains a fourth source,
+  ROTOR_CARVE  this composition's own: `Container/Rotor` gains a sixth source,
                `ObjectSync/Sync`, and in the word states the clip writes
-               `Rotor.m_Enabled 1, source0 0, source3 1` (weights normalize by
-               sum, so home must go to 0). Every other clip writes source3 = 0
+               `Rotor.m_Enabled 1, source0 0, source5 1` (weights normalize by
+               sum, so home must go to 0). Every other clip writes source5 = 0
                and the cell's own Rotor values. The cell freezes Rotor
                (m_Enabled 0) in acquire/latched/reacquire/settling/settled/
                released/dropped and re-enables it on the grip only in carry*,
@@ -133,8 +146,8 @@ def readout_text(grip):
 GP0 = PREFIX + "GrabPosition/VRCPositionConstraint.Sources.source0.Weight"
 GP1 = PREFIX + "GrabPosition/VRCPositionConstraint.Sources.source1.Weight"
 ROTOR = PREFIX + "Container/Rotor/VRCRotationConstraint"
-ROTOR_EN, ROTOR_S0, ROTOR_S3 = (ROTOR + ".m_Enabled", ROTOR + ".Sources.source0.Weight",
-                                ROTOR + ".Sources.source3.Weight")
+ROTOR_EN, ROTOR_S0, ROTOR_S5 = (ROTOR + ".m_Enabled", ROTOR + ".Sources.source0.Weight",
+                                ROTOR + ".Sources.source5.Weight")   # the entry's five sources are Offset and the four grip nodes; the word's is the sixth
 WORD_STATES = {"acquire", "synced", "resume"}    # both carves land here, and only here
 
 GLUE_KEYS = (
@@ -199,13 +212,23 @@ CLIPS = (
     ("grip_flip", "flip", "CARRY", None,
      ("cell `flip` (the flip dispatch dwell = clip length) + CARRY",)),
     ("grip_carryRP", "carryRP", "CARRY", None, ("cell `carryRP` + CARRY (Confirm dwell = clip length; Carry loops it)",)),
+    ("grip_carryRPF", "carryRPF", "CARRY", None, ("cell `carryRPF` + CARRY — the flipped hold of the same hand and sign, the blend's 1-end",)),
     ("grip_carryRN", "carryRN", "CARRY", None, ("cell `carryRN` + CARRY",)),
+    ("grip_carryRNF", "carryRNF", "CARRY", None, ("cell `carryRNF` + CARRY — the flipped hold",)),
     ("grip_carryLP", "carryLP", "CARRY", None, ("cell `carryLP` + CARRY",)),
+    ("grip_carryLPF", "carryLPF", "CARRY", None, ("cell `carryLPF` + CARRY — the flipped hold",)),
     ("grip_carryLN", "carryLN", "CARRY", None, ("cell `carryLN` + CARRY",)),
+    ("grip_carryLNF", "carryLNF", "CARRY", None, ("cell `carryLNF` + CARRY — the flipped hold",)),
     ("grip_recheckRP", "recheckRP", "CARRY", None, ("cell `recheckRP` + CARRY (recheck dwell = clip length)",)),
+    ("grip_recheckRPF", "recheckRPF", "CARRY", None, ("cell `recheckRPF` + CARRY — the flipped hold",)),
     ("grip_recheckRN", "recheckRN", "CARRY", None, ("cell `recheckRN` + CARRY",)),
+    ("grip_recheckRNF", "recheckRNF", "CARRY", None, ("cell `recheckRNF` + CARRY — the flipped hold",)),
     ("grip_recheckLP", "recheckLP", "CARRY", None, ("cell `recheckLP` + CARRY",)),
+    ("grip_recheckLPF", "recheckLPF", "CARRY", None, ("cell `recheckLPF` + CARRY — the flipped hold",)),
     ("grip_recheckLN", "recheckLN", "CARRY", None, ("cell `recheckLN` + CARRY",)),
+    ("grip_recheckLNF", "recheckLNF", "CARRY", None, ("cell `recheckLNF` + CARRY — the flipped hold",)),
+    ("grip_readP", "readP", "CARRY", None, ("cell `readP` (the settled pose in the sign-P frame; read dwell = clip length) + CARRY",)),
+    ("grip_readN", "readN", "CARRY", None, ("cell `readN` (the same read in the sign-N frame) + CARRY",)),
     ("released", "released", "CARRY", None,
      ("cell `released` (pulse verbatim, curves included) + CARRY  [EMPIRICAL: the entry's pulse]",)),
     ("dropped", "dropped", "CARRY", None,
@@ -297,10 +320,10 @@ def emit_clips(cell):
         if ROTOR_EN not in rows or ROTOR_S0 not in rows:
             raise SystemExit(f"REFUSE: cell clip `{src}` does not write Rotor's enable and home "
                              "weight — the Rotor carve has nothing to carve")
-        rows[ROTOR_S3] = "0"
+        rows[ROTOR_S5] = "0"
         if name in WORD_STATES:
             rows[GP0], rows[GP1] = "1", "0"
-            rows[ROTOR_EN], rows[ROTOR_S0], rows[ROTOR_S3] = "1", "0", "1"
+            rows[ROTOR_EN], rows[ROTOR_S0], rows[ROTOR_S5] = "1", "0", "1"
         for k, v in zip(GLUE_KEYS[1:], vals[1:]):
             if v is None:
                 curves[k] = DISPLAY_DELAY
@@ -322,6 +345,76 @@ def emit_clips(cell):
             out.append("    curves:")
             out.extend(f'      "{k}": {v}' for k, v in curves.items())
     return out
+
+
+# ============================================================ grip states ===
+# The entry's glue sub-graph rendered live from `grip.glue_states(grip.CONFIG)` under the header's cell-side transcription rule, so a state the entry gains or a rung it rewords cannot go stale here.
+# Six entry states are NOT emitted: this composition's skeleton carries its own Timer/Disabled/Anchored/Released/Dropped/Waiting (grab-sync's clips, drivers and boot ladder, merged with the entry's where both had one), and the two exit-time `Grip ArriveBi` twins that reach in from skeleton rungs are hand-authored below the END marker too.
+# The count is asserted rather than taken: an entry state colliding with a skeleton name would otherwise vanish silently, and its absence surfaces only as a rung into a missing state, far from the cause.
+
+SKELETON = ("Timer", "Disabled", "Anchored", "Released", "Dropped", "Waiting")
+BARE = ("Released", "Disabled", "Dropped", "Waiting", "Anchored")   # entry targets that land on this document's state of that name; every other target takes the `Grip ` prefix
+GATEWAYS = ("Arrive", "ArriveBi")   # the only two ways into the sub-graph, and the only states that stamp Detached
+
+GRIP_BEGIN = "      # --- BEGIN GENERATED GRIP STATES by generate.py: absolute-grip-prop's glue sub-graph transcribed by the header's rules."
+GRIP_END = "      # --- END GENERATED GRIP STATES"
+
+
+def _grip_cond(c):
+    """The polarity map: the entry's own mode names become this composition's, and the grab physbone's parameter is `Grab` here."""
+    return (c.replace("AbsoluteGrip/Enable is false", "ObjectSync/Enable less 0.5")   # a float here, so no equality
+             .replace("AbsoluteGrip/Bidir is true", "GripSync/Bidir is true")
+             .replace("GrabBone_IsGrabbed", "Grab_IsGrabbed"))
+
+
+def _grip_state(grip, name, s):
+    lines = [f"      Grip {name}:"]
+    beh = list(s.get("behaviours", []))
+    if name in GATEWAYS:
+        beh = [{"driver": {"localOnly": True, "set": {"Detached": 1}}}] + beh
+    if beh:
+        lines.append("        behaviours:")
+        for b in beh:
+            for kind, body in b.items():
+                line = f"          - {kind}: {grip.emit_driver(body)}"
+                if name in GATEWAYS and "Detached" in line:
+                    line += '   # detached-on-grab: the bit means "away from home"'
+                lines.append(line)
+    if "blend" in s:
+        c0, c1 = s["blend"]
+        lines += ["        motion:", "          tree: 1d", f"          param: {grip.FLIP}", "          children:",
+                  f"            - {{ clip: grip_{c0}, threshold: 0.0 }}",
+                  f"            - {{ clip: grip_{c1}, threshold: 1.0 }}"]
+    else:
+        lines.append(f'        motion: {{ clip: grip_{s["clip"]} }}')
+    lines.append("        transitions:")
+    # The one added rung: the cull pre-arm, immediately after the Enable-off rung it shadows nothing above (the header owns why placement is load-bearing).
+    rungs = []
+    for t in s["transitions"]:
+        to = t["to"]
+        rungs.append((to if to in BARE else "Grip " + to, [_grip_cond(c) for c in t["when"]], t.get("exitTime")))
+        if to == "Disabled":
+            rungs.append(("Resume", ["IsAnimatorEnabled is false"], None))
+    w = max(len(r[0]) for r in rungs) + 1
+    for to, when, et in rungs:
+        fields = [f"to: {to},".ljust(w + 5) + (f"when: [ {', '.join(when)} ]" if when else "when: [ ]")]
+        if et is not None:
+            fields.append(f"exitTime: {grip.fmt(et)}")
+        lines.append(f"          - {{ {', '.join(fields)} }}")
+    return lines
+
+
+def emit_grip_states(grip):
+    states = grip.glue_states(grip.CONFIG)
+    order = [n for n in states if n not in SKELETON]
+    if len(order) != len(states) - len(SKELETON):
+        missing = [n for n in SKELETON if n not in states]
+        raise SystemExit(f"REFUSE: the entry's glue sub-graph no longer carries {missing} — this composition's skeleton "
+                         "replaces those states by name, so emitting the rest would drop or duplicate a state silently.")
+    body = []
+    for n in order:
+        body += _grip_state(grip, n, states[n])
+    return body
 
 
 def splice(path, begin, end, body):
@@ -497,11 +590,17 @@ def check():
     for fid, guid, pp, val, ref in mods:
         if guid == cell_guid:
             by_node.setdefault(cell_comps.get(int(fid), (cell_tf.get(int(fid), (cell_gos.get(int(fid), "?"),))[0],))[0], []).append((pp, val, ref))
+    # The four grip nodes are the one surface a composer is MEANT to override: the hold is authored on the nested
+    # instance, and an override there outranks the entry forever (an entry-side retune of that node stops reaching this
+    # prefab — intended here, and the opposite of the variant rule's usual reason). Position and rotation only; a
+    # component or a re-parent on one of them is not an authored hold.
+    grip_node = lambda pp: pp.startswith(("m_LocalPosition.", "m_LocalRotation.", "m_LocalEulerAnglesHint."))
     allowed = {
         "GrabBone": lambda pp: pp == "parameter",
         "GrabPosition": lambda pp: pp.startswith("Sources.source0.SourceTransform"),
-        "Rotor": lambda pp: pp.startswith("Sources.source3") or pp == "Sources.totalLength",
+        "Rotor": lambda pp: pp.startswith("Sources.source5") or pp == "Sources.totalLength",
         CELL_MOUNT: lambda pp: pp in ("m_Name", "m_RootOrder") or pp.startswith(("m_Local", "m_IsActive")),
+        **{"Grip" + g: grip_node for g in ("R", "L", "RF", "LF")},
     }
     stray = {n: [pp for pp, _, _ in rows if not allowed.get(n, lambda p: False)(pp)] for n, rows in by_node.items()}
     stray = {n: p for n, p in stray.items() if p}
@@ -516,12 +615,16 @@ def check():
     rot = {pp: (val, ref) for pp, val, ref in by_node.get("Rotor", [])}
     # Sync lives inside the nested sync instance, so its transform is a stripped/host reference; resolve by the objectReference target's name.
     ref_name = {str(a): owner(a) for c, a, b in docs if c == 4}
-    assert_(rot.get("Sources.totalLength", ("", ""))[0] == "4", "Rotor's source list length is 4 (a slot past the length is a client no-op)")
-    assert_(ref_name.get(rot.get("Sources.source3.SourceTransform", ("", ""))[1]) == "Sync",
-            f"Rotor source3 targets ObjectSync/Sync (got {ref_name.get(rot.get('Sources.source3.SourceTransform', ('', ''))[1])!r})")
-    assert_(rot.get("Sources.source3.Weight", ("", ""))[0] in ("0", ""), "Rotor source3 ships at weight 0 — no override row, so the array-fill default (the clips select it)")
-    for pp in ("Sources.source3.ParentPositionOffset", "Sources.source3.ParentRotationOffset"):
-        assert_(not any(k.startswith(pp) and float(v) != 0 for k, (v, _) in rot.items()), f"Rotor source3 has a zero {pp.split('.')[-1]}")
+    assert_(rot.get("Sources.totalLength", ("", ""))[0] == "6", "Rotor's source list length is 6 (a slot past the length is a client no-op)")
+    assert_(ref_name.get(rot.get("Sources.source5.SourceTransform", ("", ""))[1]) == "Sync",
+            f"Rotor source5 targets ObjectSync/Sync (got {ref_name.get(rot.get('Sources.source5.SourceTransform', ('', ''))[1])!r})")
+    assert_(rot.get("Sources.source5.Weight", ("", ""))[0] in ("0", ""), "Rotor source5 ships at weight 0 — no override row, so the array-fill default (the clips select it)")
+    for pp in ("Sources.source5.ParentPositionOffset", "Sources.source5.ParentRotationOffset"):
+        assert_(not any(k.startswith(pp) and float(v) != 0 for k, (v, _) in rot.items()), f"Rotor source5 has a zero {pp.split('.')[-1]}")
+    # Slots 1-4 are the entry's four grip nodes and must arrive unmodified: an override on one would point the carve's
+    # neighbour somewhere this composition never authored, and nothing downstream reads a source list.
+    assert_(not [pp for pp in rot if pp.startswith(("Sources.source1", "Sources.source2", "Sources.source3", "Sources.source4"))],
+            f"Rotor slots 1-4 (the entry's four grip nodes) carry no override — got {[pp for pp in rot if pp.startswith(('Sources.source1', 'Sources.source2', 'Sources.source3', 'Sources.source4'))]}")
     sp = [a for a, (nm, par) in cell_tf.items() if nm == "SourcePosition"]
     assert_(len(sp) == 1 and cell_tf[sp[0]][1] == "Container", "cell: SourcePosition is a child of Container (the capture edge)")
 
@@ -566,7 +669,9 @@ def check():
     assert_(any(c == 114 and go_of.get(a) == fc_go and "class: ApplyDuringUpload" in b for c, a, b in docs), "an ApplyDuringUpload on the ROOT GameObject enables the pin at build")
 
     # ---- the root's two Toggles: the enable (ObjectSync/Enable) and the mode (GripSync/Bidir, saved, default off), the mode's object
-    # action the nested cell's mark rig (MarkProxy and the four mark receivers), which the cell's own removed Toggle no longer owns.
+    # action the nested cell's Mark SENDER host (MarkProxy) alone, which the cell's own removed Toggle no longer owns. The four
+    # hold receivers are never toggled: a Proximity receiver bounced with its sender still inside comes back deaf for the session
+    # (runtime.md SContacts), and the Mark can never leave a hold, so the Toggle bounces the sender instead.
     tg = [b for c, a, b in docs if c == 114 and "class: Toggle" in b and go_of.get(a) == fc_go]
     assert_(len(tg) == 2, f"the root carries exactly two Toggles (the enable and the mode), got {len(tg)}")
     bi = [b for b in tg if re.search(rf"^\s+globalParam: {re.escape(BIDIR)}$", b, re.M)]
@@ -580,8 +685,8 @@ def check():
             m = re.search(r"m_CorrespondingSourceObject: \{fileID: (\d+)", go)
             return cell_gos.get(int(m.group(1)), o) if m else names.get(int(o), o)
         act_names = sorted(act_name(o) for o, _ in acts)
-        assert_(act_names == sorted(["MarkProxy", "MarkZp", "MarkZm", "MarkXp", "MarkXm"]) and all(m == "0" for _, m in acts),
-                f"mode Toggle turns on exactly the nested cell's MarkProxy and four mark receivers (got {act_names})")
+        assert_(act_names == ["MarkProxy"] and all(m == "0" for _, m in acts),
+                f"mode Toggle turns on exactly the nested cell's MarkProxy (got {act_names})")
     # ---- every driver the entry gives a synced bit is transcribed: the declarations pin above cannot see drivers, and a dropped
     # clear latches the bits for the session (a remote then re-engages every later grab on the last word).
     def bit_drivers(path, prefix):
@@ -594,11 +699,58 @@ def check():
         return out
     want_bits, got_bits = bit_drivers(CELL_DOC, ""), bit_drivers(GLUE_DOC, "Grip ")
     assert_(want_bits == got_bits, f"every Palm/Decided / Palm/Down driver in the entry glue is transcribed, state for state (entry {want_bits} vs composition {got_bits})")
+    # ---- the four authored holds on THIS instance: the composer's to place, and the one refusal the entry exports.
+    # Resolution order is the prefab system's: an override row on the nested node wins, otherwise the entry prefab's value.
+    grip = load(GRIP_ENTRY, "absolute_grip_prop_generate")
+    cell_quat = {}
+    for _c, a, b in cell_docs:
+        if _c == 4 and cell_tf.get(a, ("",))[0].startswith("Grip"):
+            m = re.search(r"m_LocalRotation: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+), w: ([-0-9.e]+)\}", b)
+            if m:
+                cell_quat[cell_tf[a][0]] = tuple(float(x) for x in m.groups())
+    resolved = {}
+    for node in ("GripR", "GripL", "GripRF", "GripLF"):
+        over = dict((pp, val) for pp, val, _ in by_node.get(node, []))
+        base = cell_quat.get(node)
+        assert_(base is not None, f"the entry prefab carries {node} (the composition authors its hold on the nested copy)")
+        if base:
+            resolved[node] = tuple(float(over.get(f"m_LocalRotation.{ax}", base[i])) for i, ax in enumerate("xyzw"))
+    for h in "RL":
+        q, qf = resolved.get("Grip" + h), resolved.get("Grip" + h + "F")
+        if q and qf:
+            theta, _dead = grip.hold_separation(q, qf)
+            assert_(grip.hold_refusal(theta) is None, f"{h}: {grip.hold_refusal(theta) or f'the two holds separate by {theta:.1f} deg'}")
+    # The hold hosts read the grips through a constraint, so a re-authored grip moves no contact — and nothing here may
+    # override one: a moved host or a retuned receiver would put the reading somewhere the entry's geometry does not say.
+    hosts = ["Hold" + g for g in ("R", "L", "RF", "LF")]
+    assert_(all(h in cell_gos.values() for h in hosts), f"the entry prefab carries the four hold hosts {hosts}")
+    assert_(not [h for h in hosts if by_node.get(h)], f"the nested cell overrides none of the hold hosts — got {[h for h in hosts if by_node.get(h)]}")
+
     # ---- the glue's Palm/* declarations equal the entry glue's, read live.
     def palm_block(p):
         return [l.rstrip() for l in open(p, encoding="utf-8") if re.match(r"^  Palm/", l)]
     assert_(palm_block(GLUE_DOC) == palm_block(CELL_DOC),
             "controller.yaml declares Palm/* exactly as absolute-grip-prop's glue does (a type/default mismatch merges first-wins silently)")
+    # ---- Disabled's zero driver is hand-authored in the skeleton (the merge of both documents' Disabled), so it cannot be
+    # emitted: pin its key list against the entry's own, read live. A reading the entry gains and zeroes here would otherwise
+    # stay stale across the stow dwell and gate the next enable, with nothing failing at build.
+    def zero_keys(path):
+        for l in open(path, encoding="utf-8"):
+            if "driver:" in l and "Palm/T1p: 0" in l:
+                return re.findall(r"(\S+): 0", l.split("set:", 1)[1])
+        return None
+    assert_(zero_keys(GLUE_DOC) == zero_keys(CELL_DOC) and zero_keys(CELL_DOC) is not None,
+            f"Disabled's zero driver names exactly the entry's keys (entry {zero_keys(CELL_DOC)} vs composition {zero_keys(GLUE_DOC)})")
+    # ---- the transcribed table is read out of the entry's DOCUMENT; pin that document against the entry's GENERATOR, so a
+    # clip the entry gains without re-emitting its own yaml cannot reach this composition as a silently missing row.
+    assert_(list(parse_clips(CELL_DOC)) == list(grip.glue_clips(grip.CONFIG)),
+            "absolute-grip-prop/controller.yaml's clip names are exactly its generator's (re-run the ENTRY's generate.py first)")
+    # ---- the generated Grip sub-graph is what the entry says today, not what it said when it was last emitted.
+    doc = open(GLUE_DOC, encoding="utf-8").read().splitlines()
+    section = (doc[doc.index(GRIP_BEGIN) + 1:doc.index(GRIP_END)]
+               if doc.count(GRIP_BEGIN) == 1 and doc.count(GRIP_END) == 1 else None)
+    assert_(section is not None and section == emit_grip_states(grip),
+            "controller.yaml's generated Grip section is exactly what this generator emits from absolute-grip-prop's glue sub-graph (re-run generate.py after an entry edit)")
     return 0 if ok else 1
 
 
@@ -608,10 +760,15 @@ def main():
     sync = load(SYNC_ENTRY, "object_sync_generate")
     grip = load(GRIP_ENTRY, "absolute_grip_prop_generate")
 
+    body = emit_grip_states(grip)
+    ng = splice(GLUE_DOC, GRIP_BEGIN, GRIP_END, body)
+    print(f"wrote controller.yaml: {sum(1 for l in body if l.startswith('      Grip '))} Grip states, "
+          f"{ng} lines emitted from absolute-grip-prop's glue sub-graph")
+
     cell = parse_clips(CELL_DOC)
     n = splice(GLUE_DOC, BEGIN, END, emit_clips(cell))
     print(f"wrote controller.yaml: {len(CLIPS)} clips, {n} lines emitted "
-          f"({len(cell['dropped']['set'])} cell bindings + {len(GLUE_KEYS)} glue + Rotor source3 per clip)")
+          f"({len(cell['dropped']['set'])} cell bindings + {len(GLUE_KEYS)} glue + Rotor source5 per clip)")
 
     text, nprefixed = readout_text(grip)
     os.makedirs(os.path.dirname(OUT_READOUT), exist_ok=True)

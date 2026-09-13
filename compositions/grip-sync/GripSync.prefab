@@ -916,10 +916,6 @@ MonoBehaviour:
         state:
           actions:
           - rid: 131360024439292039
-          - rid: 131360024439292040
-          - rid: 131360024439292041
-          - rid: 131360024439292042
-          - rid: 131360024439292043
         saved: 1
         slider: 0
         sliderInactiveAtZero: 0
@@ -972,46 +968,6 @@ MonoBehaviour:
         localOnly: 0
         remoteOnly: 0
         obj: {fileID: 3480179716396042935}
-        mode: 0
-    - rid: 131360024439292040
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 684809105270218997}
-        mode: 0
-    - rid: 131360024439292041
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 3441011652632496814}
-        mode: 0
-    - rid: 131360024439292042
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 374486430162300792}
-        mode: 0
-    - rid: 131360024439292043
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 1584425784501402931}
         mode: 0
 --- !u!1 &6163220387924647506
 GameObject:
@@ -1591,11 +1547,11 @@ PrefabInstance:
     - target: {fileID: 5726569773391868502, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
         type: 3}
       propertyPath: Sources.totalLength
-      value: 4
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 5726569773391868502, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
         type: 3}
-      propertyPath: Sources.source3.SourceTransform
+      propertyPath: Sources.source5.SourceTransform
       value: 
       objectReference: {fileID: 1081481387255748754}
     - target: {fileID: 6076709758708900613, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
@@ -1658,30 +1614,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 54e34c788e5147c49dd3e03bc1d70ebe, type: 3}
---- !u!1 &374486430162300792 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4134392058988791255, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
-    type: 3}
-  m_PrefabInstance: {fileID: 4346605587492907695}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &684809105270218997 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3878391479033104986, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
-    type: 3}
-  m_PrefabInstance: {fileID: 4346605587492907695}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &1584425784501402931 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3003685565810005916, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
-    type: 3}
-  m_PrefabInstance: {fileID: 4346605587492907695}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &3441011652632496814 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1410421755937153025, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
-    type: 3}
-  m_PrefabInstance: {fileID: 4346605587492907695}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &3480179716396042935 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 873183497553993752, guid: 54e34c788e5147c49dd3e03bc1d70ebe,
