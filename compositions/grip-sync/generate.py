@@ -19,8 +19,9 @@ Three documents, three builds, ONE FullController on the prefab root:
                                 after the emit, the same shape the cell prefix
                                 below takes. The entry generator has no mount
                                 knob and this composition does not add one.
-  controller.yaml               the glue (hand-authored graph above the marker;
-                                the clip table below it is emitted here).
+  controller.yaml               the glue: two marker pairs, both emitted here —
+                                the Grip sub-graph and the clip table. Everything
+                                outside them is hand-authored.
 
 Why one component: the glue reads the sync build's sealed `OS/Ready` and the
 readout's `Palm/*` AAPs. One FullController prefixes every controller it merges
@@ -31,6 +32,18 @@ list, so its `ObjectSync/Enable` declaration (default 1) wins the first-wins
 parameter merge in each (controller.yaml's header owns the mechanism; --check
 pins both orders). The readout sits between; it declares no name the other two
 declare, so its position is free and is not pinned.
+
+THE GENERATED GRIP STATES
+-------------------------
+The `Grip *` states between the GRIP markers are rendered from
+`absolute-grip-prop`'s `glue_states(CONFIG)` at emit time under the cell-side
+transcription rule controller.yaml's header states — so an entry state, rung or
+driver that changes lands here on the next run instead of drifting. The six
+states this composition's skeleton owns by name are not emitted, and neither are
+the two exit-time `Grip ArriveBi` twins the skeleton's rungs reach in with; both
+stay hand-authored below the END marker. `emit_grip_states` refuses rather than
+emits a short list, because a state dropped on a name collision shows up only as
+a rung into nothing, far from its cause.
 
 THE GLUE CLIP TABLE
 -------------------
@@ -324,6 +337,76 @@ def emit_clips(cell):
     return out
 
 
+# ============================================================ grip states ===
+# The entry's glue sub-graph rendered live from `grip.glue_states(grip.CONFIG)` under the header's cell-side transcription rule, so a state the entry gains or a rung it rewords cannot go stale here.
+# Six entry states are NOT emitted: this composition's skeleton carries its own Timer/Disabled/Anchored/Released/Dropped/Waiting (grab-sync's clips, drivers and boot ladder, merged with the entry's where both had one), and the two exit-time `Grip ArriveBi` twins that reach in from skeleton rungs are hand-authored below the END marker too.
+# The count is asserted rather than taken: an entry state colliding with a skeleton name would otherwise vanish silently, and its absence surfaces only as a rung into a missing state, far from the cause.
+
+SKELETON = ("Timer", "Disabled", "Anchored", "Released", "Dropped", "Waiting")
+BARE = ("Released", "Disabled", "Dropped", "Waiting", "Anchored")   # entry targets that land on this document's state of that name; every other target takes the `Grip ` prefix
+GATEWAYS = ("Arrive", "ArriveBi")   # the only two ways into the sub-graph, and the only states that stamp Detached
+
+GRIP_BEGIN = "      # --- BEGIN GENERATED GRIP STATES by generate.py: absolute-grip-prop's glue sub-graph transcribed by the header's rules."
+GRIP_END = "      # --- END GENERATED GRIP STATES"
+
+
+def _grip_cond(c):
+    """The polarity map: the entry's own mode names become this composition's, and the grab physbone's parameter is `Grab` here."""
+    return (c.replace("AbsoluteGrip/Enable is false", "ObjectSync/Enable less 0.5")   # a float here, so no equality
+             .replace("AbsoluteGrip/Bidir is true", "GripSync/Bidir is true")
+             .replace("GrabBone_IsGrabbed", "Grab_IsGrabbed"))
+
+
+def _grip_state(grip, name, s):
+    lines = [f"      Grip {name}:"]
+    beh = list(s.get("behaviours", []))
+    if name in GATEWAYS:
+        beh = [{"driver": {"localOnly": True, "set": {"Detached": 1}}}] + beh
+    if beh:
+        lines.append("        behaviours:")
+        for b in beh:
+            for kind, body in b.items():
+                line = f"          - {kind}: {grip.emit_driver(body)}"
+                if name in GATEWAYS and "Detached" in line:
+                    line += '   # detached-on-grab: the bit means "away from home"'
+                lines.append(line)
+    if "blend" in s:
+        c0, c1 = s["blend"]
+        lines += ["        motion:", "          tree: 1d", f"          param: {grip.FLIP}", "          children:",
+                  f"            - {{ clip: grip_{c0}, threshold: 0.0 }}",
+                  f"            - {{ clip: grip_{c1}, threshold: 1.0 }}"]
+    else:
+        lines.append(f'        motion: {{ clip: grip_{s["clip"]} }}')
+    lines.append("        transitions:")
+    # The one added rung: the cull pre-arm, immediately after the Enable-off rung it shadows nothing above (the header owns why placement is load-bearing).
+    rungs = []
+    for t in s["transitions"]:
+        to = t["to"]
+        rungs.append((to if to in BARE else "Grip " + to, [_grip_cond(c) for c in t["when"]], t.get("exitTime")))
+        if to == "Disabled":
+            rungs.append(("Resume", ["IsAnimatorEnabled is false"], None))
+    w = max(len(r[0]) for r in rungs) + 1
+    for to, when, et in rungs:
+        fields = [f"to: {to},".ljust(w + 5) + (f"when: [ {', '.join(when)} ]" if when else "when: [ ]")]
+        if et is not None:
+            fields.append(f"exitTime: {grip.fmt(et)}")
+        lines.append(f"          - {{ {', '.join(fields)} }}")
+    return lines
+
+
+def emit_grip_states(grip):
+    states = grip.glue_states(grip.CONFIG)
+    order = [n for n in states if n not in SKELETON]
+    if len(order) != len(states) - len(SKELETON):
+        missing = [n for n in SKELETON if n not in states]
+        raise SystemExit(f"REFUSE: the entry's glue sub-graph no longer carries {missing} — this composition's skeleton "
+                         "replaces those states by name, so emitting the rest would drop or duplicate a state silently.")
+    body = []
+    for n in order:
+        body += _grip_state(grip, n, states[n])
+    return body
+
+
 def splice(path, begin, end, body):
     lines = open(path, encoding="utf-8").read().split("\n")
     bi = [i for i, l in enumerate(lines) if l == begin]
@@ -599,6 +682,13 @@ def check():
         return [l.rstrip() for l in open(p, encoding="utf-8") if re.match(r"^  Palm/", l)]
     assert_(palm_block(GLUE_DOC) == palm_block(CELL_DOC),
             "controller.yaml declares Palm/* exactly as absolute-grip-prop's glue does (a type/default mismatch merges first-wins silently)")
+    # ---- the generated Grip sub-graph is what the entry says today, not what it said when it was last emitted.
+    grip = load(GRIP_ENTRY, "absolute_grip_prop_generate")
+    doc = open(GLUE_DOC, encoding="utf-8").read().splitlines()
+    section = (doc[doc.index(GRIP_BEGIN) + 1:doc.index(GRIP_END)]
+               if doc.count(GRIP_BEGIN) == 1 and doc.count(GRIP_END) == 1 else None)
+    assert_(section is not None and section == emit_grip_states(grip),
+            "controller.yaml's generated Grip section is exactly what this generator emits from absolute-grip-prop's glue sub-graph (re-run generate.py after an entry edit)")
     return 0 if ok else 1
 
 
@@ -607,6 +697,11 @@ def main():
         sys.exit(check())
     sync = load(SYNC_ENTRY, "object_sync_generate")
     grip = load(GRIP_ENTRY, "absolute_grip_prop_generate")
+
+    body = emit_grip_states(grip)
+    ng = splice(GLUE_DOC, GRIP_BEGIN, GRIP_END, body)
+    print(f"wrote controller.yaml: {sum(1 for l in body if l.startswith('      Grip '))} Grip states, "
+          f"{ng} lines emitted from absolute-grip-prop's glue sub-graph")
 
     cell = parse_clips(CELL_DOC)
     n = splice(GLUE_DOC, BEGIN, END, emit_clips(cell))

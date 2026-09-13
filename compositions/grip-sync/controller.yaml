@@ -1,5 +1,5 @@
 # GripSync glue controller — the ONE glue controller of the grip-sync composition; the README owns the arc, this header owns only what the graph cannot say.
-# grab-sync's skeleton transcribed (its controller.yaml is the source; the transcription rule is below), with its one `Grabbed` state replaced by absolute-grip-prop's twenty-three-state grip sub-graph (`Grip …`), transcribed from that entry's controller.yaml. An edit to either source document re-runs this transcription.
+# grab-sync's skeleton transcribed (its controller.yaml is the source; the transcription rule is below), with its one `Grabbed` state replaced by absolute-grip-prop's grip sub-graph (`Grip …`). The skeleton stays hand-authored and an edit to grab-sync's document re-runs that transcription by hand; the `Grip …` states between the GRIP markers are emitted by generate.py from the entry's generator live, so an entry edit reaches this document by re-running it (the generator prints the state count).
 # The clip table below the BEGIN marker is emitted (generate.py owns it, and its docstring is the design record): cell bindings read live from ../../absolute-grip-prop/controller.yaml's clip table — values unchanged, paths gaining the Prop/AbsoluteGripProp/ prefix — plus the glue value-sets and the two carves. State↔clip mapping, total: Timer→timer, Disabled→disabled, Anchored→anchored, Grip Arrive/Grip ArriveBi/Grip Acquire→grip_acquire, Grip Reacquire→grip_reacquire, Grip LatchedR/L→grip_latched, Grip Settling→grip_settling, Grip Settled/Grip Hold→grip_settled, Grip FlipP/N→grip_flip, Grip ConfirmXY/Grip CarryXY→a 1D blend on Palm/Flip of grip_carryXY and the other sign's grip_carryXY', Grip RecheckXY→the same blend of grip_recheckXY, Released→released, Dropped→dropped, Waiting→waiting, Acquire→acquire, Bridge→bridge, Synced→synced, Reacquire→reacquire, Resume→resume, Resume_Grab→resume_grab.
 # Transcription rule, grab-sync side: every rung that entered `Grabbed` enters `Grip Arrive`, twinned by a rung into `Grip ArriveBi` conditioned on `GripSync/Bidir` and placed first (Anchored, Dropped, Waiting, Bridge, Reacquire, Resume_Grab) — the two Arrive states are the only gateways into the sub-graph, both carry the Detached write, and their arrive dwell is the entry's first-grabbed-frame guard, which a remote's re-grab needs as much as a fresh grab. Everything else transcribes 1:1: the boot dwell, Waiting's late-join ladder, Released's IsLocal split and its no-early-exit rule, the word states, the Reacquire dwell and the Resume park.
 # Transcription rule, cell side: every `Grip` state's rungs are the entry's, with the polarity map `AbsoluteGrip/Enable is false` → `ObjectSync/Enable less 0.5` (float, so no equality) and `AbsoluteGrip/Bidir` → `GripSync/Bidir` (this composition's own mode name, a positive globalParams entry: the entry's wildcard is not published here), `Released`/`Disabled`/`Dropped`/`Waiting`/`Anchored` targets landing on this document's states of those names, and ONE added rung per Grip state: the cull pre-arm `IsAnimatorEnabled is false → Resume`, placed immediately after the Enable-off rung. Placement is load-bearing: the ladder is first-match, the pre-halt window is one frame, and the Grip states that end in an unconditional exit-time rung (the four Recheck states among them) would shadow a pre-arm appended below it.
@@ -86,7 +86,7 @@ layers:
           - { to: Grip Arrive, when: [ Grab_IsGrabbed is true ] }
           # the cull-resume rung: a remote resuming with detached truth on the wire must not sit showing home.
           - { to: Synced,      when: [ IsLocal is false, Detached is true, ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }
-      # ---- The grip sub-graph: absolute-grip-prop's Arrive … Recheck, one added pre-arm rung each (header).
+      # --- BEGIN GENERATED GRIP STATES by generate.py: absolute-grip-prop's glue sub-graph transcribed by the header's rules.
       Grip Arrive:
         behaviours:
           - driver: { localOnly: true, set: { Detached: 1 } }   # detached-on-grab: the bit means "away from home"
@@ -605,6 +605,7 @@ layers:
           - { to: Grip Acquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip CarryLN, when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryLP, when: [ ], exitTime: 1.0 }
+      # --- END GENERATED GRIP STATES
       # ---- grab-sync's skeleton from here on.
       # No early exit — the pulse is the re-grab lockout; Enable-off lands one pulse late via Dropped/Bridge.
       Released:
