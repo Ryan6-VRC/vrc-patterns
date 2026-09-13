@@ -82,8 +82,8 @@ FEATURE_DIR = (0.0, 0.0, 1.0)         # the feature direction, fixed by the entr
 MARK_H = 0.1                          # metres from the tip to the virtual feature the Mark sender stands at, along FEATURE_DIR; the hold receivers sit the same distance out, so sender and receiver centres share one sphere about the tip
 MARK_R = 0.005                        # Mark sender sphere radius; it cancels in the differential (both hold readings shift alike) except within the sender's own radius of a hold, where that reading clamps at 1
 HOLD_R = 0.25                         # hold receiver sphere radius, metres: both centres lie on the MARK_H sphere about the tip, so the largest separation either reading must span is 2*MARK_H, and both must stay off the zero clamp or the differential stops being a difference of distances. Not GATE_R's construction, where the clamp floor is a feature and two senders read two coincident receivers
-HOLD_M = 0.196                        # |Palm/Near{h}| a decisive nearer-hold needs. A Proximity reading is 1 - d/HOLD_R, so HOLD_M*HOLD_R is metres of nearer-ness; for a hold pair separated by theta the equivalent angular band about the bisecting plane solves HOLD_M*HOLD_R = 4*MARK_H*cos(theta/4)*sin(band/2), which at HOLD_R 0.25 makes an antipodal pair's band 20 degrees, the dead band this entry shipped. Picked geometrically, never retuned from harness evidence (CUE_M's discipline); the harness scores the decision
-HOLD_MIN_SEP = 90.0                   # degrees: the least separation between a hand's two hold directions --check accepts. Below it the dead band swallows a quarter of the sphere of grab attitudes and the nearer-hold read stops being a decision (hold_refusal prints the fraction and the remedy)
+HOLD_M = 0.196                        # |Palm/Near{h}| a decisive nearer-hold needs. A Proximity reading is 1 - d/HOLD_R, so HOLD_M*HOLD_R is metres of nearer-ness; for an antipodal hold pair the equivalent angular band about the bisecting plane solves HOLD_M*HOLD_R = 4*MARK_H*cos(pi/4)*sin(band/2), which at HOLD_R 0.25 makes that band 20 degrees, the dead band this entry shipped; a nearer pair is dead on more of the sphere than any band (dead_fraction measures it). Picked geometrically, never retuned from harness evidence (CUE_M's discipline); the harness scores the decision
+HOLD_MIN_SEP = 90.0                   # degrees: the least separation between a hand's two hold directions --check accepts. Below it the dead band swallows near half the sphere of grab attitudes, all of it well before zero, and the nearer-hold read stops being a decision (hold_refusal prints the fraction and the remedy)
 if not HOLD_R > 2 * MARK_H: raise SystemExit('REFUSE: HOLD_R must reach past the whole mark sphere (HOLD_R > 2 * MARK_H), or a hold reading sits on the zero clamp and the differential goes flat there')
 FLIP_DWELL = 2 / FPS_FLOOR            # seconds the dispatch state holds after its driver sets Palm/Flip before Confirm's blend can sample it: a driver write reaches no reader on the evaluation that runs it, and a zero-length dispatch would let Confirm sample the unflipped blend once and bounce [EMPIRICAL: measured on the harness, the Frame weights move on the evaluation after the write]
 READ_DWELL = FLIP_DWELL               # seconds Read{s} holds the settled pose in the frame the carry will present: the hold hosts follow that frame on the next solve, and a driver-free read needs one evaluation with the new value, which is the argument FLIP_DWELL rests on
@@ -534,15 +534,29 @@ def hold_separation(q_X, q_XF):
     """(degrees between the two holds' feature directions, fraction of grab attitudes that read the dead band) for one hand's
     authored and flipped grip rotations, as serialized (x, y, z, w). The feature direction of a hold is q . FEATURE_DIR, and both
     receivers sit MARK_H out along theirs, so the whole read is that angle: the differential is HOLD_M only for a Mark far enough
-    off the plane bisecting the two. A band of half-angle alpha about a great circle covers sin(alpha) of the sphere, and alpha
-    solves HOLD_M*HOLD_R = 4*MARK_H*cos(theta/4)*sin(alpha/2) -- so the closer the two holds, the more of the sphere is dead.
+    off the plane bisecting the two, and the closer the two holds the less of the sphere is far enough: dead_fraction measures it.
     The caller is --check, here and in any composition or venue that nests this cell: one implementation, one refusal string."""
     a, b = rot_vec(q_X, FEATURE_DIR), rot_vec(q_XF, FEATURE_DIR)
     theta = math.degrees(math.acos(max(-1.0, min(1.0, sum(x * y for x, y in zip(a, b))))))
     return theta, dead_fraction(theta)
-def dead_fraction(theta_deg):
-    sin_half = HOLD_M * HOLD_R / (4 * MARK_H * math.cos(math.radians(theta_deg / 4)))
-    return 1.0 if sin_half >= 1.0 else math.sin(2 * math.asin(sin_half))
+def dead_fraction(theta_deg, n=240):
+    """fraction of the sphere of grab attitudes whose two hold readings differ by less than HOLD_M: the Mark at MARK_H along
+    unit u against receivers at MARK_H along the two hold directions, |dist(u, a) - dist(u, b)| <= HOLD_M * HOLD_R, measured by
+    midpoint quadrature over an equal-area (z, phi) grid. Closed forms hold only for an antipodal pair (a great-circle band of
+    half-angle 2*asin(HOLD_M*HOLD_R / (4*MARK_H*cos(pi/4)))); nearer pairs are dead on a region no band describes, and a pair
+    whose receivers sit closer than HOLD_M*HOLD_R apart is dead everywhere."""
+    th = math.radians(theta_deg); s, c = math.sin(th / 2), math.cos(th / 2)
+    if 2 * MARK_H * s <= HOLD_M * HOLD_R: return 1.0
+    ax, az, bx = MARK_H * s, MARK_H * c, -MARK_H * s
+    thr, dead = HOLD_M * HOLD_R, 0
+    for i in range(n):
+        z = -1 + (2 * i + 1) / n; r = math.sqrt(1 - z * z)
+        for j in range(n):
+            phi = (2 * j + 1) * math.pi / n
+            x, y, w = MARK_H * r * math.cos(phi), MARK_H * r * math.sin(phi), MARK_H * z
+            da = math.sqrt((x - ax) ** 2 + y * y + (w - az) ** 2); db = math.sqrt((x - bx) ** 2 + y * y + (w - az) ** 2)
+            if abs(da - db) <= thr: dead += 1
+    return dead / (n * n)
 def hold_refusal(theta_deg):
     """The refusal string for a hold separation, or None. Read it off hold_separation's first return value."""
     if theta_deg >= HOLD_MIN_SEP: return None

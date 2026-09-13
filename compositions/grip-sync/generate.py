@@ -594,7 +594,7 @@ def check():
     # instance, and an override there outranks the entry forever (an entry-side retune of that node stops reaching this
     # prefab — intended here, and the opposite of the variant rule's usual reason). Position and rotation only; a
     # component or a re-parent on one of them is not an authored hold.
-    grip_node = lambda pp: pp.startswith(("m_LocalPosition.", "m_LocalRotation.")) or pp == "m_LocalEulerAnglesHint"
+    grip_node = lambda pp: pp.startswith(("m_LocalPosition.", "m_LocalRotation.", "m_LocalEulerAnglesHint."))
     allowed = {
         "GrabBone": lambda pp: pp == "parameter",
         "GrabPosition": lambda pp: pp.startswith("Sources.source0.SourceTransform"),
