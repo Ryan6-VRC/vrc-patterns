@@ -595,7 +595,12 @@ def check():
     # prefab — intended here, and the opposite of the variant rule's usual reason). Position and rotation only; a
     # component or a re-parent on one of them is not an authored hold.
     grip_node = lambda pp: pp.startswith(("m_LocalPosition.", "m_LocalRotation.", "m_LocalEulerAnglesHint."))
+    STANDIN = {"R": "RightHand", "L": "LeftHand", "RF": "RightHandFlipped", "LF": "LeftHandFlipped"}   # the entry's jig stand-ins
     allowed = {
+        # The stand-ins are the authored surface; the grip nodes carry the jig's materialized inverse, an override the
+        # edit-mode solve records on the instance. Both are legitimate; their relation is pinned below.
+        **{STANDIN[g]: grip_node for g in ("R", "L", "RF", "LF")},
+        "Grip": grip_node,   # the inverse nodes: the solve's own output, recorded on the instance like the grip nodes; pinned equal below
         "GrabBone": lambda pp: pp == "parameter",
         "GrabPosition": lambda pp: pp.startswith("Sources.source0.SourceTransform"),
         "Rotor": lambda pp: pp.startswith("Sources.source5") or pp == "Sources.totalLength",
@@ -722,6 +727,37 @@ def check():
             assert_(grip.hold_refusal(theta) is None, f"{h}: {grip.hold_refusal(theta) or f'the two holds separate by {theta:.1f} deg'}")
     # The hold hosts read the grips through a constraint, so a re-authored grip moves no contact — and nothing here may
     # override one: a moved host or a retuned receiver would put the reading somewhere the entry's geometry does not say.
+    # The jig's own machinery is the entry's: an override on PropFrame or an inverse node (Grip) would move the materialized
+    # hold somewhere the stand-in does not say. And each materialized grip node must be its stand-in's inverse on the
+    # resolved values, or the composition was saved with the edit-mode solver dead (unity.md SSharp edges) and the hold a
+    # composer sees on the stand-in is not the one that ships.
+    assert_(not by_node.get("PropFrame"), "the nested cell overrides nothing on the jig's PropFrame (the parked prop frame is the entry's)")
+    cell_pos = {}
+    for _c, a, b in cell_docs:
+        if _c == 4 and a in cell_tf:
+            m = re.search(r"m_LocalPosition: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}", b)
+            if m: cell_pos[cell_tf[a][0]] = tuple(float(x) for x in m.groups())
+            m = re.search(r"m_LocalRotation: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+), w: ([-0-9.e]+)\}", b)
+            if m: cell_quat.setdefault(cell_tf[a][0], tuple(float(x) for x in m.groups()))
+    def resolve_tf(node):
+        over = dict((pp, val) for pp, val, _ in by_node.get(node, []))
+        q = tuple(float(over.get(f"m_LocalRotation.{ax}", cell_quat[node][i])) for i, ax in enumerate("xyzw"))
+        p = tuple(float(over.get(f"m_LocalPosition.{ax}", cell_pos[node][i])) for i, ax in enumerate("xyz"))
+        return q, p
+    for g in ("R", "L", "RF", "LF"):
+        hq, hp = resolve_tf(STANDIN[g]); gq, gp = resolve_tf("Grip" + g)
+        want_q = grip.qinv(hq); want_p = grip.rot_vec(want_q, tuple(-c for c in hp))
+        assert_(grip.same_rot(gq, want_q) and all(abs(x - y) < 1e-5 for x, y in zip(gp, want_p)),
+                f"Frame/Grip{g} == inverse of the jig's {STANDIN[g]} on this instance (rotation and trim); a mismatch means the prefab was saved with the edit-mode solver dead -- re-register it and save again")
+    # The four inverse nodes share the name Grip, so group their rows by target: each rotation override there is one of the
+    # four materialized holds (the solve's own output, recorded on the instance), never a stray value.
+    inv_by_fid = {}
+    for fid, guid, pp, val, ref in mods:
+        if guid == cell_guid and cell_tf.get(int(fid), ("",))[0] == "Grip" and pp.startswith("m_LocalRotation."):
+            inv_by_fid.setdefault(fid, {})[pp[-1]] = float(val)
+    for fid, comp in inv_by_fid.items():
+        q = tuple(comp.get(ax, 0.0) for ax in "xyzw")
+        assert_(any(grip.same_rot(q, resolve_tf("Grip" + g)[0]) for g in ("R", "L", "RF", "LF")), f"inverse-node override {q} is one of the four materialized holds")
     hosts = ["Hold" + g for g in ("R", "L", "RF", "LF")]
     assert_(all(h in cell_gos.values() for h in hosts), f"the entry prefab carries the four hold hosts {hosts}")
     assert_(not [h for h in hosts if by_node.get(h)], f"the nested cell overrides none of the hold hosts — got {[h for h in hosts if by_node.get(h)]}")
