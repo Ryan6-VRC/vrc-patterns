@@ -137,7 +137,7 @@ def rot_vec(q, v):
     tx, ty, tz = 2 * (y * vz - z * vy), 2 * (z * vx - x * vz), 2 * (x * vy - y * vx)
     return (vx + w * tx + (y * tz - z * ty), vy + w * ty + (z * tx - x * tz), vz + w * tz + (x * ty - y * tx))
 def qmul(a, b):
-    """Unity's quaternion product (x, y, z, w): a * b, b applied first."""
+    """Unity's quaternion product (x, y, z, w): a * b, b applied first (rot_vec(qmul(a, b), v) == rot_vec(a, rot_vec(b, v)))."""
     ax, ay, az, aw = a; bx, by, bz, bw = b
     return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
 def qinv(q): return (-q[0], -q[1], -q[2], q[3])
@@ -992,20 +992,39 @@ def check():
     # transform, the hand's pose in the parked prop's frame (PropFrame rides Damped); its child Grip carries two parent
     # constraints, one world-space onto PropFrame (so its local pose is the hand's inverse, the hold) and one local-space with
     # TargetTransform = Frame/Grip{X} (so the bare grip node's local pose is written from it). Nothing here runs at build: the
-    # EditorOnly root is tagged EditorOnly and its TurnOff rides it. What is silent is a grip node whose serialized value is not
-    # its hand's inverse: the edit-mode solver was dead when the prefab was saved (unity.md SSharp edges), so pin the relation.
+    # EditorOnly root is tagged EditorOnly, and VRCFury destroys that subtree before any feature runs, so no VRCFury component
+    # may live under it (one there is dead, and the inspector says so). What is silent is a grip node whose serialized value is
+    # not its hand's inverse: the edit-mode solver was dead when the prefab was saved (unity.md SSharp edges), so pin the
+    # relation, and PropFrame's own saved pose at Damped's (the same dead solver leaves it at the origin, the stand-ins drawn
+    # nowhere near the prop).
     def path_of(go):
         return '/'.join(list(reversed(ancestors(go)[:-1])) + [names[go]]) if names.get(go) else None
     by_path = {path_of(g): g for g in names if path_of(g)}
     def go_at(path): return by_path.get(path)
+    def tf_id_at(path):
+        g = go_at(path); return next((i for t, i, b in docs if t == '4' and go_of.get(i) == g), None) if g else None
     def tf_at(path):
-        g = go_at(path); return next((b for t, i, b in docs if t == '4' and go_of.get(i) == g), None) if g else None
+        i = tf_id_at(path); return next((b for t, j, b in docs if t == '4' and j == i), None) if i else None
+    def world_pose(path):
+        """(rotation, position) of a node from the serialized chain, root first; every scale on the way is pinned unit."""
+        q, p = (0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0)
+        for k in range(1, path.count('/') + 2):
+            b = tf_at('/'.join(path.split('/')[:k]))
+            if b is None: return None, None
+            a(near(vec3(b, 'm_LocalScale'), (1.0, 1.0, 1.0)), f"{'/'.join(path.split('/')[:k])} at unit scale (world_pose folds no scale)")
+            p = tuple(x + y for x, y in zip(p, rot_vec(q, vec3(b, 'm_LocalPosition')))); q = qmul(q, quat(b, 'm_LocalRotation'))
+        return q, p
     def constraints_of(go): return [(i, b) for t, i, b in docs if t == '114' and 'FreezeToWorld:' in b and go_of.get(i) == go]
     eo = go_at('EditorOnly'); eo_doc = next((b for t, i, b in docs if t == '1' and i == eo), '')
     a(re.search(r'^  m_TagString: EditorOnly$', eo_doc, re.M) is not None, 'EditorOnly is tagged EditorOnly (the build strips the jig and its stand-in renderers)')
     JIG = 'EditorOnly/Jig/PropFrame'
     pfc = constraints_of(go_at(JIG)) if go_at(JIG) else []
     a(len(pfc) == 1 and 'ParentPositionOffset' in pfc[0][1] and sources(pfc[0][1]) == [('Damped', 1.0)], f'{JIG} carries one parent constraint sourcing exactly Damped at weight 1 (the parked prop frame)')
+    for _, b in pfc:
+        a(re.search(r'^  Locked: 1$', b, re.M) and re.search(r'^  IsActive: 1$', b, re.M) and 'SolveInLocalSpace: 0' in b and 'FreezeToWorld: 0' in b and 'TargetTransform: {fileID: 0}' in b, f'{JIG} constraint locked, active, world-space, not frozen, on itself')
+        a('PositionAtRest: {x: 0, y: 0, z: 0}' in b and 'RotationAtRest: {x: 0, y: 0, z: 0}' in b and all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'Parent(?:Position|Rotation)Offset: (\{[^}]*\})', b)), f'{JIG} constraint zeroed with zero source offsets')
+    jq, jp = world_pose(JIG); dq, dp = world_pose('Container/Damped')
+    a(same_rot(jq, dq) and near(jp, dp, 1e-5), f"{JIG} is saved at Damped's world pose (the solve's own output; at the origin the stand-ins are drawn nowhere near the prop), got {jp} vs {dp}")
     grip_tf_id = {node: next((i for t, i, b in docs if t == '4' and owner(i) == node), None) for node in ['Grip' + g for g in GRIPS]}
     for g in GRIPS:
         hand = f'{JIG}/{STANDIN[g]}'; hb = tf_at(hand); inv = f'{hand}/Grip'; ib = tf_at(inv)
@@ -1016,7 +1035,7 @@ def check():
         a(len(ic) == 2 and all('ParentPositionOffset' in b for _, b in ic), f'{inv} carries exactly two parent constraints')
         world = [b for _, b in ic if 'SolveInLocalSpace: 0' in b]; local = [b for _, b in ic if 'SolveInLocalSpace: 1' in b]
         a(len(world) == 1 and sources(world[0]) == [('PropFrame', 1.0)] and 'TargetTransform: {fileID: 0}' in world[0], f"{inv}: one world-space parent constraint sourcing exactly PropFrame at weight 1 on itself (its local pose is then the hand's inverse)")
-        a(len(local) == 1 and sources(local[0]) == [('Grip', 1.0)] and f'TargetTransform: {{fileID: {grip_tf_id["Grip" + g]}}}' in local[0], f'{inv}: one local-space parent constraint sourcing itself with TargetTransform = Frame/Grip{g} (the grip node is written from it)')
+        a(len(local) == 1 and len(sources(local[0])) == 1 and re.search(rf'SourceTransform: \{{fileID: {tf_id_at(inv)}\}}\n\s+Weight: 1$', local[0], re.M) is not None and f'TargetTransform: {{fileID: {grip_tf_id["Grip" + g]}}}' in local[0], f'{inv}: one local-space parent constraint sourcing itself (by fileID: four nodes share the name Grip) at weight 1 with TargetTransform = Frame/Grip{g} (the grip node is written from it)')
         for _, b in ic:
             a(re.search(r'^  Locked: 1$', b, re.M) and re.search(r'^  IsActive: 1$', b, re.M) and 'FreezeToWorld: 0' in b, f'{inv} constraints locked, active, not frozen')
             a('PositionAtRest: {x: 0, y: 0, z: 0}' in b and 'RotationAtRest: {x: 0, y: 0, z: 0}' in b and all(o == '{x: 0, y: 0, z: 0}' for o in re.findall(r'Parent(?:Position|Rotation)Offset: (\{[^}]*\})', b)), f'{inv} constraints zeroed with zero source offsets')
@@ -1024,8 +1043,10 @@ def check():
         if hq and hp and gq and gp:
             want_q = qinv(hq); want_p = rot_vec(want_q, tuple(-c for c in hp))
             a(same_rot(quat(ib, 'm_LocalRotation'), gq) and near(vec3(ib, 'm_LocalPosition'), gp, 1e-5), f"{inv} serialized at its grip node's pose (the solve's own output, saved with it)")
-            a(same_rot(gq, want_q) and near(gp, want_p, 1e-5), f'Frame/Grip{g} == inverse of {hand} (rotation and trim): the grip node is materialized from the hand by the jig, and a mismatch means the prefab was saved with the edit-mode solver dead; re-register it (README SVerifying the install) and save again')
-    # The placeholder demonstrates the feature direction: its head lies along prop-frame +Z, so the mode decides head-up against head-down.
+            a(same_rot(gq, want_q) and near(gp, want_p, 1e-5), f'Frame/Grip{g} == inverse of {hand} (rotation and trim): the grip node is materialized from the hand by the jig, and a mismatch means the prefab was saved with the edit-mode solver dead; re-register it (README SInterface, its last line) and save again')
+    # The placeholder demonstrates the feature direction: its head lies along prop-frame +Z, so the mode decides head-up against
+    # head-down. Damped is the prop frame (PropFrame rides it), so Payload must not turn under it; its offset is free.
+    a(same_rot(quat(tf_at('Container/Damped/Payload'), 'm_LocalRotation'), (0.0, 0.0, 0.0, 1.0)), 'placeholder Payload unrotated under Damped (else Shaft/Head +Z is not prop-frame +Z)')
     for prim in ('Shaft', 'Head'):
         pb = tf_at(f'Container/Damped/Payload/{prim}'); pp = vec3(pb, 'm_LocalPosition') if pb else None
         a(pp is not None and abs(pp[0]) < 1e-6 and abs(pp[1]) < 1e-6 and pp[2] > 0, f'placeholder {prim} lies along prop-frame +Z (the feature direction), got {pp}')

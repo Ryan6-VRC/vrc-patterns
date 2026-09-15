@@ -2427,7 +2427,7 @@ Transform:
   m_GameObject: {fileID: 4927025922817034116}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.8, z: 0.25}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3509,7 +3509,6 @@ GameObject:
   m_Component:
   - component: {fileID: 7967454089421078140}
   - component: {fileID: 8404312361304297762}
-  - component: {fileID: 8228522744689105714}
   m_Layer: 0
   m_Name: EditorOnly
   m_TagString: EditorOnly
@@ -3642,46 +3641,6 @@ MonoBehaviour:
   AffectsPositionX: 1
   AffectsPositionY: 1
   AffectsPositionZ: 1
---- !u!114 &8228522744689105714
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6186162209355298713}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d9e94e501a2d4c95bff3d5601013d923, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  version: 3
-  unityVersion: 2022.3.22f1
-  vrcfuryVersion: 1.1427.0
-  somethingIsBroken: 0
-  config:
-    features: []
-  content:
-    rid: 1848182652504113156
-  references:
-    version: 2
-    RefIds:
-    - rid: 1848182652504113156
-      type: {class: ApplyDuringUpload, ns: VF.Model.Feature, asm: VRCFury}
-      data:
-        version: 0
-        action:
-          actions:
-          - rid: 1848182652504113157
-    - rid: 1848182652504113157
-      type: {class: ObjectToggleAction, ns: VF.Model.StateAction, asm: VRCFury}
-      data:
-        version: 1
-        desktopActive: 0
-        androidActive: 0
-        localOnly: 0
-        remoteOnly: 0
-        obj: {fileID: 6186162209355298713}
-        mode: 1
 --- !u!1 &6227773439144149398
 GameObject:
   m_ObjectHideFlags: 0

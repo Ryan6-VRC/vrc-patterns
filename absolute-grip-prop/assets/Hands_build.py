@@ -103,7 +103,7 @@ def palm_ring(bm, x, ws, ts):
 def finger_face(ring, i):
     """The four palm verts... six, rather: a lane spans two top verts, its midpoint, and their two mirrors."""
     return [ring[2 * i], ring[2 * i + 1], ring[2 * i + 2],
-            ring[15 - 2 * i], ring[16 - 2 * i], ring[17 - 2 * i]]
+            ring[NLOOP - 3 - 2 * i], ring[NLOOP - 2 - 2 * i], ring[NLOOP - 1 - 2 * i]]
 
 
 def curl_dirs(angles):
@@ -217,18 +217,18 @@ def build(name, mirror):
 
     me = bpy.data.meshes.new(name)
     non_manifold = [e for e in bm.edges if not e.is_manifold]
-    seen, sizes = set(), []
+    seen, sizes = set(), []          # keyed by BMVert, never .index: a new bmesh vert is -1 until index_update
     for v0 in bm.verts:
-        if v0.index in seen:
+        if v0 in seen:
             continue
         stack, n = [v0], 0
-        seen.add(v0.index)
+        seen.add(v0)
         while stack:
             v = stack.pop(); n += 1
             for e in v.link_edges:
                 o = e.other_vert(v)
-                if o.index not in seen:
-                    seen.add(o.index); stack.append(o)
+                if o not in seen:
+                    seen.add(o); stack.append(o)
         sizes.append(n)
     bm.verts.index_update()
     bm.to_mesh(me); bm.free()

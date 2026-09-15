@@ -573,7 +573,7 @@ def check():
         gid = {a for a, n in cell_gos.items() if n == node}
         assert_(gid and gid <= c_rmgo, f"cell instance removes the entry's {node} GameObject ({sorted(gid)})")
     eo = {a for a, n in cell_gos.items() if n == "EditorOnly"}
-    assert_(eo and not (eo & c_rmgo), "cell instance KEEPS EditorOnly (its TurnOff ApplyDuringUpload rides it)")
+    assert_(eo and not (eo & c_rmgo), "cell instance KEEPS EditorOnly (removing it takes the authoring jig, the hand stand-ins, with it)")
     c_want = comps_named(cell_comps, "class: FullController", CELL_MOUNT) | comps_named(cell_comps, "class: Toggle", CELL_MOUNT)
     assert_(c_rm == c_want, f"cell instance removes NO component beyond FullController + Toggle — extra: {sorted(c_rm - c_want)}")
     go_want = {a for a, n in cell_gos.items() if n in ("Payload", "FreezeToWorld")}
@@ -590,10 +590,12 @@ def check():
     for fid, guid, pp, val, ref in mods:
         if guid == cell_guid:
             by_node.setdefault(cell_comps.get(int(fid), (cell_tf.get(int(fid), (cell_gos.get(int(fid), "?"),))[0],))[0], []).append((pp, val, ref))
-    # The four grip nodes are the one surface a composer is MEANT to override: the hold is authored on the nested
+    # The four hand stand-ins are the one surface a composer is MEANT to override: the hold is authored on the nested
     # instance, and an override there outranks the entry forever (an entry-side retune of that node stops reaching this
-    # prefab — intended here, and the opposite of the variant rule's usual reason). Position and rotation only; a
-    # component or a re-parent on one of them is not an authored hold.
+    # prefab — intended here, and the opposite of the variant rule's usual reason). The grip nodes and the inverse nodes
+    # carry the jig's materialized output, recorded on the instance the same way, and a grip-node override that is not its
+    # stand-in's inverse is refused below. Position and rotation only; a component or a re-parent on one of them is not
+    # an authored hold.
     grip_node = lambda pp: pp.startswith(("m_LocalPosition.", "m_LocalRotation.", "m_LocalEulerAnglesHint."))
     STANDIN = {"R": "RightHand", "L": "LeftHand", "RF": "RightHandFlipped", "LF": "LeftHandFlipped"}   # the entry's jig stand-ins
     allowed = {
@@ -727,18 +729,16 @@ def check():
             assert_(grip.hold_refusal(theta) is None, f"{h}: {grip.hold_refusal(theta) or f'the two holds separate by {theta:.1f} deg'}")
     # The hold hosts read the grips through a constraint, so a re-authored grip moves no contact — and nothing here may
     # override one: a moved host or a retuned receiver would put the reading somewhere the entry's geometry does not say.
-    # The jig's own machinery is the entry's: an override on PropFrame or an inverse node (Grip) would move the materialized
-    # hold somewhere the stand-in does not say. And each materialized grip node must be its stand-in's inverse on the
-    # resolved values, or the composition was saved with the edit-mode solver dead (unity.md SSharp edges) and the hold a
-    # composer sees on the stand-in is not the one that ships.
-    assert_(not by_node.get("PropFrame"), "the nested cell overrides nothing on the jig's PropFrame (the parked prop frame is the entry's)")
-    cell_pos = {}
+    # Each materialized grip node must be its stand-in's inverse on the resolved values, or the composition was saved with
+    # the edit-mode solver dead (unity.md SSharp edges) and the hold a composer sees on the stand-in is not the one that
+    # ships. (An override on PropFrame is already a stray above: the parked prop frame is the entry's.)
+    cell_pos, cell_quat_fid = {}, {}
     for _c, a, b in cell_docs:
         if _c == 4 and a in cell_tf:
             m = re.search(r"m_LocalPosition: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+)\}", b)
             if m: cell_pos[cell_tf[a][0]] = tuple(float(x) for x in m.groups())
             m = re.search(r"m_LocalRotation: \{x: ([-0-9.e]+), y: ([-0-9.e]+), z: ([-0-9.e]+), w: ([-0-9.e]+)\}", b)
-            if m: cell_quat.setdefault(cell_tf[a][0], tuple(float(x) for x in m.groups()))
+            if m: cell_quat_fid[a] = tuple(float(x) for x in m.groups()); cell_quat.setdefault(cell_tf[a][0], cell_quat_fid[a])
     def resolve_tf(node):
         over = dict((pp, val) for pp, val, _ in by_node.get(node, []))
         q = tuple(float(over.get(f"m_LocalRotation.{ax}", cell_quat[node][i])) for i, ax in enumerate("xyzw"))
@@ -756,7 +756,7 @@ def check():
         if guid == cell_guid and cell_tf.get(int(fid), ("",))[0] == "Grip" and pp.startswith("m_LocalRotation."):
             inv_by_fid.setdefault(fid, {})[pp[-1]] = float(val)
     for fid, comp in inv_by_fid.items():
-        q = tuple(comp.get(ax, 0.0) for ax in "xyzw")
+        q = tuple(comp.get(ax, cell_quat_fid[int(fid)][i]) for i, ax in enumerate("xyzw"))   # a partial override falls back to the entry's value, as resolve_tf does
         assert_(any(grip.same_rot(q, resolve_tf("Grip" + g)[0]) for g in ("R", "L", "RF", "LF")), f"inverse-node override {q} is one of the four materialized holds")
     hosts = ["Hold" + g for g in ("R", "L", "RF", "LF")]
     assert_(all(h in cell_gos.values() for h in hosts), f"the entry prefab carries the four hold hosts {hosts}")
