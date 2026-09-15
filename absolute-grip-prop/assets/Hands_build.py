@@ -108,7 +108,7 @@ def finger_face(ring, i):
 
 def curl_dirs(angles):
     """Successive flexions about +Z from an initial -X, the direction a finger closes over the palm."""
-    dirs, a, out = [], 0.0, []
+    a, out = 0.0, []
     for step in angles:
         a += math.radians(step)
         out.append(((-math.cos(a), -math.sin(a), 0.0), a))
