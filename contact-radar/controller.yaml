@@ -2,6 +2,8 @@
 # contact-radar: 4 per-sender slots, mode dwell, tags ['HandR'], 3 face-proximity boxes each.
 # Burst at r² < 1 (R_in 1.0 m), re-arm at r² > 1.21 (R_out 1.1 m).
 # Cube half-extents: acquisition 1.2 m, hold 1.3 m; sender radius 0.05 m; step dwell 0.035 s.
+# At enable, load and distance-hide resume one slot at a time sweeps its cube out over 1.0 s so hands
+# already inside are admitted one by one (the expanding front); loud from the toggle, silent from a load or a resume.
 # Per-client: every copy of the avatar senses on its own client (receivers localOnly 0);
 # one synced bit (the enable) and nothing else crosses the wire. generate.py's docstring
 # carries the mechanism; the README carries the traps and the measurements.
@@ -17,8 +19,15 @@ defaults:
 
 parameters:
   ContactRadar/Enable: { type: bool, default: true, vrc: { synced: true, saved: false } }  # the Toggle; off is the reset
+  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator
   CR/One: { type: float, default: 1, scratch: true }   # constant direct weight, never driven
-  # Slot 1: receiver floats (never a clip), the readout AAPs, and the two protocol flags.
+  # The sweep (written only by the Sweep layer): Sweeping collapses every Armed slot, Silent picks the no-puff
+  # endpoint, Sweep is the front half-extent (m), SweepBase the front the current sweeper's ramp started from.
+  CR/Sweeping: { type: float, aap: true, scratch: true }
+  CR/Silent: { type: float, aap: true, scratch: true }
+  CR/Sweep: { type: float, aap: true, scratch: true }
+  CR/SweepBase: { type: float, aap: true, scratch: true }
+  # Slot 1: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
   CR/Slot1/X+: float
   CR/Slot1/Y+: float
   CR/Slot1/Z+: float
@@ -28,7 +37,8 @@ parameters:
   CR/Slot1/r2: { type: float, aap: true, scratch: true }
   CR/Slot1/Open: { type: float, aap: true, scratch: true }
   CR/Slot1/Armed: { type: float, aap: true, scratch: true }
-  # Slot 2: receiver floats (never a clip), the readout AAPs, and the two protocol flags.
+  CR/Slot1/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
+  # Slot 2: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
   CR/Slot2/X+: float
   CR/Slot2/Y+: float
   CR/Slot2/Z+: float
@@ -38,7 +48,8 @@ parameters:
   CR/Slot2/r2: { type: float, aap: true, scratch: true }
   CR/Slot2/Open: { type: float, aap: true, scratch: true }
   CR/Slot2/Armed: { type: float, aap: true, scratch: true }
-  # Slot 3: receiver floats (never a clip), the readout AAPs, and the two protocol flags.
+  CR/Slot2/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
+  # Slot 3: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
   CR/Slot3/X+: float
   CR/Slot3/Y+: float
   CR/Slot3/Z+: float
@@ -48,7 +59,8 @@ parameters:
   CR/Slot3/r2: { type: float, aap: true, scratch: true }
   CR/Slot3/Open: { type: float, aap: true, scratch: true }
   CR/Slot3/Armed: { type: float, aap: true, scratch: true }
-  # Slot 4: receiver floats (never a clip), the readout AAPs, and the two protocol flags.
+  CR/Slot3/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
+  # Slot 4: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
   CR/Slot4/X+: float
   CR/Slot4/Y+: float
   CR/Slot4/Z+: float
@@ -58,44 +70,105 @@ parameters:
   CR/Slot4/r2: { type: float, aap: true, scratch: true }
   CR/Slot4/Open: { type: float, aap: true, scratch: true }
   CR/Slot4/Armed: { type: float, aap: true, scratch: true }
+  CR/Slot4/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
 
 layers:
   - name: Slot1
     states:
-      Disabled:                        # Enable off — boxes stowed, flag shut, readings zeroed on every client
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
+        motion: { clip: slot1_boot }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+      Disabled:                    # Enable off — boxes stowed, flag shut, readings zeroed on every client
         behaviours:
           - driver: { localOnly: false, set: { CR/Slot1/X+: 0, CR/Slot1/Y+: 0, CR/Slot1/Z+: 0 } }
         motion: { clip: slot1_off }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
-      Armed:                        # flag shut: every hand already inside stays invisible to this slot
-        motion: { clip: slot1_armed }
+      Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        motion: { clip: slot1_paused }
         transitions:
+          - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+      Armed:                       # flag shut: every hand already inside stays invisible to this slot; collapsed while a sweep runs
+        motion:
+          tree: 1d
+          name: Slot1 armed
+          param: CR/Sweeping
+          children:
+            - { clip: slot1_armed, threshold: 0 }
+            - { clip: slot1_armed_collapsed, threshold: 1 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5 ] }   # ring: slot 2 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5 ] }   # ring: slot 3 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot1/Armed greater 0.5 ] }   # ring: slot 4 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed greater 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
-      Open:                         # flag up: only overlaps beginning now are admitted
-        motion: { clip: slot1_open }
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 2 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 2 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 3 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 3 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 4 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 4 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed greater 0.5, CR/Sweeping greater 0.5 ], exitTime: 1.0 }   # self-open into the sweep: nothing Open, no lower Armed; re-checked only on a crossing
+          - { to: Open, when: [ CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed greater 0.5, CR/Sweeping less 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
+      SweepShut:                   # the cube appears at the front SHUT for a step: everything inside it is re-rejected
+        motion:
+          tree: direct
+          name: Slot1 sweep shut
+          normalized: false
+          children:
+            - { clip: slot1_sweepshut, directWeight: CR/One }
+            - { clip: slot1_front_scale, directWeight: CR/Sweep }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Sweep, when: [], exitTime: 1.0 }
+      Sweep:                       # flag up, the cube riding the Sweep layer's front: each hand is admitted alone as the front reaches it
+        motion:
+          tree: direct
+          name: Slot1 sweep
+          normalized: false
+          children:
+            - { clip: slot1_sweep_cfg, directWeight: CR/One }
+            - { clip: slot1_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/Z+ greater 0 ] }
-      Partial:                      # one box read a hand the others did not: a step's grace to complete, else Recycle — an Open slot may never stall
-        motion: { clip: slot1_open_wait }
+          - { to: Open, when: [ CR/Sweep greater 1.2 ] }   # the front reached the face: the sweep is over
+      Open:                        # flag up at full size: only overlaps beginning now are admitted
+        motion: { clip: slot1_open }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot1/X+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot1/Y+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot1/Z+ greater 0 ] }
+      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall
+        motion:
+          tree: direct
+          name: Slot1 partial
+          normalized: false
+          children:
+            - { clip: slot1_open_wait, directWeight: CR/One }
+            - { clip: slot1_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
-      Latch:                        # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
+      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
         motion: { clip: slot1_latch }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: TrackOut, when: [], exitTime: 1.0 }
-      TrackOut:                     # readout live, burst off; outside the burst radius
+      TrackOut:                    # readout live, payload off; outside the burst radius
         motion:
           tree: direct
           name: Slot1 readout
@@ -173,12 +246,14 @@ layers:
                 - { clip: slot1_sq_15, threshold: 1.1375 }
                 - { clip: slot1_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }
-          - { to: TrackIn, when: [ CR/Slot1/r2 less 1 ] }
-      TrackIn:                      # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
+          - { to: TrackIn, when: [ CR/Slot1/r2 less 1, CR/Silent less 0.5 ] }
+          - { to: TrackInSilent, when: [ CR/Slot1/r2 less 1, CR/Silent greater 0.5 ] }   # found inside by a silent sweep: marker, no puff
+      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
         motion:
           tree: direct
           name: Slot1 readout
@@ -256,58 +331,204 @@ layers:
                 - { clip: slot1_sq_15, threshold: 1.1375 }
                 - { clip: slot1_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }
           - { to: TrackOut, when: [ CR/Slot1/r2 greater 1.21 ] }
-      Recycle:                      # collapse a step, restore a step, flag shut: every hand inside is re-rejected
+      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs
+        motion:
+          tree: direct
+          name: Slot1 readout
+          normalized: false
+          children:
+            - { clip: slot1_hold_burst_silent, directWeight: CR/One }
+            - { clip: slot1_read_bias, directWeight: CR/One }
+            - { clip: slot1_read_xp, directWeight: CR/Slot1/X+ }
+            - { clip: slot1_read_yp, directWeight: CR/Slot1/Y+ }
+            - { clip: slot1_read_zp, directWeight: CR/Slot1/Z+ }
+            - tree: 1d
+              name: Slot1 x²
+              param: CR/Slot1/x
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sq_0, threshold: -1.3 }
+                - { clip: slot1_sq_1, threshold: -1.1375 }
+                - { clip: slot1_sq_2, threshold: -0.975 }
+                - { clip: slot1_sq_3, threshold: -0.8125 }
+                - { clip: slot1_sq_4, threshold: -0.65 }
+                - { clip: slot1_sq_5, threshold: -0.4875 }
+                - { clip: slot1_sq_6, threshold: -0.325 }
+                - { clip: slot1_sq_7, threshold: -0.1625 }
+                - { clip: slot1_sq_8, threshold: 0 }
+                - { clip: slot1_sq_9, threshold: 0.1625 }
+                - { clip: slot1_sq_10, threshold: 0.325 }
+                - { clip: slot1_sq_11, threshold: 0.4875 }
+                - { clip: slot1_sq_12, threshold: 0.65 }
+                - { clip: slot1_sq_13, threshold: 0.8125 }
+                - { clip: slot1_sq_14, threshold: 0.975 }
+                - { clip: slot1_sq_15, threshold: 1.1375 }
+                - { clip: slot1_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot1 y²
+              param: CR/Slot1/y
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sq_0, threshold: -1.3 }
+                - { clip: slot1_sq_1, threshold: -1.1375 }
+                - { clip: slot1_sq_2, threshold: -0.975 }
+                - { clip: slot1_sq_3, threshold: -0.8125 }
+                - { clip: slot1_sq_4, threshold: -0.65 }
+                - { clip: slot1_sq_5, threshold: -0.4875 }
+                - { clip: slot1_sq_6, threshold: -0.325 }
+                - { clip: slot1_sq_7, threshold: -0.1625 }
+                - { clip: slot1_sq_8, threshold: 0 }
+                - { clip: slot1_sq_9, threshold: 0.1625 }
+                - { clip: slot1_sq_10, threshold: 0.325 }
+                - { clip: slot1_sq_11, threshold: 0.4875 }
+                - { clip: slot1_sq_12, threshold: 0.65 }
+                - { clip: slot1_sq_13, threshold: 0.8125 }
+                - { clip: slot1_sq_14, threshold: 0.975 }
+                - { clip: slot1_sq_15, threshold: 1.1375 }
+                - { clip: slot1_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot1 z²
+              param: CR/Slot1/z
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sq_0, threshold: -1.3 }
+                - { clip: slot1_sq_1, threshold: -1.1375 }
+                - { clip: slot1_sq_2, threshold: -0.975 }
+                - { clip: slot1_sq_3, threshold: -0.8125 }
+                - { clip: slot1_sq_4, threshold: -0.65 }
+                - { clip: slot1_sq_5, threshold: -0.4875 }
+                - { clip: slot1_sq_6, threshold: -0.325 }
+                - { clip: slot1_sq_7, threshold: -0.1625 }
+                - { clip: slot1_sq_8, threshold: 0 }
+                - { clip: slot1_sq_9, threshold: 0.1625 }
+                - { clip: slot1_sq_10, threshold: 0.325 }
+                - { clip: slot1_sq_11, threshold: 0.4875 }
+                - { clip: slot1_sq_12, threshold: 0.65 }
+                - { clip: slot1_sq_13, threshold: 0.8125 }
+                - { clip: slot1_sq_14, threshold: 0.975 }
+                - { clip: slot1_sq_15, threshold: 1.1375 }
+                - { clip: slot1_sq_16, threshold: 1.3 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }
+          - { to: TrackOut, when: [ CR/Slot1/r2 greater 1.21 ] }
+      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected
         motion: { clip: slot1_recycle }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Armed, when: [], exitTime: 1.0 }
-    default: Disabled
+    default: Boot
     layout:
-      nodes: { Disabled: [30, 180], Armed: [30, 270], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], Recycle: [30, 630] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], TrackInSilent: [510, 540], Recycle: [30, 630] }
+      entry: [50, 30]
+      any:   [300, 30]
+      exit:  [180, 30]
   - name: Slot2
     states:
-      Disabled:                        # Enable off — boxes stowed, flag shut, readings zeroed on every client
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
+        motion: { clip: slot2_boot }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+      Disabled:                    # Enable off — boxes stowed, flag shut, readings zeroed on every client
         behaviours:
           - driver: { localOnly: false, set: { CR/Slot2/X+: 0, CR/Slot2/Y+: 0, CR/Slot2/Z+: 0 } }
         motion: { clip: slot2_off }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
-      Armed:                        # flag shut: every hand already inside stays invisible to this slot
-        motion: { clip: slot2_armed }
+      Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        motion: { clip: slot2_paused }
         transitions:
+          - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+      Armed:                       # flag shut: every hand already inside stays invisible to this slot; collapsed while a sweep runs
+        motion:
+          tree: 1d
+          name: Slot2 armed
+          param: CR/Sweeping
+          children:
+            - { clip: slot2_armed, threshold: 0 }
+            - { clip: slot2_armed_collapsed, threshold: 1 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot2/Armed greater 0.5 ] }   # ring: slot 1 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5 ] }   # ring: slot 3 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5 ] }   # ring: slot 4 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed greater 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
-      Open:                         # flag up: only overlaps beginning now are admitted
-        motion: { clip: slot2_open }
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 1 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 1 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 3 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 3 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 4 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 4 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot1/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed greater 0.5, CR/Sweeping greater 0.5 ], exitTime: 1.0 }   # self-open into the sweep: nothing Open, no lower Armed; re-checked only on a crossing
+          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed greater 0.5, CR/Sweeping less 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
+      SweepShut:                   # the cube appears at the front SHUT for a step: everything inside it is re-rejected
+        motion:
+          tree: direct
+          name: Slot2 sweep shut
+          normalized: false
+          children:
+            - { clip: slot2_sweepshut, directWeight: CR/One }
+            - { clip: slot2_front_scale, directWeight: CR/Sweep }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Sweep, when: [], exitTime: 1.0 }
+      Sweep:                       # flag up, the cube riding the Sweep layer's front: each hand is admitted alone as the front reaches it
+        motion:
+          tree: direct
+          name: Slot2 sweep
+          normalized: false
+          children:
+            - { clip: slot2_sweep_cfg, directWeight: CR/One }
+            - { clip: slot2_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/Z+ greater 0 ] }
-      Partial:                      # one box read a hand the others did not: a step's grace to complete, else Recycle — an Open slot may never stall
-        motion: { clip: slot2_open_wait }
+          - { to: Open, when: [ CR/Sweep greater 1.2 ] }   # the front reached the face: the sweep is over
+      Open:                        # flag up at full size: only overlaps beginning now are admitted
+        motion: { clip: slot2_open }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot2/X+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot2/Y+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot2/Z+ greater 0 ] }
+      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall
+        motion:
+          tree: direct
+          name: Slot2 partial
+          normalized: false
+          children:
+            - { clip: slot2_open_wait, directWeight: CR/One }
+            - { clip: slot2_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
-      Latch:                        # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
+      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
         motion: { clip: slot2_latch }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: TrackOut, when: [], exitTime: 1.0 }
-      TrackOut:                     # readout live, burst off; outside the burst radius
+      TrackOut:                    # readout live, payload off; outside the burst radius
         motion:
           tree: direct
           name: Slot2 readout
@@ -385,12 +606,14 @@ layers:
                 - { clip: slot2_sq_15, threshold: 1.1375 }
                 - { clip: slot2_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }
-          - { to: TrackIn, when: [ CR/Slot2/r2 less 1 ] }
-      TrackIn:                      # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
+          - { to: TrackIn, when: [ CR/Slot2/r2 less 1, CR/Silent less 0.5 ] }
+          - { to: TrackInSilent, when: [ CR/Slot2/r2 less 1, CR/Silent greater 0.5 ] }   # found inside by a silent sweep: marker, no puff
+      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
         motion:
           tree: direct
           name: Slot2 readout
@@ -468,58 +691,204 @@ layers:
                 - { clip: slot2_sq_15, threshold: 1.1375 }
                 - { clip: slot2_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }
           - { to: TrackOut, when: [ CR/Slot2/r2 greater 1.21 ] }
-      Recycle:                      # collapse a step, restore a step, flag shut: every hand inside is re-rejected
+      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs
+        motion:
+          tree: direct
+          name: Slot2 readout
+          normalized: false
+          children:
+            - { clip: slot2_hold_burst_silent, directWeight: CR/One }
+            - { clip: slot2_read_bias, directWeight: CR/One }
+            - { clip: slot2_read_xp, directWeight: CR/Slot2/X+ }
+            - { clip: slot2_read_yp, directWeight: CR/Slot2/Y+ }
+            - { clip: slot2_read_zp, directWeight: CR/Slot2/Z+ }
+            - tree: 1d
+              name: Slot2 x²
+              param: CR/Slot2/x
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sq_0, threshold: -1.3 }
+                - { clip: slot2_sq_1, threshold: -1.1375 }
+                - { clip: slot2_sq_2, threshold: -0.975 }
+                - { clip: slot2_sq_3, threshold: -0.8125 }
+                - { clip: slot2_sq_4, threshold: -0.65 }
+                - { clip: slot2_sq_5, threshold: -0.4875 }
+                - { clip: slot2_sq_6, threshold: -0.325 }
+                - { clip: slot2_sq_7, threshold: -0.1625 }
+                - { clip: slot2_sq_8, threshold: 0 }
+                - { clip: slot2_sq_9, threshold: 0.1625 }
+                - { clip: slot2_sq_10, threshold: 0.325 }
+                - { clip: slot2_sq_11, threshold: 0.4875 }
+                - { clip: slot2_sq_12, threshold: 0.65 }
+                - { clip: slot2_sq_13, threshold: 0.8125 }
+                - { clip: slot2_sq_14, threshold: 0.975 }
+                - { clip: slot2_sq_15, threshold: 1.1375 }
+                - { clip: slot2_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot2 y²
+              param: CR/Slot2/y
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sq_0, threshold: -1.3 }
+                - { clip: slot2_sq_1, threshold: -1.1375 }
+                - { clip: slot2_sq_2, threshold: -0.975 }
+                - { clip: slot2_sq_3, threshold: -0.8125 }
+                - { clip: slot2_sq_4, threshold: -0.65 }
+                - { clip: slot2_sq_5, threshold: -0.4875 }
+                - { clip: slot2_sq_6, threshold: -0.325 }
+                - { clip: slot2_sq_7, threshold: -0.1625 }
+                - { clip: slot2_sq_8, threshold: 0 }
+                - { clip: slot2_sq_9, threshold: 0.1625 }
+                - { clip: slot2_sq_10, threshold: 0.325 }
+                - { clip: slot2_sq_11, threshold: 0.4875 }
+                - { clip: slot2_sq_12, threshold: 0.65 }
+                - { clip: slot2_sq_13, threshold: 0.8125 }
+                - { clip: slot2_sq_14, threshold: 0.975 }
+                - { clip: slot2_sq_15, threshold: 1.1375 }
+                - { clip: slot2_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot2 z²
+              param: CR/Slot2/z
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sq_0, threshold: -1.3 }
+                - { clip: slot2_sq_1, threshold: -1.1375 }
+                - { clip: slot2_sq_2, threshold: -0.975 }
+                - { clip: slot2_sq_3, threshold: -0.8125 }
+                - { clip: slot2_sq_4, threshold: -0.65 }
+                - { clip: slot2_sq_5, threshold: -0.4875 }
+                - { clip: slot2_sq_6, threshold: -0.325 }
+                - { clip: slot2_sq_7, threshold: -0.1625 }
+                - { clip: slot2_sq_8, threshold: 0 }
+                - { clip: slot2_sq_9, threshold: 0.1625 }
+                - { clip: slot2_sq_10, threshold: 0.325 }
+                - { clip: slot2_sq_11, threshold: 0.4875 }
+                - { clip: slot2_sq_12, threshold: 0.65 }
+                - { clip: slot2_sq_13, threshold: 0.8125 }
+                - { clip: slot2_sq_14, threshold: 0.975 }
+                - { clip: slot2_sq_15, threshold: 1.1375 }
+                - { clip: slot2_sq_16, threshold: 1.3 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }
+          - { to: TrackOut, when: [ CR/Slot2/r2 greater 1.21 ] }
+      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected
         motion: { clip: slot2_recycle }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Armed, when: [], exitTime: 1.0 }
-    default: Disabled
+    default: Boot
     layout:
-      nodes: { Disabled: [30, 180], Armed: [30, 270], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], Recycle: [30, 630] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], TrackInSilent: [510, 540], Recycle: [30, 630] }
+      entry: [50, 30]
+      any:   [300, 30]
+      exit:  [180, 30]
   - name: Slot3
     states:
-      Disabled:                        # Enable off — boxes stowed, flag shut, readings zeroed on every client
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
+        motion: { clip: slot3_boot }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+      Disabled:                    # Enable off — boxes stowed, flag shut, readings zeroed on every client
         behaviours:
           - driver: { localOnly: false, set: { CR/Slot3/X+: 0, CR/Slot3/Y+: 0, CR/Slot3/Z+: 0 } }
         motion: { clip: slot3_off }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
-      Armed:                        # flag shut: every hand already inside stays invisible to this slot
-        motion: { clip: slot3_armed }
+      Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        motion: { clip: slot3_paused }
         transitions:
+          - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+      Armed:                       # flag shut: every hand already inside stays invisible to this slot; collapsed while a sweep runs
+        motion:
+          tree: 1d
+          name: Slot3 armed
+          param: CR/Sweeping
+          children:
+            - { clip: slot3_armed, threshold: 0 }
+            - { clip: slot3_armed_collapsed, threshold: 1 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5 ] }   # ring: slot 1 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot3/Armed greater 0.5 ] }   # ring: slot 2 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5 ] }   # ring: slot 4 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed greater 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
-      Open:                         # flag up: only overlaps beginning now are admitted
-        motion: { clip: slot3_open }
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 1 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 1 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 2 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 2 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 4 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 4 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed greater 0.5, CR/Sweeping greater 0.5 ], exitTime: 1.0 }   # self-open into the sweep: nothing Open, no lower Armed; re-checked only on a crossing
+          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot4/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed greater 0.5, CR/Sweeping less 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
+      SweepShut:                   # the cube appears at the front SHUT for a step: everything inside it is re-rejected
+        motion:
+          tree: direct
+          name: Slot3 sweep shut
+          normalized: false
+          children:
+            - { clip: slot3_sweepshut, directWeight: CR/One }
+            - { clip: slot3_front_scale, directWeight: CR/Sweep }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Sweep, when: [], exitTime: 1.0 }
+      Sweep:                       # flag up, the cube riding the Sweep layer's front: each hand is admitted alone as the front reaches it
+        motion:
+          tree: direct
+          name: Slot3 sweep
+          normalized: false
+          children:
+            - { clip: slot3_sweep_cfg, directWeight: CR/One }
+            - { clip: slot3_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/Z+ greater 0 ] }
-      Partial:                      # one box read a hand the others did not: a step's grace to complete, else Recycle — an Open slot may never stall
-        motion: { clip: slot3_open_wait }
+          - { to: Open, when: [ CR/Sweep greater 1.2 ] }   # the front reached the face: the sweep is over
+      Open:                        # flag up at full size: only overlaps beginning now are admitted
+        motion: { clip: slot3_open }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot3/X+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot3/Y+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot3/Z+ greater 0 ] }
+      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall
+        motion:
+          tree: direct
+          name: Slot3 partial
+          normalized: false
+          children:
+            - { clip: slot3_open_wait, directWeight: CR/One }
+            - { clip: slot3_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
-      Latch:                        # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
+      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
         motion: { clip: slot3_latch }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: TrackOut, when: [], exitTime: 1.0 }
-      TrackOut:                     # readout live, burst off; outside the burst radius
+      TrackOut:                    # readout live, payload off; outside the burst radius
         motion:
           tree: direct
           name: Slot3 readout
@@ -597,12 +966,14 @@ layers:
                 - { clip: slot3_sq_15, threshold: 1.1375 }
                 - { clip: slot3_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }
-          - { to: TrackIn, when: [ CR/Slot3/r2 less 1 ] }
-      TrackIn:                      # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
+          - { to: TrackIn, when: [ CR/Slot3/r2 less 1, CR/Silent less 0.5 ] }
+          - { to: TrackInSilent, when: [ CR/Slot3/r2 less 1, CR/Silent greater 0.5 ] }   # found inside by a silent sweep: marker, no puff
+      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
         motion:
           tree: direct
           name: Slot3 readout
@@ -680,58 +1051,204 @@ layers:
                 - { clip: slot3_sq_15, threshold: 1.1375 }
                 - { clip: slot3_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }
           - { to: TrackOut, when: [ CR/Slot3/r2 greater 1.21 ] }
-      Recycle:                      # collapse a step, restore a step, flag shut: every hand inside is re-rejected
+      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs
+        motion:
+          tree: direct
+          name: Slot3 readout
+          normalized: false
+          children:
+            - { clip: slot3_hold_burst_silent, directWeight: CR/One }
+            - { clip: slot3_read_bias, directWeight: CR/One }
+            - { clip: slot3_read_xp, directWeight: CR/Slot3/X+ }
+            - { clip: slot3_read_yp, directWeight: CR/Slot3/Y+ }
+            - { clip: slot3_read_zp, directWeight: CR/Slot3/Z+ }
+            - tree: 1d
+              name: Slot3 x²
+              param: CR/Slot3/x
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sq_0, threshold: -1.3 }
+                - { clip: slot3_sq_1, threshold: -1.1375 }
+                - { clip: slot3_sq_2, threshold: -0.975 }
+                - { clip: slot3_sq_3, threshold: -0.8125 }
+                - { clip: slot3_sq_4, threshold: -0.65 }
+                - { clip: slot3_sq_5, threshold: -0.4875 }
+                - { clip: slot3_sq_6, threshold: -0.325 }
+                - { clip: slot3_sq_7, threshold: -0.1625 }
+                - { clip: slot3_sq_8, threshold: 0 }
+                - { clip: slot3_sq_9, threshold: 0.1625 }
+                - { clip: slot3_sq_10, threshold: 0.325 }
+                - { clip: slot3_sq_11, threshold: 0.4875 }
+                - { clip: slot3_sq_12, threshold: 0.65 }
+                - { clip: slot3_sq_13, threshold: 0.8125 }
+                - { clip: slot3_sq_14, threshold: 0.975 }
+                - { clip: slot3_sq_15, threshold: 1.1375 }
+                - { clip: slot3_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot3 y²
+              param: CR/Slot3/y
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sq_0, threshold: -1.3 }
+                - { clip: slot3_sq_1, threshold: -1.1375 }
+                - { clip: slot3_sq_2, threshold: -0.975 }
+                - { clip: slot3_sq_3, threshold: -0.8125 }
+                - { clip: slot3_sq_4, threshold: -0.65 }
+                - { clip: slot3_sq_5, threshold: -0.4875 }
+                - { clip: slot3_sq_6, threshold: -0.325 }
+                - { clip: slot3_sq_7, threshold: -0.1625 }
+                - { clip: slot3_sq_8, threshold: 0 }
+                - { clip: slot3_sq_9, threshold: 0.1625 }
+                - { clip: slot3_sq_10, threshold: 0.325 }
+                - { clip: slot3_sq_11, threshold: 0.4875 }
+                - { clip: slot3_sq_12, threshold: 0.65 }
+                - { clip: slot3_sq_13, threshold: 0.8125 }
+                - { clip: slot3_sq_14, threshold: 0.975 }
+                - { clip: slot3_sq_15, threshold: 1.1375 }
+                - { clip: slot3_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot3 z²
+              param: CR/Slot3/z
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sq_0, threshold: -1.3 }
+                - { clip: slot3_sq_1, threshold: -1.1375 }
+                - { clip: slot3_sq_2, threshold: -0.975 }
+                - { clip: slot3_sq_3, threshold: -0.8125 }
+                - { clip: slot3_sq_4, threshold: -0.65 }
+                - { clip: slot3_sq_5, threshold: -0.4875 }
+                - { clip: slot3_sq_6, threshold: -0.325 }
+                - { clip: slot3_sq_7, threshold: -0.1625 }
+                - { clip: slot3_sq_8, threshold: 0 }
+                - { clip: slot3_sq_9, threshold: 0.1625 }
+                - { clip: slot3_sq_10, threshold: 0.325 }
+                - { clip: slot3_sq_11, threshold: 0.4875 }
+                - { clip: slot3_sq_12, threshold: 0.65 }
+                - { clip: slot3_sq_13, threshold: 0.8125 }
+                - { clip: slot3_sq_14, threshold: 0.975 }
+                - { clip: slot3_sq_15, threshold: 1.1375 }
+                - { clip: slot3_sq_16, threshold: 1.3 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }
+          - { to: TrackOut, when: [ CR/Slot3/r2 greater 1.21 ] }
+      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected
         motion: { clip: slot3_recycle }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Armed, when: [], exitTime: 1.0 }
-    default: Disabled
+    default: Boot
     layout:
-      nodes: { Disabled: [30, 180], Armed: [30, 270], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], Recycle: [30, 630] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], TrackInSilent: [510, 540], Recycle: [30, 630] }
+      entry: [50, 30]
+      any:   [300, 30]
+      exit:  [180, 30]
   - name: Slot4
     states:
-      Disabled:                        # Enable off — boxes stowed, flag shut, readings zeroed on every client
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
+        motion: { clip: slot4_boot }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+      Disabled:                    # Enable off — boxes stowed, flag shut, readings zeroed on every client
         behaviours:
           - driver: { localOnly: false, set: { CR/Slot4/X+: 0, CR/Slot4/Y+: 0, CR/Slot4/Z+: 0 } }
         motion: { clip: slot4_off }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
-      Armed:                        # flag shut: every hand already inside stays invisible to this slot
-        motion: { clip: slot4_armed }
+      Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        motion: { clip: slot4_paused }
         transitions:
+          - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+      Armed:                       # flag shut: every hand already inside stays invisible to this slot; collapsed while a sweep runs
+        motion:
+          tree: 1d
+          name: Slot4 armed
+          param: CR/Sweeping
+          children:
+            - { clip: slot4_armed, threshold: 0 }
+            - { clip: slot4_armed_collapsed, threshold: 1 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5 ] }   # ring: slot 1 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5 ] }   # ring: slot 2 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot4/Armed greater 0.5 ] }   # ring: slot 3 fired, nothing Armed between
-          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed greater 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
-      Open:                         # flag up: only overlaps beginning now are admitted
-        motion: { clip: slot4_open }
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 1 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 1 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 2 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 2 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring: slot 3 fired mid-sweep, nothing Armed between
+          - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring: slot 3 fired, nothing Armed between
+          - { to: SweepShut, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed greater 0.5, CR/Sweeping greater 0.5 ], exitTime: 1.0 }   # self-open into the sweep: nothing Open, no lower Armed; re-checked only on a crossing
+          - { to: Open, when: [ CR/Slot1/Open less 0.5, CR/Slot2/Open less 0.5, CR/Slot3/Open less 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed greater 0.5, CR/Sweeping less 0.5 ], exitTime: 1.0 }   # self-open: nothing Open, no lower Armed; re-checked only on a crossing
+      SweepShut:                   # the cube appears at the front SHUT for a step: everything inside it is re-rejected
+        motion:
+          tree: direct
+          name: Slot4 sweep shut
+          normalized: false
+          children:
+            - { clip: slot4_sweepshut, directWeight: CR/One }
+            - { clip: slot4_front_scale, directWeight: CR/Sweep }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Sweep, when: [], exitTime: 1.0 }
+      Sweep:                       # flag up, the cube riding the Sweep layer's front: each hand is admitted alone as the front reaches it
+        motion:
+          tree: direct
+          name: Slot4 sweep
+          normalized: false
+          children:
+            - { clip: slot4_sweep_cfg, directWeight: CR/One }
+            - { clip: slot4_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot4/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot4/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot4/Z+ greater 0 ] }
-      Partial:                      # one box read a hand the others did not: a step's grace to complete, else Recycle — an Open slot may never stall
-        motion: { clip: slot4_open_wait }
+          - { to: Open, when: [ CR/Sweep greater 1.2 ] }   # the front reached the face: the sweep is over
+      Open:                        # flag up at full size: only overlaps beginning now are admitted
+        motion: { clip: slot4_open }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot4/X+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot4/Y+ greater 0 ] }
+          - { to: Partial, when: [ CR/Slot4/Z+ greater 0 ] }
+      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall
+        motion:
+          tree: direct
+          name: Slot4 partial
+          normalized: false
+          children:
+            - { clip: slot4_open_wait, directWeight: CR/One }
+            - { clip: slot4_front_scale, directWeight: CR/Sweep }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Latch, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
-      Latch:                        # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
+      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²
         motion: { clip: slot4_latch }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: TrackOut, when: [], exitTime: 1.0 }
-      TrackOut:                     # readout live, burst off; outside the burst radius
+      TrackOut:                    # readout live, payload off; outside the burst radius
         motion:
           tree: direct
           name: Slot4 readout
@@ -809,12 +1326,14 @@ layers:
                 - { clip: slot4_sq_15, threshold: 1.1375 }
                 - { clip: slot4_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }
-          - { to: TrackIn, when: [ CR/Slot4/r2 less 1 ] }
-      TrackIn:                      # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
+          - { to: TrackIn, when: [ CR/Slot4/r2 less 1, CR/Silent less 0.5 ] }
+          - { to: TrackInSilent, when: [ CR/Slot4/r2 less 1, CR/Silent greater 0.5 ] }   # found inside by a silent sweep: marker, no puff
+      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)
         motion:
           tree: direct
           name: Slot4 readout
@@ -892,35 +1411,193 @@ layers:
                 - { clip: slot4_sq_15, threshold: 1.1375 }
                 - { clip: slot4_sq_16, threshold: 1.3 }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }
           - { to: TrackOut, when: [ CR/Slot4/r2 greater 1.21 ] }
-      Recycle:                      # collapse a step, restore a step, flag shut: every hand inside is re-rejected
+      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs
+        motion:
+          tree: direct
+          name: Slot4 readout
+          normalized: false
+          children:
+            - { clip: slot4_hold_burst_silent, directWeight: CR/One }
+            - { clip: slot4_read_bias, directWeight: CR/One }
+            - { clip: slot4_read_xp, directWeight: CR/Slot4/X+ }
+            - { clip: slot4_read_yp, directWeight: CR/Slot4/Y+ }
+            - { clip: slot4_read_zp, directWeight: CR/Slot4/Z+ }
+            - tree: 1d
+              name: Slot4 x²
+              param: CR/Slot4/x
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sq_0, threshold: -1.3 }
+                - { clip: slot4_sq_1, threshold: -1.1375 }
+                - { clip: slot4_sq_2, threshold: -0.975 }
+                - { clip: slot4_sq_3, threshold: -0.8125 }
+                - { clip: slot4_sq_4, threshold: -0.65 }
+                - { clip: slot4_sq_5, threshold: -0.4875 }
+                - { clip: slot4_sq_6, threshold: -0.325 }
+                - { clip: slot4_sq_7, threshold: -0.1625 }
+                - { clip: slot4_sq_8, threshold: 0 }
+                - { clip: slot4_sq_9, threshold: 0.1625 }
+                - { clip: slot4_sq_10, threshold: 0.325 }
+                - { clip: slot4_sq_11, threshold: 0.4875 }
+                - { clip: slot4_sq_12, threshold: 0.65 }
+                - { clip: slot4_sq_13, threshold: 0.8125 }
+                - { clip: slot4_sq_14, threshold: 0.975 }
+                - { clip: slot4_sq_15, threshold: 1.1375 }
+                - { clip: slot4_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot4 y²
+              param: CR/Slot4/y
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sq_0, threshold: -1.3 }
+                - { clip: slot4_sq_1, threshold: -1.1375 }
+                - { clip: slot4_sq_2, threshold: -0.975 }
+                - { clip: slot4_sq_3, threshold: -0.8125 }
+                - { clip: slot4_sq_4, threshold: -0.65 }
+                - { clip: slot4_sq_5, threshold: -0.4875 }
+                - { clip: slot4_sq_6, threshold: -0.325 }
+                - { clip: slot4_sq_7, threshold: -0.1625 }
+                - { clip: slot4_sq_8, threshold: 0 }
+                - { clip: slot4_sq_9, threshold: 0.1625 }
+                - { clip: slot4_sq_10, threshold: 0.325 }
+                - { clip: slot4_sq_11, threshold: 0.4875 }
+                - { clip: slot4_sq_12, threshold: 0.65 }
+                - { clip: slot4_sq_13, threshold: 0.8125 }
+                - { clip: slot4_sq_14, threshold: 0.975 }
+                - { clip: slot4_sq_15, threshold: 1.1375 }
+                - { clip: slot4_sq_16, threshold: 1.3 }
+            - tree: 1d
+              name: Slot4 z²
+              param: CR/Slot4/z
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sq_0, threshold: -1.3 }
+                - { clip: slot4_sq_1, threshold: -1.1375 }
+                - { clip: slot4_sq_2, threshold: -0.975 }
+                - { clip: slot4_sq_3, threshold: -0.8125 }
+                - { clip: slot4_sq_4, threshold: -0.65 }
+                - { clip: slot4_sq_5, threshold: -0.4875 }
+                - { clip: slot4_sq_6, threshold: -0.325 }
+                - { clip: slot4_sq_7, threshold: -0.1625 }
+                - { clip: slot4_sq_8, threshold: 0 }
+                - { clip: slot4_sq_9, threshold: 0.1625 }
+                - { clip: slot4_sq_10, threshold: 0.325 }
+                - { clip: slot4_sq_11, threshold: 0.4875 }
+                - { clip: slot4_sq_12, threshold: 0.65 }
+                - { clip: slot4_sq_13, threshold: 0.8125 }
+                - { clip: slot4_sq_14, threshold: 0.975 }
+                - { clip: slot4_sq_15, threshold: 1.1375 }
+                - { clip: slot4_sq_16, threshold: 1.3 }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }
+          - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }
+          - { to: TrackOut, when: [ CR/Slot4/r2 greater 1.21 ] }
+      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected
         motion: { clip: slot4_recycle }
         transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
           - { to: Armed, when: [], exitTime: 1.0 }
-    default: Disabled
+    default: Boot
     layout:
-      nodes: { Disabled: [30, 180], Armed: [30, 270], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], Recycle: [30, 630] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
+      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], TrackIn: [270, 540], TrackInSilent: [510, 540], Recycle: [30, 630] }
+      entry: [50, 30]
+      any:   [300, 30]
+      exit:  [180, 30]
+  - name: Sweep
+    # The expanding front, shared by every slot: Sweeping (collapse the Armed slots), Silent (the no-puff endpoint),
+    # Sweep (the front half-extent, m) and SweepBase (where the current sweeper's ramp started). Slot layers read these
+    # and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to ramp on.
+    states:
+      Boot:                        # a fresh animator: the first sweep is silent
+        motion: { clip: sw_boot }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Wait, when: [ ContactRadar/Enable is true ] }
+      Disabled:                    # the toggle is off: the next sweep is loud
+        motion: { clip: sw_off }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }
+          - { to: Wait, when: [ ContactRadar/Enable is true ] }
+      Paused:                      # a distance-hide: the resume sweep is silent
+        motion: { clip: sw_paused }
+        transitions:
+          - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
+          - { to: Wait, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, Silent holds
+        motion:
+          tree: direct
+          name: Sweep wait
+          normalized: false
+          children:
+            - { clip: sw_sweeping, directWeight: CR/One }
+            - { clip: sw_hold_sweep, directWeight: CR/Sweep }
+            - { clip: sw_latch_base, directWeight: CR/Sweep }
+            - { clip: sw_hold_silent, directWeight: CR/Silent }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Idle, when: [ CR/Sweep greater 1.2 ] }
+          - { to: Ramp, when: [ CR/Slot1/Front greater 0.5 ] }
+          - { to: Ramp, when: [ CR/Slot2/Front greater 0.5 ] }
+          - { to: Ramp, when: [ CR/Slot3/Front greater 0.5 ] }
+          - { to: Ramp, when: [ CR/Slot4/Front greater 0.5 ] }
+      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed
+        motion:
+          tree: direct
+          name: Sweep ramp
+          normalized: false
+          children:
+            - { clip: sw_ramp, directWeight: CR/One }
+            - { clip: sw_hold_sweep, directWeight: CR/SweepBase }
+            - { clip: sw_hold_base, directWeight: CR/SweepBase }
+            - { clip: sw_hold_silent, directWeight: CR/Silent }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Idle, when: [ CR/Sweep greater 1.2 ] }   # the face: the sweep is over
+          - { to: Wait, when: [ CR/Slot1/Front less 0.5, CR/Slot2/Front less 0.5, CR/Slot3/Front less 0.5, CR/Slot4/Front less 0.5 ] }   # the sweeper latched (or stalled): hold the front for the next slot's shut step
+      Idle:                        # no sweep: Armed slots at full size, the front parked at the face, loud
+        motion: { clip: sw_idle }
+        transitions:
+          - { to: Paused, when: [ IsAnimatorEnabled is false ] }
+          - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+    default: Boot
+    layout:
+      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Wait: [30, 270], Ramp: [270, 270], Idle: [30, 360] }
+      entry: [50, 30]
+      any:   [300, 30]
+      exit:  [180, 30]
 
 clips:
-  # Slot 1 configurations — every one writes the box stow, the flag, the scale, both protocol flags and the payload toggle.
-  slot1_off: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 } }   # stowed; a stow shorter than a step comes back deaf
-  slot1_armed: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 } }   # Armed 1 — the ring rule reads it one frame late
-  slot1_open: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 — the flag up
-  slot1_open_wait: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 held a step: the partial-admission grace
-  slot1_latch: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, CR/Slot1/x: 1.3, CR/Slot1/y: 1.3, CR/Slot1/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
-  slot1_hold: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 } }   # tracking configuration, payload off (outside the sphere)
-  slot1_hold_burst: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  # Slot 1 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  slot1_boot: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
+  slot1_off: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
+  slot1_paused: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot1_armed: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 1, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 at full size — the ring rule reads it one frame late
+  slot1_armed_collapsed: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 0, CR/Slot1/Armed: 1, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 collapsed: holds no rejections while a sweep runs
+  slot1_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flag shut, base scale: the front's own re-rejection step
+  slot1_sweep_cfg: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, flag up, base scale: the growing cube's constant part
+  slot1_front_scale: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2 } }   # × Sweep: the cube at the front (the face once the sweep is over)
+  slot1_open: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 — the flag up at full size
+  slot1_open_wait: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
+  slot1_latch: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: 1.3, CR/Slot1/y: 1.3, CR/Slot1/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
+  slot1_hold: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload off (outside the sphere)
+  slot1_hold_burst: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  slot1_hold_burst_silent: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 0 } }   # tracking configuration, payload on, buffer particle off (found inside by a silent sweep)
   slot1_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse
     seconds: 0.07
-    set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0 }
+    set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 }
     curves:
       Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
       Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
@@ -951,17 +1628,24 @@ clips:
   slot1_sq_14: { set: { CR/Slot1/r2: 0.950625 } }
   slot1_sq_15: { set: { CR/Slot1/r2: 1.29390625 } }
   slot1_sq_16: { set: { CR/Slot1/r2: 1.69 } }
-  # Slot 2 configurations — every one writes the box stow, the flag, the scale, both protocol flags and the payload toggle.
-  slot2_off: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 } }   # stowed; a stow shorter than a step comes back deaf
-  slot2_armed: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 } }   # Armed 1 — the ring rule reads it one frame late
-  slot2_open: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 — the flag up
-  slot2_open_wait: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 held a step: the partial-admission grace
-  slot2_latch: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, CR/Slot2/x: 1.3, CR/Slot2/y: 1.3, CR/Slot2/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
-  slot2_hold: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 } }   # tracking configuration, payload off (outside the sphere)
-  slot2_hold_burst: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  # Slot 2 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  slot2_boot: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
+  slot2_off: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
+  slot2_paused: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot2_armed: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 1, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 at full size — the ring rule reads it one frame late
+  slot2_armed_collapsed: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 0, CR/Slot2/Armed: 1, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 collapsed: holds no rejections while a sweep runs
+  slot2_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flag shut, base scale: the front's own re-rejection step
+  slot2_sweep_cfg: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, flag up, base scale: the growing cube's constant part
+  slot2_front_scale: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2 } }   # × Sweep: the cube at the front (the face once the sweep is over)
+  slot2_open: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 — the flag up at full size
+  slot2_open_wait: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
+  slot2_latch: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: 1.3, CR/Slot2/y: 1.3, CR/Slot2/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
+  slot2_hold: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload off (outside the sphere)
+  slot2_hold_burst: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  slot2_hold_burst_silent: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 0 } }   # tracking configuration, payload on, buffer particle off (found inside by a silent sweep)
   slot2_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse
     seconds: 0.07
-    set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0 }
+    set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 }
     curves:
       Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
       Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
@@ -992,17 +1676,24 @@ clips:
   slot2_sq_14: { set: { CR/Slot2/r2: 0.950625 } }
   slot2_sq_15: { set: { CR/Slot2/r2: 1.29390625 } }
   slot2_sq_16: { set: { CR/Slot2/r2: 1.69 } }
-  # Slot 3 configurations — every one writes the box stow, the flag, the scale, both protocol flags and the payload toggle.
-  slot3_off: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 } }   # stowed; a stow shorter than a step comes back deaf
-  slot3_armed: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 } }   # Armed 1 — the ring rule reads it one frame late
-  slot3_open: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 — the flag up
-  slot3_open_wait: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 held a step: the partial-admission grace
-  slot3_latch: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, CR/Slot3/x: 1.3, CR/Slot3/y: 1.3, CR/Slot3/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
-  slot3_hold: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 } }   # tracking configuration, payload off (outside the sphere)
-  slot3_hold_burst: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  # Slot 3 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  slot3_boot: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
+  slot3_off: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
+  slot3_paused: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot3_armed: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 1, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 at full size — the ring rule reads it one frame late
+  slot3_armed_collapsed: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 0, CR/Slot3/Armed: 1, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 collapsed: holds no rejections while a sweep runs
+  slot3_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flag shut, base scale: the front's own re-rejection step
+  slot3_sweep_cfg: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, flag up, base scale: the growing cube's constant part
+  slot3_front_scale: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2 } }   # × Sweep: the cube at the front (the face once the sweep is over)
+  slot3_open: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 — the flag up at full size
+  slot3_open_wait: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
+  slot3_latch: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: 1.3, CR/Slot3/y: 1.3, CR/Slot3/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
+  slot3_hold: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload off (outside the sphere)
+  slot3_hold_burst: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  slot3_hold_burst_silent: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 0 } }   # tracking configuration, payload on, buffer particle off (found inside by a silent sweep)
   slot3_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse
     seconds: 0.07
-    set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0 }
+    set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 }
     curves:
       Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
       Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
@@ -1033,17 +1724,24 @@ clips:
   slot3_sq_14: { set: { CR/Slot3/r2: 0.950625 } }
   slot3_sq_15: { set: { CR/Slot3/r2: 1.29390625 } }
   slot3_sq_16: { set: { CR/Slot3/r2: 1.69 } }
-  # Slot 4 configurations — every one writes the box stow, the flag, the scale, both protocol flags and the payload toggle.
-  slot4_off: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 } }   # stowed; a stow shorter than a step comes back deaf
-  slot4_armed: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 } }   # Armed 1 — the ring rule reads it one frame late
-  slot4_open: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 — the flag up
-  slot4_open_wait: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 } }   # Open 1 held a step: the partial-admission grace
-  slot4_latch: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, CR/Slot4/x: 1.3, CR/Slot4/y: 1.3, CR/Slot4/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
-  slot4_hold: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 } }   # tracking configuration, payload off (outside the sphere)
-  slot4_hold_burst: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  # Slot 4 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  slot4_boot: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
+  slot4_off: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
+  slot4_paused: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot4_armed: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 1, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 at full size — the ring rule reads it one frame late
+  slot4_armed_collapsed: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 0, CR/Slot4/Armed: 1, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1 collapsed: holds no rejections while a sweep runs
+  slot4_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flag shut, base scale: the front's own re-rejection step
+  slot4_sweep_cfg: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, flag up, base scale: the growing cube's constant part
+  slot4_front_scale: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2 } }   # × Sweep: the cube at the front (the face once the sweep is over)
+  slot4_open: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 — the flag up at full size
+  slot4_open_wait: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
+  slot4_latch: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: 1.3, CR/Slot4/y: 1.3, CR/Slot4/z: 1.3 } }   # flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)
+  slot4_hold: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload off (outside the sphere)
+  slot4_hold_burst: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # tracking configuration, payload on (inside the sphere)
+  slot4_hold_burst_silent: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.6, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.6, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 0 } }   # tracking configuration, payload on, buffer particle off (found inside by a silent sweep)
   slot4_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse
     seconds: 0.07
-    set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0 }
+    set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 }
     curves:
       Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
       Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: { tangents: stepped, keys: [ [0, 0.001], [0.035, 2.4], [0.07, 2.4] ] }
@@ -1074,3 +1772,18 @@ clips:
   slot4_sq_14: { set: { CR/Slot4/r2: 0.950625 } }
   slot4_sq_15: { set: { CR/Slot4/r2: 1.29390625 } }
   slot4_sq_16: { set: { CR/Slot4/r2: 1.69 } }
+  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).
+  sw_boot: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0 } }   # a fresh animator: silent, front at 0
+  sw_off: { set: { CR/Sweeping: 1, CR/Silent: 0, CR/Sweep: 0, CR/SweepBase: 0 } }   # the toggle off: loud, front at 0
+  sw_paused: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0 } }   # a distance-hide: silent, front at 0
+  sw_idle: { set: { CR/Sweeping: 0, CR/Silent: 0, CR/Sweep: 1.2, CR/SweepBase: 0 } }   # no sweep: the front parked at the face
+  sw_sweeping: { set: { CR/Sweeping: 1 } }   # the constant part of Wait
+  sw_hold_sweep: { set: { CR/Sweep: 1 } }   # × Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)
+  sw_latch_base: { set: { CR/SweepBase: 1 } }   # × Sweep: SweepBase ← Sweep
+  sw_hold_base: { set: { CR/SweepBase: 1 } }   # × SweepBase: hold
+  sw_hold_silent: { set: { CR/Silent: 1 } }   # × Silent: hold
+  sw_ramp:   # × One: Sweeping 1 and the front's own travel, 0 → 1.26 m over 1 s, linear, added to SweepBase
+    seconds: 1
+    set: { CR/Sweeping: 1 }
+    curves:
+      CR/Sweep: { tangents: linear, keys: [ [0, 0], [1, 1.26] ] }
