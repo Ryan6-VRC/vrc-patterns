@@ -81,8 +81,9 @@ What happens at enable, at load and around a pause — the expanding front:
   (from Disabled — the toggle) bursts as usual; silent (from Boot — a fresh
   animator — and from Paused — a distance-hide resume) lands in TrackInSilent
   in dwell mode (payload on, the buffer particle's GameObject off: marker, no
-  puff) and releases without a burst in entry mode. Open at full size clears
-  Silent, so a hand that crosses in after the sweep bursts loud.
+  puff) and releases without a burst in entry mode. The Sweep layer's Idle
+  state clears Silent when the front reaches the face, so a hand that crosses
+  in after the sweep bursts loud.
 - Boot is the default state and is entered only by a fresh animator (load,
   manual hide/show, mirror clones); Disabled is entered only by the toggle.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
@@ -126,7 +127,9 @@ CONFIG = {
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
-    "boundsHalf": 2.0,          # the renderer-bounds cube half-extent, m: an observer inside it never view-culls you
+    "boundsHalf": 3.0,          # the renderer-bounds cube half-extent, m: an observer inside it never view-culls you
+    "sizeMin": 0.5,             # the smallest Cage/Size the README supports; the bounds margin is linted at this scale
+    "armReach": 0.75,           # head-to-hand distance the bounds cube must cover beyond the hold face, m (does not scale with Size)
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
@@ -159,10 +162,10 @@ def lint(c):
             refuse("rearmRadius + senderRadius must be < acqHalf — a dwell re-arm must be reachable on axis")
     if c["stepSeconds"] < 2 / 60:
         refuse("stepSeconds must be >= 2/60 — a dwell shorter than two collision steps can be skipped")
-    if c["sweepSeconds"] * 60 / c["acqHalf"] < 4:
-        refuse("sweepSeconds is too short — the front would cross more than a quarter of the cube per collision step")
-    if c["boundsHalf"] <= c["holdHalf"]:
-        refuse("boundsHalf must exceed holdHalf — a toucher's head is outside the hold cube while the hand is inside")
+    if c["sweepSeconds"] * 60 < 4.2:
+        refuse("sweepSeconds is too short — the front (which runs 5% past the face) would cross more than a quarter of the cube per collision step")
+    if c["boundsHalf"] * c["sizeMin"] < c["holdHalf"] * c["sizeMin"] + c["armReach"]:
+        refuse("boundsHalf is too small — at Cage/Size sizeMin the bounds face must sit armReach past the hold face, since a toucher's head-to-hand distance does not scale with the knob")
     if 2 * c["holdHalf"] > 6:
         refuse("2*holdHalf exceeds the SDK's serialized box limit (6 m) — a sanity bound on the working volume")
     if c["lookupSegments"] < 4:
@@ -183,6 +186,12 @@ def boxes_path(k):
 
 def out_path(k):
     return f"Cage/Size/Slot{k}/Output"
+
+
+def emit_clip(o, name, sets, seconds=None, comment=None):
+    body = ", ".join(f"{k2}: {v}" for k2, v in sets.items())
+    sec = f"seconds: {fmt(seconds)}, " if seconds else ""
+    o(f"  {name}: {{ {sec}set: {{ {body} }} }}" + (f"   # {comment}" if comment else ""))
 
 
 def emit_layer(o, c, k, ks):
@@ -275,6 +284,7 @@ def emit_layer(o, c, k, ks):
     for ax in ("X+", "Y+", "Z+"):
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
     o(f"          - {{ to: Open, when: [ {P}/Sweep greater {fmt(acq)} ] }}   # the front reached the face: the sweep is over")
+    o(f"          - {{ to: Open, when: [ {P}/Sweeping less 0.5 ] }}   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)")
     o("      Open:                        # flag up at full size: only overlaps beginning now are admitted")
     o(f"        motion: {{ clip: slot{k}_open }}")
     o("        transitions:")
@@ -355,7 +365,6 @@ def emit_sweep_layer(o, c, ks):
     P = c["prefix"]
     en = c["enable"]
     acq = c["acqHalf"]
-    fronts_up = " , ".join(f"{slot_name(c, k)}/Front greater 0.5" for k in ks)
     fronts_down = ", ".join(f"{slot_name(c, k)}/Front less 0.5" for k in ks)
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
@@ -425,9 +434,7 @@ def emit_sweep_clips(o, c):
     reach = acq * 1.05   # the ramp aims a little past the face so `Sweep greater acqHalf` fires before it ends
 
     def clip(name, sets, seconds=None, comment=None):
-        body = ", ".join(f"{k2}: {v}" for k2, v in sets.items())
-        sec = f"seconds: {fmt(seconds)}, " if seconds else ""
-        o(f"  {name}: {{ {sec}set: {{ {body} }} }}" + (f"   # {comment}" if comment else ""))
+        emit_clip(o, name, sets, seconds, comment)
 
     def full(sweeping, silent, sweep, base):
         return {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep), f"{P}/SweepBase": fmt(base)}
@@ -505,9 +512,7 @@ def emit_clips(o, c, k):
         return d
 
     def clip(name, sets, seconds=None, comment=None):
-        body = ", ".join(f"{k2}: {v}" for k2, v in sets.items())
-        sec = f"seconds: {fmt(seconds)}, " if seconds else ""
-        o(f"  {name}: {{ {sec}set: {{ {body} }} }}" + (f"   # {comment}" if comment else ""))
+        emit_clip(o, name, sets, seconds, comment)
 
     o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
@@ -674,7 +679,7 @@ def check_files(overrides, here, prefab):
         got = tuple(float(v) for v in rot.groups()) if rot else None
         assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
                 f"receiver {param}: box rotation {got} faces its axis")
-    ok = check_rig(assert_, c, docs) and ok
+    ok = check_rig(assert_, c, docs, here) and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
     assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
@@ -690,7 +695,7 @@ def check_files(overrides, here, prefab):
     return ok
 
 
-def check_rig(assert_, c, docs):
+def check_rig(assert_, c, docs, here):
     """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
     `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs); each slot's
     `Burst` is inside the toggled `Payload` and its `Emit` is outside it, directly under `Output`
@@ -727,8 +732,16 @@ def check_rig(assert_, c, docs):
     want = tuple([2.0 * c["boundsHalf"]] * 3)
     ok = assert_(len(bounds) == 1 and trs[bounds[0]][2] == want, f"Bounds scale == 2*boundsHalf on every axis ({want})") and ok
     bgo = trs[bounds[0]][0] if bounds else None
-    has = any(d.startswith("23 &") and re.search(r"m_GameObject: \{fileID: " + str(bgo) + r"\}", d) for d in docs) if bgo else False
-    ok = assert_(has, "Bounds carries a MeshRenderer") and ok
+
+    def owned(cls):
+        pat = r"m_GameObject: \{fileID: " + str(bgo) + r"\}"
+        return next((d for d in docs if d.startswith(cls + " &") and re.search(pat, d)), None) if bgo else None
+
+    mr, mf = owned("23"), owned("33")
+    ok = assert_(mr is not None and re.search(r"^  m_Enabled: 1$", mr, re.M) is not None, "Bounds carries an enabled MeshRenderer") and ok
+    mesh_guid = meta_guid(os.path.join(here, "assets", "Bounds.mesh"))
+    m = re.search(r"m_Mesh: \{fileID: \d+, guid: ([0-9a-f]{32}), type: 2\}", mf or "")
+    ok = assert_(m is not None and m.group(1) == mesh_guid, "Bounds' MeshFilter references assets/Bounds.mesh (the unit bounds the scale multiplies)") and ok
     return ok
 
 

@@ -128,6 +128,7 @@ layers:
           - { to: Partial, when: [ CR/Slot1/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/Z+ greater 0 ] }
           - { to: Open, when: [ CR/Sweep greater 1.1 ] }   # the front reached the face: the sweep is over
+          - { to: Open, when: [ CR/Sweeping less 0.5 ] }   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)
       Open:                        # flag up at full size: only overlaps beginning now are admitted
         motion: { clip: slot1_open }
         transitions:
@@ -399,6 +400,7 @@ layers:
           - { to: Partial, when: [ CR/Slot2/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/Z+ greater 0 ] }
           - { to: Open, when: [ CR/Sweep greater 1.1 ] }   # the front reached the face: the sweep is over
+          - { to: Open, when: [ CR/Sweeping less 0.5 ] }   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)
       Open:                        # flag up at full size: only overlaps beginning now are admitted
         motion: { clip: slot2_open }
         transitions:
@@ -670,6 +672,7 @@ layers:
           - { to: Partial, when: [ CR/Slot3/Y+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/Z+ greater 0 ] }
           - { to: Open, when: [ CR/Sweep greater 1.1 ] }   # the front reached the face: the sweep is over
+          - { to: Open, when: [ CR/Sweeping less 0.5 ] }   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)
       Open:                        # flag up at full size: only overlaps beginning now are admitted
         motion: { clip: slot3_open }
         transitions:
