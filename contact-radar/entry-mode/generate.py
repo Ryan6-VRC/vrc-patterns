@@ -4,11 +4,13 @@
 The second worked configuration of the base generator, emitted through its
 `document(overrides)` door. The slot releases at the burst instead of holding
 the hand across a re-arm band, so the acquisition cube face is the re-arm
-surface: the cube is smaller than the dwell build's so an on-axis poke has to
-retract a hand's width to burst again. `ContactRadarEntry.prefab` beside this
-file is a prefab VARIANT of `../ContactRadar.prefab` — it removes `Slot4` and
-replaces the root FullController with one pointing at this folder's `built/`
-(the README §Entry mode states both, since a removal is unvalidated).
+surface: the cube sits 0.10 m outside the sphere so an on-axis poke has to
+retract that far to burst again — the same hysteresis distance as dwell's band. `ContactRadarEntry.prefab` beside this
+file is a prefab VARIANT of `../ContactRadar.prefab` — it removes `Slot4`, removes
+each kept slot's `Marker` (the payload flashes for the burst state's few frames
+here, so a mesh inside it would flash) and replaces the root FullController with
+one pointing at this folder's `built/` (the README §Entry mode states all three,
+since a removal is unvalidated).
 
 Same discipline as the base: edit CONFIG, rerun (`python generate.py`),
 recompile `built/` in a mounting Editor — never hand-edit `controller.yaml`;
@@ -36,10 +38,9 @@ CONFIG = {
     "controller": "ContactRadarEntry_Fx",
     "mode": "entry",
     "K": 3,
-    "acqHalf": 0.75,            # the re-arm surface in this mode: a hand must leave this cube to burst again
-    "holdHalf": 0.85,
-    "burstRadius": 0.6,
-    "marker": False,            # the slot releases at the burst, so a following payload has nothing to follow
+    "acqHalf": 1.1,             # the re-arm surface in this mode: a hand must retract 0.10 m past the sphere to burst again
+    "holdHalf": 1.2,
+    "burstRadius": 1.0,
 }
 
 

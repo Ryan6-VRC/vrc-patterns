@@ -34,10 +34,15 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   steps at most 60 times a second and a collapse or stow shorter than a step is
   skipped silently (docs/runtime.md §Contacts).
 - Every slot state writes every flag (Open, Armed), the burst toggle and the
-  marker toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
+  payload toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation).
-- The burst states carry the readout tree: the buffer spawns where Output sits
-  on the frame it enables, and only a tree state keeps writing that position.
+- The burst states carry the readout tree: the payload wrapper enables where Output
+  sits on that frame — the buffer particle inside it is born there — and only a tree
+  state keeps writing that position. One toggle serves both consumers: a buffer
+  particle reads its enable edge, a mesh reads its level.
+- `Cage/Size` is the consumer's static size knob (README §Knobs): scaling it scales
+  the cubes, the readout, the sphere and every band together, so every lint below
+  holds at any scale; only the sender-radius bias term scales when it should not.
 - Latch writes x, y, z to holdHalf so the first r² computed in TrackOut is
   3h², far outside the sphere; the guard is the state sequence, no settle AAP.
 - Timed dwells are plain clips, never a curve inside a Direct tree (the tree's
@@ -72,16 +77,15 @@ CONFIG = {
     "mode": "dwell",            # dwell | entry
     "K": 4,                     # slots; each is one layer and 3 receivers
     "tags": ["HandR"],
-    "acqHalf": 0.9,             # acquisition cube half-extent, m (entry mode's re-arm surface)
-    "holdHalf": 1.0,            # hold cube half-extent, m — h in the readout
-    "burstRadius": 0.6,         # R_in, m
-    "rearmRadius": 0.7,         # R_out, m (dwell only)
+    "acqHalf": 1.2,             # acquisition cube half-extent, m (entry mode's re-arm surface); at Cage/Size scale 1
+    "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
+    "burstRadius": 1.0,         # R_in, m
+    "rearmRadius": 1.1,         # R_out, m (dwell only)
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
-    "marker": True,             # show Output/Payload while a slot tracks (dwell: a wrapper whose child follows the hand)
     "prefix": "CR",             # internal param namespace; never published
     "enable": "ContactRadar/Enable",
 }
@@ -126,11 +130,11 @@ def slot_name(c, k):
 
 
 def boxes_path(k):
-    return f"Cage/Slot{k}/Boxes"
+    return f"Cage/Size/Slot{k}/Boxes"
 
 
 def out_path(k):
-    return f"Cage/Slot{k}/Output"
+    return f"Cage/Size/Slot{k}/Output"
 
 
 def emit_layer(o, c, k, ks):
@@ -198,7 +202,7 @@ def emit_layer(o, c, k, ks):
     target = "TrackIn" if mode == "dwell" else "Burst"
     o(f"          - {{ to: {target}, when: [ {me}/r2 less {fmt(rin2)} ] }}")
     if mode == "dwell":
-        o("      TrackIn:                      # inside the burst radius; the buffer GO is on (one burst per entry)")
+        o("      TrackIn:                      # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
         o("        transitions:")
         o(off)
@@ -206,7 +210,7 @@ def emit_layer(o, c, k, ks):
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
         o(f"          - {{ to: TrackOut, when: [ {me}/r2 greater {fmt(rout2)} ] }}")
     else:
-        o("      Burst:                        # the buffer GO on for the tree's own dwell, then release")
+        o("      Burst:                        # the payload on for the tree's own dwell, then release")
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
         o("        transitions:")
         o(off)
@@ -261,10 +265,9 @@ def emit_clips(o, c, k):
     acq = 2 * c["acqHalf"] / c["boxSize"]
     hold = 2 * c["holdHalf"] / c["boxSize"]
     collapsed = 0.001
-    burst = f"{O}/Burst/GameObject.m_IsActive"
-    marker = f"{O}/Payload/GameObject.m_IsActive"
+    payload = f"{O}/Payload/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, burst_on, tracking=0):
+    def cfg(active, flag, scale, opn, armed, burst_on):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in ("X+", "Y+", "Z+"):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -273,8 +276,7 @@ def emit_clips(o, c, k):
                 d[f"{B}/Transform.m_LocalScale.{ax}"] = fmt(scale)
         d[f"{me}/Open"] = opn
         d[f"{me}/Armed"] = armed
-        d[burst] = burst_on
-        d[marker] = tracking if c["marker"] else 0
+        d[payload] = burst_on
         return d
 
     def clip(name, sets, seconds=None, comment=None):
@@ -282,7 +284,7 @@ def emit_clips(o, c, k):
         sec = f"seconds: {fmt(seconds)}, " if seconds else ""
         o(f"  {name}: {{ {sec}set: {{ {body} }} }}" + (f"   # {comment}" if comment else ""))
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, both protocol flags, the burst toggle and the marker.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, both protocol flags and the payload toggle.")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_armed", cfg(1, 0, acq, 0, 1, 0), step, "Armed 1 — the ring rule reads it one frame late")
     clip(f"slot{k}_open", cfg(1, 1, acq, 1, 0, 0), None, "Open 1 — the flag up")
@@ -290,8 +292,8 @@ def emit_clips(o, c, k):
     latch = cfg(1, 0, hold, 0, 0, 0)
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
     clip(f"slot{k}_latch", latch, step, "flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)")
-    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, tracking=1), None, "tracking configuration, burst off")
-    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, tracking=1), None, "tracking configuration, burst on")
+    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0), None, "tracking configuration, payload off (outside the sphere)")
+    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1), None, "tracking configuration, payload on (inside the sphere)")
     rec = cfg(1, 0, None, 0, 0, 0)
     body = ", ".join(f"{k2}: {v}" for k2, v in rec.items())
     o(f"  slot{k}_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse")
@@ -426,6 +428,7 @@ def check_files(overrides, here, prefab):
         got = tuple(float(v) for v in rot.groups()) if rot else None
         assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
                 f"receiver {param}: box rotation {got} faces its axis")
+    ok = check_rig(assert_, c, docs) and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
     assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
@@ -438,6 +441,40 @@ def check_files(overrides, here, prefab):
             f"exactly two constraint sources point at assets/World.prefab (the rotation and scale pins on Cage): {len(pins)}")
     assert_(all(float(v) == 0 for p in pins for v in p[1:]), "both World pins carry zero source offsets")
     print("OK" if ok else "FAILED")
+    return ok
+
+
+def check_rig(assert_, c, docs):
+    """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
+    `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs); each slot's
+    `Burst` is inside the toggled `Payload` and its `Emit` is outside it, directly under `Output`
+    — an `Emit` inside the wrapper would be disabled mid-burst and truncate it."""
+    ok = True
+    gos, trs = {}, {}
+    for d in docs:
+        m = re.match(r"(\d+) &(\d+)", d)
+        if not m:
+            continue
+        if m.group(1) == "1":
+            gos[m.group(2)] = re.search(r"^  m_Name: (.*)$", d, re.M).group(1)
+        elif m.group(1) == "4":
+            go = re.search(r"m_GameObject: \{fileID: (\d+)\}", d).group(1)
+            father = re.search(r"m_Father: \{fileID: (\d+)\}", d).group(1)
+            sc = re.search(r"m_LocalScale: \{x: (\S+), y: (\S+), z: (\S+)\}", d).groups()
+            trs[m.group(2)] = (go, father, tuple(float(v) for v in sc))
+
+    def parent_name(tid):
+        f = trs[tid][1]
+        return gos.get(trs[f][0]) if f in trs else None
+
+    size = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Size"]
+    ok = assert_(len(size) == 1 and parent_name(size[0]) == "Cage", "exactly one Size node, under Cage") and ok
+    ok = assert_(len(size) == 1 and trs[size[0]][2] == (1.0, 1.0, 1.0), "Size ships at uniform scale 1") and ok
+    slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go])]
+    ok = assert_(len(slots) == c["K"] and all(parent_name(t) == "Size" for t in slots), "every Slot is a child of Size") and ok
+    for name, want in (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")):
+        nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
+        ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
     return ok
 
 
@@ -494,8 +531,8 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
     for fid in re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""):
         m = re.search(rf"^--- !u!1 &{fid}\nGameObject:\n(?:.*\n)*?  m_Name: (\S+)$", base_body, re.M)
         names.append(m.group(1) if m else f"<{fid}>")
-    want = [f"Slot{i}" for i in range(c["K"] + 1, b["K"] + 1)]
-    assert_(sorted(names) == want, f"removed GameObjects {names} == the slots above K ({want})")
+    want = sorted([f"Slot{i}" for i in range(c["K"] + 1, b["K"] + 1)] + ["Marker"] * c["K"])
+    assert_(sorted(names) == want, f"removed GameObjects {sorted(names)} == the slots above K plus each kept slot's Marker ({want})")
     rc = re.search(r"m_RemovedComponents:\n((?:\s+- \{.*\n)*)", body)
     assert_(rc is not None and len(rc.group(1).splitlines()) == 1, "exactly one removed component (the inherited FullController)")
     ok = check_seam(assert_, c, here, body) and ok
