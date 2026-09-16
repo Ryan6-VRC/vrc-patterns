@@ -39,6 +39,7 @@ CONFIG = {
     "acqHalf": 0.75,            # the re-arm surface in this mode: a hand must leave this cube to burst again
     "holdHalf": 0.85,
     "burstRadius": 0.6,
+    "marker": False,            # the slot releases at the burst, so a following payload has nothing to follow
 }
 
 

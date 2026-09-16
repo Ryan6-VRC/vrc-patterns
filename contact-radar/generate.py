@@ -33,8 +33,8 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
 - Every step-spanning dwell is authored in seconds >= 2/60: the collision scene
   steps at most 60 times a second and a collapse or stow shorter than a step is
   skipped silently (docs/runtime.md §Contacts).
-- Every slot state writes every flag (Open, Armed) and the burst toggle, zeros
-  included: an AAP holds its last clip-written value and a scene binding holds
+- Every slot state writes every flag (Open, Armed), the burst toggle and the
+  marker toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation).
 - The burst states carry the readout tree: the buffer spawns where Output sits
   on the frame it enables, and only a tree state keeps writing that position.
@@ -81,6 +81,7 @@ CONFIG = {
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
+    "marker": True,             # show Output/Payload while a slot tracks (dwell: a wrapper whose child follows the hand)
     "prefix": "CR",             # internal param namespace; never published
     "enable": "ContactRadar/Enable",
 }
@@ -261,8 +262,9 @@ def emit_clips(o, c, k):
     hold = 2 * c["holdHalf"] / c["boxSize"]
     collapsed = 0.001
     burst = f"{O}/Burst/GameObject.m_IsActive"
+    marker = f"{O}/Payload/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, burst_on):
+    def cfg(active, flag, scale, opn, armed, burst_on, tracking=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in ("X+", "Y+", "Z+"):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -272,6 +274,7 @@ def emit_clips(o, c, k):
         d[f"{me}/Open"] = opn
         d[f"{me}/Armed"] = armed
         d[burst] = burst_on
+        d[marker] = tracking if c["marker"] else 0
         return d
 
     def clip(name, sets, seconds=None, comment=None):
@@ -279,7 +282,7 @@ def emit_clips(o, c, k):
         sec = f"seconds: {fmt(seconds)}, " if seconds else ""
         o(f"  {name}: {{ {sec}set: {{ {body} }} }}" + (f"   # {comment}" if comment else ""))
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, both protocol flags and the burst toggle.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, both protocol flags, the burst toggle and the marker.")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_armed", cfg(1, 0, acq, 0, 1, 0), step, "Armed 1 — the ring rule reads it one frame late")
     clip(f"slot{k}_open", cfg(1, 1, acq, 1, 0, 0), None, "Open 1 — the flag up")
@@ -287,8 +290,8 @@ def emit_clips(o, c, k):
     latch = cfg(1, 0, hold, 0, 0, 0)
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
     clip(f"slot{k}_latch", latch, step, "flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)")
-    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0), None, "tracking configuration, burst off")
-    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1), None, "tracking configuration, burst on")
+    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, tracking=1), None, "tracking configuration, burst off")
+    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, tracking=1), None, "tracking configuration, burst on")
     rec = cfg(1, 0, None, 0, 0, 0)
     body = ", ".join(f"{k2}: {v}" for k2, v in rec.items())
     o(f"  slot{k}_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse")
@@ -308,7 +311,9 @@ def emit_clips(o, c, k):
                                 f"{O}/Transform.m_LocalPosition.x": bias,
                                 f"{O}/Transform.m_LocalPosition.y": bias,
                                 f"{O}/Transform.m_LocalPosition.z": bias})
-    o(f"  # Slot {k} x² table: {N} segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4.")
+    o(f"  # Slot {k} x² table: {N} segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4")
+    o("  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any")
+    o("  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.")
     for i in range(N + 1):
         t = -h + 2 * h * i / N
         clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t)})
@@ -397,6 +402,7 @@ def check_files(overrides, here, prefab):
     assert_(len(names) == c["K"], f"{prefab}: {len(names)} Slot GameObjects == K {c['K']}")
     recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
     assert_(len(recv) == 3 * c["K"], f"{prefab}: {len(recv)} receivers == 3K")
+    params = []
     for d in recv:
         tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
         assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}")
@@ -408,14 +414,35 @@ def check_files(overrides, here, prefab):
         assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()),
                 f"receiver size == boxSize {c['boxSize']} on every axis")
         m = re.search(r"^  parameter: (\S+)$", d, re.M)
-        assert_(m is not None and re.fullmatch(rf"{c['prefix']}/Slot\d+/[XYZ]\+", m.group(1)) is not None,
-                f"receiver parameter {m.group(1) if m else None} under {c['prefix']}/Slot<k>/")
+        param = m.group(1) if m else None
+        params.append(param)
+        # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
+        # +Z face must be the cage's +X / +Y / +Z face for the axis its parameter names.
+        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
+        tr = next((t for t in docs if t.startswith("4 &") and go is not None
+                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
+        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
+        want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
+        got = tuple(float(v) for v in rot.groups()) if rot else None
+        assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
+                f"receiver {param}: box rotation {got} faces its axis")
+    expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
+    assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
+    # The two world pins: exactly two constraint sources point at THIS entry's assets/World.prefab, at
+    # zero offset — a nonzero per-source offset is multiplied by the avatar's scale factor in-client.
     # Unity's YAML writer wraps long lines, so the pin's `type: 3}` tail may sit on the next line.
-    world = re.findall(r"SourceTransform: \{fileID: \d+, guid: ([0-9a-f]{32}),\s*type: 3\}", body)
-    assert_(len(world) >= 2, f"constraint sources pointing at a prefab asset (the World.prefab pins on Cage): {len(world)} (need 2)")
+    pins = re.findall(r"SourceTransform: \{fileID: \d+, guid: ([0-9a-f]{32}),\s*type: 3\}\n\s+Weight: \S+\n\s+ParentPositionOffset: \{x: (\S+), y: (\S+), z: (\S+)\}\n\s+ParentRotationOffset: \{x: (\S+), y: (\S+), z: (\S+)\}", body)
+    world_guid = meta_guid(os.path.join(here, "assets", "World.prefab"))
+    assert_(len(pins) == 2 and all(p[0] == world_guid for p in pins),
+            f"exactly two constraint sources point at assets/World.prefab (the rotation and scale pins on Cage): {len(pins)}")
+    assert_(all(float(v) == 0 for p in pins for v in p[1:]), "both World pins carry zero source offsets")
     print("OK" if ok else "FAILED")
     return ok
+
+
+# Receiver box rotation per axis: the box's local +Z must be the cage's named axis.
+AXIS_ROTATION = {"X+": (0, 0.7071068, 0, 0.7071068), "Y+": (-0.7071068, 0, 0, 0.7071068), "Z+": (0, 0, 0, 1)}
 
 
 def meta_guid(path):
@@ -462,8 +489,13 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
     src = re.search(r"m_SourcePrefab: \{fileID: \d+, guid: ([0-9a-f]{32}), type: 3\}", body)
     assert_(src is not None and src.group(1) == meta_guid(base_prefab), f"{prefab} is a variant of {os.path.basename(base_prefab)}")
     removed = re.search(r"m_RemovedGameObjects:\n((?:\s+- \{.*\n)*)", body)
-    n = len(removed.group(1).splitlines()) if removed else 0
-    assert_(n == b["K"] - c["K"], f"{n} removed GameObjects == base K {b['K']} - K {c['K']} (the removed slots)")
+    base_body = open(base_prefab, encoding="utf-8").read()
+    names = []
+    for fid in re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""):
+        m = re.search(rf"^--- !u!1 &{fid}\nGameObject:\n(?:.*\n)*?  m_Name: (\S+)$", base_body, re.M)
+        names.append(m.group(1) if m else f"<{fid}>")
+    want = [f"Slot{i}" for i in range(c["K"] + 1, b["K"] + 1)]
+    assert_(sorted(names) == want, f"removed GameObjects {names} == the slots above K ({want})")
     rc = re.search(r"m_RemovedComponents:\n((?:\s+- \{.*\n)*)", body)
     assert_(rc is not None and len(rc.group(1).splitlines()) == 1, "exactly one removed component (the inherited FullController)")
     ok = check_seam(assert_, c, here, body) and ok
