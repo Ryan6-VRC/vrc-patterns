@@ -206,7 +206,6 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         /// The shell, the rim light, and (where declared) the mirror opt-out. The rim lives in the same
         /// pass behind the same <c>_SHELL_ON</c> keyword, so with the shell off neither group does
         /// anything: nesting says that, where two sibling sections implied the rim was independently live.
-        /// <see cref="MirrorProps"/> sits outside that nesting for the reason given on it.
         /// </summary>
         protected void DrawShellSection(MaterialEditor editor, MaterialProperty[] properties, Material mat)
         {
