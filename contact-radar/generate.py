@@ -88,8 +88,8 @@ What happens at enable, at load and around a pause — the expanding front:
   manual hide/show, mirror clones); Disabled is entered only by the toggle.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
   one-frame pre-halt signal for a distance-hide (docs/runtime.md §Parameters
-  carries the citation; view cull gives no signal and is the README's bounds
-  requirement). Its clip collapses the boxes; on resume the rig passes through
+  carries the citation; view cull gives no signal, so the README asks the
+  installer for renderer bounds that cover the working volume). Its clip collapses the boxes; on resume the rig passes through
   Paused, Armed (collapsed) and SweepShut at front 0 before anything grows, so
   whatever the receivers did during the pause is discarded and the present
   hands are re-acquired from scratch, silently.
@@ -127,9 +127,6 @@ CONFIG = {
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
-    "boundsHalf": 3.0,          # the renderer-bounds cube half-extent, m: an observer inside it never view-culls you
-    "sizeMin": 0.5,             # the smallest Cage/Size the README supports; the bounds margin is linted at this scale
-    "armReach": 0.75,           # head-to-hand distance the bounds cube must cover beyond the hold face, m (does not scale with Size)
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
@@ -164,8 +161,6 @@ def lint(c):
         refuse("stepSeconds must be >= 2/60 — a dwell shorter than two collision steps can be skipped")
     if c["sweepSeconds"] * 60 < 4.2:
         refuse("sweepSeconds is too short — the front (which runs 5% past the face) would cross more than a quarter of the cube per collision step")
-    if c["boundsHalf"] * c["sizeMin"] < c["holdHalf"] * c["sizeMin"] + c["armReach"]:
-        refuse("boundsHalf is too small — at Cage/Size sizeMin the bounds face must sit armReach past the hold face, since a toucher's head-to-hand distance does not scale with the knob")
     if 2 * c["holdHalf"] > 6:
         refuse("2*holdHalf exceeds the SDK's serialized box limit (6 m) — a sanity bound on the working volume")
     if c["lookupSegments"] < 4:
@@ -679,7 +674,7 @@ def check_files(overrides, here, prefab):
         got = tuple(float(v) for v in rot.groups()) if rot else None
         assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
                 f"receiver {param}: box rotation {got} faces its axis")
-    ok = check_rig(assert_, c, docs, here) and ok
+    ok = check_rig(assert_, c, docs) and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
     assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
@@ -695,7 +690,7 @@ def check_files(overrides, here, prefab):
     return ok
 
 
-def check_rig(assert_, c, docs, here):
+def check_rig(assert_, c, docs):
     """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
     `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs); each slot's
     `Burst` is inside the toggled `Payload` and its `Emit` is outside it, directly under `Output`
@@ -726,22 +721,6 @@ def check_rig(assert_, c, docs, here):
     for name, want in (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
-    # The view-cull requirement: one Bounds node under Size, a MeshRenderer, scaled to the boundsHalf cube.
-    bounds = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Bounds"]
-    ok = assert_(len(bounds) == 1 and parent_name(bounds[0]) == "Size", "exactly one Bounds node, under Size") and ok
-    want = tuple([2.0 * c["boundsHalf"]] * 3)
-    ok = assert_(len(bounds) == 1 and trs[bounds[0]][2] == want, f"Bounds scale == 2*boundsHalf on every axis ({want})") and ok
-    bgo = trs[bounds[0]][0] if bounds else None
-
-    def owned(cls):
-        pat = r"m_GameObject: \{fileID: " + str(bgo) + r"\}"
-        return next((d for d in docs if d.startswith(cls + " &") and re.search(pat, d)), None) if bgo else None
-
-    mr, mf = owned("23"), owned("33")
-    ok = assert_(mr is not None and re.search(r"^  m_Enabled: 1$", mr, re.M) is not None, "Bounds carries an enabled MeshRenderer") and ok
-    mesh_guid = meta_guid(os.path.join(here, "assets", "Bounds.mesh"))
-    m = re.search(r"m_Mesh: \{fileID: \d+, guid: ([0-9a-f]{32}), type: 2\}", mf or "")
-    ok = assert_(m is not None and m.group(1) == mesh_guid, "Bounds' MeshFilter references assets/Bounds.mesh (the unit bounds the scale multiplies)") and ok
     return ok
 
 
