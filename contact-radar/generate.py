@@ -340,11 +340,11 @@ def emit_layer(o, c, k, ks):
     o("    default: Boot")
     o("    layout:")
     target = "TrackIn" if mode == "dwell" else "Burst"
-    extra = ", TrackInSilent: [510, 540]" if mode == "dwell" else ""
-    o(f"      nodes: {{ Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], {target}: [270, 540]{extra}, Recycle: [30, 630] }}")
-    o("      entry: [50, 30]")
-    o("      any:   [300, 30]")
-    o("      exit:  [180, 30]")
+    extra = ", TrackInSilent: [510, 630]" if mode == "dwell" else ""
+    o(f"      nodes: {{ Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], {target}: [270, 630]{extra}, Recycle: [30, 720] }}")
+    o("      entry: [50, 120]")
+    o("      any:   [50, 40]")
+    o("      exit:  [50, 80]")
 
 
 def emit_sweep_layer(o, c, ks):
@@ -412,10 +412,10 @@ def emit_sweep_layer(o, c, ks):
     o(off)
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Wait: [30, 270], Ramp: [270, 270], Idle: [30, 360] }")
-    o("      entry: [50, 30]")
-    o("      any:   [300, 30]")
-    o("      exit:  [180, 30]")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Idle: [30, 450] }")
+    o("      entry: [50, 120]")
+    o("      any:   [50, 40]")
+    o("      exit:  [50, 80]")
 
 
 def emit_sweep_clips(o, c):

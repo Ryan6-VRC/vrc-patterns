@@ -330,10 +330,10 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], Burst: [270, 540], Recycle: [30, 630] }
-      entry: [50, 30]
-      any:   [300, 30]
-      exit:  [180, 30]
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], Burst: [270, 630], Recycle: [30, 720] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
   - name: Slot2
     states:
       Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
@@ -601,10 +601,10 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], Burst: [270, 540], Recycle: [30, 630] }
-      entry: [50, 30]
-      any:   [300, 30]
-      exit:  [180, 30]
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], Burst: [270, 630], Recycle: [30, 720] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
   - name: Slot3
     states:
       Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent
@@ -872,10 +872,10 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Armed: [30, 270], SweepShut: [-210, 270], Sweep: [-210, 360], Open: [30, 360], Partial: [270, 360], Latch: [30, 450], TrackOut: [-210, 540], Burst: [270, 540], Recycle: [30, 630] }
-      entry: [50, 30]
-      any:   [300, 30]
-      exit:  [180, 30]
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], Burst: [270, 630], Recycle: [30, 720] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
   - name: Sweep
     # The expanding front, shared by every slot: Sweeping (collapse the Armed slots), Silent (the no-puff endpoint),
     # Sweep (the front half-extent, m) and SweepBase (where the current sweeper's ramp started). Slot layers read these
@@ -936,10 +936,10 @@ layers:
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
     default: Boot
     layout:
-      nodes: { Boot: [30, 90], Disabled: [30, 180], Paused: [270, 180], Wait: [30, 270], Ramp: [270, 270], Idle: [30, 360] }
-      entry: [50, 30]
-      any:   [300, 30]
-      exit:  [180, 30]
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Idle: [30, 450] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
 
 clips:
   # Slot 1 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
