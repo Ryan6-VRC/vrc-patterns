@@ -35,6 +35,16 @@ uniform float _Shell_Rim_Blur;
 uniform float _Shell_Rim_FresnelPower;
 uniform float _Shell_Rim_VRParallaxStrength;
 
+// Only GammaCrystal and TransClip put this in a Properties block; elsewhere the uniform stays 0 and the
+// guard below never fires, which is what keeps the shell inert for DebugDisplay and DebugOverlay.
+uniform float _HideInMirror;
+
+// VRChat's mirror global, whose semantics debug_display_common.hlsl owns. Declared a second time here
+// rather than routed, because that file is the TEXT half's substrate and a pass takes one of the two,
+// never both -- so the pair cannot collide. A pass that declares it again AFTER including this file is a
+// redefinition.
+uniform float _VRChatMirrorMode;
+
 // ── Vertex stage ────────────────────────────────────────────────────────────────────────────────────
 
 struct ShellVertexInput
@@ -56,6 +66,18 @@ void shell_vertex_stage(ShellVertexInput input, out ShellFragmentInput output)
 {
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+    // Exists so an FX layer hides the whole object from mirrors by animating ONE float, rather than
+    // driving the reflection and rim strengths to zero -- those are the operator's tuning values, and do
+    // not survive being borrowed as a switch. The degenerate clip position is the same bail idiom
+    // GammaCrystal's grading vertex uses.
+    if (_HideInMirror > 0.5 && _VRChatMirrorMode != 0)
+    {
+        output.position = float4(0, 0, 0, 0);
+        output.position_ws = float3(0, 0, 0);
+        output.normal_ws = float3(0, 0, 1);
+        return;
+    }
 
     output.position = UnityObjectToClipPos(input.position_os);
     output.position_ws = mul(unity_ObjectToWorld, input.position_os).xyz;

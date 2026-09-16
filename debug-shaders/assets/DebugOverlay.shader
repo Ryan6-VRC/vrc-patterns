@@ -226,7 +226,8 @@ Shader "Ryan6VRC/Overlay/DebugOverlay"
             #include "crystal_shell.hlsl"
 
             uniform float _Overlay_Fullscreen;
-            uniform float _VRChatMirrorMode;
+            // _VRChatMirrorMode comes from crystal_shell.hlsl, included above; declaring it again here
+            // is a redefinition. The probe pass has no such include and keeps its own.
             uniform float _VRChatCameraMode;
 
             half4 shell_fragment_stage(ShellFragmentInput input) : SV_Target

@@ -39,6 +39,15 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
 
         protected static readonly string[] ShellToggleProps = { "_Shell_Enabled" };
 
+        /// <summary>
+        /// The mirror opt-out, declared only by <c>GammaCrystal</c> and <c>TransClip</c> — like
+        /// <see cref="OverlayProps"/>, absence is legitimate rather than drift, so it is drawn
+        /// conditionally. Deliberately outside the <c>_Shell_Enabled</c> gate: on <c>TransClip</c> it also
+        /// degenerates the depth wall, which carries no shell keyword, so hiding the row with the shell off
+        /// would hide a control that is still doing something.
+        /// </summary>
+        protected static readonly string[] MirrorProps = { "_HideInMirror" };
+
         protected static readonly string[] ShellProps =
             { "_Shell_ReflectionCube", "_Shell_Reflection_Color", "_Shell_Reflection_Strength",
               "_Shell_Reflection_Smoothness", "_Shell_Reflection_BlurMaxMip" };
@@ -194,9 +203,9 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         }
 
         /// <summary>
-        /// The shell and the rim light. The rim lives in the same pass behind the same <c>_SHELL_ON</c>
-        /// keyword, so with the shell off neither group does anything: nesting says that, where two sibling
-        /// sections implied the rim was independently live.
+        /// The shell, the rim light, and (where declared) the mirror opt-out. The rim lives in the same
+        /// pass behind the same <c>_SHELL_ON</c> keyword, so with the shell off neither group does
+        /// anything: nesting says that, where two sibling sections implied the rim was independently live.
         /// </summary>
         protected void DrawShellSection(MaterialEditor editor, MaterialProperty[] properties, Material mat)
         {
@@ -205,6 +214,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
                 using (Body())
                 {
                     DrawNamed(editor, properties, ShellToggleProps);
+                    if (mat.HasProperty(MirrorProps[0])) DrawNamed(editor, properties, MirrorProps);
                     if (GetFloat(mat, "_Shell_Enabled", 1f) != 0f)
                     {
                         DrawNamed(editor, properties, ShellProps);
@@ -262,7 +272,8 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
         {
             get
             {
-                var claimed = OverlayProps.Concat(ShellToggleProps).Concat(ShellProps).Concat(RimProps);
+                var claimed = OverlayProps.Concat(ShellToggleProps).Concat(MirrorProps)
+                                          .Concat(ShellProps).Concat(RimProps);
                 return ModeProperty != null ? claimed.Concat(new[] { ModeProperty }) : claimed;
             }
         }

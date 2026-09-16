@@ -42,6 +42,12 @@ Shader "Ryan6VRC/Overlay/TransClip"
         _Shell_Rim_Blur("Blur", Range(0.001, 1)) = 0.7
         _Shell_Rim_FresnelPower("Fresnel Power", Range(0.05, 8)) = 4
         _Shell_Rim_VRParallaxStrength("VR Parallax Strength", Range(0, 1)) = 1
+
+        // The only property here that reaches BOTH passes: at 1 the depth wall and the shell each
+        // degenerate their vertices in a mirror, so the object leaves the reflection entirely.
+        // [ToggleUI], not [Toggle(...)]: an animator drives this per frame, and a keyword would add a
+        // shader variant per pass for it.
+        [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
     }
 
     SubShader
@@ -83,13 +89,18 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // ZWrite On shell: a single two-sided pass writing colour double-blends the back face wherever it
         // rasterises before the front face, giving a per-triangle patchy tint from outside.
         //
-        // No _VRChatMirrorMode check, and that is a decision rather than an omission. GammaCrystal
-        // suppresses its grading in mirrors because a mirror reflects a scene the bubble has ALREADY graded,
-        // so the reflection would be graded twice; nothing here compounds -- a mirror camera renders the
-        // scene into its own depth buffer, and the wall either clips the transparents in that render or it
-        // does not. Bailing would make the reflection disagree with the direct view about the same volume.
-        // The consequence to expect: from a mirror, transparent materials inside the sphere are clipped
-        // there too, including the wearer's own.
+        // The wall clips in mirrors too by default, and that is a decision rather than an omission.
+        // GammaCrystal suppresses its grading in mirrors because a mirror reflects a scene the bubble has
+        // ALREADY graded, so the reflection would be graded twice; nothing here compounds -- a mirror
+        // camera renders the scene into its own depth buffer, and the wall either clips the transparents in
+        // that render or it does not. Bailing unconditionally would make the reflection disagree with the
+        // direct view about the same volume. The consequence to expect at the default: from a mirror,
+        // transparent materials inside the sphere are clipped there too, including the wearer's own.
+        //
+        // _HideInMirror is the opt-out, and it must be applied HERE as well as in the shell: the two passes
+        // share no code, so the guard in crystal_shell.hlsl reaches the shell only and would leave an
+        // invisible wall still clipping the reflection -- the worse of the two states, because nothing on
+        // screen says why the transparents vanished.
         // ────────────────────────────────────────────────────────────────────────────────────────────
         Pass
         {
@@ -111,6 +122,11 @@ Shader "Ryan6VRC/Overlay/TransClip"
 
             #include "UnityCG.cginc"
 
+            // crystal_shell.hlsl is never included in this pass, so neither of these is a redefinition
+            // of its declarations.
+            uniform float _HideInMirror;
+            uniform float _VRChatMirrorMode;
+
             struct WallVertexInput
             {
                 float4 position_os : POSITION;
@@ -127,6 +143,15 @@ Shader "Ryan6VRC/Overlay/TransClip"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+                // Matches the shell's guard in crystal_shell.hlsl exactly, so one animated float takes
+                // wall and shell out of the reflection together. Keep the two expressions in step.
+                if (_HideInMirror > 0.5 && _VRChatMirrorMode != 0)
+                {
+                    output.position = float4(0, 0, 0, 0);
+                    return;
+                }
+
                 output.position = UnityObjectToClipPos(input.position_os);
             }
 

@@ -65,6 +65,11 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
         // 0 = shell fully obeys scene grading (disappears in dark), 1 = shell ignores it (too bright)
         _Shell_Grading_Resist("Grading resistance", Range(0, 1)) = 0.5
+
+        // At 1 the shell's vertices degenerate in a mirror; the grading pass already bails there
+        // unconditionally, so the whole bubble leaves the reflection. [ToggleUI], not [Toggle(...)]: an
+        // animator drives this per frame, and a keyword would add a shader variant for it.
+        [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
     }
 
     SubShader
@@ -174,12 +179,14 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                // Only the GRADING bails in a mirror. The shell pass carries no such check and still draws,
-                // and that pairing is the whole point: a mirror reflects a scene this bubble has ALREADY
-                // graded, so grading the reflection as well would compound it -- hold the bubble beside a
-                // mirror and the reflected region would darken twice. The shell must keep rendering, or the
-                // object disappears from its own reflection while you are holding it. DELIBERATELY
-                // asymmetric with DebugOverlay, which only suppresses its FULLSCREEN takeover in mirrors.
+                // Only the GRADING bails in a mirror, and unconditionally -- no _HideInMirror switch
+                // reaches here, because double grading is an artifact rather than a look. The shell pass
+                // draws unless the material opts out, and that default pairing is the whole point: a
+                // mirror reflects a scene this bubble has ALREADY graded, so grading the reflection as
+                // well would compound it -- hold the bubble beside a mirror and the reflected region
+                // would darken twice. The shell must keep rendering by default, or the object disappears
+                // from its own reflection while you are holding it. DELIBERATELY asymmetric with
+                // DebugOverlay, which only suppresses its FULLSCREEN takeover in mirrors.
                 if (_VRChatMirrorMode != 0)
                 {
                     output.sphere_center_ws = float3(0, 0, 0);
