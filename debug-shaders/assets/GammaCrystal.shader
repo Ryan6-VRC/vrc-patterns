@@ -65,6 +65,14 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
         // 0 = shell fully obeys scene grading (disappears in dark), 1 = shell ignores it (too bright)
         _Shell_Grading_Resist("Grading resistance", Range(0, 1)) = 0.5
+
+        // An FX-animatable switch that degenerates the shell's vertices in a mirror. The grading pass
+        // already bails there unconditionally, so at 1 the whole bubble leaves the reflection -- the
+        // deliberate asymmetry documented at the grading vertex OVERRIDDEN per material, never replaced:
+        // at the default 0 the shell still draws in mirrors and the object stays visible in its own
+        // reflection. [ToggleUI], not [Toggle(...)]: the shell vertex branches on the float, and a keyword
+        // would add a variant for a switch an animator drives per frame.
+        [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
     }
 
     SubShader
@@ -174,12 +182,15 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                // Only the GRADING bails in a mirror. The shell pass carries no such check and still draws,
-                // and that pairing is the whole point: a mirror reflects a scene this bubble has ALREADY
-                // graded, so grading the reflection as well would compound it -- hold the bubble beside a
-                // mirror and the reflected region would darken twice. The shell must keep rendering, or the
-                // object disappears from its own reflection while you are holding it. DELIBERATELY
-                // asymmetric with DebugOverlay, which only suppresses its FULLSCREEN takeover in mirrors.
+                // Only the GRADING bails in a mirror unconditionally; the shell pass draws unless the
+                // material opts out through _HideInMirror, which defaults off. That default pairing is the
+                // whole point: a mirror reflects a scene this bubble has ALREADY graded, so grading the
+                // reflection as well would compound it -- hold the bubble beside a mirror and the
+                // reflected region would darken twice. The shell keeps rendering by default, or the object
+                // disappears from its own reflection while you are holding it; opting out is a choice the
+                // material makes, which is why the grading has no such switch and never will -- double
+                // grading is an artifact, not a look. DELIBERATELY asymmetric with DebugOverlay, which
+                // only suppresses its FULLSCREEN takeover in mirrors.
                 if (_VRChatMirrorMode != 0)
                 {
                     output.sphere_center_ws = float3(0, 0, 0);

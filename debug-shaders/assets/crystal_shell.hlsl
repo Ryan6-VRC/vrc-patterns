@@ -35,6 +35,17 @@ uniform float _Shell_Rim_Blur;
 uniform float _Shell_Rim_FresnelPower;
 uniform float _Shell_Rim_VRParallaxStrength;
 
+// Declared for every shell pass, but only GammaCrystal and TransClip put it in a Properties block. A
+// shader that omits it leaves the uniform at 0 and the guard below never fires, which is what keeps this
+// inert for DebugDisplay and DebugOverlay.
+uniform float _HideInMirror;
+
+// VRChat's mirror global, whose semantics debug_display_common.hlsl owns. Declared a second time here
+// rather than routed, because that file is the TEXT half's substrate and a pass takes one of the two,
+// never both -- so the pair cannot collide. A pass that declares it again AFTER including this file is a
+// redefinition, which is why DebugOverlay's shell pass now leans on this declaration instead of its own.
+uniform float _VRChatMirrorMode;
+
 // ── Vertex stage ────────────────────────────────────────────────────────────────────────────────────
 
 struct ShellVertexInput
@@ -56,6 +67,20 @@ void shell_vertex_stage(ShellVertexInput input, out ShellFragmentInput output)
 {
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+    // A degenerate clip position collapses every triangle, so the pass rasterises nothing at all in a
+    // mirror -- the same idiom GammaCrystal's grading vertex already uses to bail. This exists so an FX
+    // layer can hide the whole object from mirrors by animating ONE float, rather than driving the
+    // reflection and rim strengths to zero, which are the operator's tuning sliders and do not survive
+    // being borrowed as a switch. Untouched by _SHELL_ON: that keyword still decides whether the shell
+    // draws everywhere else.
+    if (_HideInMirror > 0.5 && _VRChatMirrorMode != 0)
+    {
+        output.position = float4(0, 0, 0, 0);
+        output.position_ws = float3(0, 0, 0);
+        output.normal_ws = float3(0, 0, 1);
+        return;
+    }
 
     output.position = UnityObjectToClipPos(input.position_os);
     output.position_ws = mul(unity_ObjectToWorld, input.position_os).xyz;
