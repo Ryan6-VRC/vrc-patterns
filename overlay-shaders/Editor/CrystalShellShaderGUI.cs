@@ -3,10 +3,10 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
-    /// Shared material inspector for the <c>vrc-patterns/debug-shaders</c> family — every shader that
+    /// Shared material inspector for the <c>vrc-patterns/overlay-shaders</c> family — every shader that
     /// carries the crystal shell pass. Owns the section chrome, the property-drift checks in both
     /// directions, the shell/rim controls, and the toolbar+keyword handling a <c>[KeywordEnum]</c> mode
     /// property needs. Each shader's own controls live in its subclass.

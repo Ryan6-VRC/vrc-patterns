@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
     /// Material inspector for <c>Ryan6VRC/Overlay/TransClip</c> — a depth wall with a front-face shell. The

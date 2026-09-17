@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
     /// Material inspector for <c>Ryan6VRC/Overlay/GammaCrystal</c> — a localized grading bubble (gamma,

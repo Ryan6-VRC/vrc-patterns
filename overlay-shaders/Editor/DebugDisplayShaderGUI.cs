@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
     /// Material inspector for <c>Ryan6VRC/Overlay/DebugDisplay</c>. Turns the packed label vectors and
@@ -27,7 +27,7 @@ namespace Ryan6Vrc.Patterns.DebugShaders.Editor
     /// warning per inspect.</para>
     ///
     /// <para><b>The shell, the rim, the section chrome and the mode bar are not here.</b> They live in
-    /// <see cref="CrystalShellShaderGUI"/>, shared with the rest of the <c>debug-shaders</c> family; this
+    /// <see cref="CrystalShellShaderGUI"/>, shared with the rest of the <c>overlay-shaders</c> family; this
     /// class is the display's own half — the entry table and the arithmetic around it. The mode bar is the
     /// base's generic <c>[KeywordEnum]</c> control, configured by the four overrides below.</para>
     /// </summary>
