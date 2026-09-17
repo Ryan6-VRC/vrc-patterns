@@ -215,5 +215,5 @@ Shader "Ryan6VRC/Overlay/TransClip"
         }
     }
 
-    CustomEditor "Ryan6Vrc.Patterns.DebugShaders.Editor.TransClipShaderGUI"
+    CustomEditor "Ryan6Vrc.Patterns.OverlayShaders.Editor.TransClipShaderGUI"
 }

@@ -2,14 +2,14 @@ using System;
 using System.Text;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
     /// The wire format for <c>Ryan6VRC/Overlay/DebugDisplay</c>: a 6-bit uppercase glyph charset, the
     /// author-time string→float label packing, and the per-entry format bitfield. This type is the
     /// CANON for all three — the MSDF atlas is generated from <see cref="Charset"/> (never from a
     /// committed copy of it), the shader's HLSL unpack mirrors <see cref="TryEncodeLabel"/>, and the
-    /// <c>vrc-patterns/debug-shaders</c> README quotes the arithmetic. Pure math, no Unity asset access,
+    /// <c>vrc-patterns/overlay-shaders</c> README quotes the arithmetic. Pure math, no Unity asset access,
     /// so it is the NUnit-tested core the material inspector sits on — and it is also the whole
     /// scriptable door. There is no configure-an-entry helper: a script authoring a display calls
     /// <see cref="TryEncodeLabel"/> for the label, composes the format word from the shift constants

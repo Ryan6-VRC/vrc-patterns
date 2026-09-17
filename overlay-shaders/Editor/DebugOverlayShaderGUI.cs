@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace Ryan6Vrc.Patterns.DebugShaders.Editor
+namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
 {
     /// <summary>
     /// Material inspector for <c>Ryan6VRC/Overlay/DebugOverlay</c> — the depth-derived surface probes

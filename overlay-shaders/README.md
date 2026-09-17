@@ -1,4 +1,4 @@
-# debug-shaders (Structural Module)
+# overlay-shaders (Structural Module)
 
 Four overlay shaders for looking at what an avatar is actually doing, sharing one glassy crystal shell: `DebugDisplay` prints up to twelve labelled values on a plane through the object origin, `DebugOverlay` draws triangle edges or reconstructed world normals from the scene depth buffer, `GammaCrystal` grades the scene inside a sphere of influence through a grab pass, and `TransClip` writes depth early behind that same shell so transparent materials inside its volume are never drawn. Each renders on whatever mesh you drop it on, all configuration is material-side, and none of the four syncs a bit or needs an animator.
 

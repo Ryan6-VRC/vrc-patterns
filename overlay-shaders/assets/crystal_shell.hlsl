@@ -2,7 +2,7 @@
 #define CRYSTAL_SHELL_INCLUDED
 
 // The crystal shell: an additive cubemap reflection plus a fresnel rim, shared by every shader in the
-// debug-shaders entry. One home for the property block, the vertex stage, and the shading itself -- each
+// overlay-shaders entry. One home for the property block, the vertex stage, and the shading itself -- each
 // shader's shell pass is then pragmas, this include, and a fragment that decides what to do with the
 // returned colour. The stereo-correct camera positions it reads are stereo_camera.hlsl's.
 //
