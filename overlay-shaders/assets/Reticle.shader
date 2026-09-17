@@ -69,7 +69,9 @@ Shader "Ryan6VRC/Overlay/Reticle"
     {
         Tags
         {
-            "Queue" = "Overlay"
+            // After Mosaic (plain Overlay): a reticle on the same anchor draws over the censor rather than
+            // being grabbed into it.
+            "Queue" = "Overlay+10"
             "RenderType" = "Overlay"
             "VRCFallback" = "Hidden"
             "IgnoreProjector" = "True"
