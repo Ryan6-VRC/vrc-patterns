@@ -20,6 +20,10 @@ two land in one collision step and the admission windows tile. The latched
 slot then reconstructs its hand's position exactly (box-tracker's readout,
 three boxes and a configured sender radius) and computes r² = x²+y²+z² in a
 piecewise-linear lookup; the burst fires when r² crosses the burst radius.
+`shape: cylinder` leaves the vertical axis out of that sum — r² is then the
+in-plane radius squared — and compares y against a half-height directly, so the
+zone is a vertical cylinder about the cage centre; the re-arm height is the
+half-height plus dwell's radial band, one band on every axis.
 
 Two modes, one flag: `dwell` keeps the slot until the hand leaves the hold cube
 and re-bursts each time it crosses back inside the burst radius after retreating
@@ -105,6 +109,15 @@ What happens at enable, at load and around a pause — the expanding front:
   carries the timing and the self-copies are one frame long, which stretches
   the ramp by at most (2·SweepBase + Silent)/(60·sweepSeconds).
 
+The boundary: `Cage/Size/Boundary` holds two unit meshes, `Sphere` (radius 1)
+and `Cylinder` (radius 1, y from -1 to 1, open ends), both written by `--mesh`
+into assets/. The Sweep layer — the one layer with exactly one state live at
+all times — writes each mesh's scale (R,R,R / R,H,R) and MeshRenderer enable in
+every state, so the drawn surface is the configured burst surface by
+construction and only the CONFIG-selected shape ever renders, only while the
+toggle is on. `Boundary` ships inactive: activating it is the consumer's opt-in,
+and its material the swap point.
+
 Fragment mode: `document(overrides)` returns the document text and a facts
 dict; `entry-mode/generate.py` is the second consumer.
 """
@@ -124,6 +137,8 @@ CONFIG = {
     "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
     "burstRadius": 1.0,         # R_in, m
     "rearmRadius": 1.1,         # R_out, m (dwell only)
+    "shape": "sphere",          # sphere | cylinder — the zone the readout is compared against; the receivers are cubes either way
+    "halfHeight": 0.5,          # cylinder only: half-height about the cage centre, m; the re-arm height adds the dwell band
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
@@ -157,6 +172,15 @@ def lint(c):
             refuse("rearmRadius must be > burstRadius")
         if c["rearmRadius"] + c["senderRadius"] >= c["acqHalf"]:
             refuse("rearmRadius + senderRadius must be < acqHalf — a dwell re-arm must be reachable on axis")
+    if c["shape"] not in ("sphere", "cylinder"):
+        refuse("shape must be sphere or cylinder")
+    if c["shape"] == "cylinder":
+        if c["halfHeight"] <= 0:
+            refuse("halfHeight must be > 0")
+        if c["halfHeight"] + c["senderRadius"] >= c["acqHalf"]:
+            refuse("halfHeight + senderRadius must be < acqHalf — the cylinder's ends must be reachable inside the cube")
+        if c["mode"] == "dwell" and rearm_half_height(c) + c["senderRadius"] >= c["acqHalf"]:
+            refuse("halfHeight + the dwell band + senderRadius must be < acqHalf — a dwell re-arm must be reachable on the axis")
     if c["stepSeconds"] < 2 / 60:
         refuse("stepSeconds must be >= 2/60 — a dwell shorter than two collision steps can be skipped")
     if c["sweepSeconds"] * 60 < 4.2:
@@ -169,6 +193,41 @@ def lint(c):
         refuse("prefix must be a bare segment")
     if c["enable"].count("/") != 1:
         refuse("enable must be one prefixed name (Module/Enable) — the wildcard for a bare name matches nothing")
+
+
+def rearm_half_height(c):
+    """Dwell's re-arm half-height: the radial band applied to the axis too."""
+    return c["halfHeight"] + c["rearmRadius"] - c["burstRadius"]
+
+
+def zone_conds(c, me):
+    """The inside predicate (one AND list) and the outside rungs (a list of AND lists — an OR)."""
+    rin2 = c["burstRadius"] ** 2
+    rout2 = c["rearmRadius"] ** 2
+    inside = [f"{me}/r2 less {fmt(rin2)}"]
+    outside = [[f"{me}/r2 greater {fmt(rout2)}"]]
+    if c["shape"] == "cylinder":
+        h = c["halfHeight"]
+        inside += [f"{me}/y less {fmt(h)}", f"{me}/y greater {fmt(-h)}"]
+        if c["mode"] == "dwell":
+            ho = rearm_half_height(c)
+            outside += [[f"{me}/y greater {fmt(ho)}"], [f"{me}/y less {fmt(-ho)}"]]
+    return inside, outside
+
+
+BOUNDARY = "Cage/Size/Boundary"
+
+
+def boundary_bindings(c, on):
+    """The two unit meshes' scale and renderer enable — the drawn surface is the configured burst surface."""
+    R = c["burstRadius"]
+    H = c["halfHeight"]
+    d = {}
+    for node, scale in (("Sphere", (R, R, R)), ("Cylinder", (R, H, R))):
+        for ax, v in zip(("x", "y", "z"), scale):
+            d[f"{BOUNDARY}/{node}/Transform.m_LocalScale.{ax}"] = fmt(v)
+        d[f"{BOUNDARY}/{node}/MeshRenderer.m_Enabled"] = 1 if (on and c["shape"] == node.lower()) else 0
+    return d
 
 
 def slot_name(c, k):
@@ -195,8 +254,8 @@ def emit_layer(o, c, k, ks):
     mode = c["mode"]
     me = slot_name(c, k)
     eps = c["epsilon"]
-    rin2 = c["burstRadius"] ** 2
-    rout2 = c["rearmRadius"] ** 2
+    inside, outside = zone_conds(c, me)
+    inside = ", ".join(inside)
     acq = c["acqHalf"]
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
@@ -311,11 +370,11 @@ def emit_layer(o, c, k, ks):
     for ax in ("X+", "Y+", "Z+"):
         o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
     if mode == "dwell":
-        o(f"          - {{ to: TrackIn, when: [ {me}/r2 less {fmt(rin2)}, {P}/Silent less 0.5 ] }}")
-        o(f"          - {{ to: TrackInSilent, when: [ {me}/r2 less {fmt(rin2)}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: marker, no puff")
+        o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
+        o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: marker, no puff")
     else:
-        o(f"          - {{ to: Burst, when: [ {me}/r2 less {fmt(rin2)}, {P}/Silent less 0.5 ] }}")
-        o(f"          - {{ to: Recycle, when: [ {me}/r2 less {fmt(rin2)}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: release without a burst")
+        o(f"          - {{ to: Burst, when: [ {inside}, {P}/Silent less 0.5 ] }}")
+        o(f"          - {{ to: Recycle, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: release without a burst")
     if mode == "dwell":
         o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
@@ -323,14 +382,16 @@ def emit_layer(o, c, k, ks):
         rungs()
         for ax in ("X+", "Y+", "Z+"):
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
-        o(f"          - {{ to: TrackOut, when: [ {me}/r2 greater {fmt(rout2)} ] }}")
+        for conds in outside:
+            o(f"          - {{ to: TrackOut, when: [ {', '.join(conds)} ] }}")
         o("      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs")
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst_silent")
         o("        transitions:")
         rungs()
         for ax in ("X+", "Y+", "Z+"):
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
-        o(f"          - {{ to: TrackOut, when: [ {me}/r2 greater {fmt(rout2)} ] }}")
+        for conds in outside:
+            o(f"          - {{ to: TrackOut, when: [ {', '.join(conds)} ] }}")
     else:
         o("      Burst:                       # the payload on for the tree's own dwell, then release")
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
@@ -377,6 +438,7 @@ def emit_sweep_layer(o, c, ks):
     o("    # The expanding front, shared by every slot: Sweeping (collapse the Armed slots), Silent (the no-puff endpoint),")
     o("    # Sweep (the front half-extent, m) and SweepBase (where the current sweeper's ramp started). Slot layers read these")
     o("    # and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to ramp on.")
+    o("    # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).")
     o("    states:")
     o("      Boot:                        # a fresh animator: the first sweep is silent")
     o("        motion: { clip: sw_boot }")
@@ -431,22 +493,28 @@ def emit_sweep_clips(o, c):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    def full(sweeping, silent, sweep, base):
-        return {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep), f"{P}/SweepBase": fmt(base)}
+    def full(sweeping, silent, sweep, base, shown):
+        d = {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep), f"{P}/SweepBase": fmt(base)}
+        d.update(boundary_bindings(c, shown))
+        return d
 
     o("  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).")
-    clip("sw_boot", full(1, 1, 0, 0), None, "a fresh animator: silent, front at 0")
-    clip("sw_off", full(1, 0, 0, 0), None, "the toggle off: loud, front at 0")
-    clip("sw_paused", full(1, 1, 0, 0), None, "a distance-hide: silent, front at 0")
-    clip("sw_idle", full(0, 0, acq, 0), None, "no sweep: the front parked at the face")
-    clip("sw_sweeping", {f"{P}/Sweeping": 1}, None, "the constant part of Wait")
+    o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.")
+    clip("sw_boot", full(1, 1, 0, 0, 0), None, "a fresh animator: silent, front at 0")
+    clip("sw_off", full(1, 0, 0, 0, 0), None, "the toggle off: loud, front at 0")
+    clip("sw_paused", full(1, 1, 0, 0, 0), None, "a distance-hide: silent, front at 0")
+    clip("sw_idle", full(0, 0, acq, 0, 1), None, "no sweep: the front parked at the face")
+    sweeping = {f"{P}/Sweeping": 1}
+    sweeping.update(boundary_bindings(c, 1))
+    clip("sw_sweeping", sweeping, None, "the constant part of Wait")
     clip("sw_hold_sweep", {f"{P}/Sweep": 1}, None, "× Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)")
     clip("sw_latch_base", {f"{P}/SweepBase": 1}, None, "× Sweep: SweepBase ← Sweep")
     clip("sw_hold_base", {f"{P}/SweepBase": 1}, None, "× SweepBase: hold")
     clip("sw_hold_silent", {f"{P}/Silent": 1}, None, "× Silent: hold")
     o(f"  sw_ramp:   # × One: Sweeping 1 and the front's own travel, 0 → {fmt(reach)} m over {fmt(T)} s, linear, added to SweepBase")
     o(f"    seconds: {fmt(T)}")
-    o(f"    set: {{ {P}/Sweeping: 1 }}")
+    ramp_set = ", ".join(f"{k2}: {v}" for k2, v in sweeping.items())
+    o(f"    set: {{ {ramp_set} }}")
     o("    curves:")
     o(f"      {P}/Sweep: {{ tangents: linear, keys: [ [0, 0], [{fmt(T)}, {fmt(reach)}] ] }}")
 
@@ -467,6 +535,8 @@ def emit_tree(o, c, k, hold):
     o(f"            - {{ clip: slot{k}_read_yp, directWeight: {me}/Y+ }}")
     o(f"            - {{ clip: slot{k}_read_zp, directWeight: {me}/Z+ }}")
     for ax in ("x", "y", "z"):
+        if ax == "y" and c["shape"] == "cylinder":
+            continue   # a cylinder's r² is in-plane; y is compared directly
         o("            - tree: 1d")
         o(f"              name: Slot{k} {ax}²")
         o(f"              param: {me}/{ax}")
@@ -569,6 +639,9 @@ def document(overrides=None):
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
     o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, 3 face-proximity boxes each.")
+    if c["shape"] == "cylinder":
+        o(f"# Zone: a vertical cylinder — r² is in-plane (x² + z²), |y| compared against half-height {c['halfHeight']} m"
+          + (f" (re-arm {fmt(rearm_half_height(c))} m)." if c["mode"] == "dwell" else "."))
     if c["mode"] == "dwell":
         o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
     else:
@@ -620,7 +693,7 @@ def document(overrides=None):
     for k in ks:
         emit_clips(o, c, k)
     emit_sweep_clips(o, c)
-    facts = {"K": K, "mode": c["mode"], "receivers": 3 * K, "syncedBits": 1,
+    facts = {"K": K, "mode": c["mode"], "shape": c["shape"], "receivers": 3 * K, "syncedBits": 1,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
 
@@ -646,6 +719,7 @@ def check_files(overrides, here, prefab):
         return False
     body = open(path, encoding="utf-8").read()
     docs = body.split("--- !u!")
+    c["_here"] = here
     names = re.findall(r"^  m_Name: (Slot\d+)$", body, re.M)
     assert_(len(names) == c["K"], f"{prefab}: {len(names)} Slot GameObjects == K {c['K']}")
     recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
@@ -721,6 +795,26 @@ def check_rig(assert_, c, docs):
     for name, want in (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
+    # The boundary: one inactive Boundary under Size holding Sphere and Cylinder, each a MeshFilter on
+    # the matching unit OBJ mesh, saved at the configured scale so the edit-mode view is the play-mode
+    # surface (the controller writes the same scale live).
+    bnd = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Boundary"]
+    ok = assert_(len(bnd) == 1 and parent_name(bnd[0]) == "Size", "exactly one Boundary node, under Size") and ok
+    if bnd:
+        bgo = next(d for d in docs if d.startswith(f"1 &{trs[bnd[0]][0]}\n"))
+        ok = assert_(re.search(r"^  m_IsActive: 0$", bgo, re.M) is not None, "Boundary ships inactive (the consumer's opt-in)") and ok
+    R, H = c["burstRadius"], c["halfHeight"]
+    for name, mesh, want in (("Sphere", "UnitSphere.obj", (R, R, R)), ("Cylinder", "UnitCylinder.obj", (R, H, R))):
+        nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
+        ok = assert_(len(nodes) == 1 and parent_name(nodes[0]) == "Boundary", f"one {name} node, under Boundary") and ok
+        if not nodes:
+            continue
+        got = trs[nodes[0]][2]
+        ok = assert_(all(abs(a - b) < 1e-6 for a, b in zip(got, want)), f"{name} saved at the configured scale {want} (got {got}) — the edit-mode preview of the burst surface") and ok
+        go = trs[nodes[0]][0]
+        mf = next((d for d in docs if d.startswith("33 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
+        m = re.search(r"m_Mesh: \{fileID: -?\d+, guid: ([0-9a-f]{32}), type: 3\}", mf)
+        ok = assert_(m is not None and m.group(1) == meta_guid(os.path.join(c["_here"], "assets", mesh)), f"{name}'s MeshFilter references assets/{mesh}") and ok
     return ok
 
 
@@ -786,7 +880,52 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
     return ok
 
 
+def write_meshes(assets):
+    """The two unit meshes the Boundary node holds, as OBJ text: a UV sphere of radius 1 and an
+    open tube of radius 1 spanning y in [-1, 1]. The controller scales them to the burst surface."""
+    import math
+
+    def obj(path, verts, normals, faces, name):
+        L = [f"# {name} — GENERATED by generate.py --mesh; unit size, scaled by the controller", f"o {name}"]
+        L += [f"v {fmt(x)} {fmt(y)} {fmt(z)}" for x, y, z in verts]
+        L += [f"vn {fmt(x)} {fmt(y)} {fmt(z)}" for x, y, z in normals]
+        L += ["f " + " ".join(f"{i + 1}//{i + 1}" for i in f) for f in faces]
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("\n".join(L) + "\n")
+
+    seg, rings = 48, 24
+    verts, faces = [], []
+    for j in range(rings + 1):
+        phi = math.pi * j / rings
+        for i in range(seg + 1):
+            th = 2 * math.pi * i / seg
+            verts.append((math.sin(phi) * math.cos(th), math.cos(phi), math.sin(phi) * math.sin(th)))
+    for j in range(rings):
+        for i in range(seg):
+            a, b = j * (seg + 1) + i, (j + 1) * (seg + 1) + i
+            if j > 0:
+                faces.append((a, a + 1, b))
+            if j < rings - 1:
+                faces.append((a + 1, b + 1, b))
+    obj(os.path.join(assets, "UnitSphere.obj"), verts, verts, faces, "UnitSphere")
+    verts, normals, faces = [], [], []
+    for y in (-1.0, 1.0):
+        for i in range(seg + 1):
+            th = 2 * math.pi * i / seg
+            verts.append((math.cos(th), y, math.sin(th)))
+            normals.append((math.cos(th), 0.0, math.sin(th)))
+    for i in range(seg):
+        a, b = i, seg + 1 + i
+        faces.append((a, b, a + 1))
+        faces.append((a + 1, b, b + 1))
+    obj(os.path.join(assets, "UnitCylinder.obj"), verts, normals, faces, "UnitCylinder")
+
+
 def main():
+    if "--mesh" in sys.argv:
+        write_meshes(os.path.join(HERE, "assets"))
+        print("wrote assets/UnitSphere.obj and assets/UnitCylinder.obj")
+        return
     if "--check" in sys.argv:
         sys.exit(0 if check_files({}, HERE, "ContactRadar.prefab") else 1)
     text, facts = document({})
