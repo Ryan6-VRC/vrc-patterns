@@ -50,11 +50,11 @@ void reticle_vertex(VertexInput input, out FragmentInput output)
     float acquire = saturate(_Acquire);
     // Scale-in on latch: the quad grows to hold the enlarged reticle, the fragment draws it enlarged.
     float grow = lerp(_Acquire_Scale, 1, smoothstep(0, 1, acquire));
-    float size = anchor_clamp_angular(_Size, place.dist, _Min_Degrees, _Max_Degrees) * grow;
+    float size = anchor_clamp_angular(_Size * grow, place.dist, _Min_Degrees, _Max_Degrees);
 
     float far_fade = 1 - smoothstep(_Far_Fade_Start, max(_Far_Fade_End, _Far_Fade_Start + 0.01), place.dist);
-    float fade = place.fade * far_fade;
-    float visible = fade * acquire * (1 - saturate(_Hide));
+    float fade = place.fade * far_fade * (1 - saturate(_Hide));
+    float visible = fade * acquire;
     #if defined(RETICLE_GHOST_PASS)
         visible *= saturate(_Ghost_Strength);
     #else
@@ -122,7 +122,8 @@ half4 reticle_fragment(FragmentInput input) : SV_Target
         {
             float in_front = anchor_scene_in_front_by(input.position, input.position.xy, input.anchor_ws);
             // Fully faded by the window's edge, starting to go from half of it.
-            alpha *= 1 - smoothstep(_Snap_Window * 0.5, _Snap_Window, in_front);
+            float window = max(_Snap_Window, 1e-3);
+            alpha *= 1 - smoothstep(window * 0.5, window, in_front);
         }
     #endif
 

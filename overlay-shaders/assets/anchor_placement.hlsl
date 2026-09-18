@@ -50,6 +50,7 @@ struct AnchorPlacement
     float3 placed_ws;
     // Where the depth TEST is taken. Equal to placed_ws except under placement 1.
     float3 depth_proxy_ws;
+    bool bias_only;
     // Billboard basis: right and up as the viewer sees them, world-up so head roll does not turn the marker.
     float3 right_ws;
     float3 up_ws;
@@ -76,6 +77,9 @@ float anchor_eye0_scene_depth(float3 point_ws, out float point_depth)
         float4 clip = mul(UNITY_MATRIX_VP, float4(point_ws, 1));
     #endif
     point_depth = clip.w;
+    if (clip.w <= 1e-4) return 1e6;
+    // ComputeScreenPos's uv. It equals depth_reconstruct.hlsl's SV_Position * texel size whenever the
+    // camera renders to a texture (_ProjectionParams.x = -1), which every VRChat camera does.
     float2 uv = float2(clip.x, clip.y * _ProjectionParams.x) / clip.w * 0.5 + 0.5;
 
     #if defined(UNITY_STEREO_INSTANCING_ENABLED) || defined(UNITY_STEREO_MULTIVIEW_ENABLED)
@@ -106,7 +110,8 @@ AnchorPlacement place_anchor()
     o.up_ws = cross(right, fwd);
 
     // Never pull the marker closer to the face than the distance it has fully faded in at.
-    float pull = min(max(_Pull, 0), max(anchor_dist - _Fade_Far, 0));
+    float pull_limit = max(anchor_dist - _Fade_Far, 0);
+    float pull = min(max(_Pull, 0), pull_limit);
     o.occluded = 0;
 
     int placement = (int)round(_Placement);
@@ -139,16 +144,21 @@ AnchorPlacement place_anchor()
         {
             // _Pull is not consulted here: the depth texture decides how far. Eye-0 depth ratios stand in
             // for centre-eye distance ratios; the two rays are a few degrees apart at any distance the
-            // marker is visible from.
+            // marker is visible from. The window is view depth; along the ray it is longer by the same
+            // ratio, so the cap is scaled the same way.
             float target_depth = min(nearest, anchor_depth) - _Snap_Gap;
-            pull = clamp(anchor_dist * (1 - target_depth / anchor_depth), 0, _Snap_Window + _Snap_Gap);
-            pull = min(pull, max(anchor_dist - _Fade_Far, 0));
+            float ray_per_depth = anchor_dist / anchor_depth;
+            pull = clamp(anchor_dist * (1 - target_depth / anchor_depth), 0, (_Snap_Window + _Snap_Gap) * ray_per_depth);
+            // A surface nearer than the fade-in distance cannot be reached without entering the near
+            // fade; drawing short of it would bury the marker again, so hide instead.
+            if (pull > pull_limit) { o.occluded = 1; pull = 0; }
         }
     }
 
     float3 pulled_ws = o.anchor_ws + fwd * pull;
     o.placed_ws = placement == 1 ? o.anchor_ws : pulled_ws;
     o.depth_proxy_ws = pulled_ws;
+    o.bias_only = placement == 1;
     o.dist = max(distance(center_ws, o.placed_ws), 1e-4);
     o.fade = smoothstep(_Fade_Near, max(_Fade_Far, _Fade_Near + 1e-3), o.dist);
     return o;
@@ -159,16 +169,17 @@ AnchorPlacement place_anchor()
 float4 anchor_clip_position(AnchorPlacement p, float3 offset_ws)
 {
     float4 clip = mul(UNITY_MATRIX_VP, float4(p.placed_ws + offset_ws, 1));
+    if (!p.bias_only) return clip;
     float4 proxy = mul(UNITY_MATRIX_VP, float4(p.depth_proxy_ws + offset_ws, 1));
-    clip.z = proxy.z / proxy.w * clip.w;
+    clip.z = proxy.z / max(proxy.w, 1e-4) * clip.w;
     return clip;
 }
 
-/// A world size held between two angular sizes, given in degrees of the viewer's field.
+/// A world size held between two angular sizes, given in degrees of the viewer's field, edge to edge.
 float anchor_clamp_angular(float size, float dist, float min_degrees, float max_degrees)
 {
-    float lo = dist * tan(radians(min_degrees));
-    float hi = max(dist * tan(radians(max_degrees)), lo);
+    float lo = 2 * dist * tan(radians(min_degrees * 0.5));
+    float hi = max(2 * dist * tan(radians(max_degrees * 0.5)), lo);
     return clamp(size, lo, hi);
 }
 

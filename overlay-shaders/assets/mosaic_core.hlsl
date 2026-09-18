@@ -62,9 +62,9 @@ void mosaic_vertex(VertexInput input, out FragmentInput output)
     output.anchor_ws = place.anchor_ws;
     output.right_ws = place.right_ws;
     output.up_ws = place.up_ws;
-    output.fade = place.fade;
+    output.fade = place.fade * (1 - saturate(_Hide));
 
-    float visible = place.fade * (1 - place.occluded) * (1 - saturate(_Hide));
+    float visible = output.fade * (1 - place.occluded);
     if (visible <= 0.001)
     {
         output.position = float4(0, 0, 0, 0);
@@ -77,7 +77,7 @@ void mosaic_vertex(VertexInput input, out FragmentInput output)
 
     // The cell has an angular floor so far cells never shrink below a pixel or two; the disc has an
     // angular ceiling so a near one cannot fill the view. Both per object, never per fragment.
-    float cell = max(_Cell_Size, place.dist * tan(radians(_Min_Cell_Degrees)));
+    float cell = max(_Cell_Size, 2 * place.dist * tan(radians(_Min_Cell_Degrees * 0.5)));
     float radius = min(_Radius, place.dist * tan(radians(_Max_Degrees * 0.5)));
     output.grid = float2(cell, radius);
 
@@ -115,7 +115,12 @@ half4 mosaic_fragment(FragmentInput input) : SV_Target
 
     if (anchor_depth_usable())
     {
-        float in_front = anchor_scene_in_front_by(input.position, anchor_pixel_of(centre_ws), input.anchor_ws);
+        // Eye 0's depth for both tests, like the snap: a per-eye read lets a cell on a silhouette pass in
+        // one eye and drop in the other, which is rivalry on exactly the edge this grid exists to hold.
+        float anchor_depth, cell_depth;
+        anchor_eye0_scene_depth(input.anchor_ws, anchor_depth);
+        float scene = anchor_eye0_scene_depth(centre_ws, cell_depth);
+        float in_front = anchor_depth - scene;
         // Something well in front of the anchor under this cell -- a wall, a hand -- hides the whole
         // cell, never a fragment of it.
         if (_Cell_Occlusion > 0.5 && in_front > _Snap_Window) discard;
