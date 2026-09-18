@@ -883,6 +883,7 @@ layers:
     # The expanding front, shared by every slot: Sweeping (collapse the Armed slots), Silent (the no-puff endpoint),
     # Sweep (the front half-extent, m) and SweepBase (where the current sweeper's ramp started). Slot layers read these
     # and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to ramp on.
+    # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).
     states:
       Boot:                        # a fresh animator: the first sweep is silent
         motion: { clip: sw_boot }
@@ -1087,17 +1088,18 @@ clips:
   slot3_sq_15: { set: { CR/Slot3/r2: 1.1025 } }
   slot3_sq_16: { set: { CR/Slot3/r2: 1.44 } }
   # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).
-  sw_boot: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0 } }   # a fresh animator: silent, front at 0
-  sw_off: { set: { CR/Sweeping: 1, CR/Silent: 0, CR/Sweep: 0, CR/SweepBase: 0 } }   # the toggle off: loud, front at 0
-  sw_paused: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0 } }   # a distance-hide: silent, front at 0
-  sw_idle: { set: { CR/Sweeping: 0, CR/Silent: 0, CR/Sweep: 1.1, CR/SweepBase: 0 } }   # no sweep: the front parked at the face
-  sw_sweeping: { set: { CR/Sweeping: 1 } }   # the constant part of Wait
+  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.
+  sw_boot: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a fresh animator: silent, front at 0
+  sw_off: { set: { CR/Sweeping: 1, CR/Silent: 0, CR/Sweep: 0, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # the toggle off: loud, front at 0
+  sw_paused: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a distance-hide: silent, front at 0
+  sw_idle: { set: { CR/Sweeping: 0, CR/Silent: 0, CR/Sweep: 1.1, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # no sweep: the front parked at the face
+  sw_sweeping: { set: { CR/Sweeping: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # the constant part of Wait
   sw_hold_sweep: { set: { CR/Sweep: 1 } }   # × Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)
   sw_latch_base: { set: { CR/SweepBase: 1 } }   # × Sweep: SweepBase ← Sweep
   sw_hold_base: { set: { CR/SweepBase: 1 } }   # × SweepBase: hold
   sw_hold_silent: { set: { CR/Silent: 1 } }   # × Silent: hold
   sw_ramp:   # × One: Sweeping 1 and the front's own travel, 0 → 1.155 m over 1 s, linear, added to SweepBase
     seconds: 1
-    set: { CR/Sweeping: 1 }
+    set: { CR/Sweeping: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.8, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 }
     curves:
       CR/Sweep: { tangents: linear, keys: [ [0, 0], [1, 1.155] ] }
