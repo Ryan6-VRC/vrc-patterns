@@ -2,8 +2,7 @@
 // plane through the placed anchor, each cell coloured from the scene behind its centre through a grab
 // pass. The edge is a staircase of cells, never a smooth clip, and the grid has real depth in a headset.
 //
-// Ours outright; placement is anchor_placement.hlsl's, shared with Reticle. MosaicProcedural.shader is
-// the same shader without the grab pass, for a palette-coloured mosaic at no framebuffer cost.
+// Ours outright; placement is anchor_placement.hlsl's, shared with Reticle.
 //
 // Host mesh: a Unity Quad. The quad is a vertex supply only; see Reticle.shader.
 //

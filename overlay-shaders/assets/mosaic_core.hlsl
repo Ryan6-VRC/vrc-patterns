@@ -1,9 +1,7 @@
 #ifndef MOSAIC_CORE_INCLUDED
 #define MOSAIC_CORE_INCLUDED
 
-// Mosaic.shader and MosaicProcedural.shader's stages. The two differ only in where a cell's colour comes
-// from: the grab texture behind the cell (Mosaic) or a hash over a palette (MosaicProcedural, which
-// defines MOSAIC_PROCEDURAL and carries no GrabPass).
+// Mosaic.shader's stages.
 //
 // THE GRID LIVES ON A WORLD-SPACE PLANE, NEVER ON THE SCREEN. A screen-aligned cell grid has zero
 // disparity, so in a headset it reads as locked to the head, at infinity, while the scene swims under it.
@@ -26,15 +24,9 @@ uniform float _Hug_Back;
 uniform half4 _Tint;
 uniform float _Hide;
 
-#if defined(MOSAIC_PROCEDURAL)
-    uniform half4 _Proc_Color_A;
-    uniform half4 _Proc_Color_B;
-    uniform float _Proc_Rate;
-#else
-    // TEX2D, not the screenspace array pair: a BiRP GrabPass target is not rebound as an array under
-    // single-pass instanced. GammaCrystal's declaration, measured in a headset; do not "fix" from macros.
-    UNITY_DECLARE_TEX2D(_MosaicGrabTexture);
-#endif
+// TEX2D, not the screenspace array pair: a BiRP GrabPass target is not rebound as an array under
+// single-pass instanced. GammaCrystal's declaration, measured in a headset; do not "fix" from macros.
+UNITY_DECLARE_TEX2D(_MosaicGrabTexture);
 
 struct VertexInput
 {
@@ -100,19 +92,12 @@ void mosaic_vertex(VertexInput input, out FragmentInput output)
     output.position = anchor_clip_position(place, offset_ws);
 }
 
-float mosaic_hash(float2 v)
-{
-    return frac(sin(dot(v, float2(12.9898, 78.233))) * 43758.5453);
-}
-
-#if !defined(MOSAIC_PROCEDURAL)
 half3 mosaic_grab(float3 point_ws)
 {
     float4 clip = mul(UNITY_MATRIX_VP, float4(point_ws, 1));
     float4 grab = ComputeGrabScreenPos(clip);
     return UNITY_SAMPLE_TEX2D_LOD(_MosaicGrabTexture, grab.xy / grab.w, 0).rgb;
 }
-#endif
 
 half4 mosaic_fragment(FragmentInput input) : SV_Target
 {
@@ -138,21 +123,13 @@ half4 mosaic_fragment(FragmentInput input) : SV_Target
         if (_Hug > 0.5 && -in_front > _Hug_Back) discard;
     }
 
-    #if defined(MOSAIC_PROCEDURAL)
-        float2 seed = idx + floor(_Time.y * _Proc_Rate) * 7.31;
-        float h = mosaic_hash(seed);
-        // A second hash on brightness: two colours alone read as a flat patch, not a mosaic.
-        float v = lerp(0.75, 1.15, mosaic_hash(seed + 3.7));
-        half3 color = lerp(_Proc_Color_A.rgb, _Proc_Color_B.rgb, h) * v;
-    #else
-        // Four taps inside the cell, averaged: one tap on a hard edge shimmers as the anchor moves.
-        float q = cell * 0.25;
-        half3 color = mosaic_grab(centre_ws + input.right_ws * q + input.up_ws * q)
-                    + mosaic_grab(centre_ws - input.right_ws * q + input.up_ws * q)
-                    + mosaic_grab(centre_ws + input.right_ws * q - input.up_ws * q)
-                    + mosaic_grab(centre_ws - input.right_ws * q - input.up_ws * q);
-        color *= 0.25;
-    #endif
+    // Four taps inside the cell, averaged: one tap on a hard edge shimmers as the anchor moves.
+    float q = cell * 0.25;
+    half3 color = mosaic_grab(centre_ws + input.right_ws * q + input.up_ws * q)
+                + mosaic_grab(centre_ws - input.right_ws * q + input.up_ws * q)
+                + mosaic_grab(centre_ws + input.right_ws * q - input.up_ws * q)
+                + mosaic_grab(centre_ws - input.right_ws * q - input.up_ws * q);
+    color *= 0.25;
 
     return half4(color * _Tint.rgb, input.fade * _Tint.a);
 }

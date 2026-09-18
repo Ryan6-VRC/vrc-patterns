@@ -1,5 +1,5 @@
-// Ryan6VRC/Overlay/Reticle -- an additive targeting reticle billboarded over a buried point: a ring, four
-// ticks, a centre dot and spinning brackets, drawn at a size that stays readable across a room, that
+// Ryan6VRC/Overlay/Reticle -- an additive targeting reticle billboarded over a buried point: a gapped
+// cross, a centre dot and one orbiting dash, drawn at a size that stays readable across a room, that
 // scales in on acquire and fades out before it can fill the viewer's face.
 //
 // Ours outright. It shares the family's stereo-centre camera (stereo_camera.hlsl) and d4rkpl4y3r's depth
@@ -17,8 +17,6 @@ Shader "Ryan6VRC/Overlay/Reticle"
     {
         [Header(Look)]
         [HDR] _Color("Color (alpha = strength)", Color) = (0.3, 1.0, 0.6, 0.8)
-        // Which stroke set; all share the dot, the acquire settle and the spin.
-        [Enum(Classic, 0, Corners, 1, Radar, 2, Chevrons, 3, Minimal, 4)] _Style("Style", Float) = 0
         // Metres at the placed distance, before the angular clamp below.
         _Size("Size (m)", Float) = 0.09
         // Floor and ceiling on the reticle's angular size: the floor keeps it readable across a room, the
@@ -27,7 +25,7 @@ Shader "Ryan6VRC/Overlay/Reticle"
         _Max_Degrees("Max angular size (deg)", Range(1, 60)) = 25
         // In plane units (the reticle spans -1..1), floored at one pixel by the fragment.
         _Line_Width("Line width", Range(0.005, 0.1)) = 0.025
-        _Spin("Bracket spin (rad/s)", Range(-6, 6)) = 1.2
+        _Spin("Dash spin (rad/s)", Range(-6, 6)) = 1.2
         _Pulse("Pulse (fraction)", Range(0, 0.5)) = 0.1
 
         [Header(Acquire)]

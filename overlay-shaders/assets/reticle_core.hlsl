@@ -9,7 +9,6 @@
 
 uniform half4 _Color;
 uniform float _Size;
-uniform float _Style;
 uniform float _Min_Degrees;
 uniform float _Max_Degrees;
 uniform float _Line_Width;
@@ -97,54 +96,16 @@ half4 reticle_fragment(FragmentInput input) : SV_Target
     float t = _Time.y;
 
     float acquire = smoothstep(0, 1, saturate(_Acquire));
-    // The un-acquired reticle is drawn a quarter turn off and spins into place.
+    // A gapped cross, a centre dot, and one dash orbiting on the outer ring; the un-acquired reticle
+    // starts a quarter turn off and the dash settles in.
     float settle = (1 - acquire) * 1.5708;
     float2 ap = abs(p);
     float2 q = rotate2(p, t * _Spin + settle);
     float ang = atan2(q.y, q.x);
     float dot_ = 1 - smoothstep(0.04, 0.04 + aa, r);
-    float shape = 0;
-
-    int style = (int)round(_Style);
-    if (style == 1)
-    {
-        // Corners: four L brackets on a square, plus the dot. Nothing spins; the acquire settle rotates it in.
-        float2 c = abs(rotate2(p, settle));
-        float on_edge = stroke(max(c.x, c.y) - 0.85, hw, aa);
-        float near_corner = step(0.5, min(c.x, c.y));
-        shape = max(on_edge * near_corner, dot_);
-    }
-    else if (style == 2)
-    {
-        // Radar: two thin rings and a sweeping wedge that fades behind its leading edge.
-        shape = max(stroke(r - 0.5, hw * 0.7, aa), stroke(r - 0.92, hw * 0.7, aa));
-        float sweep_ang = frac(-ang / 6.2832);
-        float wedge = pow(1 - sweep_ang, 6) * step(r, 0.9) * 0.6;
-        shape = max(shape, max(wedge, dot_));
-    }
-    else if (style == 3)
-    {
-        // Chevrons: four triangles on the axes pointing in, inside a spinning dashed ring.
-        float2 a = float2(max(ap.x, ap.y), min(ap.x, ap.y));
-        float tri = step(a.y, (a.x - 0.45) * 0.6) * step(0.45, a.x) * step(a.x, 0.72);
-        float dashes = stroke(r - 0.92, hw, aa) * step(0.5, frac(ang / 6.2832 * 12));
-        shape = max(max(tri, dashes), dot_);
-    }
-    else if (style == 4)
-    {
-        // Minimal: a gapped cross and one orbiting dash.
-        float cross_ = stroke(min(ap.x, ap.y), hw * 0.8, aa) * step(0.18, max(ap.x, ap.y)) * step(max(ap.x, ap.y), 0.7);
-        float dash = stroke(r - 0.85, hw, aa) * step(abs(frac(ang / 6.2832) - 0.5), 0.08);
-        shape = max(max(cross_, dash), dot_);
-    }
-    else
-    {
-        // Classic: ring, four ticks gapped off it, dot, and four spinning arc brackets outside.
-        shape = stroke(r - 0.5, hw, aa);
-        float tick = stroke(min(ap.x, ap.y), hw, aa) * step(0.62, max(ap.x, ap.y)) * step(max(ap.x, ap.y), 0.86);
-        float arc_gate = step(abs(frac(ang / 1.5708 + 0.5) - 0.5), 0.34);
-        shape = max(max(shape, tick), max(dot_, stroke(r - 0.88, hw, aa) * arc_gate));
-    }
+    float cross_ = stroke(min(ap.x, ap.y), hw * 0.8, aa) * step(0.18, max(ap.x, ap.y)) * step(max(ap.x, ap.y), 0.7);
+    float dash = stroke(r - 0.85, hw, aa) * step(abs(frac(ang / 6.2832) - 0.5), 0.08);
+    float shape = max(max(cross_, dash), dot_);
 
     float pulse = 1 + _Pulse * sin(t * 6.2832);
     float alpha = shape * _Color.a * input.fade * saturate(_Acquire) * pulse;
