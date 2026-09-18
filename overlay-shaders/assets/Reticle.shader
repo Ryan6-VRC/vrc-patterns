@@ -17,8 +17,10 @@ Shader "Ryan6VRC/Overlay/Reticle"
     {
         [Header(Look)]
         [HDR] _Color("Color (alpha = strength)", Color) = (0.3, 1.0, 0.6, 0.8)
+        // Which stroke set; all share the dot, the acquire settle and the spin.
+        [Enum(Classic, 0, Corners, 1, Radar, 2, Chevrons, 3, Minimal, 4)] _Style("Style", Float) = 0
         // Metres at the placed distance, before the angular clamp below.
-        _Size("Size (m)", Float) = 0.12
+        _Size("Size (m)", Float) = 0.09
         // Floor and ceiling on the reticle's angular size: the floor keeps it readable across a room, the
         // ceiling keeps a near one from filling the view. Degrees of the viewer's field, edge to edge.
         _Min_Degrees("Min angular size (deg)", Range(0, 20)) = 3

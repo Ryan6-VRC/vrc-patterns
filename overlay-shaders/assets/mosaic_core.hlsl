@@ -139,8 +139,11 @@ half4 mosaic_fragment(FragmentInput input) : SV_Target
     }
 
     #if defined(MOSAIC_PROCEDURAL)
-        float h = mosaic_hash(idx + floor(_Time.y * _Proc_Rate) * 7.31);
-        half3 color = lerp(_Proc_Color_A.rgb, _Proc_Color_B.rgb, h);
+        float2 seed = idx + floor(_Time.y * _Proc_Rate) * 7.31;
+        float h = mosaic_hash(seed);
+        // A second hash on brightness: two colours alone read as a flat patch, not a mosaic.
+        float v = lerp(0.75, 1.15, mosaic_hash(seed + 3.7));
+        half3 color = lerp(_Proc_Color_A.rgb, _Proc_Color_B.rgb, h) * v;
     #else
         // Four taps inside the cell, averaged: one tap on a hard edge shimmers as the anchor moves.
         float q = cell * 0.25;

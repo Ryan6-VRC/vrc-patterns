@@ -20,8 +20,8 @@ Shader "Ryan6VRC/Overlay/MosaicProcedural"
         _Hide("Hide", Range(0, 1)) = 0
 
         [Header(Palette)]
-        _Proc_Color_A("Color A", Color) = (0.95, 0.80, 0.72, 1)
-        _Proc_Color_B("Color B", Color) = (0.75, 0.55, 0.50, 1)
+        _Proc_Color_A("Color A", Color) = (0.98, 0.84, 0.74, 1)
+        _Proc_Color_B("Color B", Color) = (0.62, 0.40, 0.36, 1)
         // Re-rolls per second. 0 freezes the pattern.
         _Proc_Rate("Re-roll rate (Hz)", Range(0, 30)) = 4
 
