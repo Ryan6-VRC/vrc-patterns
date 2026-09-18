@@ -63,6 +63,12 @@ Shader "Ryan6VRC/Overlay/Reticle"
         // placement may pull it.
         _Fade_Near("Gone below (m)", Range(0, 1)) = 0.25
         _Fade_Far("Full above (m)", Range(0, 2)) = 0.5
+
+        [Header(Far fade)]
+        // Past this the angular floor would otherwise hold the reticle readable at any range; a marker
+        // across a hall is noise, so it fades out between these two distances.
+        _Far_Fade_Start("Fading from (m)", Range(1, 50)) = 6
+        _Far_Fade_End("Gone beyond (m)", Range(1, 50)) = 10
     }
 
     SubShader

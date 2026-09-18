@@ -19,6 +19,8 @@ uniform float _Acquire_Scale;
 uniform float _Depth_Fade;
 uniform float _Ghost_Strength;
 uniform float _Hide;
+uniform float _Far_Fade_Start;
+uniform float _Far_Fade_End;
 
 struct VertexInput
 {
@@ -50,13 +52,15 @@ void reticle_vertex(VertexInput input, out FragmentInput output)
     float grow = lerp(_Acquire_Scale, 1, smoothstep(0, 1, acquire));
     float size = anchor_clamp_angular(_Size, place.dist, _Min_Degrees, _Max_Degrees) * grow;
 
-    float visible = place.fade * acquire * (1 - saturate(_Hide));
+    float far_fade = 1 - smoothstep(_Far_Fade_Start, max(_Far_Fade_End, _Far_Fade_Start + 0.01), place.dist);
+    float fade = place.fade * far_fade;
+    float visible = fade * acquire * (1 - saturate(_Hide));
     #if defined(RETICLE_GHOST_PASS)
         visible *= saturate(_Ghost_Strength);
     #else
         visible *= 1 - place.occluded;
     #endif
-    output.fade = place.fade;
+    output.fade = fade;
 
     if (visible <= 0.001)
     {
