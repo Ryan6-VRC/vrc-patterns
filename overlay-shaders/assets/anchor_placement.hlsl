@@ -26,7 +26,6 @@ uniform float _Fade_Far;
 
 struct AnchorPlacement
 {
-    float3 anchor_ws;
     // Where the geometry goes.
     float3 placed_ws;
     // Where the depth TEST is taken. Equal to placed_ws except under depth bias.
@@ -45,10 +44,10 @@ struct AnchorPlacement
 AnchorPlacement place_anchor(bool bias_only)
 {
     AnchorPlacement o;
-    o.anchor_ws = float3(unity_ObjectToWorld._m03, unity_ObjectToWorld._m13, unity_ObjectToWorld._m23);
+    float3 anchor_ws = float3(unity_ObjectToWorld._m03, unity_ObjectToWorld._m13, unity_ObjectToWorld._m23);
 
     float3 center_ws = dbg_camera_center_ws();
-    float3 to_eye = center_ws - o.anchor_ws;
+    float3 to_eye = center_ws - anchor_ws;
     float anchor_dist = max(length(to_eye), 1e-4);
     float3 fwd = to_eye / anchor_dist;
 
@@ -62,8 +61,8 @@ AnchorPlacement place_anchor(bool bias_only)
     // Never pull the marker closer to the face than the distance it has fully faded in at.
     float pull = min(max(_Pull, 0), max(anchor_dist - _Fade_Far, 0));
 
-    float3 pulled_ws = o.anchor_ws + fwd * pull;
-    o.placed_ws = bias_only ? o.anchor_ws : pulled_ws;
+    float3 pulled_ws = anchor_ws + fwd * pull;
+    o.placed_ws = bias_only ? anchor_ws : pulled_ws;
     o.depth_proxy_ws = pulled_ws;
     o.bias_only = bias_only;
     o.dist = max(distance(center_ws, o.placed_ws), 1e-4);
