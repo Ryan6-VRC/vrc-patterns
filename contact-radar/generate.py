@@ -8,7 +8,8 @@ generator and the compiled controller. `--check` asserts the hand-maintained
 prefab surface no compile or gate reads (README §Verifying).
 
 What it builds: K per-sender "slots", one FX layer each. A slot is three
-coincident face-proximity box receivers (X+, Y+, Z+) whose `allowOthers` flag is
+coincident face-proximity box receivers (X+, Y+, Z+ — four under `fourBox`,
+below) whose `allowOthers` flag is
 the latch: a sender whose overlap with a receiver began while the flag was shut
 stays invisible to that receiver for the whole overlap, however the flag moves
 later, and only a full exit and re-entry admits it (emulator-measured, README
@@ -18,7 +19,8 @@ reads a hand it Latches (flag shut, boxes expanded to the hold cube) and the
 next Armed slot in ring order Opens in the same animator evaluation, so the
 two land in one collision step and the admission windows tile. The latched
 slot then reconstructs its hand's position exactly (box-tracker's readout,
-three boxes and a configured sender radius) and computes r² = x²+y²+z² in a
+three boxes and a configured sender radius — four boxes and a measured one
+under `fourBox`) and computes r² = x²+y²+z² in a
 piecewise-linear lookup; the burst fires when r² crosses the burst radius.
 `shape: cylinder` leaves the vertical axis out of that sum — r² is then the
 in-plane radius squared — and compares y against a half-height directly, so the
@@ -33,6 +35,19 @@ Recycles: its boxes collapse to near zero for `stepSeconds` and restore with the
 flag shut, a fresh overlap episode that rejects every hand still inside
 (measured), then it queues as Armed.
 
+`fourBox` restores box-tracker's fourth receiver, `X-`, coincident with the
+other three and rotated so its +Z face is the cage's -X face. The opposed pair
+measures the sender's own radius rather than taking it from CONFIG: r =
+h(X+ + X- - 1) and x = h(X+ - X-), from which y = 2h·Y+ - h·X+ - h·X- and z
+likewise — every constant cancels, so the readout carries no bias term and the
+burst origin is exact for a sender of any radius. The measurement is exported
+per slot as `<prefix>/Slot<k>/R` for a consumer that needs it. R, x, y, z and
+Output's localPosition are all metres in the `Cage/Size` frame, so a consumer
+wanting world metres multiplies by that node's scale (it ships at 1). `senderRadius` then buys nothing in the readout and stays only as the
+reachability lints' assumed maximum sender radius. The rig the flag wants is
+one the shipped prefab does not carry, so `--check` holds a fourBox consumer's
+prefab to the fourth receiver.
+
 Rules the emitted document keeps, each bought by a measurement or a doc line:
 - Every step-spanning dwell is authored in seconds >= 2/60: the collision scene
   steps at most 60 times a second and a collapse or stow shorter than a step is
@@ -46,7 +61,8 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   particle reads its enable edge, a mesh reads its level.
 - `Cage/Size` is the consumer's static size knob (README §Knobs): scaling it scales
   the cubes, the readout, the sphere and every band together, so every lint below
-  holds at any scale; only the sender-radius bias term scales when it should not.
+  holds at any scale; only the sender-radius bias term scales when it should not —
+  and under `fourBox` there is no such term, so the origin is exact at any scale.
 - Latch writes x, y, z to holdHalf so the first r² computed in TrackOut is
   3h², far outside the sphere; the guard is the state sequence, no settle AAP.
 - Timed dwells are plain clips, never a curve inside a Direct tree (the tree's
@@ -54,11 +70,11 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
 - Recycle's collapse/restore takes stepped tangents; a bare curve eases.
 - The parameter driver lives only in Disabled (off-state hygiene, localOnly false:
   every client zeroes its own receiver floats).
-- An admission can land on some of a slot's three coincident boxes and not the
+- An admission can land on some of a slot's coincident boxes and not the
   others when the overlap begins on the very frame the slot opens (measured), and
-  a slot holding a partial reading can never satisfy the three-way Latch — so
+  a slot holding a partial reading can never satisfy the all-box Latch — so
   Open steps aside to Partial on any single reading and Recycles a step later if
-  the other two never arrive. An Open slot that stalls blocks every admission on
+  the rest never arrive. An Open slot that stalls blocks every admission on
   the avatar; the recycled hand is merely invisible until it re-enters.
 - One rung fires per frame per layer; the ring rule's exclusivity rests on
   every rung also requiring the slot's OWN Armed flag, which is one frame stale:
@@ -139,7 +155,9 @@ CONFIG = {
     "rearmRadius": 1.1,         # R_out, m (dwell only)
     "shape": "sphere",          # sphere | cylinder — the zone the readout is compared against; the receivers are cubes either way
     "halfHeight": 0.8,          # cylinder only: half-height about the cage centre, m; the re-arm height adds the dwell band
-    "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
+    "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
+    "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias.
+                                #   Under fourBox the readout measures r instead, and this is only the lints' assumed maximum
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
     "lookupSegments": 16,       # x² table resolution over [-h, h]
@@ -147,6 +165,7 @@ CONFIG = {
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
     "prefix": "CR",             # internal param namespace; never published
     "enable": "ContactRadar/Enable",
+    "enableDefault": True,      # the enable parameter's default; False loads quiet (the prefab Toggle's default must agree)
 }
 
 
@@ -158,9 +177,21 @@ def fmt(v):
     return format(float(v), ".9g")
 
 
+def axes(c):
+    """A slot's receiver axes. fourBox appends the opposed X- box the sender radius is measured from."""
+    return ("X+", "Y+", "Z+", "X-") if c["fourBox"] else ("X+", "Y+", "Z+")
+
+
 def lint(c):
     if c["mode"] not in ("dwell", "entry"):
         refuse("mode must be dwell or entry")
+    if not isinstance(c["enableDefault"], bool):
+        refuse("enableDefault must be a bool — it is the enable parameter's default value")
+    if not isinstance(c["fourBox"], bool):
+        refuse("fourBox must be a bool — it selects the rig, not a box count")
+    if c["fourBox"] and c["senderRadius"] <= 0:
+        refuse("senderRadius must be > 0 under fourBox — the readout measures r per sender, but the reachability lints "
+               "below still size the cube against an assumed maximum sender radius, and 0 claims the whole cube is usable")
     if c["K"] < 2:
         refuse("K must be >= 2 — one slot has nothing to hand off to")
     if c["holdHalf"] < c["acqHalf"]:
@@ -259,6 +290,8 @@ def emit_layer(o, c, k, ks):
     inside, outside = zone_conds(c, me)
     inside = ", ".join(inside)
     acq = c["acqHalf"]
+    ax4 = axes(c)
+    all_pos = ", ".join(f"{me}/{ax} greater 0" for ax in ax4)
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
 
@@ -276,7 +309,7 @@ def emit_layer(o, c, k, ks):
     o(f"          - {{ to: Armed, when: [ {en} is true ], exitTime: 1.0 }}")
     o("      Disabled:                    # Enable off — boxes stowed, flag shut, readings zeroed on every client")
     o("        behaviours:")
-    o(f"          - driver: {{ localOnly: false, set: {{ {me}/X+: 0, {me}/Y+: 0, {me}/Z+: 0 }} }}")
+    o(f"          - driver: {{ localOnly: false, set: {{ {', '.join(f'{me}/{ax}: 0' for ax in ax4)} }} }}")
     o(f"        motion: {{ clip: slot{k}_off }}")
     o("        transitions:")
     o(paused)
@@ -305,8 +338,8 @@ def emit_layer(o, c, k, ks):
             between.append(m)
             m = m % len(ks) + 1
         si = slot_name(c, i)
-        conds = [f"{si}/Open greater 0.5", f"{si}/X+ greater 0", f"{si}/Y+ greater 0", f"{si}/Z+ greater 0",
-                 f"{me}/Armed greater 0.5"]
+        conds = ([f"{si}/Open greater 0.5"] + [f"{si}/{ax} greater 0" for ax in ax4]
+                 + [f"{me}/Armed greater 0.5"])
         conds += [f"{slot_name(c, m)}/Armed less 0.5" for m in between]
         o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring: slot {i} fired mid-sweep, nothing Armed between")
         o(f"          - {{ to: Open, when: [ {', '.join(conds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring: slot {i} fired, nothing Armed between")
@@ -336,8 +369,8 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
-    o(f"          - {{ to: Latch, when: [ {me}/X+ greater 0, {me}/Y+ greater 0, {me}/Z+ greater 0 ] }}")
-    for ax in ("X+", "Y+", "Z+"):
+    o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
+    for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
     o(f"          - {{ to: Open, when: [ {P}/Sweep greater {fmt(acq)} ] }}   # the front reached the face: the sweep is over")
     o(f"          - {{ to: Open, when: [ {P}/Sweeping less 0.5 ] }}   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)")
@@ -345,8 +378,8 @@ def emit_layer(o, c, k, ks):
     o(f"        motion: {{ clip: slot{k}_open }}")
     o("        transitions:")
     rungs()
-    o(f"          - {{ to: Latch, when: [ {me}/X+ greater 0, {me}/Y+ greater 0, {me}/Z+ greater 0 ] }}")
-    for ax in ("X+", "Y+", "Z+"):
+    o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
+    for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
     o("      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall")
     o("        motion:")
@@ -358,7 +391,7 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
-    o(f"          - {{ to: Latch, when: [ {me}/X+ greater 0, {me}/Y+ greater 0, {me}/Z+ greater 0 ] }}")
+    o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }")
     o("      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²")
     o(f"        motion: {{ clip: slot{k}_latch }}")
@@ -369,7 +402,7 @@ def emit_layer(o, c, k, ks):
     emit_tree(o, c, k, hold=f"slot{k}_hold")
     o("        transitions:")
     rungs()
-    for ax in ("X+", "Y+", "Z+"):
+    for ax in ax4:
         o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
     if mode == "dwell":
         o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
@@ -382,7 +415,7 @@ def emit_layer(o, c, k, ks):
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
         o("        transitions:")
         rungs()
-        for ax in ("X+", "Y+", "Z+"):
+        for ax in ax4:
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
         for conds in outside:
             o(f"          - {{ to: TrackOut, when: [ {', '.join(conds)} ] }}")
@@ -390,7 +423,7 @@ def emit_layer(o, c, k, ks):
         emit_tree(o, c, k, hold=f"slot{k}_hold_burst_silent")
         o("        transitions:")
         rungs()
-        for ax in ("X+", "Y+", "Z+"):
+        for ax in ax4:
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
         for conds in outside:
             o(f"          - {{ to: TrackOut, when: [ {', '.join(conds)} ] }}")
@@ -534,6 +567,8 @@ def emit_tree(o, c, k, hold):
     o(f"            - {{ clip: {hold}, directWeight: {P}/One }}")
     o(f"            - {{ clip: slot{k}_read_bias, directWeight: {P}/One }}")
     o(f"            - {{ clip: slot{k}_read_xp, directWeight: {me}/X+ }}")
+    if c["fourBox"]:
+        o(f"            - {{ clip: slot{k}_read_xn, directWeight: {me}/X- }}")
     o(f"            - {{ clip: slot{k}_read_yp, directWeight: {me}/Y+ }}")
     o(f"            - {{ clip: slot{k}_read_zp, directWeight: {me}/Z+ }}")
     for ax in ("x", "y", "z"):
@@ -566,7 +601,7 @@ def emit_clips(o, c, k):
 
     def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0):
         d = {f"{B}/GameObject.m_IsActive": active}
-        for ax in ("X+", "Y+", "Z+"):
+        for ax in axes(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
         if scale is not None:
             for ax in ("x", "y", "z"):
@@ -595,6 +630,10 @@ def emit_clips(o, c, k):
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
+    if c["fourBox"]:
+        # The one frame before the first measurement lands: R carries the configured assumption
+        # rather than zero. Outside a track R is 0, like x, y and z — no state writes it there.
+        latch[f"{me}/R"] = fmt(r)
     parked = 2 if c["shape"] == "cylinder" else 3
     clip(f"slot{k}_latch", latch, step, f"flag shut + hold cube in one write; x,y,z parked at h (r² reads {parked}h²)")
     clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0), None, "tracking configuration, payload off (outside the sphere)")
@@ -609,20 +648,41 @@ def emit_clips(o, c, k):
     o("    curves:")
     for ax in ("x", "y", "z"):
         o(f"      {B}/Transform.m_LocalScale.{ax}: {{ tangents: stepped, keys: [ [0, {fmt(collapsed)}], [{fmt(step)}, {fmt(acq)}], [{fmt(2 * step)}, {fmt(acq)}] ] }}")
-    o(f"  # Slot {k} readout: c = 2h·V − h − r per axis (face proximity is linear from the +Z face; V is the box reading),")
-    o("  # summed under the non-normalized Direct root into both the AAPs and Output's localPosition (metres, cage frame).")
     two_h = fmt(2 * h)
-    bias = fmt(-h - r)
-    clip(f"slot{k}_read_xp", {f"{me}/x": two_h, f"{O}/Transform.m_LocalPosition.x": two_h})
-    clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{O}/Transform.m_LocalPosition.y": two_h})
-    clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{O}/Transform.m_LocalPosition.z": two_h})
-    clip(f"slot{k}_read_bias", {f"{me}/x": bias, f"{me}/y": bias, f"{me}/z": bias,
-                                f"{O}/Transform.m_LocalPosition.x": bias,
-                                f"{O}/Transform.m_LocalPosition.y": bias,
-                                f"{O}/Transform.m_LocalPosition.z": bias})
+    if c["fourBox"]:
+        o(f"  # Slot {k} readout, four boxes: the opposed X pair measures the sender's radius instead of assuming it —")
+        o("  # r = h·X+ + h·X− − h and x = h·X+ − h·X− (box-tracker's derivation), so y = 2h·Y+ − h·X+ − h·X− and z likewise;")
+        o("  # every constant cancels out of x, y and z, leaving pure per-reading coefficients and a bias clip carrying only r.")
+        o("  # Summed under the non-normalized Direct root into the AAPs, R and Output's localPosition (metres, Size frame).")
+        pos, neg = fmt(h), fmt(-h)
+        clip(f"slot{k}_read_xp", {f"{me}/x": pos, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos,
+                                  f"{O}/Transform.m_LocalPosition.x": pos,
+                                  f"{O}/Transform.m_LocalPosition.y": neg,
+                                  f"{O}/Transform.m_LocalPosition.z": neg})
+        clip(f"slot{k}_read_xn", {f"{me}/x": neg, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos,
+                                  f"{O}/Transform.m_LocalPosition.x": neg,
+                                  f"{O}/Transform.m_LocalPosition.y": neg,
+                                  f"{O}/Transform.m_LocalPosition.z": neg})
+        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{O}/Transform.m_LocalPosition.y": two_h})
+        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{O}/Transform.m_LocalPosition.z": two_h})
+        clip(f"slot{k}_read_bias", {f"{me}/R": neg}, None, "the measured radius is the only term left with a constant")
+    else:
+        o(f"  # Slot {k} readout: c = 2h·V − h − r per axis (face proximity is linear from the +Z face; V is the box reading),")
+        o("  # summed under the non-normalized Direct root into both the AAPs and Output's localPosition (metres, cage frame).")
+        bias = fmt(-h - r)
+        clip(f"slot{k}_read_xp", {f"{me}/x": two_h, f"{O}/Transform.m_LocalPosition.x": two_h})
+        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{O}/Transform.m_LocalPosition.y": two_h})
+        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{O}/Transform.m_LocalPosition.z": two_h})
+        clip(f"slot{k}_read_bias", {f"{me}/x": bias, f"{me}/y": bias, f"{me}/z": bias,
+                                    f"{O}/Transform.m_LocalPosition.x": bias,
+                                    f"{O}/Transform.m_LocalPosition.y": bias,
+                                    f"{O}/Transform.m_LocalPosition.z": bias})
     o(f"  # Slot {k} x² table: {N} segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4")
-    o("  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any")
-    o("  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.")
+    if c["fourBox"]:
+        o("  # inside the table. The measured readout spans exactly [−h, h], so nothing clamps.")
+    else:
+        o("  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any")
+        o("  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.")
     for i in range(N + 1):
         t = -h + 2 * h * i / N
         clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t)})
@@ -641,7 +701,7 @@ def document(overrides=None):
     L = []
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
-    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, 3 face-proximity boxes each.")
+    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each.")
     if c["shape"] == "cylinder":
         o(f"# Zone: a vertical cylinder — r² is in-plane (x² + z²), |y| compared against half-height {c['halfHeight']} m"
           + (f" (re-arm {fmt(rearm_half_height(c))} m)." if c["mode"] == "dwell" else "."))
@@ -650,7 +710,9 @@ def document(overrides=None):
     else:
         o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m); the slot releases at the burst and the")
         o(f"# acquisition cube face ({c['acqHalf']} m) is the re-arm surface.")
-    o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; sender radius {c['senderRadius']} m; step dwell {c['stepSeconds']} s.")
+    rtxt = (f"sender radius measured per slot from the X- box ({c['senderRadius']} m is the lints' assumed maximum)"
+            if c["fourBox"] else f"sender radius {c['senderRadius']} m")
+    o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s.")
     o(f"# At enable, load and distance-hide resume one slot at a time sweeps its cube out over {c['sweepSeconds']} s so hands")
     o("# already inside are admitted one by one (the expanding front); loud from the toggle, silent from a load or a resume.")
     o("# Per-client: every copy of the avatar senses on its own client (receivers localOnly 0);")
@@ -667,7 +729,7 @@ def document(overrides=None):
     o("  transition: { duration: 0, exitTime: none, interruption: none }")
     o("")
     o("parameters:")
-    o(f"  {c['enable']}: {{ type: bool, default: true, vrc: {{ synced: true, saved: false }} }}  # the Toggle; off is the reset")
+    o(f"  {c['enable']}: {{ type: bool, default: {'true' if c['enableDefault'] else 'false'}, vrc: {{ synced: true, saved: false }} }}  # the Toggle; off is the reset")
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator")
     o(f"  {P}/One: {{ type: float, default: 1, scratch: true }}   # constant direct weight, never driven")
     o("  # The sweep (written only by the Sweep layer): Sweeping collapses every Armed slot, Silent picks the no-puff")
@@ -679,10 +741,12 @@ def document(overrides=None):
     for k in ks:
         me = slot_name(c, k)
         o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the three protocol flags.")
-        for ax in ("X+", "Y+", "Z+"):
+        for ax in axes(c):
             o(f"  {me}/{ax}: float")
         for ax in ("x", "y", "z", "r2"):
             o(f"  {me}/{ax}: {{ type: float, aap: true, scratch: true }}")
+        if c["fourBox"]:
+            o(f"  {me}/R: {{ type: float, aap: true, scratch: true }}   # the measured sender radius, m — the export a consumer reads")
         o(f"  {me}/Open: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
@@ -696,7 +760,8 @@ def document(overrides=None):
     for k in ks:
         emit_clips(o, c, k)
     emit_sweep_clips(o, c)
-    facts = {"K": K, "mode": c["mode"], "shape": c["shape"], "receivers": 3 * K, "syncedBits": 1,
+    facts = {"K": K, "mode": c["mode"], "shape": c["shape"], "fourBox": c["fourBox"],
+             "receivers": len(axes(c)) * K, "syncedBits": 1,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
 
@@ -704,8 +769,10 @@ def document(overrides=None):
 def check_files(overrides, here, prefab):
     """The prefab surface no compile or gate reads: slot count, receiver tags and
     flags, the box size the coefficients assume, the enable on globalParams, and
-    the two World.prefab pins on Cage. Reads the prefab YAML textually; a field
-    it cannot find is a FAIL, never a pass."""
+    the two World.prefab pins on Cage. Under fourBox the fourth receiver is part
+    of that surface — the shipped prefab is three-box, so a fourBox consumer's own
+    prefab is what this holds. Reads the prefab YAML textually; a field it cannot
+    find is a FAIL, never a pass."""
     c = dict(CONFIG)
     c.update(overrides or {})
     ok = True
@@ -724,35 +791,8 @@ def check_files(overrides, here, prefab):
     docs = body.split("--- !u!")
     names = re.findall(r"^  m_Name: (Slot\d+)$", body, re.M)
     assert_(len(names) == c["K"], f"{prefab}: {len(names)} Slot GameObjects == K {c['K']}")
-    recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
-    assert_(len(recv) == 3 * c["K"], f"{prefab}: {len(recv)} receivers == 3K")
-    params = []
-    for d in recv:
-        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
-        assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}")
-        for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
-                          ("receiverType", "2"), ("shapeType", "2")):
-            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
-            assert_(m is not None and m.group(1) == want, f"receiver {fld} == {want}")
-        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
-        assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()),
-                f"receiver size == boxSize {c['boxSize']} on every axis")
-        m = re.search(r"^  parameter: (\S+)$", d, re.M)
-        param = m.group(1) if m else None
-        params.append(param)
-        # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
-        # +Z face must be the cage's +X / +Y / +Z face for the axis its parameter names.
-        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
-        tr = next((t for t in docs if t.startswith("4 &") and go is not None
-                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
-        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
-        want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
-        got = tuple(float(v) for v in rot.groups()) if rot else None
-        assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
-                f"receiver {param}: box rotation {got} faces its axis")
+    ok = check_receivers(assert_, c, docs, prefab) and ok
     ok = check_rig(assert_, c, here, docs) and ok
-    expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
-    assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
     # The two world pins: exactly two constraint sources point at THIS entry's assets/World.prefab, at
     # zero offset — a nonzero per-source offset is multiplied by the avatar's scale factor in-client.
@@ -764,6 +804,76 @@ def check_files(overrides, here, prefab):
     assert_(all(float(v) == 0 for p in pins for v in p[1:]), "both World pins carry zero source offsets")
     print("OK" if ok else "FAILED")
     return ok
+
+
+def check_receivers(assert_, c, docs, label):
+    """Every slot's receivers over a RESOLVED document list: the count, the tags and protocol
+    flags, the box size the readout coefficients assume, one parameter each, and the rotation
+    putting each box's +Z face on the axis its parameter names. A variant passes its base's
+    documents minus the subtrees it removes, plus its own — property overrides in the variant's
+    m_Modifications are NOT resolved, so a field changed there is read at the base's value."""
+    ax4 = axes(c)
+    addx = (" \u2014 fourBox wants a fourth receiver X- in every slot's Boxes, coincident with X+ Y+ Z+ and rotated"
+            " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
+            f" point its parameter at {c['prefix']}/Slot<k>/X-") if c["fourBox"] else ""
+    ok = True
+    recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
+    ok = assert_(len(recv) == len(ax4) * c["K"], f"{label}: {len(recv)} receivers == {len(ax4)}K" + addx) and ok
+    params = []
+    for d in recv:
+        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
+        ok = assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}") and ok
+        for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
+                          ("receiverType", "2"), ("shapeType", "2")):
+            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
+            ok = assert_(m is not None and m.group(1) == want, f"receiver {fld} == {want}") and ok
+        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
+        ok = assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()),
+                     f"receiver size == boxSize {c['boxSize']} on every axis") and ok
+        m = re.search(r"^  parameter: (\S+)$", d, re.M)
+        param = m.group(1) if m else None
+        params.append(param)
+        # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
+        # +Z face must be the cage's named axis. Compared as a rotation, not as four numbers — q and
+        # -q are the same rotation, and the Euler forms an inspector offers reach both signs.
+        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
+        tr = next((t for t in docs if t.startswith("4 &") and go is not None
+                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
+        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
+        want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
+        got = tuple(float(v) for v in rot.groups()) if rot else None
+        same = want is not None and got is not None and abs(sum(a * b for a, b in zip(got, want))) > 1 - 1e-4
+        ok = assert_(same, f"receiver {param}: box rotation {got} faces its axis") and ok
+    expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ax4)
+    ok = assert_(sorted(p or "" for p in params) == expect,
+                 f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(ax4)}, one each" + addx) and ok
+    return ok
+
+
+def resolve_variant(base_docs, variant_docs, removed_ids):
+    """The variant's receiver surface as Unity resolves it: the base's documents minus the subtrees
+    it removes (m_RemovedGameObjects names only each subtree's root), plus the variant's own, which
+    is where a variant that ADDS a node carries it."""
+    tr_of, kids = {}, {}
+    for d in base_docs:
+        m = re.match(r"4 &(\d+)", d)
+        if not m:
+            continue
+        go = re.search(r"m_GameObject: \{fileID: (\d+)\}", d).group(1)
+        tr_of[go] = m.group(1)
+        kids.setdefault(re.search(r"m_Father: \{fileID: (\d+)\}", d).group(1), []).append((m.group(1), go))
+    gone, stack = set(removed_ids), [tr_of[g] for g in removed_ids if g in tr_of]
+    while stack:
+        for ct, cg in kids.get(stack.pop(), []):
+            gone.add(cg)
+            stack.append(ct)
+    kept = []
+    for d in base_docs:
+        owner = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M) or re.match(r"1 &(\d+)", d)
+        if owner and owner.group(1) in gone:
+            continue
+        kept.append(d)
+    return kept + variant_docs
 
 
 def check_rig(assert_, c, here, docs):
@@ -822,7 +932,8 @@ def check_rig(assert_, c, here, docs):
 
 
 # Receiver box rotation per axis: the box's local +Z must be the cage's named axis.
-AXIS_ROTATION = {"X+": (0, 0.7071068, 0, 0.7071068), "Y+": (-0.7071068, 0, 0, 0.7071068), "Z+": (0, 0, 0, 1)}
+AXIS_ROTATION = {"X+": (0, 0.7071068, 0, 0.7071068), "Y+": (-0.7071068, 0, 0, 0.7071068), "Z+": (0, 0, 0, 1),
+                 "X-": (0, -0.7071068, 0, 0.7071068)}
 
 
 def meta_guid(path):
@@ -830,10 +941,13 @@ def meta_guid(path):
     return m.group(1) if m else None
 
 
-def check_seam(assert_, c, here, body):
+def check_seam(assert_, c, here, body, toggle_body=None):
     """The FullController's silent surface: globalParams exactly the enable, and its two
     objRefs pointing at THIS folder's built/ — a component built by copying a configured one
-    keeps the donor's objRef and silently runs the donor's controller."""
+    keeps the donor's objRef and silently runs the donor's controller. Plus the Toggle holding
+    the enable's other half, which a variant inherits (`toggle_body` is then the base's file):
+    its defaultOn is the same bit as the document's enableDefault, and the two disagreeing is
+    silent — the avatar comes up in the state neither side intended."""
     ok = True
     gp = re.search(r"globalParams:\n((?:\s+- .*\n)*)", body)
     got = [ln.strip()[2:] for ln in gp.group(1).splitlines()] if gp else None
@@ -842,13 +956,26 @@ def check_seam(assert_, c, here, body):
     want = [meta_guid(os.path.join(here, "built", c["controller"] + ".controller")),
             meta_guid(os.path.join(here, "built", c["controller"] + "_Parameters.asset"))]
     ok = assert_(refs == want, f"FullController objRefs == built/{c['controller']} controller + params GUIDs (got {refs})") and ok
+    tog = [b for b in re.split(r"^    - rid: ", toggle_body or body, flags=re.M)[1:]
+           if "class: Toggle" in b.split("data:", 1)[0]
+           and re.search(r"^        useGlobalParam: 1$", b, re.M)
+           and re.search(rf"^        globalParam: {re.escape(c['enable'])}$", b, re.M)]
+    if assert_(len(tog) == 1, f"exactly one VRCFury Toggle drives {c['enable']} through useGlobalParam (got {len(tog)})"):
+        for fld, want_v, why in (("defaultOn", 1 if c["enableDefault"] else 0, "the document's enableDefault"),
+                                 ("saved", 0, "the controller's enable is saved: false, so a saved Toggle restores a bit nothing else keeps")):
+            m = re.search(rf"^        {fld}: (\S+)$", tog[0], re.M)
+            ok = assert_(m is not None and int(m.group(1)) == want_v, f"Toggle {fld} == {want_v} — {why}") and ok
+    else:
+        ok = False
     return ok
 
 
 def check_variant(overrides, here, prefab, base_prefab, base_config=None):
-    """A prefab VARIANT's file holds only its overrides, so the receiver surface is the base
-    prefab's and is checked there; what the variant file itself states is its source, the
-    slot removals taking the base K down to this K, and its own FullController seam."""
+    """A prefab VARIANT's file holds only its overrides, so its receiver surface is resolved
+    against the base (`resolve_variant`) and checked at THIS config — a variant at a config the
+    base's rig cannot serve is the failure this catches. What the variant file itself states is
+    its source, the slot removals taking the base K down to this K, and its own FullController
+    seam; the Toggle it inherits is read from the base."""
     c = dict(CONFIG)
     c.update(overrides or {})
     b = dict(CONFIG)
@@ -878,7 +1005,10 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
     assert_(sorted(names) == want, f"removed GameObjects {sorted(names)} == the slots above K plus each kept slot's Marker ({want})")
     rc = re.search(r"m_RemovedComponents:\n((?:\s+- \{.*\n)*)", body)
     assert_(rc is not None and len(rc.group(1).splitlines()) == 1, "exactly one removed component (the inherited FullController)")
-    ok = check_seam(assert_, c, here, body) and ok
+    resolved = resolve_variant(base_body.split("--- !u!"), body.split("--- !u!"),
+                               re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""))
+    ok = check_receivers(assert_, c, resolved, os.path.basename(prefab)) and ok
+    ok = check_seam(assert_, c, here, body, toggle_body=base_body) and ok
     print("OK" if ok else "FAILED")
     return ok
 
