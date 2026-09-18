@@ -174,9 +174,9 @@ def lint(c):
             refuse("rearmRadius + senderRadius must be < acqHalf — a dwell re-arm must be reachable on axis")
     if c["shape"] not in ("sphere", "cylinder"):
         refuse("shape must be sphere or cylinder")
+    if c["halfHeight"] <= 0:
+        refuse("halfHeight must be > 0 — it scales the Cylinder boundary mesh whatever the shape")
     if c["shape"] == "cylinder":
-        if c["halfHeight"] <= 0:
-            refuse("halfHeight must be > 0")
         if c["halfHeight"] + c["senderRadius"] >= c["acqHalf"]:
             refuse("halfHeight + senderRadius must be < acqHalf — the cylinder's ends must be reachable inside the cube")
         if c["mode"] == "dwell" and rearm_half_height(c) + c["senderRadius"] >= c["acqHalf"]:
@@ -205,11 +205,13 @@ def zone_conds(c, me):
     rin2 = c["burstRadius"] ** 2
     rout2 = c["rearmRadius"] ** 2
     inside = [f"{me}/r2 less {fmt(rin2)}"]
-    outside = [[f"{me}/r2 greater {fmt(rout2)}"]]
+    outside = []
     if c["shape"] == "cylinder":
         h = c["halfHeight"]
         inside += [f"{me}/y less {fmt(h)}", f"{me}/y greater {fmt(-h)}"]
-        if c["mode"] == "dwell":
+    if c["mode"] == "dwell":   # entry mode has no band; the cube face is its re-arm
+        outside.append([f"{me}/r2 greater {fmt(rout2)}"])
+        if c["shape"] == "cylinder":
             ho = rearm_half_height(c)
             outside += [[f"{me}/y greater {fmt(ho)}"], [f"{me}/y less {fmt(-ho)}"]]
     return inside, outside
@@ -593,7 +595,8 @@ def emit_clips(o, c, k):
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
-    clip(f"slot{k}_latch", latch, step, "flag shut + hold cube in one write; x,y,z parked at h (r² reads 3h²)")
+    parked = 2 if c["shape"] == "cylinder" else 3
+    clip(f"slot{k}_latch", latch, step, f"flag shut + hold cube in one write; x,y,z parked at h (r² reads {parked}h²)")
     clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0), None, "tracking configuration, payload off (outside the sphere)")
     clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1), None, "tracking configuration, payload on (inside the sphere)")
     if c["mode"] == "dwell":
@@ -719,7 +722,6 @@ def check_files(overrides, here, prefab):
         return False
     body = open(path, encoding="utf-8").read()
     docs = body.split("--- !u!")
-    c["_here"] = here
     names = re.findall(r"^  m_Name: (Slot\d+)$", body, re.M)
     assert_(len(names) == c["K"], f"{prefab}: {len(names)} Slot GameObjects == K {c['K']}")
     recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
@@ -748,7 +750,7 @@ def check_files(overrides, here, prefab):
         got = tuple(float(v) for v in rot.groups()) if rot else None
         assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
                 f"receiver {param}: box rotation {got} faces its axis")
-    ok = check_rig(assert_, c, docs) and ok
+    ok = check_rig(assert_, c, here, docs) and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ("X+", "Y+", "Z+"))
     assert_(sorted(p or "" for p in params) == expect, f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/X+ Y+ Z+, one each")
     ok = check_seam(assert_, c, here, body) and ok
@@ -764,7 +766,7 @@ def check_files(overrides, here, prefab):
     return ok
 
 
-def check_rig(assert_, c, docs):
+def check_rig(assert_, c, here, docs):
     """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
     `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs); each slot's
     `Burst` is inside the toggled `Payload` and its `Emit` is outside it, directly under `Output`
@@ -796,25 +798,26 @@ def check_rig(assert_, c, docs):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
     # The boundary: one inactive Boundary under Size holding Sphere and Cylinder, each a MeshFilter on
-    # the matching unit OBJ mesh, saved at the configured scale so the edit-mode view is the play-mode
-    # surface (the controller writes the same scale live).
+    # the matching unit OBJ mesh, with only the configured shape's renderer enabled — the controller
+    # rewrites scale and enable live, so the saved enable is what makes the edit-mode preview honest.
     bnd = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Boundary"]
     ok = assert_(len(bnd) == 1 and parent_name(bnd[0]) == "Size", "exactly one Boundary node, under Size") and ok
     if bnd:
         bgo = next(d for d in docs if d.startswith(f"1 &{trs[bnd[0]][0]}\n"))
         ok = assert_(re.search(r"^  m_IsActive: 0$", bgo, re.M) is not None, "Boundary ships inactive (the consumer's opt-in)") and ok
-    R, H = c["burstRadius"], c["halfHeight"]
-    for name, mesh, want in (("Sphere", "UnitSphere.obj", (R, R, R)), ("Cylinder", "UnitCylinder.obj", (R, H, R))):
+    for name, mesh in (("Sphere", "UnitSphere.obj"), ("Cylinder", "UnitCylinder.obj")):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == 1 and parent_name(nodes[0]) == "Boundary", f"one {name} node, under Boundary") and ok
         if not nodes:
             continue
-        got = trs[nodes[0]][2]
-        ok = assert_(all(abs(a - b) < 1e-6 for a, b in zip(got, want)), f"{name} saved at the configured scale {want} (got {got}) — the edit-mode preview of the burst surface") and ok
         go = trs[nodes[0]][0]
         mf = next((d for d in docs if d.startswith("33 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
         m = re.search(r"m_Mesh: \{fileID: -?\d+, guid: ([0-9a-f]{32}), type: 3\}", mf)
-        ok = assert_(m is not None and m.group(1) == meta_guid(os.path.join(c["_here"], "assets", mesh)), f"{name}'s MeshFilter references assets/{mesh}") and ok
+        ok = assert_(m is not None and m.group(1) == meta_guid(os.path.join(here, "assets", mesh)), f"{name}'s MeshFilter references assets/{mesh}") and ok
+        mr = next((d for d in docs if d.startswith("23 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
+        en = re.search(r"^  m_Enabled: (\d)$", mr, re.M)
+        want = "1" if c["shape"] == name.lower() else "0"
+        ok = assert_(en is not None and en.group(1) == want, f"{name}'s MeshRenderer saved enabled={want} for shape {c['shape']} — the edit-mode preview shows one shape") and ok
     return ok
 
 
@@ -931,7 +934,8 @@ def main():
     text, facts = document({})
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
-    print(f"wrote controller.yaml — mode {facts['mode']}, K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
+    write_meshes(os.path.join(HERE, "assets"))   # idempotent, so regenerate-and-diff covers the OBJs too
+    print(f"wrote controller.yaml and assets/*.obj — mode {facts['mode']}, K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
 
 
 if __name__ == "__main__":
