@@ -16,7 +16,6 @@ uniform float _Spin;
 uniform float _Pulse;
 uniform float _Acquire;
 uniform float _Acquire_Scale;
-uniform float _Depth_Fade;
 uniform float _Ghost_Strength;
 uniform float _Hide;
 uniform float _Far_Fade_Start;
@@ -34,7 +33,6 @@ struct FragmentInput
     float4 position : SV_POSITION;
     // Plane coordinates, -1..1 across the drawn quad.
     float2 p : PLANE_POS;
-    nointerpolation float3 anchor_ws : ANCHOR_WS;
     nointerpolation float fade : FADE;
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -44,8 +42,7 @@ void reticle_vertex(VertexInput input, out FragmentInput output)
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    AnchorPlacement place = place_anchor();
-    output.anchor_ws = place.anchor_ws;
+    AnchorPlacement place = place_anchor(false);
 
     float acquire = saturate(_Acquire);
     // Scale-in on latch: the quad grows to hold the enlarged reticle, the fragment draws it enlarged.
@@ -57,8 +54,6 @@ void reticle_vertex(VertexInput input, out FragmentInput output)
     float visible = fade * acquire;
     #if defined(RETICLE_GHOST_PASS)
         visible *= saturate(_Ghost_Strength);
-    #else
-        visible *= 1 - place.occluded;
     #endif
     output.fade = fade;
 
@@ -117,14 +112,6 @@ half4 reticle_fragment(FragmentInput input) : SV_Target
     #if defined(RETICLE_GHOST_PASS)
         // Striped in plane space, not screen space: a screen-space pattern has no disparity of its own.
         alpha *= saturate(_Ghost_Strength) * step(0.5, frac(p.y * 8));
-    #else
-        if (_Depth_Fade > 0.5 && anchor_depth_usable())
-        {
-            float in_front = anchor_scene_in_front_by(input.position, input.position.xy, input.anchor_ws);
-            // Fully faded by the window's edge, starting to go from half of it.
-            float window = max(_Snap_Window, 1e-3);
-            alpha *= 1 - smoothstep(window * 0.5, window, in_front);
-        }
     #endif
 
     // Additive: rgb carries the alpha, so nothing can black out the view.

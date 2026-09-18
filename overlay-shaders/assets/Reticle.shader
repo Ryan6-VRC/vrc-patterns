@@ -2,9 +2,9 @@
 // cross, a centre dot and one orbiting dash, drawn at a size that stays readable across a room, that
 // scales in on acquire and fades out before it can fill the viewer's face.
 //
-// Ours outright. It shares the family's stereo-centre camera (stereo_camera.hlsl) and d4rkpl4y3r's depth
-// reconstruction (depth_reconstruct.hlsl), and puts the placement question -- where to draw a marker for
-// a point inside a body -- in anchor_placement.hlsl, which Mosaic shares.
+// Ours outright. It shares the family's stereo-centre camera (stereo_camera.hlsl), and puts the placement
+// question -- where to draw a marker for a point inside a body -- in anchor_placement.hlsl, which Mosaic
+// shares. It reads no depth texture.
 //
 // Host mesh: a Unity Quad (uv 0..1 across it). The mesh is only a vertex supply; the billboard is built
 // from the object's origin and the viewer, so nothing about the quad's own size or rotation matters.
@@ -37,32 +37,18 @@ Shader "Ryan6VRC/Overlay/Reticle"
         _Hide("Hide", Range(0, 1)) = 0
 
         [Header(Placement)]
-        // See anchor_placement.hlsl for the three.
-        [Enum(Fixed pull, 0, Depth bias, 1, Surface snap, 2)] _Placement("Placement", Float) = 0
+        // Fixed pull (anchor_placement.hlsl): the reticle is drawn this far toward the viewer from the
+        // anchor, and occluded by whatever is in front of that position.
         _Pull("Pull toward viewer (m)", Range(0, 0.5)) = 0.15
-        // The MAIN pass's depth test. LEqual: the reticle is occluded by whatever is in front of its
-        // placed position. Always: never occluded by the depth buffer, leaving occlusion to _Depth_Fade.
-        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest("Main pass ZTest", Float) = 4
         // Strength of the GHOST pass, which draws only where the MAIN pass is occluded (ZTest Greater),
-        // dim and striped. 0 disables it.
-        _Ghost_Strength("Ghost strength", Range(0, 1)) = 0
-
-        [Header(Depth)]
-        // The depth-reading features below are only correct when a depth texture exists (a DepthLight is
-        // in the prefab, or the world casts directional shadows). Off, every one of them is inert.
-        [ToggleUI] _Use_Depth("Use depth texture", Float) = 0
-        // Buried deeper than this behind the nearest surface counts as occluded, not as clothing.
-        _Snap_Window("Window (m)", Range(0, 0.5)) = 0.3
-        _Snap_Gap("Gap in front of surface (m)", Range(0, 0.05)) = 0.01
-        _Snap_Tap_Radius("Snap tap radius (m)", Range(0, 0.1)) = 0.02
-        // Per-fragment: fade where the scene is in front of the ANCHOR by more than the window.
-        [ToggleUI] _Depth_Fade("Depth fade", Float) = 0
+        // dim and striped, so a reticle behind cloth or a wall stays findable. 0 disables it.
+        _Ghost_Strength("Ghost strength", Range(0, 1)) = 0.35
 
         [Header(Near fade)]
-        // Distance from the viewer's centre eye to the placed reticle. Also the floor on how close any
-        // placement may pull it.
-        _Fade_Near("Gone below (m)", Range(0, 1)) = 0.25
-        _Fade_Far("Full above (m)", Range(0, 2)) = 0.5
+        // Distance from the viewer's centre eye to the placed reticle. Also the floor on how close the pull
+        // may bring it.
+        _Fade_Near("Gone below (m)", Range(0, 1)) = 0.095
+        _Fade_Far("Full above (m)", Range(0, 2)) = 0.19
 
         [Header(Far fade)]
         // Past this the angular floor would otherwise hold the reticle readable at any range; a marker
@@ -92,7 +78,7 @@ Shader "Ryan6VRC/Overlay/Reticle"
         Pass
         {
             Name "MAIN"
-            ZTest [_ZTest]
+            ZTest LEqual
 
             CGPROGRAM
             #pragma warning (error : 3205)
