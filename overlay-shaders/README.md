@@ -2,6 +2,8 @@
 
 Four overlay shaders for looking at what an avatar is actually doing, sharing one glassy crystal shell: `DebugDisplay` prints up to twelve labelled values on a plane through the object origin, `DebugOverlay` draws triangle edges or reconstructed world normals from the scene depth buffer, `GammaCrystal` grades the scene inside a sphere of influence through a grab pass, and `TransClip` writes depth early behind that same shell so transparent materials inside its volume are never drawn. Each renders on whatever mesh you drop it on, all configuration is material-side, and none of the four syncs a bit or needs an animator.
 
+Two more mark a **buried point** — a measured position inside a body or behind cloth, the kind `contact-radar` reports — so that it reads as placed in a headset: `Reticle` is an additive targeting reticle billboarded over the point, `Mosaic` a censor disc of whole cells whose edge is a staircase rather than a clip. Both host on a Unity Quad and share `assets/anchor_placement.hlsl`, which is where the placement question lives (§Marking a buried point).
+
 Reach for `DebugDisplay` to read a number in-world — an animator float, or a render-side fact an animator cannot measure (world position, camera distance, the observing client's frame rate); `DebugOverlay` to see surface shape a material is hiding; `GammaCrystal` to darken, brighten or desaturate what surrounds you, bounded to a radius; `TransClip` to see an avatar or a room with its transparency taken away, from outside the sphere or with your head inside it. `compositions/object-sync-demo` is `DebugDisplay` in use on a real rig — a hand-held tablet whose rows are driven live from animator clips, reading a sync protocol as it runs.
 
 ## Provenance
@@ -48,6 +50,14 @@ Every knob is a material property, and each `.shader`'s `Properties` block is th
 
 **Mesh merging can relocate any of this.** Optimizers key merge decisions off the avatar root, and wherever you parented these is not it. Measured against `d4rkAvatarOptimizer` at defaults on a composed humanoid, both displays were left alone — one optimizer at one setting, not a guarantee. Use the per-GameObject opt-out where a readout is load-bearing.
 
+## Marking a buried point
+
+**Each shader has one placement, and neither reads a depth texture, so neither needs a `DepthLight`.** Both move along the line from the stereo-centre eye to the point, which keeps the marker over the point as the viewer sees it and identical in both eyes. `Reticle` moves its geometry `_Pull` toward the viewer, so the eyes converge in front of what buried the point and disparity agrees with draw order; it is occluded by anything nearer than that position, and its GHOST pass (`_Ghost_Strength`) draws it dim and striped exactly where that occlusion hides it, so a reticle behind cloth or a wall stays findable. `Mosaic` keeps its geometry at the point and pulls only its depth-test value by `_Pull`: cloth within that distance does not hide it, a hand or wall nearer clips it per fragment, and the eyes converge on the point behind the surface it is painted over. So a reticle and a mosaic on one anchor sit `_Pull` apart in depth — read a gap between them in a headset as this, not as a fault. Both use the pull after its clamp: it never brings a marker inside `_Fade_Far`, so an anchor nearer than `_Fade_Far + _Pull` gets less, down to none.
+
+**The mosaic grid lives on the plane, never on the screen.** A screen-aligned cell grid has zero disparity and reads as locked to the head while the scene swims under it. Cells are metres on the billboard plane and ride the anchor; membership in the disc is decided per cell centre, identically in both eyes, and only the colour is sampled per eye. The grab pass is named and shared, so every mosaic in view costs one framebuffer copy per camera per frame, and none sees another drawn the same frame.
+
+**Nothing here may fill the viewer's face.** The whole marker fades between `_Fade_Near` and `_Fade_Far` by the distance from the centre eye to its placed position, the pull never brings it inside `_Fade_Far`, and size is clamped to an angular band — which is why a target on the viewer's own mouth is only ever seen in a mirror.
+
 ## Verifying the install
 
 **`DebugDisplay`** — the readout's numbers should track the wearer moving. Stuck near `0.00` means the prefab is still sitting at the avatar-root origin — it ships unparented, so that reading is "never placed", not a fault. Mesh visible but text absent means an outgrown window (`Cull Back` makes the mesh a window, so oversized text is absent rather than clipped) — check `_Font_Scale_Relative` and `_Font_Size`; in UV mode check the mesh has `TEXCOORD0` first.
@@ -57,6 +67,8 @@ Every knob is a material property, and each `.shader`'s `Properties` block is th
 **`GammaCrystal`** — walk toward it: the grading should deepen and reach full strength before you touch the sphere. No change at all usually means every stage is neutral (gamma 0, exposure and scotopic off returns the scene untouched — the inspector warns about this). Grading that is uniform everywhere is the object-scale trap above, before it is the depth texture.
 
 **`TransClip`** — the sphere should look exactly like `DebugOverlay`'s shell, and that proves only that the shell pass draws; judge the wall by what *disappears*. Put a known transparent or cutout material behind it and walk the sphere in front — that material should vanish over the silhouette and return outside it. Nothing vanishing, with the shell visible, is the queue: the material is sorting after what it should clip. The shell visible but nothing at all clipped from any angle is the depth wall failing, which on a correct install cannot happen — check first that the object is not scaled to nothing or backface-inverted by a negative scale.
+
+**`Reticle` / `Mosaic`** — both should hold over the anchor as you strafe around it. The reticle floats `_Pull` in front of the anchor and turns to the striped ghost where a surface nearer than that covers it; the mosaic shows through cloth within `_Pull` of the anchor and clips under a hand held in front. A marker that dims inside `_Fade_Far` of your face and is gone inside `_Fade_Near` is the near fade, not a failure to draw.
 
 **Any of the four** — a flat grey shell rather than a glassy one means the cubemap slot is empty or the texture imported as a `Texture2D`, so `samplerCUBE` receives nothing.
 
