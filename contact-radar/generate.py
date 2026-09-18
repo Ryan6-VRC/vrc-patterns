@@ -138,7 +138,7 @@ CONFIG = {
     "burstRadius": 1.0,         # R_in, m
     "rearmRadius": 1.1,         # R_out, m (dwell only)
     "shape": "sphere",          # sphere | cylinder — the zone the readout is compared against; the receivers are cubes either way
-    "halfHeight": 0.5,          # cylinder only: half-height about the cage centre, m; the re-arm height adds the dwell band
+    "halfHeight": 0.8,          # cylinder only: half-height about the cage centre, m; the re-arm height adds the dwell band
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
