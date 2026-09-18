@@ -41,8 +41,9 @@ measures the sender's own radius rather than taking it from CONFIG: r =
 h(X+ + X- - 1) and x = h(X+ - X-), from which y = 2h·Y+ - h·X+ - h·X- and z
 likewise — every constant cancels, so the readout carries no bias term and the
 burst origin is exact for a sender of any radius. The measurement is exported
-per slot as `<prefix>/Slot<k>/R` (metres, cage frame) for a consumer that needs
-it. `senderRadius` then buys nothing in the readout and stays only as the
+per slot as `<prefix>/Slot<k>/R` for a consumer that needs it. R, x, y, z and
+Output's localPosition are all metres in the `Cage/Size` frame, so a consumer
+wanting world metres multiplies by that node's scale (it ships at 1). `senderRadius` then buys nothing in the readout and stays only as the
 reachability lints' assumed maximum sender radius. The rig the flag wants is
 one the shipped prefab does not carry, so `--check` holds a fourBox consumer's
 prefab to the fourth receiver.
@@ -630,8 +631,8 @@ def emit_clips(o, c, k):
     latch = cfg(1, 0, hold, 0, 0, 0)
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
     if c["fourBox"]:
-        # The one frame before the first measurement lands: R carries the configured assumption,
-        # so a consumer reading it every frame never reads a radius of zero.
+        # The one frame before the first measurement lands: R carries the configured assumption
+        # rather than zero. Outside a track R is 0, like x, y and z — no state writes it there.
         latch[f"{me}/R"] = fmt(r)
     parked = 2 if c["shape"] == "cylinder" else 3
     clip(f"slot{k}_latch", latch, step, f"flag shut + hold cube in one write; x,y,z parked at h (r² reads {parked}h²)")
@@ -652,7 +653,7 @@ def emit_clips(o, c, k):
         o(f"  # Slot {k} readout, four boxes: the opposed X pair measures the sender's radius instead of assuming it —")
         o("  # r = h·X+ + h·X− − h and x = h·X+ − h·X− (box-tracker's derivation), so y = 2h·Y+ − h·X+ − h·X− and z likewise;")
         o("  # every constant cancels out of x, y and z, leaving pure per-reading coefficients and a bias clip carrying only r.")
-        o("  # Summed under the non-normalized Direct root into the AAPs, R and Output's localPosition (metres, cage frame).")
+        o("  # Summed under the non-normalized Direct root into the AAPs, R and Output's localPosition (metres, Size frame).")
         pos, neg = fmt(h), fmt(-h)
         clip(f"slot{k}_read_xp", {f"{me}/x": pos, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos,
                                   f"{O}/Transform.m_LocalPosition.x": pos,
@@ -774,10 +775,6 @@ def check_files(overrides, here, prefab):
     find is a FAIL, never a pass."""
     c = dict(CONFIG)
     c.update(overrides or {})
-    ax4 = axes(c)
-    addx = (" — fourBox wants a fourth receiver X- in every slot's Boxes, coincident with X+ Y+ Z+ and rotated"
-            " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
-            f" point its parameter at {c['prefix']}/Slot<k>/X-") if c["fourBox"] else ""
     ok = True
 
     def assert_(cond, msg):
@@ -794,36 +791,8 @@ def check_files(overrides, here, prefab):
     docs = body.split("--- !u!")
     names = re.findall(r"^  m_Name: (Slot\d+)$", body, re.M)
     assert_(len(names) == c["K"], f"{prefab}: {len(names)} Slot GameObjects == K {c['K']}")
-    recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
-    assert_(len(recv) == len(ax4) * c["K"], f"{prefab}: {len(recv)} receivers == {len(ax4)}K" + addx)
-    params = []
-    for d in recv:
-        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
-        assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}")
-        for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
-                          ("receiverType", "2"), ("shapeType", "2")):
-            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
-            assert_(m is not None and m.group(1) == want, f"receiver {fld} == {want}")
-        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
-        assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()),
-                f"receiver size == boxSize {c['boxSize']} on every axis")
-        m = re.search(r"^  parameter: (\S+)$", d, re.M)
-        param = m.group(1) if m else None
-        params.append(param)
-        # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
-        # +Z face must be the cage's +X / +Y / +Z face for the axis its parameter names.
-        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
-        tr = next((t for t in docs if t.startswith("4 &") and go is not None
-                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
-        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
-        want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
-        got = tuple(float(v) for v in rot.groups()) if rot else None
-        assert_(want is not None and got is not None and all(abs(a - b) < 1e-4 for a, b in zip(got, want)),
-                f"receiver {param}: box rotation {got} faces its axis")
+    ok = check_receivers(assert_, c, docs, prefab) and ok
     ok = check_rig(assert_, c, here, docs) and ok
-    expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ax4)
-    assert_(sorted(p or "" for p in params) == expect,
-            f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(ax4)}, one each" + addx)
     ok = check_seam(assert_, c, here, body) and ok
     # The two world pins: exactly two constraint sources point at THIS entry's assets/World.prefab, at
     # zero offset — a nonzero per-source offset is multiplied by the avatar's scale factor in-client.
@@ -835,6 +804,76 @@ def check_files(overrides, here, prefab):
     assert_(all(float(v) == 0 for p in pins for v in p[1:]), "both World pins carry zero source offsets")
     print("OK" if ok else "FAILED")
     return ok
+
+
+def check_receivers(assert_, c, docs, label):
+    """Every slot's receivers over a RESOLVED document list: the count, the tags and protocol
+    flags, the box size the readout coefficients assume, one parameter each, and the rotation
+    putting each box's +Z face on the axis its parameter names. A variant passes its base's
+    documents minus the subtrees it removes, plus its own — property overrides in the variant's
+    m_Modifications are NOT resolved, so a field changed there is read at the base's value."""
+    ax4 = axes(c)
+    addx = (" \u2014 fourBox wants a fourth receiver X- in every slot's Boxes, coincident with X+ Y+ Z+ and rotated"
+            " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
+            f" point its parameter at {c['prefix']}/Slot<k>/X-") if c["fourBox"] else ""
+    ok = True
+    recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
+    ok = assert_(len(recv) == len(ax4) * c["K"], f"{label}: {len(recv)} receivers == {len(ax4)}K" + addx) and ok
+    params = []
+    for d in recv:
+        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
+        ok = assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}") and ok
+        for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
+                          ("receiverType", "2"), ("shapeType", "2")):
+            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
+            ok = assert_(m is not None and m.group(1) == want, f"receiver {fld} == {want}") and ok
+        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
+        ok = assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()),
+                     f"receiver size == boxSize {c['boxSize']} on every axis") and ok
+        m = re.search(r"^  parameter: (\S+)$", d, re.M)
+        param = m.group(1) if m else None
+        params.append(param)
+        # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
+        # +Z face must be the cage's named axis. Compared as a rotation, not as four numbers — q and
+        # -q are the same rotation, and the Euler forms an inspector offers reach both signs.
+        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
+        tr = next((t for t in docs if t.startswith("4 &") and go is not None
+                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
+        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
+        want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
+        got = tuple(float(v) for v in rot.groups()) if rot else None
+        same = want is not None and got is not None and abs(sum(a * b for a, b in zip(got, want))) > 1 - 1e-4
+        ok = assert_(same, f"receiver {param}: box rotation {got} faces its axis") and ok
+    expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ax4)
+    ok = assert_(sorted(p or "" for p in params) == expect,
+                 f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(ax4)}, one each" + addx) and ok
+    return ok
+
+
+def resolve_variant(base_docs, variant_docs, removed_ids):
+    """The variant's receiver surface as Unity resolves it: the base's documents minus the subtrees
+    it removes (m_RemovedGameObjects names only each subtree's root), plus the variant's own, which
+    is where a variant that ADDS a node carries it."""
+    tr_of, kids = {}, {}
+    for d in base_docs:
+        m = re.match(r"4 &(\d+)", d)
+        if not m:
+            continue
+        go = re.search(r"m_GameObject: \{fileID: (\d+)\}", d).group(1)
+        tr_of[go] = m.group(1)
+        kids.setdefault(re.search(r"m_Father: \{fileID: (\d+)\}", d).group(1), []).append((m.group(1), go))
+    gone, stack = set(removed_ids), [tr_of[g] for g in removed_ids if g in tr_of]
+    while stack:
+        for ct, cg in kids.get(stack.pop(), []):
+            gone.add(cg)
+            stack.append(ct)
+    kept = []
+    for d in base_docs:
+        owner = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M) or re.match(r"1 &(\d+)", d)
+        if owner and owner.group(1) in gone:
+            continue
+        kept.append(d)
+    return kept + variant_docs
 
 
 def check_rig(assert_, c, here, docs):
@@ -902,10 +941,13 @@ def meta_guid(path):
     return m.group(1) if m else None
 
 
-def check_seam(assert_, c, here, body):
+def check_seam(assert_, c, here, body, toggle_body=None):
     """The FullController's silent surface: globalParams exactly the enable, and its two
     objRefs pointing at THIS folder's built/ — a component built by copying a configured one
-    keeps the donor's objRef and silently runs the donor's controller."""
+    keeps the donor's objRef and silently runs the donor's controller. Plus the Toggle holding
+    the enable's other half, which a variant inherits (`toggle_body` is then the base's file):
+    its defaultOn is the same bit as the document's enableDefault, and the two disagreeing is
+    silent — the avatar comes up in the state neither side intended."""
     ok = True
     gp = re.search(r"globalParams:\n((?:\s+- .*\n)*)", body)
     got = [ln.strip()[2:] for ln in gp.group(1).splitlines()] if gp else None
@@ -914,13 +956,26 @@ def check_seam(assert_, c, here, body):
     want = [meta_guid(os.path.join(here, "built", c["controller"] + ".controller")),
             meta_guid(os.path.join(here, "built", c["controller"] + "_Parameters.asset"))]
     ok = assert_(refs == want, f"FullController objRefs == built/{c['controller']} controller + params GUIDs (got {refs})") and ok
+    tog = [b for b in re.split(r"^    - rid: ", toggle_body or body, flags=re.M)[1:]
+           if "class: Toggle" in b.split("data:", 1)[0]
+           and re.search(r"^        useGlobalParam: 1$", b, re.M)
+           and re.search(rf"^        globalParam: {re.escape(c['enable'])}$", b, re.M)]
+    if assert_(len(tog) == 1, f"exactly one VRCFury Toggle drives {c['enable']} through useGlobalParam (got {len(tog)})"):
+        for fld, want_v, why in (("defaultOn", 1 if c["enableDefault"] else 0, "the document's enableDefault"),
+                                 ("saved", 0, "the controller's enable is saved: false, so a saved Toggle restores a bit nothing else keeps")):
+            m = re.search(rf"^        {fld}: (\S+)$", tog[0], re.M)
+            ok = assert_(m is not None and int(m.group(1)) == want_v, f"Toggle {fld} == {want_v} — {why}") and ok
+    else:
+        ok = False
     return ok
 
 
 def check_variant(overrides, here, prefab, base_prefab, base_config=None):
-    """A prefab VARIANT's file holds only its overrides, so the receiver surface is the base
-    prefab's and is checked there; what the variant file itself states is its source, the
-    slot removals taking the base K down to this K, and its own FullController seam."""
+    """A prefab VARIANT's file holds only its overrides, so its receiver surface is resolved
+    against the base (`resolve_variant`) and checked at THIS config — a variant at a config the
+    base's rig cannot serve is the failure this catches. What the variant file itself states is
+    its source, the slot removals taking the base K down to this K, and its own FullController
+    seam; the Toggle it inherits is read from the base."""
     c = dict(CONFIG)
     c.update(overrides or {})
     b = dict(CONFIG)
@@ -950,7 +1005,10 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
     assert_(sorted(names) == want, f"removed GameObjects {sorted(names)} == the slots above K plus each kept slot's Marker ({want})")
     rc = re.search(r"m_RemovedComponents:\n((?:\s+- \{.*\n)*)", body)
     assert_(rc is not None and len(rc.group(1).splitlines()) == 1, "exactly one removed component (the inherited FullController)")
-    ok = check_seam(assert_, c, here, body) and ok
+    resolved = resolve_variant(base_body.split("--- !u!"), body.split("--- !u!"),
+                               re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""))
+    ok = check_receivers(assert_, c, resolved, os.path.basename(prefab)) and ok
+    ok = check_seam(assert_, c, here, body, toggle_body=base_body) and ok
     print("OK" if ok else "FAILED")
     return ok
 
