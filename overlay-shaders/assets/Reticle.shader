@@ -67,7 +67,7 @@ Shader "Ryan6VRC/Overlay/Reticle"
         [Header(Far fade)]
         // Past this the angular floor would otherwise hold the reticle readable at any range; a marker
         // across a hall is noise, so it fades out between these two distances.
-        _Far_Fade_Start("Fading from (m)", Range(1, 50)) = 6
+        _Far_Fade_Start("Fading from (m)", Range(1, 50)) = 8
         _Far_Fade_End("Gone beyond (m)", Range(1, 50)) = 10
     }
 
