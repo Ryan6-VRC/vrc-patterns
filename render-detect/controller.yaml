@@ -1,0 +1,38 @@
+# render-detect — is this region on this client's screen? The FX half of a culling sensor.
+#
+# Sensor carries a child Animator in CullCompletely whose one-state controller (assets/) turns
+# Heartbeat on every frame it runs; Unity stops that Animator whenever no camera sees the Bounds
+# renderer beneath it. This layer is the other writer: every frame it writes Heartbeat off, so
+# Heartbeat is on exactly while the sensor runs. Receiver (allowSelf, Constant) turns Heartbeat
+# into RenderDetect/IsRendering on every client.
+
+schema: 1
+controller: RenderDetect_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  # Written by Receiver, never by this controller: the module's output, published bare via globalParams.
+  RenderDetect/IsRendering: bool
+
+layers:
+  - name: RenderDetect
+    states:
+      Sense:
+        motion: { clip: sense }
+    default: Sense
+    layout:
+      nodes: { Sense: [30, 180] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# No binding may target the Sensor Animator itself; README §Traps has why the sensor ships enabled.
+clips:
+  sense:
+    set:
+      "Sensor/Heartbeat/GameObject.m_IsActive": 0
