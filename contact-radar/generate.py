@@ -843,7 +843,7 @@ def check_receivers(assert_, c, docs, label):
     # rotation are held as tightly as the slots'. minVelocity 0: a nonzero one silently drops the slow poke.
     if assert_(len(gate) == 1, f"{label}: exactly one gate receiver (parameter {c['prefix']}/Enter, OnEnter) — got {len(gate)}"):
         d = gate[0]
-        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
+        tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
         ok = assert_(tags == c["tags"], f"gate tags {tags} == {c['tags']}") and ok
         for fld, want in (("allowSelf", "0"), ("allowOthers", "1"), ("localOnly", "0"), ("receiverType", "1"),
                           ("shapeType", "2"), ("minVelocity", "0")):
@@ -858,7 +858,7 @@ def check_receivers(assert_, c, docs, label):
         ok = False
     params = []
     for d in recv:
-        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
+        tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
         ok = assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}") and ok
         for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
                           ("receiverType", "2"), ("shapeType", "2")):
