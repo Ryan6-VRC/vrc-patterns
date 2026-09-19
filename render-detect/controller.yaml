@@ -3,8 +3,7 @@
 # Sensor carries a child Animator in CullCompletely whose one-state controller (assets/) turns
 # Heartbeat on every frame it runs; Unity stops that Animator whenever no camera sees the Bounds
 # renderer beneath it. This layer is the other writer: every frame it writes Heartbeat off, so
-# Heartbeat is on exactly while the sensor runs. Receiver (allowSelf, Constant) turns Heartbeat
-# into RenderDetect/IsRendering on every client.
+# Heartbeat is on exactly while the sensor runs, and Receiver turns it into RenderDetect/IsRendering.
 
 schema: 1
 controller: RenderDetect_Fx
