@@ -29,7 +29,7 @@ parameters:
   CR/Sweep: { type: float, aap: true, scratch: true }
   CR/SweepBase: { type: float, aap: true, scratch: true }
   CR/Enter: float   # the shared OnEnter gate: one pulse per newly admitted sender, one collision step wide (never a clip)
-  # Slot 1: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
+  # Slot 1: receiver floats (never a clip), the readout AAPs, and the four protocol flags.
   CR/Slot1/X+: float
   CR/Slot1/Y+: float
   CR/Slot1/Z+: float
@@ -41,7 +41,7 @@ parameters:
   CR/Slot1/Armed: { type: float, aap: true, scratch: true }
   CR/Slot1/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
   CR/Slot1/Latching: { type: float, aap: true, scratch: true }   # 1 for the step this slot sits in Latch: the stale-pulse guard
-  # Slot 2: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
+  # Slot 2: receiver floats (never a clip), the readout AAPs, and the four protocol flags.
   CR/Slot2/X+: float
   CR/Slot2/Y+: float
   CR/Slot2/Z+: float
@@ -53,7 +53,7 @@ parameters:
   CR/Slot2/Armed: { type: float, aap: true, scratch: true }
   CR/Slot2/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
   CR/Slot2/Latching: { type: float, aap: true, scratch: true }   # 1 for the step this slot sits in Latch: the stale-pulse guard
-  # Slot 3: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
+  # Slot 3: receiver floats (never a clip), the readout AAPs, and the four protocol flags.
   CR/Slot3/X+: float
   CR/Slot3/Y+: float
   CR/Slot3/Z+: float
@@ -65,7 +65,7 @@ parameters:
   CR/Slot3/Armed: { type: float, aap: true, scratch: true }
   CR/Slot3/Front: { type: float, aap: true, scratch: true }   # 1 while this slot's cube rides the front
   CR/Slot3/Latching: { type: float, aap: true, scratch: true }   # 1 for the step this slot sits in Latch: the stale-pulse guard
-  # Slot 4: receiver floats (never a clip), the readout AAPs, and the three protocol flags.
+  # Slot 4: receiver floats (never a clip), the readout AAPs, and the four protocol flags.
   CR/Slot4/X+: float
   CR/Slot4/Y+: float
   CR/Slot4/Z+: float
@@ -110,15 +110,15 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Slot2/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 2 latched
           - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 2 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 2 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot3/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 3 latched
           - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 3 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 3 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Slot4/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot1/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 4 latched
           - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 4 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot1/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 4 fired, nothing Armed between
@@ -175,6 +175,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5 ] }   # Partial writes Open 1, so it must latch on the pulse the ring hands off on
           - { to: Latch, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
       Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings
@@ -480,15 +481,15 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot1/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 1 latched
           - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 1 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 1 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Slot3/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 3 latched
           - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 3 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot4/Armed less 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 3 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot4/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 4 latched
           - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 4 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot2/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 4 fired, nothing Armed between
@@ -545,6 +546,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Latching less 0.5 ] }   # Partial writes Open 1, so it must latch on the pulse the ring hands off on
           - { to: Latch, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
       Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings
@@ -850,15 +852,15 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot1/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 1 latched
           - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 1 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 1 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot2/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 2 latched
           - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 2 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 2 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Slot4/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 4 latched mid-sweep
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 4 latched
           - { to: SweepShut, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 4 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot4/Open greater 0.5, CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0, CR/Slot3/Armed greater 0.5, CR/Slot1/Armed less 0.5, CR/Slot2/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 4 fired, nothing Armed between
@@ -915,6 +917,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot4/Latching less 0.5 ] }   # Partial writes Open 1, so it must latch on the pulse the ring hands off on
           - { to: Latch, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
       Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings
@@ -1220,15 +1223,15 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Slot1/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 1 latched mid-sweep
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 1 latched
           - { to: SweepShut, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 1 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot1/Open greater 0.5, CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot2/Armed less 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 1 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Slot2/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 2 latched mid-sweep
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 2 latched
           - { to: SweepShut, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 2 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot2/Open greater 0.5, CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Slot3/Armed less 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 2 fired, nothing Armed between
-          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
+          - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Slot3/Front greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the pulse: slot 3 latched mid-sweep
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5, CR/Slot4/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the pulse: slot 3 latched
           - { to: SweepShut, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Sweeping greater 0.5 ] }   # ring on the readings: slot 3 fired mid-sweep, nothing Armed between
           - { to: Open, when: [ CR/Slot3/Open greater 0.5, CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0, CR/Slot4/Armed greater 0.5, CR/Sweeping less 0.5 ] }   # ring on the readings: slot 3 fired, nothing Armed between
@@ -1285,6 +1288,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5 ] }   # Partial writes Open 1, so it must latch on the pulse the ring hands off on
           - { to: Latch, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ] }
           - { to: Recycle, when: [], exitTime: 1.0 }
       Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings
@@ -1633,7 +1637,7 @@ layers:
       exit:  [50, 80]
 
 clips:
-  # Slot 1 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  # Slot 1 configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.
   slot1_boot: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Latching: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot1_off: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Latching: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot1_paused: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Latching: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
@@ -1681,7 +1685,7 @@ clips:
   slot1_sq_14: { set: { CR/Slot1/r2: 0.950625 } }
   slot1_sq_15: { set: { CR/Slot1/r2: 1.29390625 } }
   slot1_sq_16: { set: { CR/Slot1/r2: 1.69 } }
-  # Slot 2 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  # Slot 2 configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.
   slot2_boot: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Latching: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot2_off: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Latching: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot2_paused: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Latching: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
@@ -1729,7 +1733,7 @@ clips:
   slot2_sq_14: { set: { CR/Slot2/r2: 0.950625 } }
   slot2_sq_15: { set: { CR/Slot2/r2: 1.29390625 } }
   slot2_sq_16: { set: { CR/Slot2/r2: 1.69 } }
-  # Slot 3 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  # Slot 3 configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.
   slot3_boot: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Latching: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot3_off: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Latching: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot3_paused: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Latching: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
@@ -1777,7 +1781,7 @@ clips:
   slot3_sq_14: { set: { CR/Slot3/r2: 0.950625 } }
   slot3_sq_15: { set: { CR/Slot3/r2: 1.29390625 } }
   slot3_sq_16: { set: { CR/Slot3/r2: 1.69 } }
-  # Slot 4 configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.
+  # Slot 4 configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.
   slot4_boot: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Latching: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot4_off: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Latching: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot4_paused: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Latching: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause

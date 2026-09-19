@@ -340,7 +340,9 @@ def emit_layer(o, c, k, ks):
         # The pulse twin: the Open slot latches on the gate's pulse a step before its own readings land, so the
         # readings rung below would never see it Open and reading at once; the twin hands off on the same pulse.
         pconds = [f"{si}/Open greater 0.5", pulse] + ring
-        o(f"          - {{ to: SweepShut, when: [ {', '.join(pconds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the pulse: slot {i} latched mid-sweep")
+        # Mid-sweep the source must be the slot riding the front (Front 1): SweepShut also writes Open 1 and carries no
+        # pulse rung, so without this a pulse during its shut step would advance the ring with nothing latched.
+        o(f"          - {{ to: SweepShut, when: [ {', '.join(pconds + [f'{si}/Front greater 0.5', f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the pulse: slot {i} latched mid-sweep")
         o(f"          - {{ to: Open, when: [ {', '.join(pconds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring on the pulse: slot {i} latched")
         conds = [f"{si}/Open greater 0.5"] + [f"{si}/{ax} greater 0" for ax in ax4] + ring
         o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the readings: slot {i} fired mid-sweep, nothing Armed between")
@@ -395,6 +397,7 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
+    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # Partial writes Open 1, so it must latch on the pulse the ring hands off on")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }")
     o("      Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings")
@@ -633,7 +636,7 @@ def emit_clips(o, c, k):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
@@ -756,7 +759,7 @@ def document(overrides=None):
     o(f"  {P}/Enter: float   # the shared OnEnter gate: one pulse per newly admitted sender, one collision step wide (never a clip)")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the three protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the four protocol flags.")
         for ax in axes(c):
             o(f"  {me}/{ax}: float")
         for ax in ("x", "y", "z", "r2"):
@@ -834,8 +837,11 @@ def check_receivers(assert_, c, docs, label):
             " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
             f" point its parameter at {c['prefix']}/Slot<k>/X-") if c["fourBox"] else ""
     ok = True
-    allrecv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
-    gate = [d for d in allrecv if re.search(r"^  parameter: \S+/Enter$", d, re.M)]
+    # Only the pattern's own receivers, told by parameter: a copy may carry receivers of its own elsewhere.
+    pre = re.escape(c["prefix"])
+    allrecv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d
+               and re.search(rf"^  parameter: {pre}/(Slot\d+/\S+|Enter)$", d, re.M)]
+    gate = [d for d in allrecv if re.search(rf"^  parameter: {pre}/Enter$", d, re.M)]
     recv = [d for d in allrecv if d not in gate]
     ok = assert_(len(recv) == len(ax4) * c["K"], f"{label}: {len(recv)} slot receivers == {len(ax4)}K" + addx) and ok
     # The shared OnEnter gate: one receiver, always open, coincident and congruent with an Open slot's cube — a
@@ -852,6 +858,8 @@ def check_receivers(assert_, c, docs, label):
         m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
         ok = assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()), f"gate size == boxSize {c['boxSize']}") and ok
         ok = assert_(re.search(rf"^  parameter: {re.escape(c['prefix'])}/Enter$", d, re.M) is not None, f"gate parameter == {c['prefix']}/Enter") and ok
+        ok = assert_(re.search(r"^  position: \{x: 0, y: 0, z: 0\}$", d, re.M) is not None, "gate shape offset is zero (the shape sits on its transform)") and ok
+        ok = assert_(re.search(r"^  rotation: \{x: 0, y: 0, z: 0, w: 1\}$", d, re.M) is not None, "gate shape rotation is identity (the transform carries the tilt)") and ok
         rot = transform_rotation(docs, d)
         ok = assert_(same_rotation(rot, TILT), f"gate rotation {rot} == the tilt") and ok
     else:
@@ -914,8 +922,8 @@ def check_rig(assert_, c, here, docs, particles=True):
     tilt with its `Output` counter-rotated (a consumer's world-aligned offsets hang there); one
     `Gate` under `Size`; each slot's `Burst` is inside the toggled `Payload` and its `Emit` is
     outside it, directly under `Output` — an `Emit` inside the wrapper would be disabled mid-burst
-    and truncate it. `here` None skips the Boundary mesh GUID asserts (a consumer's owned copy
-    references the package meshes or its own)."""
+    and truncate it. `here` None (the consumer door) skips the Boundary asserts: the preview is the
+    entry's opt-in and a copy may have dropped it."""
     ok = True
     gos, trs, rots = {}, {}, {}
     for d in docs:
@@ -957,6 +965,8 @@ def check_rig(assert_, c, here, docs, particles=True):
     # The boundary: one inactive Boundary under Size holding Sphere, a MeshFilter on the unit OBJ mesh
     # with its renderer enabled — the controller rewrites scale and enable live, so the saved enable is
     # what makes the edit-mode preview honest.
+    if here is None:
+        return ok   # the boundary is the entry's opt-in preview; a copy may have dropped it
     bnd = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Boundary"]
     ok = assert_(len(bnd) == 1 and parent_name(bnd[0]) == "Size", "exactly one Boundary node, under Size") and ok
     if bnd:
@@ -1101,8 +1111,8 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
 
 
 def write_meshes(assets):
-    """The two unit meshes the Boundary node holds, as OBJ text: a UV sphere of radius 1 and an
-    open tube of radius 1 spanning y in [-1, 1]. The controller scales them to the burst surface."""
+    """The unit mesh the Boundary node holds, as OBJ text: a UV sphere of radius 1. The controller
+    scales it to the burst surface."""
     import math
 
     def obj(path, verts, normals, faces, name):
@@ -1138,7 +1148,10 @@ def main():
     if "--check" in sys.argv:
         sys.exit(0 if check_files({}, HERE, "ContactRadar.prefab") else 1)
     if "--check-prefab" in sys.argv:   # a consumer's owned copy at this CONFIG: the receiver, gate and geometry asserts only
-        sys.exit(0 if check_prefab({}, sys.argv[sys.argv.index("--check-prefab") + 1]) else 1)
+        i = sys.argv.index("--check-prefab") + 1
+        if i >= len(sys.argv):
+            refuse("--check-prefab needs a prefab path")
+        sys.exit(0 if check_prefab({}, sys.argv[i]) else 1)
     text, facts = document({})
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
