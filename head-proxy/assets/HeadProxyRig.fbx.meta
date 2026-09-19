@@ -32,7 +32,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages: []
     globalScale: 1
@@ -74,7 +74,7 @@ ModelImporter:
     normalImportMode: 0
     tangentImportMode: 3
     normalCalculationMode: 4
-    legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 0
+    legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 1
     blendShapeNormalImportMode: 1
     normalSmoothingSource: 0
   referencedClips: []
@@ -313,7 +313,8 @@ ModelImporter:
     - name: LeftLowerArm
       parentName: LeftUpperArm
       position: {x: -3.0531133e-15, y: 0.24999993, z: 0.000000005960463}
-      rotation: {x: 0.000000007450577, y: 0.00000001490116, z: -0.0000000018626451, w: 1}
+      rotation: {x: 0.000000007450577, y: 0.00000001490116, z: -0.0000000018626451,
+        w: 1}
       scale: {x: 1, y: 0.9999999, z: 1}
     - name: LeftHand
       parentName: LeftLowerArm
@@ -333,7 +334,8 @@ ModelImporter:
     - name: RightLowerArm
       parentName: RightUpperArm
       position: {x: 3.0531133e-15, y: 0.24999993, z: 0.000000005960463}
-      rotation: {x: 0.000000007450577, y: -0.00000001490116, z: 0.0000000018626451, w: 1}
+      rotation: {x: 0.000000007450577, y: -0.00000001490116, z: 0.0000000018626451,
+        w: 1}
       scale: {x: 1, y: 0.9999999, z: 1}
     - name: RightHand
       parentName: RightLowerArm
