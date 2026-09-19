@@ -14,18 +14,25 @@ the latch: a sender whose overlap with a receiver began while the flag was shut
 stays invisible to that receiver for the whole overlap, however the flag moves
 later, and only a full exit and re-entry admits it (emulator-measured, README
 §How it works). Exactly one slot is Open (flag up) at a time; the others are
-Armed (flag shut) so hands already inside are blind to them. When the Open slot
-reads a hand it Latches (flag shut, boxes expanded to the hold cube) and the
-next Armed slot in ring order Opens in the same animator evaluation, so the
-two land in one collision step and the admission windows tile. The latched
+Armed (flag shut) so hands already inside are blind to them. One shared OnEnter
+box, `Gate`, always open and coincident with the acquisition cube, pulses one
+collision step after any overlap begins, a step before a Proximity value: the
+Open slot Latches on that pulse (flag shut, boxes expanded to the hold cube)
+and the next Armed slot in ring order Opens in the same animator evaluation, so
+the two land in one collision step and the admission windows tile. The pulse
+is one step wide, so above 60 fps it is readable for two or three frames; a
+slot in Latch raises its Latching flag for exactly that step and no pulse rung
+fires while any slot is latching. The readings rung stays as the fallback.
+The slots sit tilted, the cube's diagonal vertical, so a standing player's
+stacked senders meet a face at staggered depths instead of one vertical plane
+in one step (README §Ground truth); the readout lives in that frame and the
+sphere is invariant under it. The latched
 slot then reconstructs its hand's position exactly (box-tracker's readout,
 three boxes and a configured sender radius — four boxes and a measured one
 under `fourBox`) and computes r² = x²+y²+z² in a
-piecewise-linear lookup; the burst fires when r² crosses the burst radius.
-`shape: cylinder` leaves the vertical axis out of that sum — r² is then the
-in-plane radius squared — and compares y against a half-height directly, so the
-zone is a vertical cylinder about the cage centre; the re-arm height is the
-half-height plus dwell's radial band, one band on every axis.
+piecewise-linear lookup; the burst fires when r² crosses the burst radius. The
+zone is a sphere and nothing else: it is the one shape that is invariant under the
+cube's tilt, so the readout frame never has to be undone in the tree.
 
 Two modes, one flag: `dwell` keeps the slot until the hand leaves the hold cube
 and re-bursts each time it crosses back inside the burst radius after retreating
@@ -63,8 +70,10 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   the cubes, the readout, the sphere and every band together, so every lint below
   holds at any scale; only the sender-radius bias term scales when it should not —
   and under `fourBox` there is no such term, so the origin is exact at any scale.
-- Latch writes x, y, z to holdHalf so the first r² computed in TrackOut is
-  3h², far outside the sphere; the guard is the state sequence, no settle AAP.
+- Latch parks x, y, z at (h, -h, -h) so the first r² computed in TrackOut is
+  3h², far outside the sphere, and holds until its own readings arrive (the
+  gate's pulse lands a step before them) or a step passes with none, in which
+  case it recycles: the guard is the state sequence, no settle AAP.
 - Timed dwells are plain clips, never a curve inside a Direct tree (the tree's
   duration is data — docs/animator-schema.md §motions).
 - Recycle's collapse/restore takes stepped tangents; a bare curve eases.
@@ -125,14 +134,12 @@ What happens at enable, at load and around a pause — the expanding front:
   carries the timing and the self-copies are one frame long, which stretches
   the ramp by at most (2·SweepBase + Silent)/(60·sweepSeconds).
 
-The boundary: `Cage/Size/Boundary` holds two unit meshes, `Sphere` (radius 1)
-and `Cylinder` (radius 1, y from -1 to 1, open ends), both written by `--mesh`
-into assets/. The Sweep layer — the one layer with exactly one state live at
-all times — writes each mesh's scale (R,R,R / R,H,R) and MeshRenderer enable in
-every state, so the drawn surface is the configured burst surface by
-construction and only the CONFIG-selected shape ever renders, only while the
-toggle is on. `Boundary` ships inactive: activating it is the consumer's opt-in,
-and its material the swap point.
+The boundary: `Cage/Size/Boundary` holds one unit mesh, `Sphere` (radius 1),
+written by `--mesh` into assets/. The Sweep layer — the one layer with exactly
+one state live at all times — writes its scale (R,R,R) and MeshRenderer enable
+in every state, so the drawn surface is the configured burst surface by
+construction, only while the toggle is on. `Boundary` ships inactive:
+activating it is the consumer's opt-in, and its material the swap point.
 
 Fragment mode: `document(overrides)` returns the document text and a facts
 dict; `entry-mode/generate.py` is the second consumer.
@@ -153,13 +160,11 @@ CONFIG = {
     "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
     "burstRadius": 1.0,         # R_in, m
     "rearmRadius": 1.1,         # R_out, m (dwell only)
-    "shape": "sphere",          # sphere | cylinder — the zone the readout is compared against; the receivers are cubes either way
-    "halfHeight": 0.8,          # cylinder only: half-height about the cage centre, m; the re-arm height adds the dwell band
     "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias.
                                 #   Under fourBox the readout measures r instead, and this is only the lints' assumed maximum
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
-    "sweepSeconds": 1.0,        # the front's travel time from 0 to acqHalf at enable, load and resume
+    "sweepSeconds": 2.0,        # the front's travel time from 0 to acqHalf at enable, load and resume; resolution = front travel per collision step
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
@@ -167,6 +172,15 @@ CONFIG = {
     "enable": "ContactRadar/Enable",
     "enableDefault": True,      # the enable parameter's default; False loads quiet (the prefab Toggle's default must agree)
 }
+
+
+# The acquisition cube is tilted so its body diagonal is world-vertical: every face sits at the same
+# elevation (asin(1/sqrt3) = 35.26 deg) 120 deg apart in azimuth, so a standing player's stacked senders
+# (head, mouth, hips, hands) meet a face at staggered depths instead of crossing one vertical plane in a
+# single collision step. Unity's Quaternion.FromToRotation((1,1,1), up), (x, y, z, w). Each Slot<k> carries
+# it and each Output its inverse; `check_rig` holds both, and every owned copy carries it by hand.
+TILT = (-0.325058, 0.0, 0.325058, 0.888074)
+TILT_INV = (0.325058, 0.0, -0.325058, 0.888074)
 
 
 def refuse(msg):
@@ -201,15 +215,6 @@ def lint(c):
             refuse("rearmRadius must be > burstRadius")
         if c["rearmRadius"] + c["senderRadius"] >= c["acqHalf"]:
             refuse("rearmRadius + senderRadius must be < acqHalf — a dwell re-arm must be reachable on axis")
-    if c["shape"] not in ("sphere", "cylinder"):
-        refuse("shape must be sphere or cylinder")
-    if c["halfHeight"] <= 0:
-        refuse("halfHeight must be > 0 — it scales the Cylinder boundary mesh whatever the shape")
-    if c["shape"] == "cylinder":
-        if c["halfHeight"] + c["senderRadius"] >= c["acqHalf"]:
-            refuse("halfHeight + senderRadius must be < acqHalf — the cylinder's ends must be reachable inside the cube")
-        if c["mode"] == "dwell" and rearm_half_height(c) + c["senderRadius"] >= c["acqHalf"]:
-            refuse("halfHeight + the dwell band + senderRadius must be < acqHalf — a dwell re-arm must be reachable on the axis")
     if c["stepSeconds"] < 2 / 60:
         refuse("stepSeconds must be >= 2/60 — a dwell shorter than two collision steps can be skipped")
     if c["sweepSeconds"] * 60 < 4.2:
@@ -224,25 +229,14 @@ def lint(c):
         refuse("enable must be one prefixed name (Module/Enable) — the wildcard for a bare name matches nothing")
 
 
-def rearm_half_height(c):
-    """Dwell's re-arm half-height: the radial band applied to the axis too."""
-    return c["halfHeight"] + c["rearmRadius"] - c["burstRadius"]
-
-
 def zone_conds(c, me):
     """The inside predicate (one AND list) and the outside rungs (a list of AND lists — an OR)."""
     rin2 = c["burstRadius"] ** 2
     rout2 = c["rearmRadius"] ** 2
     inside = [f"{me}/r2 less {fmt(rin2)}"]
     outside = []
-    if c["shape"] == "cylinder":
-        h = c["halfHeight"]
-        inside += [f"{me}/y less {fmt(h)}", f"{me}/y greater {fmt(-h)}"]
     if c["mode"] == "dwell":   # entry mode has no band; the cube face is its re-arm
         outside.append([f"{me}/r2 greater {fmt(rout2)}"])
-        if c["shape"] == "cylinder":
-            ho = rearm_half_height(c)
-            outside += [[f"{me}/y greater {fmt(ho)}"], [f"{me}/y less {fmt(-ho)}"]]
     return inside, outside
 
 
@@ -250,14 +244,12 @@ BOUNDARY = "Cage/Size/Boundary"
 
 
 def boundary_bindings(c, on):
-    """The two unit meshes' scale and renderer enable — the drawn surface is the configured burst surface."""
+    """The unit sphere's scale and renderer enable — the drawn surface is the configured burst surface."""
     R = c["burstRadius"]
-    H = c["halfHeight"]
     d = {}
-    for node, scale in (("Sphere", (R, R, R)), ("Cylinder", (R, H, R))):
-        for ax, v in zip(("x", "y", "z"), scale):
-            d[f"{BOUNDARY}/{node}/Transform.m_LocalScale.{ax}"] = fmt(v)
-        d[f"{BOUNDARY}/{node}/MeshRenderer.m_Enabled"] = 1 if (on and c["shape"] == node.lower()) else 0
+    for ax in ("x", "y", "z"):
+        d[f"{BOUNDARY}/Sphere/Transform.m_LocalScale.{ax}"] = fmt(R)
+    d[f"{BOUNDARY}/Sphere/MeshRenderer.m_Enabled"] = 1 if on else 0
     return d
 
 
@@ -271,6 +263,9 @@ def boxes_path(k):
 
 def out_path(k):
     return f"Cage/Size/Slot{k}/Output"
+
+
+GATE = "Cage/Size/Gate"
 
 
 def emit_clip(o, name, sets, seconds=None, comment=None):
@@ -290,6 +285,11 @@ def emit_layer(o, c, k, ks):
     acq = c["acqHalf"]
     ax4 = axes(c)
     all_pos = ", ".join(f"{me}/{ax} greater 0" for ax in ax4)
+    # The stale-pulse guard: an OnEnter pulse is one collision step wide, so above 60 fps it is readable for two
+    # or three animator frames; a slot in Latch holds its Latching flag for exactly that step (its exit waits on
+    # the readings, which land one step after the pulse), and no pulse rung fires while any slot is latching.
+    guard = ", ".join(f"{slot_name(c, j)}/Latching less 0.5" for j in ks if j != k)
+    pulse = f"{P}/Enter greater 0.5, {guard}"
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
 
@@ -336,11 +336,17 @@ def emit_layer(o, c, k, ks):
             between.append(m)
             m = m % len(ks) + 1
         si = slot_name(c, i)
-        conds = ([f"{si}/Open greater 0.5"] + [f"{si}/{ax} greater 0" for ax in ax4]
-                 + [f"{me}/Armed greater 0.5"])
-        conds += [f"{slot_name(c, m)}/Armed less 0.5" for m in between]
-        o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring: slot {i} fired mid-sweep, nothing Armed between")
-        o(f"          - {{ to: Open, when: [ {', '.join(conds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring: slot {i} fired, nothing Armed between")
+        ring = [f"{me}/Armed greater 0.5"] + [f"{slot_name(c, m)}/Armed less 0.5" for m in between]
+        # The pulse twin: the Open slot latches on the gate's pulse a step before its own readings land, so the
+        # readings rung below would never see it Open and reading at once; the twin hands off on the same pulse.
+        pconds = [f"{si}/Open greater 0.5", pulse] + ring
+        # Mid-sweep the source must be the slot riding the front (Front 1): SweepShut also writes Open 1 and carries no
+        # pulse rung, so without this a pulse during its shut step would advance the ring with nothing latched.
+        o(f"          - {{ to: SweepShut, when: [ {', '.join(pconds + [f'{si}/Front greater 0.5', f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the pulse: slot {i} latched mid-sweep")
+        o(f"          - {{ to: Open, when: [ {', '.join(pconds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring on the pulse: slot {i} latched")
+        conds = [f"{si}/Open greater 0.5"] + [f"{si}/{ax} greater 0" for ax in ax4] + ring
+        o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the readings: slot {i} fired mid-sweep, nothing Armed between")
+        o(f"          - {{ to: Open, when: [ {', '.join(conds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring on the readings: slot {i} fired, nothing Armed between")
     conds = [f"{slot_name(c, j)}/Open less 0.5" for j in ks if j != k]
     conds += [f"{slot_name(c, j)}/Armed less 0.5" for j in ks if j < k]
     conds += [f"{me}/Armed greater 0.5"]
@@ -367,6 +373,7 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
+    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # the gate's pulse: a step before the readings")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
@@ -376,6 +383,7 @@ def emit_layer(o, c, k, ks):
     o(f"        motion: {{ clip: slot{k}_open }}")
     o("        transitions:")
     rungs()
+    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # the gate's pulse: a step before the readings")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
@@ -389,13 +397,15 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
+    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # Partial writes Open 1, so it must latch on the pulse the ring hands off on")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }")
-    o("      Latch:                       # flag shut + hold cube in one write; x,y,z parked at h so the first r² reads 3h²")
+    o("      Latch:                       # flag shut + hold cube in one write, Latching up; readout parked outside the zone; waits a step for the readings")
     o(f"        motion: {{ clip: slot{k}_latch }}")
     o("        transitions:")
     rungs()
-    o("          - { to: TrackOut, when: [], exitTime: 1.0 }")
+    o(f"          - {{ to: TrackOut, when: [ {all_pos} ] }}")
+    o("          - { to: Recycle, when: [], exitTime: 1.0 }   # a pulse whose readings never came (a partial admission): release, as Partial does")
     o("      TrackOut:                    # readout live, payload off; outside the burst radius")
     emit_tree(o, c, k, hold=f"slot{k}_hold")
     o("        transitions:")
@@ -479,18 +489,22 @@ def emit_sweep_layer(o, c, ks):
     o(paused)
     o(off)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Disabled:                    # the toggle is off: the next sweep is loud")
+    o("      Disabled:                    # the toggle is off: the next sweep is loud; Enter zeroed so a pulse on the off frame cannot sit at 1")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: false, set: {{ {P}/Enter: 0 }} }}")
     o("        motion: { clip: sw_off }")
     o("        transitions:")
     o(paused)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Paused:                      # a distance-hide: the resume sweep is silent")
+    o("      Paused:                      # a distance-hide: the resume sweep is silent; Enter zeroed")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: false, set: {{ {P}/Enter: 0 }} }}")
     o("        motion: { clip: sw_paused }")
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
     o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, Silent holds")
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent")])
+    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent"), ("gate_front", f"{P}/Sweep")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -498,7 +512,7 @@ def emit_sweep_layer(o, c, ks):
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
-    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_silent", f"{P}/Silent")])
+    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_silent", f"{P}/Silent"), ("gate_front", f"{P}/Sweep")])   # the gate reads last frame's Sweep: one frame behind the front, like a slot's own Sweep state
     o("        transitions:")
     o(paused)
     o(off)
@@ -526,17 +540,26 @@ def emit_sweep_clips(o, c):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    def full(sweeping, silent, sweep, base, shown):
+    per_m = 2 / c["boxSize"]
+    collapsed = 0.001
+
+    def full(sweeping, silent, sweep, base, shown, gate_scale):
         d = {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep), f"{P}/SweepBase": fmt(base)}
         d.update(boundary_bindings(c, shown))
+        # The gate's scale in the plain-clip states: collapsed through every stow (the scale collapse is the measured
+        # re-arm primitive; a GameObject bounce is unmeasured for OnEnter), the acquisition cube when idle.
+        for ax in ("x", "y", "z"):
+            d[f"{GATE}/Transform.m_LocalScale.{ax}"] = fmt(gate_scale)
         return d
 
     o("  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).")
     o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.")
-    clip("sw_boot", full(1, 1, 0, 0, 0), None, "a fresh animator: silent, front at 0")
-    clip("sw_off", full(1, 0, 0, 0, 0), None, "the toggle off: loud, front at 0")
-    clip("sw_paused", full(1, 1, 0, 0, 0), None, "a distance-hide: silent, front at 0")
-    clip("sw_idle", full(0, 0, acq, 0, 1), None, "no sweep: the front parked at the face")
+    clip("sw_boot", full(1, 1, 0, 0, 0, collapsed), None, "a fresh animator: silent, front at 0, gate collapsed")
+    clip("sw_off", full(1, 0, 0, 0, 0, collapsed), None, "the toggle off: loud, front at 0, gate collapsed")
+    clip("sw_paused", full(1, 1, 0, 0, 0, collapsed), None, "a distance-hide: silent, front at 0, gate collapsed")
+    clip("sw_idle", full(0, 0, acq, 0, 1, acq * per_m), None, "no sweep: the front parked at the face, the gate at the acquisition cube")
+    clip("gate_front", {f"{GATE}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
+         None, "× Sweep: the gate riding the front (the acquisition cube once the sweep is over)")
     sweeping = {f"{P}/Sweeping": 1}
     sweeping.update(boundary_bindings(c, 1))
     clip("sw_sweeping", sweeping, None, "the constant part of Wait")
@@ -570,8 +593,6 @@ def emit_tree(o, c, k, hold):
     o(f"            - {{ clip: slot{k}_read_yp, directWeight: {me}/Y+ }}")
     o(f"            - {{ clip: slot{k}_read_zp, directWeight: {me}/Z+ }}")
     for ax in ("x", "y", "z"):
-        if ax == "y" and c["shape"] == "cylinder":
-            continue   # a cylinder's r² is in-plane; y is compared directly
         o("            - tree: 1d")
         o(f"              name: Slot{k} {ax}²")
         o(f"              param: {me}/{ax}")
@@ -597,7 +618,7 @@ def emit_clips(o, c, k):
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0):
+    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, latching=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in axes(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -607,6 +628,7 @@ def emit_clips(o, c, k):
         d[f"{me}/Open"] = opn
         d[f"{me}/Armed"] = armed
         d[f"{me}/Front"] = front
+        d[f"{me}/Latching"] = latching
         d[payload] = payload_on
         d[buffer] = buffer_on
         return d
@@ -614,7 +636,7 @@ def emit_clips(o, c, k):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, the three protocol flags, the payload toggle and the buffer toggle.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag, the scale, the four protocol flags, the payload toggle and the buffer toggle.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
@@ -626,14 +648,14 @@ def emit_clips(o, c, k):
          None, "× Sweep: the cube at the front (the face once the sweep is over)")
     clip(f"slot{k}_open", cfg(1, 1, acq, 1, 0, 0), None, "Open 1 — the flag up at full size")
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
-    latch = cfg(1, 0, hold, 0, 0, 0)
-    latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(h), f"{me}/z": fmt(h)})
+    latch = cfg(1, 0, hold, 0, 0, 0, latching=1)
+    # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads 3h².
+    latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(-h), f"{me}/z": fmt(-h)})
     if c["fourBox"]:
         # The one frame before the first measurement lands: R carries the configured assumption
         # rather than zero. Outside a track R is 0, like x, y and z — no state writes it there.
         latch[f"{me}/R"] = fmt(r)
-    parked = 2 if c["shape"] == "cylinder" else 3
-    clip(f"slot{k}_latch", latch, step, f"flag shut + hold cube in one write; x,y,z parked at h (r² reads {parked}h²)")
+    clip(f"slot{k}_latch", latch, step, "flag shut + hold cube + Latching in one write; readout parked at (h, −h, −h) so r² reads 3h²")
     clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0), None, "tracking configuration, payload off (outside the sphere)")
     clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1), None, "tracking configuration, payload on (inside the sphere)")
     if c["mode"] == "dwell":
@@ -699,10 +721,8 @@ def document(overrides=None):
     L = []
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
-    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each.")
-    if c["shape"] == "cylinder":
-        o(f"# Zone: a vertical cylinder — r² is in-plane (x² + z²), |y| compared against half-height {c['halfHeight']} m"
-          + (f" (re-arm {fmt(rearm_half_height(c))} m)." if c["mode"] == "dwell" else "."))
+    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each, plus one shared OnEnter gate.")
+    o("# The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame and the sphere is invariant.")
     if c["mode"] == "dwell":
         o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
     else:
@@ -736,9 +756,10 @@ def document(overrides=None):
     o(f"  {P}/Silent: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/Sweep: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepBase: {{ type: float, aap: true, scratch: true }}")
+    o(f"  {P}/Enter: float   # the shared OnEnter gate: one pulse per newly admitted sender, one collision step wide (never a clip)")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the three protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the four protocol flags.")
         for ax in axes(c):
             o(f"  {me}/{ax}: float")
         for ax in ("x", "y", "z", "r2"):
@@ -748,6 +769,7 @@ def document(overrides=None):
         o(f"  {me}/Open: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
+        o(f"  {me}/Latching: {{ type: float, aap: true, scratch: true }}   # 1 for the step this slot sits in Latch: the stale-pulse guard")
     o("")
     o("layers:")
     for k in ks:
@@ -758,8 +780,8 @@ def document(overrides=None):
     for k in ks:
         emit_clips(o, c, k)
     emit_sweep_clips(o, c)
-    facts = {"K": K, "mode": c["mode"], "shape": c["shape"], "fourBox": c["fourBox"],
-             "receivers": len(axes(c)) * K, "syncedBits": 1,
+    facts = {"K": K, "mode": c["mode"], "fourBox": c["fourBox"],
+             "receivers": len(axes(c)) * K + 1, "syncedBits": 1,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
 
@@ -815,11 +837,36 @@ def check_receivers(assert_, c, docs, label):
             " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
             f" point its parameter at {c['prefix']}/Slot<k>/X-") if c["fourBox"] else ""
     ok = True
-    recv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d]
-    ok = assert_(len(recv) == len(ax4) * c["K"], f"{label}: {len(recv)} receivers == {len(ax4)}K" + addx) and ok
+    # Only the pattern's own receivers, told by parameter: a copy may carry receivers of its own elsewhere.
+    pre = re.escape(c["prefix"])
+    allrecv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d
+               and re.search(rf"^  parameter: {pre}/(Slot\d+/\S+|Enter)$", d, re.M)]
+    gate = [d for d in allrecv if re.search(rf"^  parameter: {pre}/Enter$", d, re.M)]
+    recv = [d for d in allrecv if d not in gate]
+    ok = assert_(len(recv) == len(ax4) * c["K"], f"{label}: {len(recv)} slot receivers == {len(ax4)}K" + addx) and ok
+    # The shared OnEnter gate: one receiver, always open, coincident and congruent with an Open slot's cube — a
+    # lead or lag between its face and the slots' moves the pulse off the admission window, so its size and
+    # rotation are held as tightly as the slots'. minVelocity 0: a nonzero one silently drops the slow poke.
+    if assert_(len(gate) == 1, f"{label}: exactly one gate receiver (parameter {c['prefix']}/Enter, OnEnter) — got {len(gate)}"):
+        d = gate[0]
+        tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
+        ok = assert_(tags == c["tags"], f"gate tags {tags} == {c['tags']}") and ok
+        for fld, want in (("allowSelf", "0"), ("allowOthers", "1"), ("localOnly", "0"), ("receiverType", "1"),
+                          ("shapeType", "2"), ("minVelocity", "0")):
+            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
+            ok = assert_(m is not None and m.group(1) == want, f"gate {fld} == {want}") and ok
+        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
+        ok = assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()), f"gate size == boxSize {c['boxSize']}") and ok
+        ok = assert_(re.search(rf"^  parameter: {re.escape(c['prefix'])}/Enter$", d, re.M) is not None, f"gate parameter == {c['prefix']}/Enter") and ok
+        ok = assert_(re.search(r"^  position: \{x: 0, y: 0, z: 0\}$", d, re.M) is not None, "gate shape offset is zero (the shape sits on its transform)") and ok
+        ok = assert_(re.search(r"^  rotation: \{x: 0, y: 0, z: 0, w: 1\}$", d, re.M) is not None, "gate shape rotation is identity (the transform carries the tilt)") and ok
+        rot = transform_rotation(docs, d)
+        ok = assert_(same_rotation(rot, TILT), f"gate rotation {rot} == the tilt") and ok
+    else:
+        ok = False
     params = []
     for d in recv:
-        tags = re.findall(r"^  - (\S+)$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)
+        tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
         ok = assert_(tags == c["tags"], f"receiver tags {tags} == {c['tags']}") and ok
         for fld, want in (("allowSelf", "0"), ("localOnly", "0"), ("useFaceProximity", "1"),
                           ("receiverType", "2"), ("shapeType", "2")):
@@ -834,14 +881,9 @@ def check_receivers(assert_, c, docs, label):
         # The box's rotation is the one hand-maintained fact the readout coefficients rest on: the
         # +Z face must be the cage's named axis. Compared as a rotation, not as four numbers — q and
         # -q are the same rotation, and the Euler forms an inspector offers reach both signs.
-        go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M)
-        tr = next((t for t in docs if t.startswith("4 &") and go is not None
-                   and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
-        rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
         want = AXIS_ROTATION.get(param.rsplit("/", 1)[-1] if param else "")
-        got = tuple(float(v) for v in rot.groups()) if rot else None
-        same = want is not None and got is not None and abs(sum(a * b for a, b in zip(got, want))) > 1 - 1e-4
-        ok = assert_(same, f"receiver {param}: box rotation {got} faces its axis") and ok
+        got = transform_rotation(docs, d)
+        ok = assert_(want is not None and same_rotation(got, want), f"receiver {param}: box rotation {got} faces its axis") and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in ax4)
     ok = assert_(sorted(p or "" for p in params) == expect,
                  f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(ax4)}, one each" + addx) and ok
@@ -874,13 +916,16 @@ def resolve_variant(base_docs, variant_docs, removed_ids):
     return kept + variant_docs
 
 
-def check_rig(assert_, c, here, docs):
+def check_rig(assert_, c, here, docs, particles=True):
     """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
-    `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs); each slot's
-    `Burst` is inside the toggled `Payload` and its `Emit` is outside it, directly under `Output`
-    — an `Emit` inside the wrapper would be disabled mid-burst and truncate it."""
+    `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs), carrying the
+    tilt with its `Output` counter-rotated (a consumer's world-aligned offsets hang there); one
+    `Gate` under `Size`; each slot's `Burst` is inside the toggled `Payload` and its `Emit` is
+    outside it, directly under `Output` — an `Emit` inside the wrapper would be disabled mid-burst
+    and truncate it. `here` None (the consumer door) skips the Boundary asserts: the preview is the
+    entry's opt-in and a copy may have dropped it."""
     ok = True
-    gos, trs = {}, {}
+    gos, trs, rots = {}, {}, {}
     for d in docs:
         m = re.match(r"(\d+) &(\d+)", d)
         if not m:
@@ -892,6 +937,8 @@ def check_rig(assert_, c, here, docs):
             father = re.search(r"m_Father: \{fileID: (\d+)\}", d).group(1)
             sc = re.search(r"m_LocalScale: \{x: (\S+), y: (\S+), z: (\S+)\}", d).groups()
             trs[m.group(2)] = (go, father, tuple(float(v) for v in sc))
+            rq = re.search(r"m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}", d)
+            rots[m.group(2)] = tuple(float(v) for v in rq.groups()) if rq else None
 
     def parent_name(tid):
         f = trs[tid][1]
@@ -900,38 +947,64 @@ def check_rig(assert_, c, here, docs):
     size = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Size"]
     ok = assert_(len(size) == 1 and parent_name(size[0]) == "Cage", "exactly one Size node, under Cage") and ok
     ok = assert_(len(size) == 1 and trs[size[0]][2] == (1.0, 1.0, 1.0), "Size ships at uniform scale 1") and ok
-    slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go])]
-    ok = assert_(len(slots) == c["K"] and all(parent_name(t) == "Size" for t in slots), "every Slot is a child of Size") and ok
-    for name, want in (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")):
+    # Only Size's own Slot<k> children: a consumer may name other nodes Slot<k> elsewhere (a spring rig per slot beside them).
+    slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go]) and parent_name(tid) == "Size"]
+    ok = assert_(len(slots) == c["K"], f"{len(slots)} Slot nodes directly under Size == K {c['K']}") and ok
+    for t in slots:
+        ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
+        outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
+        ok = assert_(len(outs) == 1 and same_rotation(rots.get(outs[0]), TILT_INV), f"{gos[trs[t][0]]}/Output carries the inverse tilt (got {[rots.get(o) for o in outs]})") and ok
+    gate = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"]
+    ok = assert_(len(gate) == 1 and parent_name(gate[0]) == "Size", "exactly one Gate node, under Size") and ok
+    # Payload is the node the controller toggles; Burst and Emit are the shipped particle mechanism, which an owned
+    # copy may replace (`particles` False skips them and asserts nothing else under Payload).
+    places = (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")) if particles else (("Payload", "Output"),)
+    for name, want in places:
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
-    # The boundary: one inactive Boundary under Size holding Sphere and Cylinder, each a MeshFilter on
-    # the matching unit OBJ mesh, with only the configured shape's renderer enabled — the controller
-    # rewrites scale and enable live, so the saved enable is what makes the edit-mode preview honest.
+    # The boundary: one inactive Boundary under Size holding Sphere, a MeshFilter on the unit OBJ mesh
+    # with its renderer enabled — the controller rewrites scale and enable live, so the saved enable is
+    # what makes the edit-mode preview honest.
+    if here is None:
+        return ok   # the boundary is the entry's opt-in preview; a copy may have dropped it
     bnd = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Boundary"]
     ok = assert_(len(bnd) == 1 and parent_name(bnd[0]) == "Size", "exactly one Boundary node, under Size") and ok
     if bnd:
         bgo = next(d for d in docs if d.startswith(f"1 &{trs[bnd[0]][0]}\n"))
         ok = assert_(re.search(r"^  m_IsActive: 0$", bgo, re.M) is not None, "Boundary ships inactive (the consumer's opt-in)") and ok
-    for name, mesh in (("Sphere", "UnitSphere.obj"), ("Cylinder", "UnitCylinder.obj")):
+    for name, mesh in (("Sphere", "UnitSphere.obj"),):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == 1 and parent_name(nodes[0]) == "Boundary", f"one {name} node, under Boundary") and ok
         if not nodes:
             continue
         go = trs[nodes[0]][0]
-        mf = next((d for d in docs if d.startswith("33 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
-        m = re.search(r"m_Mesh: \{fileID: -?\d+, guid: ([0-9a-f]{32}), type: 3\}", mf)
-        ok = assert_(m is not None and m.group(1) == meta_guid(os.path.join(here, "assets", mesh)), f"{name}'s MeshFilter references assets/{mesh}") and ok
+        if here is not None:
+            mf = next((d for d in docs if d.startswith("33 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
+            m = re.search(r"m_Mesh: \{fileID: -?\d+, guid: ([0-9a-f]{32}), type: 3\}", mf)
+            ok = assert_(m is not None and m.group(1) == meta_guid(os.path.join(here, "assets", mesh)), f"{name}'s MeshFilter references assets/{mesh}") and ok
         mr = next((d for d in docs if d.startswith("23 &") and re.search(rf"^  m_GameObject: \{{fileID: {go}\}}$", d, re.M)), "")
         en = re.search(r"^  m_Enabled: (\d)$", mr, re.M)
-        want = "1" if c["shape"] == name.lower() else "0"
-        ok = assert_(en is not None and en.group(1) == want, f"{name}'s MeshRenderer saved enabled={want} for shape {c['shape']} — the edit-mode preview shows one shape") and ok
+        ok = assert_(en is not None and en.group(1) == "1", f"{name}'s MeshRenderer saved enabled — the edit-mode preview shows the burst surface") and ok
     return ok
 
 
 # Receiver box rotation per axis: the box's local +Z must be the cage's named axis.
 AXIS_ROTATION = {"X+": (0, 0.7071068, 0, 0.7071068), "Y+": (-0.7071068, 0, 0, 0.7071068), "Z+": (0, 0, 0, 1),
                  "X-": (0, -0.7071068, 0, 0.7071068)}
+
+
+def same_rotation(got, want):
+    """Two quaternions as rotations: q and -q are the same, and an inspector Euler reaches both signs."""
+    return got is not None and abs(sum(a * b for a, b in zip(got, want))) > 1 - 1e-4
+
+
+def transform_rotation(docs, component_doc):
+    """The m_LocalRotation of the Transform owning the GameObject a component document belongs to."""
+    go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", component_doc, re.M)
+    tr = next((t for t in docs if t.startswith("4 &") and go is not None
+               and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
+    rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
+    return tuple(float(v) for v in rot.groups()) if rot else None
 
 
 def meta_guid(path):
@@ -965,6 +1038,32 @@ def check_seam(assert_, c, here, body, toggle_body=None):
             ok = assert_(m is not None and int(m.group(1)) == want_v, f"Toggle {fld} == {want_v} — {why}") and ok
     else:
         ok = False
+    return ok
+
+
+def check_prefab(overrides, prefab_path):
+    """The consumer door: the receiver surface, the gate and the rig geometry (tilt, counter-rotated
+    Output, Gate, Payload under Output) over any prefab at any CONFIG — an owned copy in a venue
+    regenerates its document from this generator and nothing else ties its prefab to it. Not the
+    entry-only asserts (the World pins, the built/ GUIDs, the Boundary mesh GUIDs, the Toggle), and
+    nothing under Payload: what a copy hangs there (a box, a censor quad) is its own."""
+    c = dict(CONFIG)
+    c.update(overrides or {})
+    ok = True
+
+    def assert_(cond, msg):
+        nonlocal ok
+        print(("  ok   " if cond else "  FAIL ") + msg)
+        ok = ok and cond
+        return cond
+
+    if not os.path.exists(prefab_path):
+        print("  FAIL " + prefab_path + " is missing")
+        return False
+    docs = open(prefab_path, encoding="utf-8").read().split("--- !u!")
+    ok = check_receivers(assert_, c, docs, os.path.basename(prefab_path)) and ok
+    ok = check_rig(assert_, c, None, docs, particles=False) and ok
+    print("OK" if ok else "FAILED")
     return ok
 
 
@@ -1012,8 +1111,8 @@ def check_variant(overrides, here, prefab, base_prefab, base_config=None):
 
 
 def write_meshes(assets):
-    """The two unit meshes the Boundary node holds, as OBJ text: a UV sphere of radius 1 and an
-    open tube of radius 1 spanning y in [-1, 1]. The controller scales them to the burst surface."""
+    """The unit mesh the Boundary node holds, as OBJ text: a UV sphere of radius 1. The controller
+    scales it to the burst surface."""
     import math
 
     def obj(path, verts, normals, faces, name):
@@ -1039,31 +1138,25 @@ def write_meshes(assets):
             if j < rings - 1:
                 faces.append((a + 1, b + 1, b))
     obj(os.path.join(assets, "UnitSphere.obj"), verts, verts, faces, "UnitSphere")
-    verts, normals, faces = [], [], []
-    for y in (-1.0, 1.0):
-        for i in range(seg + 1):
-            th = 2 * math.pi * i / seg
-            verts.append((math.cos(th), y, math.sin(th)))
-            normals.append((math.cos(th), 0.0, math.sin(th)))
-    for i in range(seg):
-        a, b = i, seg + 1 + i
-        faces.append((a, b, a + 1))
-        faces.append((a + 1, b, b + 1))
-    obj(os.path.join(assets, "UnitCylinder.obj"), verts, normals, faces, "UnitCylinder")
 
 
 def main():
     if "--mesh" in sys.argv:
         write_meshes(os.path.join(HERE, "assets"))
-        print("wrote assets/UnitSphere.obj and assets/UnitCylinder.obj")
+        print("wrote assets/UnitSphere.obj")
         return
     if "--check" in sys.argv:
         sys.exit(0 if check_files({}, HERE, "ContactRadar.prefab") else 1)
+    if "--check-prefab" in sys.argv:   # a consumer's owned copy at this CONFIG: the receiver, gate and geometry asserts only
+        i = sys.argv.index("--check-prefab") + 1
+        if i >= len(sys.argv):
+            refuse("--check-prefab needs a prefab path")
+        sys.exit(0 if check_prefab({}, sys.argv[i]) else 1)
     text, facts = document({})
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
-    write_meshes(os.path.join(HERE, "assets"))   # idempotent, so regenerate-and-diff covers the OBJs too
-    print(f"wrote controller.yaml and assets/*.obj — mode {facts['mode']}, K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
+    write_meshes(os.path.join(HERE, "assets"))   # idempotent, so regenerate-and-diff covers the OBJ too
+    print(f"wrote controller.yaml and assets/UnitSphere.obj — mode {facts['mode']}, K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
 
 
 if __name__ == "__main__":
