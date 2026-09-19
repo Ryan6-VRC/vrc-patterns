@@ -185,8 +185,6 @@ def axes(c):
 def lint(c):
     if c["mode"] not in ("dwell", "entry"):
         refuse("mode must be dwell or entry")
-    if not isinstance(c["enableDefault"], bool):
-        refuse("enableDefault must be a bool — it is the enable parameter's default value")
     if not isinstance(c["fourBox"], bool):
         refuse("fourBox must be a bool — it selects the rig, not a box count")
     if c["fourBox"] and c["senderRadius"] <= 0:
