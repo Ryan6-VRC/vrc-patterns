@@ -133,11 +133,11 @@ CONFIG = {
     # and is still not a contract to build on). The GO name and this string are
     # a hand-maintained pairing.
     "mountPath": "",
-    # `Enable`'s declared default, 0 or 1: at 1 the enable tree evaluates armed
+    # `Enable`'s declared default: at True the enable tree evaluates armed
     # from frame one, where a driver forcing it true leaves a one-frame off->on
     # that, above 60 fps, deafens every receiver whenever the collision scene
     # skipped that frame (README §Rig, Enable row).
-    "enableDefault": 0,
+    "enableDefault": False,
 
     # The synced objects. `rotation` is per-object and resolved at generation
     # time — full (6 components, two markers, aim pair), y (2 components, one
@@ -729,18 +729,6 @@ def emit_walk(tag, nbits, resid, plan, extra_add, out, exit_rungs):
     return layout
 
 
-def enable_default(c):
-    """`Enable`'s declared default, refused to the int 0 or 1 — the wire type is
-    bool, so a fractional value blends two exclusive clips and a bool or float
-    spelling emits a `default:` token the schema does not have."""
-    v = c["enableDefault"]
-    if v.__class__ is not int or v not in (0, 1):
-        raise SystemExit(
-            f"REFUSE: `enableDefault` is {v!r} — it must be the int 0 or 1, "
-            "since `Enable` is a bool on the wire and default-on is `1`.")
-    return v
-
-
 # The reconstruction node, named by BOTH the emitted display bindings and the
 # README assert below — which is what makes README §Ground truth's published read
 # rename-stable rather than merely documented.
@@ -817,8 +805,8 @@ def build(c):
     # it, BOOL on the wire so the menu Toggle and the params asset see a bool —
     # one synced bit, and the schema's sanctioned spelling for a toggle a blend
     # tree has to weigh. Unsaved: off is the reset, and the prop never resurrects
-    # "on" at avatar load.
-    doc.param(f"  {pub}/Enable: {{ type: float, default: {enable_default(c)}, "
+    # "on" at avatar load. A float's `default:` is a number, so the bool key emits 1 or 0.
+    doc.param(f"  {pub}/Enable: {{ type: float, default: {1 if c['enableDefault'] else 0}, "
               "vrc: { type: bool, synced: true, saved: false } }", f"{pub}/Enable")
     # `Ready` is minted in `floatify_layer`, not here: it is that layer's copy
     # of `<channel>/Acquired`, at `<internal>/Ready` — sealed, so a consumer's

@@ -20,7 +20,7 @@ imported unmodified and the entry stays byte-identical. `CONVENTIONS.md`
 
 The demo carries NO post-generation deviation: the entry's document is emitted
 and committed unmodified, and its one departure from the entry's shipped posture
-— `Enable` defaults true — is `enableDefault: 1` in `demo_config()`.
+— `Enable` defaults true — is `enableDefault: True` in `demo_config()`.
 
 THE WIRE
 --------
@@ -91,7 +91,7 @@ def demo_config(mod):
     cfg["wire"] = dict(mod.CONFIG["wire"], **WIRE)
     # This demo removes the menu control, so with the entry's shipped
     # default-off nothing would ever turn sync on.
-    cfg["enableDefault"] = 1
+    cfg["enableDefault"] = True
     return cfg
 
 

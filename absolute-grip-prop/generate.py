@@ -92,7 +92,8 @@ READ_DWELL = FLIP_DWELL               # seconds Read{s} holds the settled pose i
 MARK_TAG = 'GripMark'                 # the mark rig's own tag: the Hand boxes must never read the Mark, nor the hold receivers a palm
 HOLDS = ['HoldR', 'HoldL', 'HoldRF', 'HoldLF']   # the four hold receivers, one per grip node, each on a host under Frame that rides its node's rotation
 NEARS = ['NearR', 'NearL']            # the published differentials, Near{h} = Hold{h}F - Hold{h}: positive where the flipped hold is the nearer one
-CONFIG = dict(glueName='AbsoluteGripProp_Fx')   # one build; the hammer's four holds are the prefab's, not a config's
+CONFIG = dict(glueName='AbsoluteGripProp_Fx',   # one build; the hammer's four holds are the prefab's, not a config's
+              enableDefault=False)            # the enable's default; the prefab Toggle's defaultOn must agree
 PREFIX = 'Palm/'
 GLUE = 'AbsoluteGrip/'
 MOUNT = 'GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage'
@@ -732,7 +733,7 @@ def emit_glue(cfg=CONFIG):
          'schema: 1', f'controller: {cfg["glueName"]}', 'basis: mount-root', 'role: fx', '',
          'defaults:', '  writeDefaults: on', '  transition: { duration: 0, exitTime: none, interruption: none }', '',
          'parameters:',
-         f'  {ENABLE}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # off is the reset',
+         f'  {ENABLE}: {{ type: bool, default: {"true" if cfg["enableDefault"] else "false"}, vrc: {{ synced: true, saved: false }} }}   # off is the reset',
          f'  {BIDIR}: {{ type: bool, default: false, vrc: {{ synced: false, saved: true }} }}   # the bidirectional mode, the second Toggle\'s: unsynced (a remote reads its default and waits for the bits instead), saved',
          '  GrabBone_IsGrabbed: bool     # minted by the grab physbone (parameter: GrabBone); never synced',
          '  IsLocal: bool                # VRC built-in',
@@ -1061,7 +1062,8 @@ def check():
     a(len(en) == 1 and len(bi) == 1, f'one Toggle drives {ENABLE} and one drives {BIDIR}')
     if en:
         a(re.search(r'^\s+useGlobalParam: 1$', en[0], re.M), f'enable Toggle drives the global {ENABLE}')
-        a(re.search(r'^\s+saved: 0$', en[0], re.M) and re.search(r'^\s+defaultOn: 0$', en[0], re.M), 'enable Toggle unsaved, default off (off is the reset)')
+        on = 1 if CONFIG['enableDefault'] else 0
+        a(re.search(r'^\s+saved: 0$', en[0], re.M) and re.search(rf'^\s+defaultOn: {on}$', en[0], re.M), f'enable Toggle unsaved (off is the reset), defaultOn {on} == enableDefault')
         a('ObjectToggleAction' not in en[0], 'enable Toggle carries no object action')
     if bi:
         a(re.search(r'^\s+useGlobalParam: 1$', bi[0], re.M), f'mode Toggle drives the global {BIDIR}')
