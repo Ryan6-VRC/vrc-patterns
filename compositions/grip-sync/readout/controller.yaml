@@ -107,6 +107,7 @@ parameters:
   Palm/MidY: { type: float, aap: true }
   Palm/MidZ: { type: float, aap: true }
   Palm/MM: { type: float, aap: true }
+  Palm/MMrel: { type: float, aap: true }
   Palm/HandDiff: { type: float, aap: true }
   Palm/Cue: { type: float, aap: true }
   Palm/CueScale: { type: float, aap: true }
@@ -322,7 +323,7 @@ layers:
                 - { clip: CueScale__0_32432432, threshold: 0.006 }
                 - { clip: CueScale__1_0, threshold: 0.0185 }
                 - { clip: CueScale__1_0, threshold: 0.032 }
-                - { clip: CueScale__3_125, threshold: 0.1 }
+                - { clip: CueScale__2_96875, threshold: 0.095 }
             - tree: direct
               name: "G1 = 2(E1 - S)"
               normalized: false
@@ -1049,6 +1050,18 @@ layers:
                   directWeight: Palm/MidZn
                   children:
                     - { clip: MM__1_0, directWeight: Palm/MidZn }
+            - tree: direct
+              name: "MMrel -= floor^2 S^2"
+              normalized: false
+              directWeight: Palm/S
+              children:
+                - { clip: MMrel__n0_15684737, directWeight: Palm/S }
+            - tree: direct
+              name: "MMrel = MM - floor^2 S^2"
+              normalized: false
+              directWeight: Palm/One
+              children:
+                - { clip: MMrel__1_0, directWeight: Palm/MM }
             - tree: direct
               name: "HandDiff = HandL - HandR"
               normalized: false
@@ -4139,7 +4152,7 @@ clips:
   S__n0_375: { set: { Palm/S: -0.375 } }
   CueScale__0_32432432: { set: { Palm/CueScale: 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.x": 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.y": 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.z": 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.x": 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.y": 0.32432432, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.z": 0.32432432 } }
   CueScale__1_0: { set: { Palm/CueScale: 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.x": 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.y": 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.z": 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.x": 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.y": 1.0, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.z": 1.0 } }
-  CueScale__3_125: { set: { Palm/CueScale: 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.x": 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.y": 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.z": 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.x": 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.y": 3.125, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.z": 3.125 } }
+  CueScale__2_96875: { set: { Palm/CueScale: 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.x": 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.y": 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyA/CueP/Transform.m_LocalScale.z": 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.x": 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.y": 2.96875, "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/Mid/ProxyB/CueN/Transform.m_LocalScale.z": 2.96875 } }
   G1__3_0: { set: { Palm/G1: 3.0 } }
   G1__n2_0: { set: { Palm/G1: -2.0 } }
   G1__n3_0: { set: { Palm/G1: -3.0 } }
@@ -4280,6 +4293,8 @@ clips:
   MidZn__1_5: { set: { Palm/MidZn: 1.5 } }
   MidZn__0_0: { set: { Palm/MidZn: 0.0 } }
   MM__1_0: { set: { Palm/MM: 1.0 } }
+  MMrel__n0_15684737: { set: { Palm/MMrel: -0.15684737 } }
+  MMrel__1_0: { set: { Palm/MMrel: 1.0 } }
   HandDiff__1_0: { set: { Palm/HandDiff: 1.0 } }
   HandDiff__n1_0: { set: { Palm/HandDiff: -1.0 } }
   Cue__1_0: { set: { Palm/Cue: 1.0 } }

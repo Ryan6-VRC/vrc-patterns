@@ -3,7 +3,7 @@
 # hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip node, each with a recheck that flips the sign
 # after the cue has read against it for a dwell. Reads GripReadout_Fx's AAPs through
 # the shared FullController.
-# thresholds: latch |HandDiff| > 0.1; engage: Res settle 0.002 m, S band [0.006, 0.1] m, lever proxy MM > 1.05186e-05 m^2, cue |Cue| > 0.05;
+# thresholds: latch |HandDiff| > 0.1; engage: Res settle 0.002 m, S band [0.006, 0.095] m, lever floor MMrel = MM - (LEVER_FLOOR_FRAC*S)^2 > 0, cue |Cue| > 0.05;
 # arrive dwell 0.04444 s, fill 0.1333 s (8 frames at 60 fps), confirm dwell 0.2 s, recheck dwell 0.5 s, settle timeout 0.5 s, disabled / reacquire dwell 0.25 s, acquisition cube half-width 0.15 m (= gate radius).
 # bidirectional grip (AbsoluteGrip/Bidir, off by default): four authored grip nodes, two per hand, and the grab takes the hold the prop's feature is nearer to at the read (feature direction (0.0, 0.0, 1.0) in the prop frame, 0.1 m out; hold radius 0.25 m, margin |Near| > 0.196, an equivalent dead band of 34% of grab attitudes for an antipodal pair); read dwell 0.04444 s, flip dwell 0.04444 s; the wearer decides, two synced bits carry it, a remote holds its pre-grab attitude until they land.
 schema: 1
@@ -40,6 +40,7 @@ parameters:
   Palm/Res: { type: float, scratch: true }
   Palm/S: { type: float, scratch: true }
   Palm/MM: { type: float, scratch: true }
+  Palm/MMrel: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
   Palm/HoldR: { type: float, scratch: true }
@@ -150,16 +151,16 @@ layers:
           - { to: Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: ReadP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05, IsLocal is true, AbsoluteGrip/Bidir is true ] }
-          - { to: ReadN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05, IsLocal is true, AbsoluteGrip/Bidir is true ] }
-          - { to: Hold, when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05 ] }
-          - { to: Hold, when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05 ] }
-          - { to: FlipP, when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05 ] }
-          - { to: FlipN, when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05 ] }
-          - { to: ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
-          - { to: ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
-          - { to: ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
-          - { to: ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
+          - { to: ReadP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05, IsLocal is true, AbsoluteGrip/Bidir is true ] }
+          - { to: ReadN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05, IsLocal is true, AbsoluteGrip/Bidir is true ] }
+          - { to: Hold, when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: Hold, when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: FlipP, when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: FlipN, when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
+          - { to: ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
+          - { to: ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
+          - { to: ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Reacquire, when: [  ], exitTime: 1.0 }
       ReadP:
         motion: { clip: readP }
@@ -176,8 +177,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: FlipP, when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: FlipP, when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -198,8 +199,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: FlipN, when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: FlipN, when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -222,8 +223,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: ConfirmRP, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: ConfirmLP, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -244,8 +245,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: ConfirmRN, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: ConfirmLN, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -265,8 +266,8 @@ layers:
           - { to: Settled, when: [ Palm/Decided is true ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
       ConfirmRP:
         motion:
           tree: 1d
@@ -287,8 +288,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryRP, when: [  ], exitTime: 1.0 }
       ConfirmRN:
@@ -311,8 +312,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryRN, when: [  ], exitTime: 1.0 }
       ConfirmLP:
@@ -335,8 +336,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue less 0.035 ] }
           - { to: CarryLP, when: [  ], exitTime: 1.0 }
       ConfirmLN:
@@ -359,8 +360,8 @@ layers:
           - { to: Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Settled, when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Settled, when: [ Palm/S less 0.0042 ] }
-          - { to: Settled, when: [ Palm/S greater 0.14285714 ] }
-          - { to: Settled, when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Settled, when: [ Palm/S greater 0.13571429 ] }
+          - { to: Settled, when: [ Palm/MMrel less 0.0 ] }
           - { to: Settled, when: [ Palm/Cue greater -0.035 ] }
           - { to: CarryLN, when: [  ], exitTime: 1.0 }
       CarryRP:

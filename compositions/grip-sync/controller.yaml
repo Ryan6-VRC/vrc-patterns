@@ -54,6 +54,7 @@ parameters:
   Palm/Res: { type: float, scratch: true }
   Palm/S: { type: float, scratch: true }
   Palm/MM: { type: float, scratch: true }
+  Palm/MMrel: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
   Palm/HoldR: { type: float, scratch: true }
@@ -181,16 +182,16 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip ReadP,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true ] }
-          - { to: Grip ReadN,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true ] }
-          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05 ] }
-          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05 ] }
-          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue greater 0.05 ] }
-          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Cue less -0.05 ] }
-          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
-          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.1, Palm/MM greater 1.0518627e-05, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
+          - { to: Grip ReadP,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true ] }
+          - { to: Grip ReadN,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Grip Reacquire, when: [ ], exitTime: 1.0 }
       Grip ReadP:
         motion: { clip: grip_readP }
@@ -208,8 +209,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip FlipP,     when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: Grip FlipP,     when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -231,8 +232,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip FlipN,     when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: Grip FlipN,     when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -256,8 +257,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip ConfirmRP, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: Grip ConfirmLP, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -279,8 +280,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip ConfirmRN, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: Grip ConfirmLN, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -301,8 +302,8 @@ layers:
           - { to: Grip Settled,   when: [ Palm/Decided is true ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
       Grip ConfirmRP:
         motion:
           tree: 1d
@@ -324,8 +325,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryRP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmRN:
@@ -349,8 +350,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryRN,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLP:
@@ -374,8 +375,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryLP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLN:
@@ -399,8 +400,8 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
           - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.14285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7.3630389e-06 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryLN,   when: [ ], exitTime: 1.0 }
       Grip CarryRP:
