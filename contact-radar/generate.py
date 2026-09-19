@@ -939,8 +939,9 @@ def check_rig(assert_, c, here, docs, particles=True):
     size = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Size"]
     ok = assert_(len(size) == 1 and parent_name(size[0]) == "Cage", "exactly one Size node, under Cage") and ok
     ok = assert_(len(size) == 1 and trs[size[0]][2] == (1.0, 1.0, 1.0), "Size ships at uniform scale 1") and ok
-    slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go])]
-    ok = assert_(len(slots) == c["K"] and all(parent_name(t) == "Size" for t in slots), "every Slot is a child of Size") and ok
+    # Only Size's own Slot<k> children: a consumer may name other nodes Slot<k> elsewhere (a spring rig per slot beside them).
+    slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go]) and parent_name(tid) == "Size"]
+    ok = assert_(len(slots) == c["K"], f"{len(slots)} Slot nodes directly under Size == K {c['K']}") and ok
     for t in slots:
         ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
         outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
