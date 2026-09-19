@@ -41,8 +41,12 @@ Hop structure (one frame per AAP hop, runtime.md SAnimator evaluation):
   frame n+1: Disc; D_ab = |S_a| - |S_b|; SumE_d1; the positive/negative halves of Mid
   frame n+2: SqrtDisc = lut(Disc); SumE_d2; MM from the halves
   frame n+3: S = 3/8 (SumE_d2 - SqrtDisc)
+  frame n+4: CueScale = the 1D tree on S (the cue spheres' scale, 1 across the surveyed size band)
 The cue trails the axis by two more stages (AAP write -> constraint solve moves the proxies -> the contacts sample
--> the animator reads), which is what SETTLE_FILL and the Confirm dwell are sized against.
+-> the animator reads), and the cue RADIUS trails S by the tree plus those same stages, so a grown sphere that swallows
+a finger it previously missed pays a fresh two-step acquisition on top. SETTLE_FILL primes the front of that pipeline and
+SETTLE_TIMEOUT is the budget the whole of it has to land inside: Confirm is entered only once Settled's rungs have passed,
+so the Confirm dwell guards the decision and never the cue's arrival.
 """
 import itertools, math, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,26 +59,51 @@ OUT_READOUT = os.path.join(HERE, 'readout.yaml')
 F, D = 0.75, 1.5
 K = 0.5                               # r/s on every VRChat Automatic base
 QA = 16 * K * K - 4 / 3               # 8/3
-MARGIN = 0.0004                       # keep-previous hysteresis in |S_L| metres
-LUT_LO, LUT_HI, LUT_N = 0.0012, 0.03, 24  # sqrt lookup over Disc (m^2); must cover Disc over the whole S band (refused below)
+MARGIN = 0.0004                       # keep-previous hysteresis in |S_L| metres: absolute metres of |S_L|, and |S_L| scales with the hand, so relative to the signal the hysteresis is tighter at the top of the supported range and looser at the bottom -- the same standing as RES_SETTLE
+LUT_LO, LUT_HI, LUT_N = 0.0003, 0.16, 48  # sqrt lookup over Disc (m^2); must cover Disc over the whole S band (refused below). 48 knots over this wider ratio give a knot ratio of 1.143, slightly tighter than the 24-knot lookup it replaces. Geometric knots hold the RELATIVE piecewise-linear sqrt error flat across the band; the absolute error grows with sqrt(Disc), to about 8e-5 m of S at the top of the band, still well under MARGIN
 RES_SETTLE = 0.002                    # |S_held| below this = the eight boxes agree on one capsule
-S_LO, S_HI = 0.012, 0.045             # palm-plausible half-length band (surveyed bases: s ~ 19..32 mm)
+# ---- the supported grabber size, and everything derived from it ----
+# The cage rides the world-scale pin, so every radius and band in this file is true metres and the WEARER's scale never
+# enters. What varies is the grabber's built-in palm and index capsules, which scale with the grabber's avatar. The range
+# is declared here as palm height H in metres -- about a third of the smallest surveyed hand to three times the largest --
+# and the S band, the sqrt lookup, the gate radius and the lever floor all derive from these four numbers below, so the
+# claim "this entry supports H_MIN..H_MAX" is checkable rather than asserted.
+H_MIN, H_MAX = 0.012, 0.19
+S_SURVEY_LO, S_SURVEY_HI = 0.0185, 0.032   # the surveyed bases' readout half-length s = H/2, over palm heights 37..64 mm: the band CUE_R was argmaxed over and the cue rule keys on
+H_SURVEY_MIN, H_SURVEY_MAX = 2 * S_SURVEY_LO, 2 * S_SURVEY_HI
+S_SURVEY_MID = (S_SURVEY_LO + S_SURVEY_HI) / 2   # the survey's middle hand: the one scale at which the lever floor below is exactly the 10 mm of lever this entry shipped
+S_LO, S_HI = H_MIN / 2, H_MAX / 2     # palm-plausible half-length band: the supported range in the readout's own units
 FRAME = 0.016666668
 FPS_FLOOR = 45                        # the lowest frame rate the frame-count dwells below are sized for (a clip length is wall-clock, so a slower client fills fewer frames): under it Arrive can miss the snap and the fill under-primes, which costs a bounce rather than a wrong latch for as long as CONFIRM_DWELL still outlasts the readout pipeline there
-SETTLE_FILL = 6 / FPS_FLOOR           # 6 frames at the floor frozen after the latch: Res/S land ~4 frames after working scale, the cue ~6; Confirm guards the rest
-SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed
+SETTLE_FILL = 6 / FPS_FLOOR           # 6 frames at the floor frozen after the latch: Res/S land ~4 frames after working scale, the cue ~9-10 now that the cue radius trails S (three hops, then the CueScale tree, then the contact solve) and a sphere that grew onto a finger it previously missed pays a fresh two-step acquisition. Still 6: the fill only primes. Confirm is entered only once Settled's rungs have already passed, so what bounds the cue's arrival is SETTLE_TIMEOUT, not the Confirm dwell -- the dwell guards the decision after the cue has landed
+SETTLE_TIMEOUT = 0.5                  # seconds after the latch before the loop reopens (Settling + Settled): also the stall after a Confirm bounce whose rung stays failed. Sized as a frame budget at FPS_FLOOR, since everything it waits on is counted in frames: the fill spends 6, and the cue can take up to 12 more (three AAP hops, then the CueScale tree, then the constraint and contact solve, then a fresh two-step acquisition where a grown sphere reaches a finger it had missed) = 18 frames = 0.4 s at 45 fps, against the 0.5 s here. Below the floor the budget runs out before the cue lands and the cost is a stow cycle -- Reacquire, then another attempt -- never a wrong grip, because nothing engages until the rungs pass
 CONFIRM_DWELL = 0.2                   # seconds every engage condition must hold before a carry state latches hand and sign (>= 5 frames down to 25 fps)
 RECHECK_DWELL = 0.5                   # seconds the cue must read against the latched sign, never retreating past the bounce threshold, before a carry flips its sign. The readout's line has no orientation across a sample step near 90 degrees (a 30 fps observer watching the recorded fast swing sees 60 to 110 degrees between samples), so the ladder can land on the antipode there and the finger then reads at the other proxy for the rest of the grab; this is the recovery, and the dwell is what makes it not a flicker. Sized above the cue's longest contradiction while the grip was right: 0.13 s in the probe recording (11 bursts at 84 fps, the other-hand fast swing) and 0.23 s in the emulator harness at the 30 fps remote period, and above the transient reversals the ladder undoes by itself on every stretch the harness could score
 DISABLED_DWELL = 0.25                 # seconds the receiver GOs stay off in Disabled and Reacquire (a one-frame bounce deafens them; a slow stow re-acquires a sender already inside)
-GATE_R = 0.06                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale. A game-tested snap-on grab acquires the hand capsule inside a 0.035 m sphere on the bone end (PlayspaceGrab's rest scale); the rest is margin for larger hands and for the wrist attitudes that refused in-game at 0.05
+# The gate radius is derived from the largest lever the supported range can present, not tuned against one base. With
+# snapToHand the tip IS the client's grab point, so what the gate must reach is the palm capsule's SURFACE: a lever out
+# from the palm axis, less the capsule radius, and the latch needs a reading above GATE_M there.
+LEVER_SURVEY_MAX = 0.044              # m, the largest lever the synthetic parametric hand model constructs: its `large` case (test-output/p8e/sensing/hand.py -- palm height H 0.064, phalanx length L 0.022, the phalanx-tip construction), so an H_SURVEY_MAX base. The survey constructs its tip differently and names a different pair, not a different answer: palm.csv's constructed lever tops out at 0.029 on that same base and its own in-VR ratio is 46/22 rather than 46/33, which lands the surface distance below within 2 mm -- so the derivation does not depend on which tip construction is read
+LEVER_VR_RATIO = 1.39                 # the one in-VR grab-point measurement (46 mm) against the constructed lever on that base (33 mm; runtime.md SPhysBones): in VR the client puts the grab point further out than the construction does
+R_PALM_MAX = H_MAX / 4                # the palm capsule's radius at the top of the range (the SDK's automatic proportion, r = s/2 = H/4)
+# LEVER_SURVEY_MAX * H_MAX / H_SURVEY_MAX * LEVER_VR_RATIO - R_PALM_MAX = 0.134 m of surface distance at the top of the
+# range on that most extreme proportion, which wants GATE_R 0.149 at GATE_M. 0.15 is what ships, and the two close exactly:
+# H_MAX is the palm height the shipped gate reaches, not a number the gate falls short of. Above the range the gate is the
+# rung that refuses, which is legible (README SLimits); the refusal beside the lookup's asserts the reach.
+# What 0.15 costs, in the terms a reviewer weighs it in: the acquisition cube grows from 0.12 to 0.30 m across, about 16x
+# in volume; two palms are told apart only past GATE_M * GATE_R = 15 mm of nearer-ness, up from 6 mm, so more near-ties
+# refuse -- a tie takes no latch and never mislatches; the wearer's own free hand cancels the differential (allowSelf is
+# on for the gate, and must stay on: the wearer grabs their own prop) at 2.5x the old distance from the grabbed prop; and
+# a remote's IK-lagged palm is admitted more easily, which the Confirm dwell and not the gate is sized to catch.
+GATE_R = 0.15                         # HandL / HandR proximity sphere radius on the tip, metres: THE acquisition zone (a palm must read on one to latch) and the hand differential's scale
 ACQ_SCALE = GATE_R / F                # box host scale between grabs: the eight boxes collapse to ONE coincident cage-aligned cube whose half-width equals the gate radius, so the sphere is the binding term in every direction (README)
 ARRIVE_DWELL = 2 / FPS_FLOOR          # 2 frames at the floor a fresh grab waits in Arrive before Acquire polls: the bone snaps to the hand grab point in about a frame in-game, and a latch taken before it lands takes whatever palm was nearest the old position
 SMOOTH_W = 0.5                        # Damped's target weight against its self weight of 1, both smoothers: it moves w/(1+w) of the way per frame; raising it shows more of the readout's pattern hops
 BOUNCE_H = 0.7                        # bounce hysteresis: a Confirm bounce rung fires only once a reading has retreated to this fraction of its entry margin, or past 1/this of its entry ceiling, so a reading dithering on its entry threshold cannot flap Settled and Confirm (runtime.md: a bare threshold on a contact reading needs hysteresis)
 GATE_M = 0.1                          # |HandDiff| the latch needs to decide the hand; two palms or none read under it and no latch is taken
-CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres (the argmax of worst-case differential over the measured hands)
+CUE_R = 0.06                          # FingerIndex proximity sphere radius at each axis proxy, metres, at survey scale (the argmax of worst-case differential over the measured hands). Outside the survey the hosts are scaled by the readout's CueScale tree (Math layer), so the radius in play is CUE_R * CueScale
 CUE_M = 0.05                          # |Cue| a decisive sign needs; client-tier margin, never retuned from emulator evidence (it reads ~20 % low there)
-MM_MIN = 0.01 ** 2                    # |Mid|^2 below which the settle branch refuses (m^2); the lever itself only for a grab point near the palm's mid-plane (README): half the smallest constructed lever on the surveyed hands, above the 8 mm the sensing review put it at for margin
+LEVER_FLOOR_FRAC = 0.01 / S_SURVEY_MID   # the lever floor as a fraction of the sensed half-length, not an absolute area: the settle branch refuses MMrel = MM - LEVER_FLOOR_FRAC^2 * S^2 at or below zero, which is exactly the 10 mm of lever this entry shipped at the survey's middle hand and proportional to the hand everywhere else. MM is |Mid|^2, the lever only for a grab point near the palm's mid-plane (README). What that weakens: nothing at survey scale, where the rung is the one that shipped; outside it the floor is proportional rather than absolute, so it never becomes the binding rung for a small grabber the way an absolute floor did. The margin it keeps: surveyed MM/S^2 runs about 0.83 to 3.0, against a floor coefficient of about 0.16
 # The four holds are authored in the prefab and nowhere here: no constant names a grip rotation or trim, and no clip writes one.
 # The authored surface is the four hand stand-ins under EditorOnly/Jig/PropFrame (RightHand, LeftHand, RightHandFlipped,
 # LeftHandFlipped, each the hand's pose in the parked prop's frame); each runtime grip node Frame/Grip{X} is that hand's inverse, materialized into the bare grip node by the
@@ -116,6 +145,13 @@ def disc_range(s, n=4000):
 _lo, _hi = disc_range(S_LO)[0], disc_range(S_HI)[1]
 if not (LUT_LO <= _lo and LUT_HI >= _hi):
     raise SystemExit(f'REFUSE: sqrt lookup [{LUT_LO}, {LUT_HI}] does not cover Disc over the S band [{_lo:.5f}, {_hi:.5f}]')
+# The gate must cover the range it declares. GATE_R is a round number chosen above the derived reach, so the derivation
+# stays a comment unless someone moves H_MAX, LEVER_* or GATE_M -- at which point the top of the declared range can go
+# silently unlatchable, since no rung above says so. Assert it instead: the latch needs a reading above GATE_M at the
+# palm surface, so the reach GATE_R buys is GATE_R * (1 - GATE_M).
+_reach = LEVER_SURVEY_MAX * H_MAX / H_SURVEY_MAX * LEVER_VR_RATIO - R_PALM_MAX
+if not GATE_R * (1 - GATE_M) >= _reach:
+    raise SystemExit(f'REFUSE: gate radius {GATE_R} does not reach the palm surface at H_MAX {H_MAX} -- {GATE_R * (1 - GATE_M):.4f} m of reach at GATE_M against {_reach:.4f} m of surface distance')
 PATS = list(itertools.product([1, -1], repeat=4))          # 16 oriented patterns
 LINES = [p for p in PATS if p[0] == 1]                      # 8 lines, canonical rep sigma1 = +
 PAIRINGS = [((0, 1), (2, 3)), ((0, 2), (1, 3)), ((0, 3), (1, 2))]
@@ -160,12 +196,19 @@ def fmt(x):
     s = f'{x:.8g}'
     return s if ('.' in s or 'e' in s) else s + '.0'
 
+# Every receiver's scene path, by receiver name: the one spelling of the tip subtree, read by the clip binding
+# helper below and by the BIND table above it, so a node rename moves both together.
+RECV_PATH = {**{r: f'{MOUNT}/{r}' for r in READINGS}, **{g: f'{MOUNT}/{g}' for g in GATES},
+             'CueP': f'{MOUNT}/Mid/ProxyA/CueP', 'CueN': f'{MOUNT}/Mid/ProxyB/CueN'}
+
 # Scene bindings riding the readout's leaf clips, as (path, sign): the aim pair reads these the frame they are
 # written. The axis goes to both proxies, ProxyB negated, so the sign mux is two aim constraints and no extra AAP.
 BIND = {P('MidX'): [(f'{MOUNT}/Mid/Transform.m_LocalPosition.x', 1)], P('MidY'): [(f'{MOUNT}/Mid/Transform.m_LocalPosition.y', 1)],
         P('MidZ'): [(f'{MOUNT}/Mid/Transform.m_LocalPosition.z', 1)]}
 for ax in 'xyz':
     BIND[P('Axis' + ax.upper())] = [(f'{MOUNT}/Mid/ProxyA/Transform.m_LocalPosition.{ax}', 1), (f'{MOUNT}/Mid/ProxyB/Transform.m_LocalPosition.{ax}', -1)]
+# The cue spheres' scale follows the sensed hand (config, CueScale): both hosts take the same value, sign +1.
+BIND[P('CueScale')] = [(f'{RECV_PATH[c]}/Transform.m_LocalScale.{ax}', 1) for c in CUES for ax in 'xyz']
 
 # ---------------- parameter + clip registry (readout document) ----------------
 params = {}     # name -> spec dict
@@ -213,7 +256,7 @@ scratch_aaps = [f'E{j+1}' for j in range(4)] + ['SumE', 'SumE_d1', 'SumE_d2', 'D
     + [f'O{i+1}' for i in range(3)] + [f'P{k+1}' for k in range(4)] + [f'T{i+1}{ab}' for i in range(3) for ab in 'ab'] \
     + [f'Mid{ax}{h}' for ax in 'XYZ' for h in 'pn']
 for n in scratch_aaps: param(P(n), {'type': 'float', 'aap': True, 'scratch': True})
-PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'HandDiff', 'Cue'] + NEARS
+PUBLISHED = ['S', 'AxisX', 'AxisY', 'AxisZ', 'Res', 'Pattern', 'MidX', 'MidY', 'MidZ', 'MM', 'MMrel', 'HandDiff', 'Cue', 'CueScale'] + NEARS
 for n in PUBLISHED: param(P(n), {'type': 'float', 'aap': True})
 
 # ---------------- Math layer (always-on) ----------------
@@ -242,6 +285,30 @@ math_children.append({'tree': '1d', 'param': P('Disc'), 'directWeight': P('One')
                       'children': [{'clip': clip_for(P('SqrtDisc'), math.sqrt(k)), 'threshold': k} for k in knots]})
 # S = (SumE_d2 - SqrtDisc) / qa  (age-aligned inputs)
 math_children.append(lin(P('S'), [(P('SumE_d2'), 1 / QA), (P('SqrtDisc'), -1 / QA)], name='S = (SumE_d2 - SqrtDisc)/qa'))
+# CueScale = the cue spheres' scale, following the sensed hand OUTSIDE the survey and exactly 1 across it. CUE_R was the
+# argmax of the worst-case cue differential over the surveyed hands; under the nearest-surface law a k-times hand read by
+# a k-times sphere reads exactly what a 1x hand reads at 1x (the proxies sit at Mid +- axis, which already scale with the
+# measured capsule), so CUE_M -- a client-tier margin, never retuned from emulator evidence -- carries over at every scale
+# and the in-survey readings are unchanged by construction. One 1D tree on S, symmetric, with the survey flat between its
+# two inner knots; the tree lerps in S, so the value is exactly S / S_SURVEY_LO below the survey and S / S_SURVEY_HI above.
+# It clamps at the ends, so the no-data S (negative, -sqrt(LUT_LO)/qa) writes the bottom leaf and never 0 or a negative
+# scale. The cue filters are never bound and a fresh overlap is a fresh acquisition episode with no deaf mode
+# (runtime.md SContacts), so even a collapsed scale costs a re-acquisition, never a dead receiver. The exposure the rule
+# buys is that outside the survey the radius tracks LIVE S, so S noise moves the cue sphere's surface by millimetres over
+# a carry; a Proximity reading is continuous in radius, so that shifts the reading a little rather than dropping the
+# contact, and inside the survey the tree is flat and the exposure is nil.
+CUE_SCALE_LEAVES = [(S_LO, S_LO / S_SURVEY_LO), (S_SURVEY_LO, 1.0), (S_SURVEY_HI, 1.0), (S_HI, S_HI / S_SURVEY_HI)]
+# Refusal: a non-positive leaf would serialize a degenerate or mirrored cue host, which the clamp argument above rests on
+# never happening -- and a zero-scale sphere reads 0 at every distance, which is a decisive-looking dead cue.
+for _t, _v in CUE_SCALE_LEAVES:
+    if not _v > 0: raise SystemExit(f'REFUSE: CueScale leaf at S = {_t} is {_v}; every leaf must be a positive scale')
+# Refusal: the four thresholds are one 1D tree's, and a tree whose thresholds are not strictly increasing has no flat
+# middle and no defined lerp on either side -- the whole similarity rule rests on the survey sitting strictly inside the
+# supported band.
+if not (S_LO < S_SURVEY_LO < S_SURVEY_HI < S_HI):
+    raise SystemExit(f'REFUSE: CueScale thresholds must be strictly increasing, got S_LO {S_LO}, S_SURVEY_LO {S_SURVEY_LO}, S_SURVEY_HI {S_SURVEY_HI}, S_HI {S_HI}')
+math_children.append({'tree': '1d', 'param': P('S'), 'directWeight': P('One'), 'name': 'CueScale = S / nearer survey edge, 1 across the survey',
+                      'children': [{'clip': clip_for(P('CueScale'), v), 'threshold': t} for t, v in CUE_SCALE_LEAVES]})
 # G_k = 2 (E_k - S), same-frame from readings
 for k in range(4): math_children.append(lin(P(f'G{k+1}'), E_terms(k, 2.0) + [(P('S'), -2.0)], 2 * E_CONST, name=f'G{k+1} = 2(E{k+1} - S)'))
 # S_L = sum sigma_j (E_j - S)
@@ -265,6 +332,12 @@ for ax in 'XYZ':
     Mp, Mn = P(f'Mid{ax}p'), P(f'Mid{ax}n')
     mm += [prod(P('MM'), Mp, Mp, 1.0), prod(P('MM'), Mn, Mn, 1.0)]
 math_children.append({'tree': 'direct', 'normalized': False, 'name': 'MM = |Mid|^2', 'directWeight': P('One'), 'children': mm})
+# ---- the lever floor, made scale-free: MMrel = MM - LEVER_FLOOR_FRAC^2 * S^2 ----
+# One product tree on S and one linear term on MM, so the glue's engage rung is MMrel > 0 and no threshold there names a
+# hand size. Age: MM is two hops behind the readings and S three, so this subtracts an S one hop older than its MM --
+# harmless on a settling test, where S is near-static within a grab and MM, riding the same held capsule, is too.
+math_children.append(prod(P('MMrel'), P('S'), P('S'), -LEVER_FLOOR_FRAC ** 2, name='MMrel -= floor^2 S^2'))
+math_children.append(lin(P('MMrel'), [(P('MM'), 1.0)], name='MMrel = MM - floor^2 S^2'))
 # ---- the two differentials: signed, so formed with a negative clip constant and read only as conditions ----
 math_children.append(lin(P('HandDiff'), [(P('HandL'), 1.0), (P('HandR'), -1.0)], name='HandDiff = HandL - HandR'))
 math_children.append(lin(P('Cue'), [(P('CueP'), 1.0), (P('CueN'), -1.0)], name='Cue = CueP - CueN'))
@@ -408,8 +481,6 @@ B_DMP_W2 = 'Container/Damped/VRCPositionConstraint.Sources.source2.Weight'      
 B_DMP_W3 = 'Container/Damped/VRCPositionConstraint.Sources.source3.Weight'      # Frame/GripL: left carry
 B_DMP_W4 = 'Container/Damped/VRCPositionConstraint.Sources.source4.Weight'      # Frame/GripRF: right carry, flipped hold
 B_DMP_W5 = 'Container/Damped/VRCPositionConstraint.Sources.source5.Weight'      # Frame/GripLF: left carry, flipped hold
-RECV_PATH = {**{r: f'{MOUNT}/{r}' for r in READINGS}, **{g: f'{MOUNT}/{g}' for g in GATES},
-             'CueP': f'{MOUNT}/Mid/ProxyA/CueP', 'CueN': f'{MOUNT}/Mid/ProxyB/CueN'}
 def recv_bindings(r):
     base = RECV_PATH[r]
     return {'go': f'{base}/GameObject.m_IsActive', 'self': f'{base}/VRCContactReceiver.allowSelf', 'others': f'{base}/VRCContactReceiver.allowOthers',
@@ -538,7 +609,10 @@ OPP = {'P': 'N', 'N': 'P'}
 def bounce(cond):
     """the Confirm bounce rung for an entry condition: the complement, loosened by BOUNCE_H toward the failing side (a margin
     must retreat to BOUNCE_H of its entry value, a ceiling be overshot by 1/BOUNCE_H) so the two rungs never share a threshold.
-    A reading between the two satisfies neither and rides Confirm's exit time into Carry, which is the hysteresis working."""
+    A reading between the two satisfies neither and rides Confirm's exit time into Carry, which is the hysteresis working.
+    The lever rung is the one exception, and by construction: its threshold is 0, and 0 scaled by BOUNCE_H is still 0, so the
+    entry and bounce rungs share a threshold and there is no hysteresis. That is sound because MMrel, like S, is near-static
+    within a grab -- both ride the held capsule, not a reading that dithers -- so there is nothing to flap."""
     p, op, v = cond.rsplit(' ', 2); v = float(v)
     nv = v * BOUNCE_H if op == 'greater' else (v / BOUNCE_H if v > 0 else v * BOUNCE_H)
     return f'{p} {"less" if op == "greater" else "greater"} {fmt(nv)}'
@@ -582,7 +656,7 @@ def glue_states(cfg):
     local, remote = 'IsLocal is true', 'IsLocal is false'
     dec_t, dec_f, down_t, down_f = f'{DECIDED} is true', f'{DECIDED} is false', f'{DOWN} is true', f'{DOWN} is false'
     flip_lo, flip_hi = f'{FLIP} less 0.5', f'{FLIP} greater 0.5'
-    settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MM")} greater {fmt(MM_MIN)}']
+    settled = [f'{P("Res")} less {fmt(RES_SETTLE)}', f'{P("S")} greater {fmt(S_LO)}', f'{P("S")} less {fmt(S_HI)}', f'{P("MMrel")} greater 0']
     all_pos = [f'{P(r)} greater 0' for r in READINGS]
     zero = {P(r): 0 for r in READINGS + GATES + CUES + HOLDS + NEARS}; zero[HAND] = 0
     # carry: the reopen precedes any plausible return. With the mode on the wearer passes through Lost, which clears the bits: the
@@ -704,7 +778,7 @@ LAYOUT = {'Timer': [30, 180], 'Waiting': [-210, 250], 'Disabled': [30, 250], 'Re
 # Names this document reads or drives that readout.yaml declares: declared here as scratch so readout.yaml alone
 # emits them into a params asset. The four hold readings are receiver-written inputs of the readout's Near trees; this
 # document only reads the two differentials, and zeroes all six at Disabled.
-GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'HandDiff', 'Cue'] + HOLDS + NEARS
+GLUE_READS = READINGS + GATES + CUES + ['Res', 'S', 'MM', 'MMrel', 'HandDiff', 'Cue'] + HOLDS + NEARS
 def glue_params(): return {P(n): {'type': 'float', 'scratch': True} for n in GLUE_READS}
 # Refusal: the FullController merges the two documents first-wins per list, glue first, so a name both declare with
 # different type, default or vrc flags silently takes the glue's (a glue-side Palm/One would read 0 and blank every
@@ -727,7 +801,7 @@ def emit_glue(cfg=CONFIG):
          '# hand, the confirm dwell that decides the sign once, and four carry states riding an authored grip node, each with a recheck that flips the sign',
          '# after the cue has read against it for a dwell. Reads GripReadout_Fx\'s AAPs through',
          '# the shared FullController.',
-         f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever proxy MM > {MM_MIN:g} m^2, cue |Cue| > {CUE_M};',
+         f'# thresholds: latch |HandDiff| > {GATE_M}; engage: Res settle {RES_SETTLE} m, S band [{S_LO}, {S_HI}] m, lever floor MMrel = MM - (LEVER_FLOOR_FRAC*S)^2 > 0, cue |Cue| > {CUE_M};',
          f'# arrive dwell {ARRIVE_DWELL:.4g} s, fill {SETTLE_FILL:.4g} s ({round(SETTLE_FILL / FRAME)} frames at 60 fps), confirm dwell {CONFIRM_DWELL} s, recheck dwell {RECHECK_DWELL} s, settle timeout {SETTLE_TIMEOUT} s, disabled / reacquire dwell {DISABLED_DWELL} s, acquisition cube half-width {F * ACQ_SCALE:g} m (= gate radius).',
          f'# bidirectional grip ({BIDIR}, off by default): four authored grip nodes, two per hand, and the grab takes the hold the prop\'s feature is nearer to at the read (feature direction {FEATURE_DIR} in the prop frame, {MARK_H} m out; hold radius {HOLD_R} m, margin |Near| > {HOLD_M}, an equivalent dead band of {dead_fraction(180.0) * 100:.0f}% of grab attitudes for an antipodal pair); read dwell {READ_DWELL:.4g} s, flip dwell {FLIP_DWELL:.4g} s; the wearer decides, two synced bits carry it, a remote holds its pre-grab attitude until they land.',
          'schema: 1', f'controller: {cfg["glueName"]}', 'basis: mount-root', 'role: fx', '',
@@ -883,7 +957,7 @@ def check():
             a('position: {x: 0, y: 0, z: 0}' in b, f'receiver {node} zero shape offset')
             tb = tf_doc(node)
             a(near(vec3(tb, 'm_LocalPosition'), (0, 0, 0)), f'{node} host local position zero (the readout AAPs own the proxies; the gate is the tip)')
-            a(near(vec3(tb, 'm_LocalScale'), (1, 1, 1)), f'{node} host local scale 1, never animated')
+            a(near(vec3(tb, 'm_LocalScale'), (1, 1, 1)), f'{node} host local scale 1' + (', serialized: the readout\'s CueScale tree owns it in play (config, CueScale), so the serialized value is the survey-scale radius' if node in CUES else ', never animated'))
             want_parent = {'CueP': 'ProxyA', 'CueN': 'ProxyB'}.get(node, 'Cage')
             a(ancestors(go_of[i])[:1] == [want_parent], f'{node} hosted on {want_parent}')
     # Box hosts: serialized at the working rotation (the clips animate identity between grabs) and the acquisition scale.
@@ -891,6 +965,13 @@ def check():
         tb = tf_doc(r)
         a(near(quat(tb, 'm_LocalRotation'), unity_euler_quat(HOST_EULER[r]), 1e-5) or near(quat(tb, 'm_LocalRotation'), tuple(-c for c in unity_euler_quat(HOST_EULER[r])), 1e-5), f'{r} host localRotation == HOST_EULER (local +Z along its tetrahedral direction)')
         a(near(vec3(tb, 'm_LocalScale'), (ACQ_SCALE,) * 3), f'{r} host serialized at the acquisition scale {ACQ_SCALE:g}')
+    # A cue's radius in play is CUE_R x lossyScale(parent) x CueScale -- CueScale is written onto the cue host's OWN scale,
+    # so what must stay unit is the host's ANCESTRY, not the host. Every node from the world-pinned Cage down to a cue host's
+    # parent is in that chain; nothing above Cage is, because Cage's scale constraint pins Cage's world scale and a scale on
+    # FreezeRotation or anything further up is divided back out there. A scale on one of these is invisible in a committed
+    # prefab and breaks nothing else.
+    for node, cue in [('Cage', 'CueP and CueN'), ('Mid', 'CueP and CueN'), ('ProxyA', 'CueP'), ('ProxyB', 'CueN')]:
+        a(near(vec3(tf_doc(node), 'm_LocalScale'), (1, 1, 1)), f'{node} local scale 1 ({cue}: the cue radius in play is CUE_R x lossyScale(parent) x CueScale, and only CueScale may move it)')
     # Every VRC constraint's source list is sixteen keyable slots behind a totalLength. The editor solves the filled slots; the client
     # solves totalLength of them, so a slot filled past the length is a source that works in play mode and is a no-op in-game
     # (measured: a fourth source the left carry weighted moved nothing in the client until the length was 4).

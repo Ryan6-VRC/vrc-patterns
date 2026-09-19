@@ -177,7 +177,7 @@ def compare(unity_csv, twin_csv, valid_from=None):
 def truth(rows, settle=12):
     """Mid and MM against the CSV's true capsule centre (cx,cy,cz) and axis (ux,uy,uz), tip at the cage origin.
     MM is the lever proxy: |Mid|^2 stands in for the squared perpendicular distance from the origin to the axis line, exact
-    when the tip has no along-axis offset; the refuse is MM > G.MM_MIN once the pipeline has filled (skips the first
+    when the tip has no along-axis offset; the refuse is the scale-free floor MM > (G.LEVER_FLOOR_FRAC * S)^2 once the pipeline has filled (skips the first
     `settle` frames of each segment). Reports the proxy's error against the true lever and the refuse's agreement."""
     tw = Twin(); seg = None; since = 0; mid_err = []; mm_err = []; ref_ok = 0; ref_n = 0; lev_true = []
     for r in rows:
@@ -191,7 +191,8 @@ def truth(rows, settle=12):
         mid_err.append(math.sqrt(sum((a - b) ** 2 for a, b in zip(m, c))))
         cu = dot(c, u) / math.sqrt(dot(u, u)); lev = math.sqrt(max(0.0, dot(c, c) - cu * cu)); lev_true.append(lev)
         mm_err.append(abs(math.sqrt(max(0.0, vis[G.P('MM')])) - lev))
-        want = lev * lev > G.MM_MIN; got = vis[G.P('MM')] > G.MM_MIN
+        floor = (G.LEVER_FLOOR_FRAC * vis[G.P('S')]) ** 2
+        want = lev * lev > floor; got = vis[G.P('MM')] > floor
         ref_n += 1; ref_ok += (want == got)
     mid_err.sort(); mm_err.sort()
     return dict(frames=ref_n, mid_err_med=mid_err[len(mid_err) // 2], mid_err_max=mid_err[-1], mm_lever_err_med=mm_err[len(mm_err) // 2],

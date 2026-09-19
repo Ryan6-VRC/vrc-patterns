@@ -54,6 +54,7 @@ parameters:
   Palm/Res: { type: float, scratch: true }
   Palm/S: { type: float, scratch: true }
   Palm/MM: { type: float, scratch: true }
+  Palm/MMrel: { type: float, scratch: true }
   Palm/HandDiff: { type: float, scratch: true }
   Palm/Cue: { type: float, scratch: true }
   Palm/HoldR: { type: float, scratch: true }
@@ -181,16 +182,16 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T3m less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
-          - { to: Grip ReadP,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true ] }
-          - { to: Grip ReadN,     when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true ] }
-          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue greater 0.05 ] }
-          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue less -0.05 ] }
-          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue greater 0.05 ] }
-          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Cue less -0.05 ] }
-          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
-          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
-          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.012, Palm/S less 0.045, Palm/MM greater 0.0001, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
+          - { to: Grip ReadP,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05, IsLocal is true, GripSync/Bidir is true ] }
+          - { to: Grip ReadN,     when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05, IsLocal is true, GripSync/Bidir is true ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: Grip Hold,      when: [ IsLocal is false, Palm/Decided is false, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: Grip FlipP,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue greater 0.05 ] }
+          - { to: Grip FlipN,     when: [ IsLocal is false, Palm/Decided is true, Palm/Down is true, Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmRP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmRN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 1, Palm/Cue less -0.05 ] }
+          - { to: Grip ConfirmLP, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue greater 0.05 ] }
+          - { to: Grip ConfirmLN, when: [ Palm/Res less 0.002, Palm/S greater 0.006, Palm/S less 0.095, Palm/MMrel greater 0, Palm/Hand equals 2, Palm/Cue less -0.05 ] }
           - { to: Grip Reacquire, when: [ ], exitTime: 1.0 }
       Grip ReadP:
         motion: { clip: grip_readP }
@@ -207,9 +208,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip FlipP,     when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: Grip FlipP,     when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -230,9 +231,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip FlipN,     when: [ Palm/Hand equals 1, Palm/NearR greater 0.196 ], exitTime: 1.0 }
           - { to: Grip FlipN,     when: [ Palm/Hand equals 2, Palm/NearL greater 0.196 ], exitTime: 1.0 }
@@ -255,9 +256,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip ConfirmRP, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: Grip ConfirmLP, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -278,9 +279,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip ConfirmRN, when: [ Palm/Hand equals 1 ], exitTime: 1.0 }
           - { to: Grip ConfirmLN, when: [ Palm/Hand equals 2 ], exitTime: 1.0 }
@@ -300,9 +301,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Decided is true ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
       Grip ConfirmRP:
         motion:
           tree: 1d
@@ -323,9 +324,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryRP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmRN:
@@ -348,9 +349,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryRN,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLP:
@@ -373,9 +374,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue less 0.035 ] }
           - { to: Grip CarryLP,   when: [ ], exitTime: 1.0 }
       Grip ConfirmLN:
@@ -398,9 +399,9 @@ layers:
           - { to: Grip Reacquire, when: [ Palm/T4p less 0.00001 ] }
           - { to: Grip Reacquire, when: [ Palm/T4m less 0.00001 ] }
           - { to: Grip Settled,   when: [ Palm/Res greater 0.0028571429 ] }
-          - { to: Grip Settled,   when: [ Palm/S less 0.0084 ] }
-          - { to: Grip Settled,   when: [ Palm/S greater 0.064285714 ] }
-          - { to: Grip Settled,   when: [ Palm/MM less 7e-05 ] }
+          - { to: Grip Settled,   when: [ Palm/S less 0.0042 ] }
+          - { to: Grip Settled,   when: [ Palm/S greater 0.13571429 ] }
+          - { to: Grip Settled,   when: [ Palm/MMrel less 0.0 ] }
           - { to: Grip Settled,   when: [ Palm/Cue greater -0.035 ] }
           - { to: Grip CarryLN,   when: [ ], exitTime: 1.0 }
       Grip CarryRP:
@@ -761,72 +762,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -874,72 +875,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -986,72 +987,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -1100,72 +1101,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -1213,72 +1214,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -1364,30 +1365,30 @@ clips:
       "Prop/Container/VRCRotationConstraint.Sources.source1.Weight": 0
       "Prop/Container/Display/GameObject.m_IsActive": 1
     curves:
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.08], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": { tangents: stepped, keys: [ [0, 0.2], [0.016666668, 1] ] }
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": { tangents: stepped, keys: [ [0, 0.0], [0.016666668, 324.7356] ] }
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": { tangents: stepped, keys: [ [0, 0.0], [0.016666668, 45.0] ] }
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": { tangents: stepped, keys: [ [0, 0.0], [0.016666668, 0.0] ] }
@@ -3811,65 +3812,65 @@ clips:
       "Prop/AbsoluteGripProp/Container/Damped/VRCPositionConstraint.Sources.source5.Weight": 0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -3926,72 +3927,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4038,72 +4039,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4152,72 +4153,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4266,72 +4267,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4378,72 +4379,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4491,72 +4492,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4605,72 +4606,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
@@ -4718,72 +4719,72 @@ clips:
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T1m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T2m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T3m/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4p/Transform.localEulerAnglesRaw.z": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/GameObject.m_IsActive": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowSelf": 1
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/VRCContactReceiver.allowOthers": 1
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.08
-      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.08
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.x": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.y": 0.2
+      "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.m_LocalScale.z": 0.2
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.x": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.y": 0.0
       "Prop/AbsoluteGripProp/GrabPosition/GrabBone/GrabBone_End/FreezeRotation/Cage/T4m/Transform.localEulerAnglesRaw.z": 0.0
