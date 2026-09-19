@@ -132,7 +132,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5 ] }   # the gate's pulse: a step before the readings
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot2/Latching less 0.5, CR/Slot3/Latching less 0.5 ] }   # the gate's pulse: a hand that arrives mid-sweep (a growing face raises none — README §How it works)
           - { to: Latch, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot1/Y+ greater 0 ] }
@@ -412,7 +412,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5 ] }   # the gate's pulse: a step before the readings
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot3/Latching less 0.5 ] }   # the gate's pulse: a hand that arrives mid-sweep (a growing face raises none — README §How it works)
           - { to: Latch, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot2/Y+ greater 0 ] }
@@ -692,7 +692,7 @@ layers:
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5 ] }   # the gate's pulse: a step before the readings
+          - { to: Latch, when: [ CR/Enter greater 0.5, CR/Slot1/Latching less 0.5, CR/Slot2/Latching less 0.5 ] }   # the gate's pulse: a hand that arrives mid-sweep (a growing face raises none — README §How it works)
           - { to: Latch, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/X+ greater 0 ] }
           - { to: Partial, when: [ CR/Slot3/Y+ greater 0 ] }
@@ -944,6 +944,7 @@ layers:
             - { clip: sw_hold_sweep, directWeight: CR/Sweep }
             - { clip: sw_latch_base, directWeight: CR/Sweep }
             - { clip: sw_hold_silent, directWeight: CR/Silent }
+            - { clip: gate_collapsed, directWeight: CR/One }
             - { clip: gate_front, directWeight: CR/Sweep }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }
@@ -962,6 +963,7 @@ layers:
             - { clip: sw_hold_sweep, directWeight: CR/SweepBase }
             - { clip: sw_hold_base, directWeight: CR/SweepBase }
             - { clip: sw_hold_silent, directWeight: CR/Silent }
+            - { clip: gate_collapsed, directWeight: CR/One }
             - { clip: gate_front, directWeight: CR/Sweep }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }
@@ -1129,6 +1131,7 @@ clips:
   sw_paused: { set: { CR/Sweeping: 1, CR/Silent: 1, CR/Sweep: 0, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 0, Cage/Size/Gate/Transform.m_LocalScale.x: 0.001, Cage/Size/Gate/Transform.m_LocalScale.y: 0.001, Cage/Size/Gate/Transform.m_LocalScale.z: 0.001 } }   # a distance-hide: silent, front at 0, gate collapsed
   sw_idle: { set: { CR/Sweeping: 0, CR/Silent: 0, CR/Sweep: 1.1, CR/SweepBase: 0, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 1, Cage/Size/Gate/Transform.m_LocalScale.x: 2.2, Cage/Size/Gate/Transform.m_LocalScale.y: 2.2, Cage/Size/Gate/Transform.m_LocalScale.z: 2.2 } }   # no sweep: the front parked at the face, the gate at the acquisition cube
   gate_front: { set: { Cage/Size/Gate/Transform.m_LocalScale.x: 2, Cage/Size/Gate/Transform.m_LocalScale.y: 2, Cage/Size/Gate/Transform.m_LocalScale.z: 2 } }   # × Sweep: the gate riding the front (the acquisition cube once the sweep is over)
+  gate_collapsed: { set: { Cage/Size/Gate/Transform.m_LocalScale.x: 0.001, Cage/Size/Gate/Transform.m_LocalScale.y: 0.001, Cage/Size/Gate/Transform.m_LocalScale.z: 0.001 } }   # × One: the gate's weight-1 partner, so the pair sums past 1 and nothing blends toward the rest scale
   sw_sweeping: { set: { CR/Sweeping: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.y: 1, Cage/Size/Boundary/Sphere/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Sphere/MeshRenderer.m_Enabled: 1 } }   # the constant part of Wait
   sw_hold_sweep: { set: { CR/Sweep: 1 } }   # × Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)
   sw_latch_base: { set: { CR/SweepBase: 1 } }   # × Sweep: SweepBase ← Sweep

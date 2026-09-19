@@ -373,7 +373,7 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
-    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # the gate's pulse: a step before the readings")
+    o(f"          - {{ to: Latch, when: [ {pulse} ] }}   # the gate's pulse: a hand that arrives mid-sweep (a growing face raises none — README §How it works)")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
@@ -504,7 +504,10 @@ def emit_sweep_layer(o, c, ks):
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
     o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, Silent holds")
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent"), ("gate_front", f"{P}/Sweep")])
+    # gate_collapsed × One beside gate_front × Sweep, the slot boxes' own pair (sweep_cfg + front_scale): a transform curve
+    # whose Direct-tree weights sum below 1 blends toward the node's REST scale (measured — the gate sat at the full
+    # acquisition cube through a whole sweep with only the × Sweep child), and Sweep is below 1 for most of a sweep.
+    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent"), ("gate_collapsed", f"{P}/One"), ("gate_front", f"{P}/Sweep")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -512,7 +515,7 @@ def emit_sweep_layer(o, c, ks):
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
-    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_silent", f"{P}/Silent"), ("gate_front", f"{P}/Sweep")])   # the gate reads last frame's Sweep: one frame behind the front, like a slot's own Sweep state
+    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_silent", f"{P}/Silent"), ("gate_collapsed", f"{P}/One"), ("gate_front", f"{P}/Sweep")])   # the gate reads last frame's Sweep: one frame behind the front, like a slot's own Sweep state
     o("        transitions:")
     o(paused)
     o(off)
@@ -560,6 +563,8 @@ def emit_sweep_clips(o, c):
     clip("sw_idle", full(0, 0, acq, 0, 1, acq * per_m), None, "no sweep: the front parked at the face, the gate at the acquisition cube")
     clip("gate_front", {f"{GATE}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
          None, "× Sweep: the gate riding the front (the acquisition cube once the sweep is over)")
+    clip("gate_collapsed", {f"{GATE}/Transform.m_LocalScale.{ax}": fmt(collapsed) for ax in ("x", "y", "z")},
+         None, "× One: the gate's weight-1 partner, so the pair sums past 1 and nothing blends toward the rest scale")
     sweeping = {f"{P}/Sweeping": 1}
     sweeping.update(boundary_bindings(c, 1))
     clip("sw_sweeping", sweeping, None, "the constant part of Wait")
