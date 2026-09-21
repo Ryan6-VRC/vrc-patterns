@@ -341,9 +341,6 @@ def out_path(k):
     return f"Cage/Size/Slot{k}/Output"
 
 
-GATE = "Cage/Size/Gate"
-
-
 def emit_clip(o, name, sets, seconds=None, comment=None):
     body = ", ".join(f"{k2}: {v}" for k2, v in sets.items())
     sec = f"seconds: {fmt(seconds)}, " if seconds else ""
@@ -629,10 +626,7 @@ def emit_sweep_layer(o, c, ks):
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
     o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, Silent holds")
-    # gate_collapsed × One beside gate_front × Sweep, the slot boxes' own pair (sweep_cfg + front_scale): a transform curve
-    # whose Direct-tree weights sum below 1 blends toward the node's REST scale (measured — the gate sat at the full
-    # acquisition cube through a whole sweep with only the × Sweep child), and Sweep is below 1 for most of a sweep.
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent"), ("gate_collapsed", f"{P}/One"), ("gate_front", f"{P}/Sweep")])
+    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -640,7 +634,7 @@ def emit_sweep_layer(o, c, ks):
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
-    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent"), ("gate_collapsed", f"{P}/One"), ("gate_front", f"{P}/Sweep")])   # the gate reads last frame's Sweep: one frame behind the front, like a slot's own Sweep state
+    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -680,31 +674,20 @@ def emit_sweep_clips(o, c):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    per_m = 2 / c["boxSize"]
-    collapsed = 0.001
-
-    def full(sweeping, silent, sweep, base, shown, gate_scale):
+    def full(sweeping, silent, sweep, base, shown):
         # SweepPrev = Sweep in every plain-clip state: each of them parks the front, so last frame's front is this
         # frame's. Only the two tree states, where the front moves, need the one-frame lag a × Sweep child gives.
         d = {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep),
              f"{P}/SweepBase": fmt(base), f"{P}/SweepPrev": fmt(sweep)}
         d.update(boundary_bindings(c, shown))
-        # The gate's scale in the plain-clip states: collapsed through every stow (the scale collapse is the measured
-        # re-arm primitive; a GameObject bounce is unmeasured for OnEnter), the acquisition cube when idle.
-        for ax in ("x", "y", "z"):
-            d[f"{GATE}/Transform.m_LocalScale.{ax}"] = fmt(gate_scale)
         return d
 
     o("  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).")
     o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.")
-    clip("sw_boot", full(1, 1, 0, 0, 0, collapsed), None, "a fresh animator: silent, front at 0, gate collapsed")
-    clip("sw_off", full(1, 0, 0, 0, 0, collapsed), None, "the toggle off: loud, front at 0, gate collapsed")
-    clip("sw_paused", full(1, 1, 0, 0, 0, collapsed), None, "a distance-hide: silent, front at 0, gate collapsed")
-    clip("sw_idle", full(0, 0, acq, 0, 1, acq * per_m), None, "no sweep: the front parked at the face, the gate at the acquisition cube")
-    clip("gate_front", {f"{GATE}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
-         None, "× Sweep: the gate riding the front (the acquisition cube once the sweep is over)")
-    clip("gate_collapsed", {f"{GATE}/Transform.m_LocalScale.{ax}": fmt(collapsed) for ax in ("x", "y", "z")},
-         None, "× One: the gate's weight-1 partner, so the pair sums past 1 and nothing blends toward the rest scale")
+    clip("sw_boot", full(1, 1, 0, 0, 0), None, "a fresh animator: silent, front at 0")
+    clip("sw_off", full(1, 0, 0, 0, 0), None, "the toggle off: loud, front at 0")
+    clip("sw_paused", full(1, 1, 0, 0, 0), None, "a distance-hide: silent, front at 0")
+    clip("sw_idle", full(0, 0, acq, 0, 1), None, "no sweep: the front parked at the face")
     sweeping = {f"{P}/Sweeping": 1}
     sweeping.update(boundary_bindings(c, 1))
     clip("sw_sweeping", sweeping, None, "the constant part of Wait")
@@ -735,8 +718,7 @@ def emit_dedup_layer(o, c, ks):
     o("    # manufacture exactly the false rising edge this layer exists to make impossible. It needs no park in any case:")
     o("    # a non-normalized Direct tree writes every binding it carries every frame, so nothing here can revert.")
     o("    # Two jobs. HitPrev: last frame's Hit per slot, which with Hit is the admission edge — one animator frame wide")
-    o("    # at any frame rate, where the gate's pulse it replaces was one collision step and so two or three frames above")
-    o("    # 60 fps. D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> for every pair and every axis, built from the RAW [0, 1]")
+    o("    # at any frame rate. D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> for every pair and every axis, built from the RAW [0, 1]")
     o("    # receiver floats rather than the signed readout AAPs because a negative Direct weight clamps to 0; the signs")
     o("    # live in the clips, where they are free. Every parameter here defaults to 0, so the below-weight-1 rest fill")
     o("    # contributes nothing and both reads are exact at any weight sum.")
@@ -934,8 +916,7 @@ def document(overrides=None):
     L = []
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
-    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each plus a coincident Constant box `Hit`,")
-    o("# and one shared OnEnter gate nothing reads any more.")
+    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each plus a coincident Constant box `Hit`.")
     o("# The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame and the sphere is invariant.")
     if c["mode"] == "dwell":
         o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
@@ -972,8 +953,6 @@ def document(overrides=None):
     o(f"  {P}/Sweep: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepBase: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepPrev: {{ type: float, aap: true, scratch: true }}")
-    o(f"  {P}/Enter: float   # the shared OnEnter gate. NOTHING READS IT: the per-slot Hit edge replaced it as the latch source.")
-    o("  # It stays declared so the gate keeps being prefixed at build and a watchdog can be added without a prefab pass.")
     for k in ks:
         me = slot_name(c, k)
         o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the six protocol flags.")
@@ -1015,7 +994,7 @@ def document(overrides=None):
     emit_sweep_clips(o, c)
     emit_dedup_clips(o, c, ks)
     facts = {"K": K, "mode": c["mode"], "fourBox": c["fourBox"],
-             "receivers": (len(axes(c)) + 1) * K + 1, "syncedBits": 1,
+             "receivers": (len(axes(c)) + 1) * K, "syncedBits": 1,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
 
@@ -1076,10 +1055,12 @@ def check_receivers(assert_, c, docs, label):
     ok = True
     # Only the pattern's own receivers, told by parameter: a copy may carry receivers of its own elsewhere.
     pre = re.escape(c["prefix"])
-    allrecv = [d for d in docs if "collisionTags:" in d and "receiverType:" in d
-               and re.search(rf"^  parameter: {pre}/(Slot\d+/\S+|Enter)$", d, re.M)]
-    gate = [d for d in allrecv if re.search(rf"^  parameter: {pre}/Enter$", d, re.M)]
-    slots = [d for d in allrecv if d not in gate]
+    slots = [d for d in docs if "collisionTags:" in d and "receiverType:" in d
+             and re.search(rf"^  parameter: {pre}/Slot\d+/\S+$", d, re.M)]
+    # A copy brought forward from before the shared OnEnter gate was removed still carries its receiver: one more
+    # coincident receiver against the cluster bug, on a parameter nothing declares, so the build leaves it unprefixed.
+    ok = assert_(not any(re.search(rf"^  parameter: {pre}/Enter$", d, re.M) for d in docs),
+                 f"no receiver on {c['prefix']}/Enter: the shared OnEnter gate was removed; delete the Gate node from this copy") and ok
     # `Hit` is told apart by its parameter suffix before the axis loop below reaches it: it is Constant, not
     # face proximity, so three of that loop's asserts would name the wrong want and a fourth (the rotation)
     # would look up an axis that does not exist.
@@ -1090,29 +1071,6 @@ def check_receivers(assert_, c, docs, label):
     ok = assert_(len(slots) == (len(ax4) + 1) * c["K"],
                  f"{label}: {len(slots)} slot receivers == {len(ax4) + 1}K ({len(ax4)} face-proximity boxes plus Hit, per slot)"
                  + addx + addhit) and ok
-    # The shared OnEnter gate: one receiver, always open, coincident and congruent with an Open slot's cube.
-    # Nothing reads its parameter — the per-slot Hit edge replaced it as the latch source — so this is not an
-    # assert on live behaviour. It holds the node to the shape README §Rig documents and to the shape the
-    # deferred loss watchdog will read, so the node cannot rot into something unusable in between. minVelocity 0
-    # for the same reason: a nonzero one would silently drop the slow poke once something reads it again.
-    if assert_(len(gate) == 1, f"{label}: exactly one gate receiver (parameter {c['prefix']}/Enter, OnEnter) — got {len(gate)}"):
-        d = gate[0]
-        tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
-        ok = assert_(tags == c["tags"], f"gate tags {tags} == {c['tags']}") and ok
-        for fld, want in (("allowSelf", "0"), ("allowOthers", "1"), ("localOnly", "0"), ("receiverType", "1"),
-                          ("shapeType", "2"), ("minVelocity", "0")):
-            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
-            ok = assert_(m is not None and m.group(1) == want, f"gate {fld} == {want}") and ok
-        m = re.search(r"^  size: \{x: (\S+), y: (\S+), z: (\S+)\}$", d, re.M)
-        ok = assert_(m is not None and all(float(v) == c["boxSize"] for v in m.groups()), f"gate size == boxSize {c['boxSize']}") and ok
-        ok = assert_(re.search(rf"^  parameter: {re.escape(c['prefix'])}/Enter$", d, re.M) is not None, f"gate parameter == {c['prefix']}/Enter") and ok
-        ok = assert_(re.search(r"^  position: \{x: 0, y: 0, z: 0\}$", d, re.M) is not None, "gate shape offset is zero (the shape sits on its transform)") and ok
-        ok = assert_(re.search(r"^  rotation: \{x: 0, y: 0, z: 0, w: 1\}$", d, re.M) is not None, "gate shape rotation is identity (the transform carries the tilt)") and ok
-        rot = transform_rotation(docs, d)
-        ok = assert_(same_rotation(rot, TILT), f"gate rotation {rot} == the tilt") and ok
-    else:
-        ok = False
-
     def coincident(d, param, what):
         """The two facts dedup rests on past the size and the node scale: the shape sits ON its transform
         (a nonzero offset moves one box off its siblings while every field still reads right), and the node
@@ -1204,8 +1162,8 @@ def resolve_variant(base_docs, variant_docs, removed_ids):
 def check_rig(assert_, c, here, docs, particles=True):
     """The hierarchy facts the clip paths and the size knob rest on: every Slot sits under
     `Cage/Size`, shipped at uniform scale 1 (the consumer's knob, README §Knobs), carrying the
-    tilt with its `Output` counter-rotated (a consumer's world-aligned offsets hang there); one
-    `Gate` under `Size`; each slot's `Burst` is inside the toggled `Payload` and its `Emit` is
+    tilt with its `Output` counter-rotated (a consumer's world-aligned offsets hang there); each
+    slot's `Burst` is inside the toggled `Payload` and its `Emit` is
     outside it, directly under `Output` — an `Emit` inside the wrapper would be disabled mid-burst
     and truncate it. `here` None (the consumer door) skips the Boundary asserts: the preview is the
     entry's opt-in and a copy may have dropped it."""
@@ -1241,6 +1199,8 @@ def check_rig(assert_, c, here, docs, particles=True):
     # That is what makes two slots' coincident boxes read one sender bit-identically, which is the whole of
     # the dedup rule — a slot nudged a centimetre or scaled 1.001 still tracks, still bursts, and quietly
     # stops recognising the duplicate it was added to catch.
+    ok = assert_(not [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"],
+                 "no Gate node: the shared OnEnter gate was removed; delete it from this copy") and ok
     for t in slots:
         ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
         ok = assert_(poss.get(t) == (0.0, 0.0, 0.0),
@@ -1249,8 +1209,6 @@ def check_rig(assert_, c, here, docs, particles=True):
                      f"{gos[trs[t][0]]} carries local scale one (got {trs[t][2]}) — dedup rests on every slot's boxes being the same size, and Boxes is the only size lever") and ok
         outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
         ok = assert_(len(outs) == 1 and same_rotation(rots.get(outs[0]), TILT_INV), f"{gos[trs[t][0]]}/Output carries the inverse tilt (got {[rots.get(o) for o in outs]})") and ok
-    gate = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"]
-    ok = assert_(len(gate) == 1 and parent_name(gate[0]) == "Size", "exactly one Gate node, under Size") and ok
     # Payload is the node the controller toggles; Burst and Emit are the shipped particle mechanism, which an owned
     # copy may replace (`particles` False skips them and asserts nothing else under Payload).
     places = (("Burst", "Payload"), ("Emit", "Output"), ("Payload", "Output")) if particles else (("Payload", "Output"),)
@@ -1363,8 +1321,8 @@ def check_seam(assert_, c, here, body, toggle_body=None):
 
 
 def check_prefab(overrides, prefab_path):
-    """The consumer door: the receiver surface, the gate and the rig geometry (tilt, counter-rotated
-    Output, Gate, Payload under Output) over any prefab at any CONFIG — an owned copy in a venue
+    """The consumer door: the receiver surface and the rig geometry (tilt, counter-rotated
+    Output, Payload under Output) over any prefab at any CONFIG — an owned copy in a venue
     regenerates its document from this generator and nothing else ties its prefab to it. Not the
     entry-only asserts (the World pins, the built/ GUIDs, the Boundary mesh GUIDs, the Toggle), and
     nothing under Payload: what a copy hangs there (a box, a censor quad) is its own."""
@@ -1468,7 +1426,7 @@ def main():
         return
     if "--check" in sys.argv:
         sys.exit(0 if check_files({}, HERE, "ContactRadar.prefab") else 1)
-    if "--check-prefab" in sys.argv:   # a consumer's owned copy at this CONFIG: the receiver, gate and geometry asserts only
+    if "--check-prefab" in sys.argv:   # a consumer's owned copy at this CONFIG: the receiver and geometry asserts only
         i = sys.argv.index("--check-prefab") + 1
         if i >= len(sys.argv):
             refuse("--check-prefab needs a prefab path")
