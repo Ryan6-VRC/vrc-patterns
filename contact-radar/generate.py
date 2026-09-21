@@ -1057,6 +1057,10 @@ def check_receivers(assert_, c, docs, label):
     pre = re.escape(c["prefix"])
     slots = [d for d in docs if "collisionTags:" in d and "receiverType:" in d
              and re.search(rf"^  parameter: {pre}/Slot\d+/\S+$", d, re.M)]
+    # A copy brought forward from before the shared OnEnter gate was removed still carries its receiver: one more
+    # coincident receiver against the cluster bug, on a parameter nothing declares, so the build leaves it unprefixed.
+    ok = assert_(not any(re.search(rf"^  parameter: {pre}/Enter$", d, re.M) for d in docs),
+                 f"no receiver on {c['prefix']}/Enter: the shared OnEnter gate was removed; delete the Gate node from this copy") and ok
     # `Hit` is told apart by its parameter suffix before the axis loop below reaches it: it is Constant, not
     # face proximity, so three of that loop's asserts would name the wrong want and a fourth (the rotation)
     # would look up an axis that does not exist.
@@ -1195,6 +1199,8 @@ def check_rig(assert_, c, here, docs, particles=True):
     # That is what makes two slots' coincident boxes read one sender bit-identically, which is the whole of
     # the dedup rule — a slot nudged a centimetre or scaled 1.001 still tracks, still bursts, and quietly
     # stops recognising the duplicate it was added to catch.
+    ok = assert_(not [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"],
+                 "no Gate node: the shared OnEnter gate was removed; delete it from this copy") and ok
     for t in slots:
         ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
         ok = assert_(poss.get(t) == (0.0, 0.0, 0.0),
