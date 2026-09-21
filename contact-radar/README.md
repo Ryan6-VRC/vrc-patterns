@@ -38,14 +38,14 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **Your own hands never fire it.** The wearer is excluded by design, so nothing happens when you test alone (§Verifying the install).
 - **Do not rename anything under `Cage`.** The clip paths are the hierarchy names; a rename silently unbinds a slot.
 - **Leave `assets/World.prefab` alone.** It is a never-instantiated asset that resolves as the world origin on every client, and two constraints on `Cage` source it. Do not instantiate it, delete it, or press Activate on those constraints: their offsets must stay zero.
-- **The receivers count against your rank.** They cannot be local-only, since remote copies must sense for the tracking to reproduce, so all 4K + 1 of them count toward the SDK's contact-count statistic (`optimization.md`). At the shipped K that is past the Good gate on its own, and the 2K particle systems cap the avatar at Medium independently; raising K pushes both.
+- **The receivers count against your rank.** They cannot be local-only, since remote copies must sense for the tracking to reproduce, so all 4K of them count toward the SDK's contact-count statistic (`optimization.md`). At the shipped K that is past the Good gate on its own, and the 2K particle systems cap the avatar at Medium independently; raising K pushes both.
 - **`Cage/Size` far from 1 shifts the readout.** Everything in the rig is metres in that node's frame except the sender-radius bias, so `Output` lands up to `senderRadius × (scale − 1)` off the hand per axis. Measured in av3emu at half and double size, that offset stays inside the puff's own spread; beyond that range, turn on `fourBox` to remove the term or retune CONFIG (§Knobs).
 - **An optimizer that strips inactive objects** removes `Boundary` when you leave it off, which is intended. `Payload` is also inactive at rest with `Marker` and `Burst` inside it; a pass that strips inactive subtrees takes both.
 
 ## Performance stats
 
 ```c++
-Contact Receivers:  4K + 1   (17 at the shipped K of 4; 5K + 1 with fourBox; none local-only)
+Contact Receivers:  4K       (16 at the shipped K of 4; 5K with fourBox; none local-only)
 FX Animator Layers: K + 2    (one per slot, Sweep, Dedup)
 Constraints:        3        (depth 1)
 Particle Systems:   2K
@@ -131,7 +131,7 @@ The release here lasts the burst state's own length, which is the Direct tree's 
 
 Your own hands are excluded by design, so nothing fires when you test alone. Drive a scripted `HandR` sender (`emulator.md` §Fake another player's contact) or use two clients. Run both `--check` doors first (§Changing it); they catch the geometry and receiver faults, and nothing else below.
 
-Enable on, walk. `Cage` rides the Hips, world-aligned, at world scale 1 whatever the avatar's scale; finding it at the module's mount point means the BoneProxy never resolved. A `Marker` sits upright while its `Boxes` sit tilted; a tilted marker or upright boxes means the tilt and its inverse have come apart, the failure mode of a hand-copied rig. A menu toggle that does nothing means the enable came out of the build prefixed: `globalParams` must be exactly `[ContactRadar/Enable]`. Two instances on one avatar show as one toggle driving both. Switch Enable off and on with the sender inside: every `Boxes` collapses, then the lowest slot's cube grows from the centre and the sender takes its slot and bursts as the front reaches it. `Gate` must ride that front; a `Gate` that snaps to the acquisition cube on the enable frame has lost the constant partner beside its `× Sweep` child. With two senders inside, at each handoff the incoming slot's shut cube must be the size the outgoing cube had on its last admitting frame; larger means the front-freeze or the previous-front parameter is broken. A burst that fires with nothing visible means the `Burst` to `Emit` sub-emitter link was dropped by a re-edit; it is a non-child reference Unity's inspector will not author, and nothing checks it.
+Enable on, walk. `Cage` rides the Hips, world-aligned, at world scale 1 whatever the avatar's scale; finding it at the module's mount point means the BoneProxy never resolved. A `Marker` sits upright while its `Boxes` sit tilted; a tilted marker or upright boxes means the tilt and its inverse have come apart, the failure mode of a hand-copied rig. A menu toggle that does nothing means the enable came out of the build prefixed: `globalParams` must be exactly `[ContactRadar/Enable]`. Two instances on one avatar show as one toggle driving both. Switch Enable off and on with the sender inside: every `Boxes` collapses, then the lowest slot's cube grows from the centre and the sender takes its slot and bursts as the front reaches it. With two senders inside, at each handoff the incoming slot's shut cube must be the size the outgoing cube had on its last admitting frame; larger means the front-freeze or the previous-front parameter is broken. A burst that fires with nothing visible means the `Burst` to `Emit` sub-emitter link was dropped by a re-edit; it is a non-child reference Unity's inspector will not author, and nothing checks it.
 
 Two behaviours only these recipes exercise. Dedup: pull the sender out past the acquisition face but not past the hold face, then push it back in. Exactly one slot still holds it; a second slot admits it and releases itself within a frame or two, with no second burst. The distance-hide path: set the local runtime's `IsAnimatorEnabled` false, disable its Animator a few frames later, move the senders, then re-enable both. Every `Boxes` reads collapsed from the frame after the flag, and the resume re-acquires the senders now present, silently.
 
@@ -154,8 +154,5 @@ Two behaviours only these recipes exercise. Dedup: pull the sender out past the 
     │     │        ├─ Burst      buffer particle, no renderer; born where Output sits on the enable frame;
     │     │        │             its GameObject is held off during a silent acquisition
     │     │        └─ Marker     placeholder cube: swap this; removed in the entry variant
-    │     ├─ Gate                an OnEnter box carrying the tilt, its scale driven with the front by the Sweep layer;
-    │     │                      its parameter is declared and read by nothing. Keep both: an undeclared receiver
-    │     │                      parameter is not instance-prefixed at build. Its contentTypes is wider than the slots'
     │     └─ Boundary            inactive: your opt-in to draw the zone
     │        └─ Sphere           unit sphere (assets/UnitSphere.obj), single-sided, no UVs; scaled and enabled by the controller

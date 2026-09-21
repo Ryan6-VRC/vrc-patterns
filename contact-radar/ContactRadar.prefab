@@ -19816,7 +19816,6 @@ Transform:
   - {fileID: 7747561881440277695}
   - {fileID: 6948711656585379616}
   - {fileID: 8420313745487749723}
-  - {fileID: 6559413337967057131}
   - {fileID: 3611248557505225711}
   m_Father: {fileID: 2364764329806053600}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -24840,67 +24839,6 @@ MonoBehaviour:
   subPath: 
   attachmentMode: 1
   matchScale: 0
---- !u!1 &2929948791771768427
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6559413337967057131}
-  - component: {fileID: 1878183012523925288}
-  m_Layer: 0
-  m_Name: Gate
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &6559413337967057131
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2929948791771768427}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0.32505763, y: 0, z: 0.32505763, w: 0.88807386}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2.4, y: 2.4, z: 2.4}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2012546812685515808}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1878183012523925288
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2929948791771768427}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: -1450912254, guid: 80f1b8067b0760e4bb45023bc2e9de66, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  rootTransform: {fileID: 0}
-  shapeType: 2
-  radius: 0.5
-  height: 2
-  size: {x: 1, y: 1, z: 1}
-  position: {x: 0, y: 0, z: 0}
-  rotation: {x: 0, y: 0, z: 0, w: 1}
-  localOnly: 0
-  contentTypes: -1
-  collisionTags:
-  - HandR
-  allowSelf: 0
-  allowOthers: 1
-  useFaceProximity: 0
-  receiverType: 1
-  parameter: CR/Enter
-  minVelocity: 0
 --- !u!1 &3219786922150301185
 GameObject:
   m_ObjectHideFlags: 0
