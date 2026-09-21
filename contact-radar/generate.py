@@ -5,7 +5,7 @@ Edit CONFIG, rerun (`python generate.py`), recompile built/ in a mounting Editor
 the controller.yaml committed here is generated output and the repo gate holds
 built/ to it, so hand-editing it desynchronises the document from both this
 generator and the compiled controller. `--check` asserts the hand-maintained
-prefab surface no compile or gate reads (README §Verifying).
+prefab surface no compile or gate reads (README §Changing it).
 
 What it builds: K per-sender "slots", one FX layer each. A slot is three
 coincident face-proximity box receivers (X+, Y+, Z+ — four under `fourBox`,
@@ -29,7 +29,7 @@ standing on a stale Hit level (below); when neither fires, the self-open rung
 recovers within one stepSeconds, the common path's floor and not a corner case.
 The slots sit tilted, the cube's diagonal vertical, so a standing player's
 stacked senders meet a face at staggered depths instead of one vertical plane
-in one step (README §Ground truth); the readout lives in that frame and the
+in one step (README §How it works); the readout lives in that frame and the
 sphere is invariant under it. The latched
 slot then reconstructs its hand's position exactly (box-tracker's readout,
 three boxes and a configured sender radius — four boxes and a measured one
@@ -207,7 +207,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = {
     "controller": "ContactRadar_Fx",
     "mode": "dwell",            # dwell | entry
-    "K": 4,                     # slots; each is one layer and 3 receivers
+    "K": 4,                     # slots; each is one layer and four receivers (five under fourBox)
     "tags": ["HandR"],
     "acqHalf": 1.2,             # acquisition cube half-extent, m (entry mode's re-arm surface); at Cage/Size scale 1
     "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
