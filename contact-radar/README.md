@@ -1,6 +1,6 @@
 # contact-radar (Module)
 
-A burst zone: a particle burst on any other player's hand that enters a sphere around you, each hand getting its own burst, sensed on every client so it lands where that client draws the hand.
+A per-hand tracker: latches onto each other player's hand that enters a zone around you, one slot per hand, and exposes where that hand is so you can attach anything to it. Sensing runs on every client, so an attached prop sits on the hand where that client draws it. The shipped payload is a particle burst on entry; the production consumers of this entry attach props in dwell mode.
 
 ## How it works
 
@@ -14,7 +14,7 @@ A burst zone: a particle burst on any other player's hand that enters a sphere a
 
 ## Install guide
 
-1. Pick a prefab. `ContactRadar.prefab` is **dwell** mode: a hand keeps its slot as long as it stays near you (inside the larger tracking cube), and bursts again each time it pulls back a short distance and comes in again. `entry-mode/ContactRadarEntry.prefab` is **entry** mode: the slot is released after the burst, so a hand that stays fires once and must leave and re-enter for another. Dwell for a reactive bubble, entry for a doorbell.
+1. Pick a prefab. `ContactRadar.prefab` is **dwell** mode: a hand keeps its slot as long as it stays near you (inside the larger tracking cube), so a prop hung on the slot follows the hand for as long as it is there; the shipped burst re-fires each time the hand pulls back a short distance and comes in again. `entry-mode/ContactRadarEntry.prefab` is **entry** mode: the slot is released right after the hand crosses into the sphere, so a hand that stays fires once and must leave and re-enter for another. Dwell for anything that tracks or attaches, entry for a doorbell.
 2. Drop an instance of it at the avatar root. `HomeAnchor` snaps to the Hips on its own; drag its `Offset` child to move where the zone sits. Edits belong on the instance or an owned copy, never on the package asset.
 3. Set the body SkinnedMeshRenderer's Bounds (its `localBounds`) to reach twice `acqHalf` plus an arm's length in every direction from the hips; the tilted cube's corners reach nearly that far straight up and down. VRChat pauses a copy's animator while its observer is not looking at you, and this rig gets no signal for that, so a hand that entered while an observer looked away would burst late. An observer whose camera is inside any of your renderers' bounds never pauses you; with the bounds set, every toucher keeps your animator running. A far observer looking away is the accepted residual; compose `anti-cull` to close that too.
 4. Scale `Cage/Size` if the zone should be larger or smaller. Uniform scale only, shipped at 1; it scales the zone, the readout and the hysteresis together.
@@ -25,10 +25,11 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 ## How to use
 
 - `ContactRadar/Enable` is the one parameter: synced, unsaved, on by default. Off stows the receivers and zeroes them on every client.
-- Replace `Marker` (a placeholder cube on the default material) with your mesh, or delete it. It rides the hand while the hand is inside the sphere; the entry variant already removes it.
-- Restyle `Emit`, the visible burst, which ships on Unity's default particle sprite. Never disable it; disabling it truncates a burst in flight. `Burst` is mechanism, not a swap point.
-- Activate `Boundary` to draw the zone. Its `Sphere` ships on the default material, which is invisible from inside, so give it a `Cull Off` unlit (`overlay-shaders`). The controller scales it to the burst radius and shows it only while the toggle is on.
-- Hang your own payload under a slot's `Output`; it is the reconstructed hand position and stays world-aligned. The parameters `CR/Slot<k>/x`, `y`, `z` and `r2` carry the same readout in metres.
+- Hang your prop under a slot's `Output`; it is the reconstructed hand position, in metres, and stays world-aligned. Every slot needs its own copy. The parameters `CR/Slot<k>/x`, `y`, `z` carry the same readout for a controller, `r2` its squared distance, and `x` sits at `+holdHalf` while the slot has latched but has no reading yet.
+- `Payload` under `Output` is the node the controller turns on while the hand is inside the sphere: put a mesh there and it shows while the hand is inside; a buffer particle there fires once on entry. `Marker` and `Burst` are the shipped examples of each.
+- Replace `Marker` (a placeholder cube on the default material) with your mesh, or delete it; the entry variant already removes it.
+- Restyle `Emit`, the visible burst, which ships on Unity's default particle sprite, or delete `Emit` and `Burst` together if you want no burst. Never disable `Emit` while keeping it; disabling it truncates a burst in flight.
+- Activate `Boundary` to draw the sphere. Its `Sphere` ships on the default material, which is invisible from inside, so give it a `Cull Off` unlit (`overlay-shaders`). The controller scales it to the sphere's radius and shows it only while the toggle is on.
 - To sense another sender than `HandR`, see §Changing it.
 
 ## Additional notes
@@ -37,8 +38,8 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **Your own hands never fire it.** The wearer is excluded by design, so nothing happens when you test alone (§Verifying the install).
 - **Do not rename anything under `Cage`.** The clip paths are the hierarchy names; a rename silently unbinds a slot.
 - **Leave `assets/World.prefab` alone.** It is a never-instantiated asset that resolves as the world origin on every client, and two constraints on `Cage` source it. Do not instantiate it, delete it, or press Activate on those constraints: their offsets must stay zero.
-- **The receivers count against your rank.** They cannot be local-only, since remote copies must sense for the burst to reproduce, so all 4K + 1 of them count toward the SDK's contact-count statistic (`optimization.md`). At the shipped K that is past the Good gate on its own, and the 2K particle systems cap the avatar at Medium independently; raising K pushes both.
-- **`Cage/Size` far from 1 shifts the burst origin.** Everything in the rig is metres in that node's frame except the sender-radius bias, so the burst appears up to `senderRadius × (scale − 1)` off the hand per axis. Measured in av3emu at half and double size, that offset stays inside the puff's own spread; beyond that range, turn on `fourBox` to remove the term or retune CONFIG (§Knobs).
+- **The receivers count against your rank.** They cannot be local-only, since remote copies must sense for the tracking to reproduce, so all 4K + 1 of them count toward the SDK's contact-count statistic (`optimization.md`). At the shipped K that is past the Good gate on its own, and the 2K particle systems cap the avatar at Medium independently; raising K pushes both.
+- **`Cage/Size` far from 1 shifts the readout.** Everything in the rig is metres in that node's frame except the sender-radius bias, so `Output` lands up to `senderRadius × (scale − 1)` off the hand per axis. Measured in av3emu at half and double size, that offset stays inside the puff's own spread; beyond that range, turn on `fourBox` to remove the term or retune CONFIG (§Knobs).
 - **An optimizer that strips inactive objects** removes `Boundary` when you leave it off, which is intended. `Payload` is also inactive at rest with `Marker` and `Burst` inside it; a pass that strips inactive subtrees takes both.
 
 ## Performance stats
