@@ -24,9 +24,9 @@ Latches on its OWN edge (flag shut, boxes expanded to the hold cube) and the
 next Armed slot in ring order Opens in the same animator evaluation, reading the
 latcher's stale Open and the same fresh edge, so the two land in one collision
 step and the admission windows tile. The readings rung (every axis above zero)
-stays as the fallback for an admission the Hit box missed and for a slot inside
-the deaf window below; when neither fires, the self-open rung recovers within
-one stepSeconds, which is the common path's floor and not a corner case.
+stays as the fallback for an admission the Hit box missed and for a slot
+standing on a stale Hit level (below); when neither fires, the self-open rung
+recovers within one stepSeconds, the common path's floor and not a corner case.
 The slots sit tilted, the cube's diagonal vertical, so a standing player's
 stacked senders meet a face at staggered depths instead of one vertical plane
 in one step (README §Ground truth); the readout lives in that frame and the
@@ -63,16 +63,19 @@ re-arms in the band re-enters there, so the coincidence test never re-runs for
 the life of a track, where two genuinely distinct senders could drift within
 `dedupEpsilon` of each other and collapse to one slot.
 
-The deaf window: a receiver whose GameObject is stowed writes 0, and on re-enable
-writes back the value it held at stow with nothing in its collision set. For
-`Hit` that is a 0 -> 1 rise on the first `Armed` frame after `Boot` or
-`Disabled` — where no rung reads the slot's own edge and every ring rung also
-needs `Open`, which Armed writes 0, so the false edge lands where nothing reads
-it. The cost is on the other side: while that stale 1 stands, a genuine
-admission raises no edge, the slot latches on the readings rung a step later,
-and the sweep's freeze rung below does not fire for that handoff. It clears at
-that receiver's next exit event. This is degradation to the pre-edge timing, not
-a loss, and it is why the readings rung stays.
+A stale `Hit` level, should one ever occur: a `Hit` box reading 1 with nothing
+in its collision set. The candidate is a receiver the client stows and restores
+around a hide — a stowed receiver writes 0 and on re-enable writes back the
+value it held at stow, with nothing collected. This rig gives that no opening
+of its own: nothing here stows a receiver, the flag being `allowOthers` and the
+size a scale collapse, and the emulator's Enable cycle measured no such state.
+Where one does stand, the cost is one step and never a hand: a genuine
+admission raises no edge, so the slot latches on the readings rung a step later,
+hands the ring on a step later, and the sweep's freeze rung below does not fire
+for that one handoff, which keeps the old two-frame band. It clears the first
+time that box sees a sender leave. Degradation to the pre-edge timing, not a
+loss, and it is why the readings rung stays. Release never reads `Hit`, so a
+stale level cannot recycle a slot either.
 
 `fourBox` restores box-tracker's fourth receiver, `X-`, coincident with the
 other three and rotated so its +Z face is the cage's -X face. The opposed pair
@@ -94,7 +97,7 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   between two steps can pass with none sampling it (docs/runtime.md §Contacts).
   `latchSeconds` is the one dwell sized larger, because it waits for readings
   that land a whole client step after the admission edge.
-- Every slot state writes every flag (Open, Armed, Front, Held, Inside), the
+- Every slot state writes every flag (Open, Armed, Front, Held, Inside, Shut), the
   burst toggle and the
   payload toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
@@ -176,7 +179,10 @@ What happens at enable, at load and around a pause — the expanding front:
   already moved on. A sender at that exact size was admitted by the predecessor
   and is re-rejected by the coincident shut cube, which is the Recycle idiom.
   The freeze needs the edge, so a handoff whose Hit box was missed, or whose
-  edge fell in the deaf window, still costs the old two frames of band.
+  slot stood on a stale level, still costs the old two frames of band.
+  Idle parks SweepPrev at acqHalf, so it is gated on every slot's Shut flag and
+  listed after the freeze rungs: ending the sweep on the last handoff's own
+  frame would resize the successor's shut cube out from under it.
 - The `Ramp` state is a Direct tree whose duration is data: the ramp clip
   carries the timing and every other child is one frame long, which stretches
   the ramp by at most the sum of those children's weights over 60·sweepSeconds.
@@ -369,10 +375,12 @@ def emit_layer(o, c, k, ks):
         o(off)
 
     def release():
-        """A slot holding a sender lets it go two ways: Hit drops when the last admitted sender leaves the box
-        (it is recomputed from the remaining records on every exit, so a merged pair holds it at 1), and an axis
-        falling to zero releases a slot whose Hit is a stale level no exit event has cleared yet."""
-        o(f"          - {{ to: Recycle, when: [ {me}/Hit less 0.5 ] }}")
+        """Release is the axis floor and nothing else: the slot lets its sender go when any box's reading falls
+        away. There is deliberately NO rung on Hit, though Hit looks like the cleaner signal (it is recomputed
+        from the receiver's remaining records on every exit, so it does hold at 1 through a merged pair's first
+        departure). A partial admission the Hit box missed latches on the readings rung with Hit still 0 and has
+        to keep tracking; a `Hit less 0.5` rung would recycle it on its very first tracking frame. Hit is the
+        latch's edge source and never the release."""
         for ax in ax4:
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
 
@@ -578,6 +586,13 @@ def emit_sweep_layer(o, c, ks):
     en = c["enable"]
     acq = c["acqHalf"]
     fronts_down = ", ".join(f"{slot_name(c, k)}/Front less 0.5" for k in ks)
+    # The successor's shut cube reads SweepPrev, and Idle's clip writes SweepPrev = acqHalf. So Idle may not be
+    # entered while any slot is still in SweepShut: on the last handoff of a sweep the front has already passed
+    # the face, both this layer's Idle rung and the freeze rung are eligible, and an Idle that wins clobbers
+    # SweepPrev to the full acquisition size under the cube that is reading it — the shut cube then appears at
+    # the face and re-rejects everything inside it, including senders the sweep never reached. Slot<k>/Shut is
+    # 1 only in slot<k>_sweepshut, so this holds the front parked until that step is over.
+    shut_down = ", ".join(f"{slot_name(c, k)}/Shut less 0.5" for k in ks)
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
 
@@ -603,16 +618,12 @@ def emit_sweep_layer(o, c, ks):
     o(paused)
     o(off)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Disabled:                    # the toggle is off: the next sweep is loud; Enter zeroed so a pulse on the off frame cannot sit at 1")
-    o("        behaviours:")
-    o(f"          - driver: {{ localOnly: false, set: {{ {P}/Enter: 0 }} }}")
+    o("      Disabled:                    # the toggle is off: the next sweep is loud")
     o("        motion: { clip: sw_off }")
     o("        transitions:")
     o(paused)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Paused:                      # a distance-hide: the resume sweep is silent; Enter zeroed")
-    o("        behaviours:")
-    o(f"          - driver: {{ localOnly: false, set: {{ {P}/Enter: 0 }} }}")
+    o("      Paused:                      # a distance-hide: the resume sweep is silent")
     o("        motion: { clip: sw_paused }")
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
@@ -625,7 +636,7 @@ def emit_sweep_layer(o, c, ks):
     o("        transitions:")
     o(paused)
     o(off)
-    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)} ] }}")
+    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}")
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
@@ -633,13 +644,19 @@ def emit_sweep_layer(o, c, ks):
     o("        transitions:")
     o(paused)
     o(off)
-    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)} ] }}   # the face: the sweep is over")
     for k in ks:
         # The freeze: the sweeping slot's admission edge, read the frame it latches — a frame before its Front flag
         # drops. Ramp's clip is not sampled on the frame it leaves, so the front stops at the size that admitted,
         # and the successor's shut cube (× SweepPrev) appears at exactly that size. Without it the front advances
         # one more frame and leaves a band no cube ever offered.
+        # Listed BEFORE the Idle rung, not after: on the sweep's last handoff the front has already read past the
+        # face, so both rungs are eligible in the same evaluation and first-match decides. Idle would end the sweep
+        # on the admission frame and park SweepPrev at acqHalf, so the successor's shut cube — already entered on
+        # the same evaluation — would appear at the full acquisition size instead of at the size that just
+        # admitted, re-rejecting everything the front had not yet reached. The freeze wins; Idle gets the frame
+        # after, once Shut is down.
         o(f"          - {{ to: Wait, when: [ {slot_name(c, k)}/Front greater 0.5, {slot_name(c, k)}/Hit greater 0.5, {slot_name(c, k)}/HitPrev less 0.5 ] }}   # slot {k} latched: freeze the front on the admission frame")
+    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}   # the face: the sweep is over, once no successor's shut cube is still reading SweepPrev")
     o(f"          - {{ to: Wait, when: [ {fronts_down} ] }}   # the sweeper latched a frame ago (its edge was missed) or stalled: hold the front for the next slot's shut step")
     o("      Idle:                        # no sweep: Armed slots at full size, the front parked at the face, loud")
     o("        motion: { clip: sw_idle }")
@@ -806,7 +823,7 @@ def emit_clips(o, c, k):
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, held=0, inside=0):
+    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, held=0, inside=0, shut=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in receivers(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -819,8 +836,12 @@ def emit_clips(o, c, k):
         # Held: this slot is holding a sender (every post-latch state). Inside: and that sender is inside the
         # sphere. The dedup rungs read another slot's pair, so every state must write both — a state that wrote
         # neither would leave a stale 1 standing and make a newcomer yield to a slot that has already released.
+        # Shut: 1 in slot<k>_sweepshut alone, the one step this slot's cube is being scaled off SweepPrev. The
+        # Sweep layer's Idle rungs read it across every slot and hold off while any of them is up, because Idle
+        # parks SweepPrev at acqHalf and would resize that cube out from under the step that is reading it.
         d[f"{me}/Held"] = held
         d[f"{me}/Inside"] = inside
+        d[f"{me}/Shut"] = shut
         d[payload] = payload_on
         d[buffer] = buffer_on
         return d
@@ -828,13 +849,13 @@ def emit_clips(o, c, k):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the five protocol flags, the payload toggle and the buffer toggle.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the six protocol flags, the payload toggle and the buffer toggle.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
     clip(f"slot{k}_armed", cfg(1, 0, acq, 0, 1, 0), step, "Armed 1 at full size — the ring rule reads it one frame late")
     clip(f"slot{k}_armed_collapsed", cfg(1, 0, collapsed, 0, 1, 0), step, "Armed 1 collapsed: holds no rejections while a sweep runs")
-    clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0), step, "Open 1, flag shut, base scale: the front's own re-rejection step")
+    clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0, shut=1), step, "Open 1, Shut 1, flag shut, base scale: the front's own re-rejection step")
     clip(f"slot{k}_sweep_cfg", cfg(1, 1, collapsed, 1, 0, 0, front=1), None, "Open 1, Front 1, flag up, base scale: the growing cube's constant part")
     clip(f"slot{k}_front_scale", {f"{B}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
          None, "× Sweep: the cube at the front (the face once the sweep is over)")
@@ -955,7 +976,7 @@ def document(overrides=None):
     o("  # It stays declared so the gate keeps being prefixed at build and a watchdog can be added without a prefab pass.")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the five protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the six protocol flags.")
         for ax in receivers(c):
             note = ("   # the coincident Constant box: 1 from the collision step this slot admits a sender, a step before any"
                     " Proximity value, and 1 until the last admitted sender leaves") if ax == "Hit" else ""
@@ -970,6 +991,7 @@ def document(overrides=None):
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
         o(f"  {me}/Inside: {{ type: float, aap: true, scratch: true }}   # 1 while the sender it holds is inside the burst radius")
+        o(f"  {me}/Shut: {{ type: float, aap: true, scratch: true }}   # 1 for the one step this slot's cube appears shut at SweepPrev; the Sweep layer holds Idle off while it is up")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
     o("  # sender reads 0 on every axis and a freshly latched slot recognises the duplicate. Each defaults to 0, which is")
@@ -1068,9 +1090,11 @@ def check_receivers(assert_, c, docs, label):
     ok = assert_(len(slots) == (len(ax4) + 1) * c["K"],
                  f"{label}: {len(slots)} slot receivers == {len(ax4) + 1}K ({len(ax4)} face-proximity boxes plus Hit, per slot)"
                  + addx + addhit) and ok
-    # The shared OnEnter gate: one receiver, always open, coincident and congruent with an Open slot's cube — a
-    # lead or lag between its face and the slots' moves the pulse off the admission window, so its size and
-    # rotation are held as tightly as the slots'. minVelocity 0: a nonzero one silently drops the slow poke.
+    # The shared OnEnter gate: one receiver, always open, coincident and congruent with an Open slot's cube.
+    # Nothing reads its parameter — the per-slot Hit edge replaced it as the latch source — so this is not an
+    # assert on live behaviour. It holds the node to the shape README §Rig documents and to the shape the
+    # deferred loss watchdog will read, so the node cannot rot into something unusable in between. minVelocity 0
+    # for the same reason: a nonzero one would silently drop the slow poke once something reads it again.
     if assert_(len(gate) == 1, f"{label}: exactly one gate receiver (parameter {c['prefix']}/Enter, OnEnter) — got {len(gate)}"):
         d = gate[0]
         tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
@@ -1088,6 +1112,22 @@ def check_receivers(assert_, c, docs, label):
         ok = assert_(same_rotation(rot, TILT), f"gate rotation {rot} == the tilt") and ok
     else:
         ok = False
+
+    def coincident(d, param, what):
+        """The two facts dedup rests on past the size and the node scale: the shape sits ON its transform
+        (a nonzero offset moves one box off its siblings while every field still reads right), and the node
+        hangs under `Boxes` of the very `Slot<k>` its parameter names (a box filed under the wrong slot, or
+        under a node of its own beside Boxes, is animated by the wrong clip and moves independently). Dedup
+        decides two slots hold one sender by their readings being bit-identical, which is only true while
+        every slot's boxes are the same box in world space; both of these silently break that."""
+        why = "dedup calls two slots one sender only because their boxes are identical in world space"
+        good = assert_(re.search(r"^  position: \{x: 0, y: 0, z: 0\}$", d, re.M) is not None,
+                       f"{what} {param}: shape offset is zero (the shape sits on its transform) — {why}")
+        boxes, slot = transform_ancestry(docs, d)
+        want = param.rsplit("/", 2)[1] if param and param.count("/") >= 2 else None
+        return assert_(boxes == "Boxes" and want is not None and slot == want,
+                       f"{what} {param}: hangs under {want}/Boxes (got {slot}/{boxes}) — {why}, and Boxes is the node that carries them together") and good
+
     params = []
     for d in recv:
         tags = re.findall(r"^  - (.+?)\s*$", d.split("collisionTags:")[1].split("allowSelf")[0], re.M)   # a tag may contain spaces (a vendor tag)
@@ -1109,6 +1149,7 @@ def check_receivers(assert_, c, docs, label):
         got = transform_rotation(docs, d)
         ok = assert_(want is not None and same_rotation(got, want), f"receiver {param}: box rotation {got} faces its axis") and ok
         ok = assert_(transform_scale(docs, d) == (1.0, 1.0, 1.0), f"receiver {param}: node scale is one (Boxes carries the size; a scaled node is silently non-coincident)") and ok
+        ok = coincident(d, param, "receiver") and ok
     # `Hit`: the slot's own Constant box, coincident and congruent with the axis boxes and on the same animated
     # flag, so it is admitted and rejected with them and its rising edge IS the slot's admission. No rotation
     # assert — a cube is coincident under any rotation and Hit reads no face, so identity would guard nothing.
@@ -1127,6 +1168,7 @@ def check_receivers(assert_, c, docs, label):
         param = m.group(1) if m else None
         params.append(param)
         ok = assert_(transform_scale(docs, d) == (1.0, 1.0, 1.0), f"receiver {param}: node scale is one (the dedup rule rests on this box being coincident with its siblings)") and ok
+        ok = coincident(d, param, "Hit receiver") and ok
     expect = sorted(f"{c['prefix']}/Slot{k}/{ax}" for k in range(1, c["K"] + 1) for ax in receivers(c))
     ok = assert_(sorted(p or "" for p in params) == expect,
                  f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(receivers(c))}, one each" + addx + addhit) and ok
@@ -1168,7 +1210,7 @@ def check_rig(assert_, c, here, docs, particles=True):
     and truncate it. `here` None (the consumer door) skips the Boundary asserts: the preview is the
     entry's opt-in and a copy may have dropped it."""
     ok = True
-    gos, trs, rots = {}, {}, {}
+    gos, trs, rots, poss = {}, {}, {}, {}
     for d in docs:
         m = re.match(r"(\d+) &(\d+)", d)
         if not m:
@@ -1182,6 +1224,8 @@ def check_rig(assert_, c, here, docs, particles=True):
             trs[m.group(2)] = (go, father, tuple(float(v) for v in sc))
             rq = re.search(r"m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}", d)
             rots[m.group(2)] = tuple(float(v) for v in rq.groups()) if rq else None
+            pq = re.search(r"m_LocalPosition: \{x: (\S+), y: (\S+), z: (\S+)\}", d)
+            poss[m.group(2)] = tuple(float(v) for v in pq.groups()) if pq else None
 
     def parent_name(tid):
         f = trs[tid][1]
@@ -1193,8 +1237,16 @@ def check_rig(assert_, c, here, docs, particles=True):
     # Only Size's own Slot<k> children: a consumer may name other nodes Slot<k> elsewhere (a spring rig per slot beside them).
     slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go]) and parent_name(tid) == "Size"]
     ok = assert_(len(slots) == c["K"], f"{len(slots)} Slot nodes directly under Size == K {c['K']}") and ok
+    # Every slot is the SAME transform as every other: same tilt, no offset from Size, no scale of its own.
+    # That is what makes two slots' coincident boxes read one sender bit-identically, which is the whole of
+    # the dedup rule — a slot nudged a centimetre or scaled 1.001 still tracks, still bursts, and quietly
+    # stops recognising the duplicate it was added to catch.
     for t in slots:
         ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
+        ok = assert_(poss.get(t) == (0.0, 0.0, 0.0),
+                     f"{gos[trs[t][0]]} sits at local position zero (got {poss.get(t)}) — dedup rests on every slot's boxes standing in the same place in world space") and ok
+        ok = assert_(trs[t][2] == (1.0, 1.0, 1.0),
+                     f"{gos[trs[t][0]]} carries local scale one (got {trs[t][2]}) — dedup rests on every slot's boxes being the same size, and Boxes is the only size lever") and ok
         outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
         ok = assert_(len(outs) == 1 and same_rotation(rots.get(outs[0]), TILT_INV), f"{gos[trs[t][0]]}/Output carries the inverse tilt (got {[rots.get(o) for o in outs]})") and ok
     gate = [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"]
@@ -1248,6 +1300,23 @@ def transform_rotation(docs, component_doc):
                and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
     rot = re.search(r"^  m_LocalRotation: \{x: (\S+), y: (\S+), z: (\S+), w: (\S+)\}$", tr or "", re.M)
     return tuple(float(v) for v in rot.groups()) if rot else None
+
+
+def transform_ancestry(docs, component_doc, depth=2):
+    """The names of the first `depth` ancestors of the GameObject a component document belongs to,
+    nearest first — ("Boxes", "Slot<k>") for a slot receiver. None where the chain runs out."""
+    go = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", component_doc, re.M)
+    tr = next((t for t in docs if t.startswith("4 &") and go is not None
+               and re.search(rf"^  m_GameObject: \{{fileID: {go.group(1)}\}}$", t, re.M)), None)
+    names = []
+    for _ in range(depth):
+        f = re.search(r"^  m_Father: \{fileID: (\d+)\}$", tr or "", re.M)
+        tr = next((t for t in docs if f is not None and t.startswith(f"4 &{f.group(1)}\n")), None)
+        g = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", tr or "", re.M)
+        go_doc = next((t for t in docs if g is not None and t.startswith(f"1 &{g.group(1)}\n")), None)
+        m = re.search(r"^  m_Name: (.*)$", go_doc or "", re.M)
+        names.append(m.group(1).strip() if m else None)
+    return tuple(names)
 
 
 def transform_scale(docs, component_doc):
