@@ -14,15 +14,17 @@
 # (R(0)=R(1)=1; G,B=0 at both ends), so H clamped to [0,1] is clean; a consumer needing cyclic hue extends
 # the keys past the ends (not shipped).
 #
-# THE WD-ON WEIGHT-DEFICIT TRAP (the one that bites this construction — measured, not theoretical). A
-# non-normalized Direct tree writes  out = Σ(w_i·v_i) + (1 − Σw_i)·default  when Σw_i < 1: WD-ON fills the
-# MISSING weight with the binding's *default*. For an AAP that default is 0 (harmless — the C/m computes
-# rely on it). For a _Color channel the default is the MATERIAL's color (e.g. white) — so a naive
-# `{ floor at weight m ; hue at weight C }` sub-tree, whose weights sum to m + C = V, silently blends
-# (1−V)·white into every channel whenever V < 1. It looks correct only at V = 1 (Σw = 1, no deficit). The
-# fix: a third zero-value SINK child at weight (1−V) brings each channel's weights to m + C + (1−V) = 1, so
-# the deficit — and the material default with it — vanishes. This is the sum-to-1 discipline the smoother's
-# convex α-pair also needs, here forced by WD-fill rather than by overshoot.
+# THE WEIGHT-DEFICIT TRAP (the one that bites this construction — measured, not theoretical). A
+# non-normalized Direct tree writes  out = Σ(w_i·v_i) + (1 − Σw_i)·rest  when Σw_i < 1, filling the
+# MISSING weight from the binding's rest value. `animator-schema.md` §trees owns the mechanism — including
+# that Write Defaults has nothing to do with it, and that an AAP escapes it only by being declared 0
+# (the C/m computes rely on that, and a non-zero default would offset them). For a _Color channel the rest
+# is the MATERIAL's color (e.g. white) — so a naive `{ floor at weight m ; hue at weight C }` sub-tree,
+# whose weights sum to m + C = V, silently blends (1−V)·white into every channel whenever V < 1. It looks
+# correct only at V = 1 (Σw = 1, no deficit). The fix: a third zero-value SINK child at weight (1−V) brings
+# each channel's weights to m + C + (1−V) = 1, so the deficit — and the material colour with it — vanishes.
+# This is the sum-to-1 discipline the smoother's convex α-pair also needs, here forced by the deficit fill
+# rather than by overshoot.
 #
 # THE ONE-WRITER-PER-CHANNEL TRAP (color-adjust's idiom, extended). Every one of .r/.g/.b/.a must be
 # written every frame or WD-ON reverts it to the material default. Each channel is one root child (a Direct

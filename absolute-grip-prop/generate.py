@@ -972,6 +972,15 @@ def check():
     # prefab and breaks nothing else.
     for node, cue in [('Cage', 'CueP and CueN'), ('Mid', 'CueP and CueN'), ('ProxyA', 'CueP'), ('ProxyB', 'CueN')]:
         a(near(vec3(tf_doc(node), 'm_LocalScale'), (1, 1, 1)), f'{node} local scale 1 ({cue}: the cue radius in play is CUE_R x lossyScale(parent) x CueScale, and only CueScale may move it)')
+    # The proxies' SERIALIZED position is a seed, not decoration. The Select layer animates them to +/-axis
+    # through Direct trees whose weights sum below 1 whenever the palm is out of the cage -- the common, resting
+    # case -- and the shortfall falls back to exactly this serialized value (animator-schema.md §trees). Recon
+    # and ReconN aim +Z at ProxyA and ProxyB, so a zeroed seed hands them a zero-length direction and a skewed
+    # one tilts the resting frame, in the state that looks correct. The magnitude is the rig's to pick; the
+    # z-only symmetry is what the two aim constraints depend on.
+    pa, pb = vec3(tf_doc('ProxyA'), 'm_LocalPosition'), vec3(tf_doc('ProxyB'), 'm_LocalPosition')
+    a(pa is not None and pb is not None and pa[2] != 0 and near(pa, (0, 0, pa[2])) and near(pb, (0, 0, -pa[2])),
+      f'ProxyA/ProxyB seeded non-zero, z-only and equal-and-opposite (got {pa} and {pb}) -- the Select trees fall back to this seed at rest and Recon/ReconN aim +Z at it')
     # Every VRC constraint's source list is sixteen keyable slots behind a totalLength. The editor solves the filled slots; the client
     # solves totalLength of them, so a slot filled past the length is a source that works in play mode and is a no-op in-game
     # (measured: a fourth source the left carry weighted moved nothing in the client until the length was 4).
