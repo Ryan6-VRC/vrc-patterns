@@ -120,11 +120,11 @@ In-client only:
 - the burst landing on the toucher's hand as the toucher and a third observer each see it;
 - the real capsule hand's `senderRadius`;
 - readout dither at range, which sizes the re-arm band (size it from a two-client observation, not the emulator);
-- the coincident-receiver cluster with two wearers together, where the receivers of both copies stack in one spot and an avatar also carrying an owned copy stacks both counts;
+- an avatar carrying two copies (this entry beside an owned one), which stacks both receiver counts in one spot;
 - sticky rejection itself, which every pass leans on (`runtime.md` §Contacts);
-- whether a slot's first reading after it latches is taken at the front's size or the hold cube's; the dedup rungs tolerate one frame of the former, and more would let a second admission reach the sphere test before dedup and fire as a duplicate.
+- whether a re-admission of a held hand fires the payload: the emulator says it does not, and the client cannot show a payload's enable on the wire.
 
-Dedup and the phantom rungs rest on coincident congruent boxes reading one sender bit-identically in the client, whichever was admitted first and however far the wearer stands from the world origin. The emulator cannot show that; a two-client observation holds it everywhere except the two-wearer cluster above.
+Dedup and the phantom rungs rest on coincident congruent boxes reading one sender bit-identically in the client, whichever was admitted first and however far the wearer stands from the world origin. The emulator cannot show that; a two-client observation holds it near the origin and far from it, and with two wearers of this entry standing together, where each rig held the other's hand and re-admitted it once per pass with a fresh slot's first reading taken at the hold cube's size, identical to the holder's on the same frame.
 
 ## Changing it
 
