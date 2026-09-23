@@ -13,20 +13,27 @@ below) plus a fourth coincident box, `Hit`, a Constant receiver riding the same
 `allowOthers` flag and carrying no readout. The flag is
 the latch: a sender whose overlap with a receiver began while the flag was shut
 stays invisible to that receiver for the whole overlap, however the flag moves
-later, and only a full exit and re-entry admits it (emulator-measured, README
-§How it works). Exactly one slot is Open (flag up) at a time; the others are
-Armed (flag shut) so hands already inside are blind to them. `Hit` reads 1 from
+later, and only a full exit and re-entry admits it (docs/runtime.md
+§Contacts). No slot ever sits open at full size. Exactly one slot rides the
+front: a cube growing from the centre to the face over `sweepSeconds`, flag up,
+so each hand inside is admitted alone as the front reaches its tilted Chebyshev
+radius; every other free slot is Armed, collapsed, holding no rejection and
+blind to nothing later. `Hit` reads 1 from
 the collision step the slot admits a sender — a step before any Proximity value
 exists, and 1 until the last sender it admitted leaves. The `Dedup` layer copies
 it into `HitPrev` every frame, so `Hit > 0.5, HitPrev < 0.5` is the rising edge
-and is exactly one animator frame wide at every frame rate: the Open slot
+and is exactly one animator frame wide at every frame rate: the riding slot
 Latches on its OWN edge (flag shut, boxes expanded to the hold cube) and the
-next Armed slot in ring order Opens in the same animator evaluation, reading the
-latcher's stale Open and the same fresh edge, so the two land in one collision
-step and the admission windows tile. The readings rung (every axis above zero)
+next Armed slot in ring order takes the front in the same animator evaluation,
+reading the latcher's stale Open and the same fresh edge: it appears SHUT at
+last frame's front for a step (re-rejecting the hand just taken and everything
+else inside), then rides on flag-up, so the admission windows tile. The
+readings rung (every axis above zero)
 stays as the fallback for an admission the Hit box missed and for a slot
 standing on a stale Hit level (below); when neither fires, the self-open rung
 recovers within one stepSeconds, the common path's floor and not a corner case.
+The `Open` AAP means "this slot holds the front position" (shut at it, riding
+it, or in Partial); the name predates the always-running front.
 The slots sit tilted, the cube's diagonal vertical, so a standing player's
 stacked senders meet a face at staggered depths instead of one vertical plane
 in one step (README §How it works); the readout lives in that frame and the
@@ -40,15 +47,19 @@ cube's tilt, so the readout frame never has to be undone in the tree.
 
 A slot keeps its hand until the hand leaves the hold cube, and re-bursts each
 time the hand crosses back inside the burst radius after retreating past the
-re-arm radius. A released slot Recycles: its boxes collapse to near zero for
-`stepSeconds` and restore with the flag shut, a fresh overlap episode that
-rejects every hand still inside (measured), then it queues as Armed.
+re-arm radius. A released slot Recycles: its boxes collapse for `stepSeconds`,
+which ends every overlap it held (measured), then it goes straight back onto
+the front when nothing else is Armed or holding the front and every lower-index
+slot is Held, else it queues as Armed. The lower-index Held reads are the
+tie-break: every flag is read one frame late, and two slots releasing on one
+frame would each see the other as neither Open nor Armed and both ride; the
+higher goes to Armed instead, where the self-open rule resolves it a step later.
 
-Dedup, and why a slot can admit a hand another slot already holds: the hold cube
-is larger than the acquisition cube, so a tracked hand that retreats into the
-band between the two faces and comes back is a fresh overlap for whichever slot
-is Open, and a fast entry that jitters across a face can be admitted two or three
-times over. Nothing in a per-slot latch can refuse that by itself. So the `Dedup`
+Dedup, and why a slot can admit a hand another slot already holds: the front
+re-offers every held hand inside its reach once per pass (below), a tracked hand
+that retreats into the hold shell and comes back is a fresh overlap for the
+riding slot, and a fast entry that jitters across the front can be admitted two
+or three times over. Nothing in a per-slot latch can refuse any of that. So the `Dedup`
 layer also publishes `D/<j>_<k>/<ax>`, the difference of two slots' raw readings
 on each axis, and a slot in `TrackOut` — the state reached only from `Latch`, so
 only on a fresh admission — releases itself when every axis of that difference
@@ -65,6 +76,27 @@ drift within `dedupEpsilon` of each other and collapse to one slot. It writes
 `Settled` like the two inside states do, because a fresh lower-index slot
 yields only to a settled holder: a band holder that read as fresh would be
 admitted a second time by a lower slot and both would burst on re-entry.
+`TrackOut` is also left for `TrackBand` by time, two of its own periods after
+entry (a Direct tree's length is data, a few frames here) with no rung fired:
+the dedup rungs have had their say by then, and a hand held outside the sphere
+that stayed fresh would be re-taken from its holder by every lower-index rider
+the front sends past it, hopping slots once a pass. The fresh-versus-fresh
+index rule covers only the frames both admissions are fresh.
+
+The front re-offers every held hand once per pass, so dedup is the common path,
+not a corner: each pass the sweeper admits each held hand inside its reach,
+Latches, reads the duplicate in `TrackOut` and Recycles with the payload never
+on, then rides again from where the front froze. Two held hands the front
+reaches on one collision step co-latch as a phantom, the per-axis maximum of
+their readings, which no single-holder comparison matches. A Proximity receiver
+reports its strongest sender, so every axis of that phantom is bit-identical to
+one holder's reading of that axis: the phantom rungs in `TrackOut` release a
+fresh reading composed axis-wise of held readings, one rung per assignment of
+the axes to other slots that is not all one slot, each distinct holder Held and
+a higher-index one Settled. A real hand fires one only by coinciding with a
+different holder on every axis at once. A phantom with an unheld member (two
+newcomers on one shell) matches nothing and stands until a member leaves the
+hold cube: the same-step merge trap, present tense (README §Traps).
 
 A stale `Hit` level, should one ever occur: a `Hit` box reading 1 with nothing
 in its collision set. The candidate is a receiver the client stows and restores
@@ -100,7 +132,7 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   between two steps can pass with none sampling it (docs/runtime.md §Contacts).
   `latchSeconds` is the one dwell sized larger, because it waits for readings
   that land a whole client step after the admission edge.
-- Every slot state writes every flag (Open, Armed, Front, Held, Settled, Shut), the
+- Every slot state writes every flag (Open, Armed, Front, Held, Settled), the
   payload toggle and the buffer particle's force-on, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
   `cfg()`, is where that rule is enforced — every slot clip goes through it.
@@ -120,41 +152,60 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   — is what survives a hitch frame longer than the whole wait.
 - Timed dwells are plain clips, never a curve inside a Direct tree (the tree's
   duration is data — docs/animator-schema.md §motions).
-- Recycle's collapse/restore takes stepped tangents; a bare curve eases.
+- Recycle is one collapsed step, the same configuration Armed holds; it stays a
+  state of its own because Armed's ring rungs carry no exit time and a collapse
+  that can be left within a frame is not guaranteed to span a collision step
+  above 60 fps.
 - The parameter driver lives only in Disabled (off-state hygiene, localOnly false:
   every client zeroes its own receiver floats).
 - An admission can land on some of a slot's coincident boxes and not the
   others when the overlap begins on the very frame the slot opens (measured), and
   a slot holding a partial reading can never satisfy the all-box Latch — so
-  Open steps aside to Partial on any single reading and Recycles a step later if
-  the rest never arrive. An Open slot that stalls blocks every admission on
-  the avatar; the recycled hand is merely invisible until it re-enters.
+  the riding slot steps aside to Partial on any single reading and Recycles a
+  step later if the rest never arrive. A slot holding the front that stalls
+  blocks every admission on the avatar; the recycled hand is merely invisible
+  until the next pass reaches it.
 - One rung fires per frame per layer; the ring rule's exclusivity rests on
   every rung also requiring the slot's OWN Armed flag, which is one frame stale:
   a slot that entered Armed this frame is skipped by its neighbours (they read
   its Armed as 0) and skips itself (it reads its own as 0), so two slots can
   never open on one firing.
 
-What happens at enable, at load and around a pause — the expanding front:
-- Sticky rejection is also what blinds the rig at enable: Armed slots at full
-  size reject every hand already inside. So while `CR/Sweeping` is up, Armed
-  slots sit COLLAPSED (they hold no rejections) and one slot sweeps: its cube
-  grows from the last front position (`CR/Sweep`, latched into `CR/SweepBase`
-  by the SweepShut step) to acqHalf over `sweepSeconds`, flag up, so each hand
-  is admitted alone as the front reaches it. On a latch the ring opens the next
-  slot into SweepShut — the cube appears at the current front SHUT for a step,
-  re-rejecting the just-latched hand and everything else inside the front (the
-  Recycle idiom) — then Sweep continues from there. The sweep ends when the
-  front reads past acqHalf: that slot goes Open at full size, clears Sweeping,
-  and every Armed slot restores shut with nothing unlatched left inside.
+The front, which always runs:
+- Sticky rejection is why acquisition is a sweep and never a standing cube: a
+  full-size shut cube rejects every hand already inside for the life of the
+  overlap, and a full-size open cube takes everything that appears inside it on
+  one step as one reading. So Armed slots sit COLLAPSED (they hold no
+  rejections) and one slot rides: its cube grows from the front's last position
+  (`CR/Sweep`, latched into `CR/SweepBase` while nothing rides) to acqHalf over
+  `sweepSeconds`, flag up, so each hand is admitted alone as the front reaches
+  it. On a latch the ring hands the next slot into SweepShut — the cube appears
+  at last frame's front SHUT for a step, re-rejecting the just-latched hand and
+  everything else inside (the Recycle idiom) — then Sweep continues from there.
+  At the face the pass ends: `Restart` parks Sweep, SweepBase and SweepPrev at 0
+  for `stepSeconds`, a plain clip so the hold spans a sampled collision step at
+  any frame rate; the riding slot's cube collapses with it (front_scale × Sweep
+  over the collapsed base scale), which ends every overlap it was rejecting,
+  and the next pass grows from the centre with the flag still up.
+- Exhaustion: with every slot Held nothing rides and Wait holds the front where
+  it froze. A freed slot appears shut there, rides to the face, restarts, and
+  reaches from 0 whatever the frozen front had stranded. No special case.
 - Two hands within one frame of front travel at the same Chebyshev radius
   co-latch, the same window as a normal admission; `sweepSeconds` and the frame
-  time are the two knobs on that resolution.
-- Every sweep fires the payload: a hand the front finds inside the sphere fires the
-  payload exactly as a hand crossing in does, whether the sweep came from the
-  toggle, a fresh animator (load, a late joiner, a mirror clone) or a
-  distance-hide resume. There is deliberately no quiet endpoint for the last
-  two: a quiet endpoint costs a state copy per slot, a fifth sweep AAP and an exhaustion
+  time are the two knobs on that resolution, and the phantom rungs above are
+  what releases the result when both hands are already held.
+- The cost of re-offering: each held hand inside the front's reach is admitted
+  once per pass and released (readings, the dedup frame, a collapse, a shut
+  step). With a spare Armed slot the ring hands the front on in the same
+  evaluation and the front holds only for that successor's shut step; when the
+  rider was the last free slot the whole cycle is on the front's path, so the
+  effective period at K−1 held is `sweepSeconds` plus that per held hand. A
+  held hand keeps tracking throughout, since its holder never moves.
+- A hand the front finds with no slot holding it fires the payload exactly as a
+  hand crossing in does, whether it is a newcomer, a resident at enable, or
+  every resident after a fresh animator (load, a late joiner, a mirror clone) or
+  a distance-hide resume. There is deliberately no quiet endpoint for the last
+  two: a quiet endpoint costs a state copy per slot, a further sweep AAP and an exhaustion
   cap whose timing (the last resident's inside choice lands two frames after
   its Held) is the most fragile thing in the rig, and it buys only that an
   edge reader stays quiet for hands already inside. The consumer's tolerance
@@ -169,10 +220,10 @@ What happens at enable, at load and around a pause — the expanding front:
   Paused, Armed (collapsed) and SweepShut at front 0 before anything grows, so
   whatever the receivers did during the pause is discarded and the present
   hands are re-acquired from scratch.
-- The four sweep AAPs have exactly one writer, the `Sweep` layer, whose every
-  state writes all four: a WD-ON state reverts any AAP it does not write to its
-  default (measured on this rig — a 1D-tree Armed state dropped `Sweeping` to 0
-  within a frame), so a value that must persist across a state is written back
+- The three sweep AAPs have exactly one writer, the `Sweep` layer, whose every
+  state writes all three: a WD-ON state reverts any AAP it does not write to its
+  default (measured on this rig — a 1D-tree state dropped an AAP it did not
+  write to 0 within a frame), so a value that must persist across a state is written back
   to itself through a direct child weighted by its own value. Slot layers read
   them and report `Slot<k>/Front` (1 in their Sweep state) for the layer to
   ramp on.
@@ -185,9 +236,13 @@ What happens at enable, at load and around a pause — the expanding front:
   and is re-rejected by the coincident shut cube, which is the Recycle idiom.
   The freeze needs the edge, so a handoff whose Hit box was missed, or whose
   slot stood on a stale level, still costs the old two frames of band.
-  Idle parks SweepPrev at acqHalf, so it is gated on every slot's Shut flag and
-  listed after the freeze rungs: ending the sweep on the last handoff's own
-  frame would resize the successor's shut cube out from under it. Wait holds
+  The restart rung is listed after the freeze rungs: on a pass's last handoff
+  both are eligible in one evaluation, and a restart winning would park
+  SweepPrev at 0 under the successor's shut cube on the frame it appears and
+  re-run the pass with the just-taken hand's slot still in Latch. The freeze
+  wins; the restart comes a few frames later, once the successor rides from
+  past the face. A successor still in its shut step when a restart lands
+  simply shrinks with it, which ends its overlaps, and regrows from 0. Wait holds
   SweepPrev off itself, never off Sweep: on Wait's first frame Sweep already
   reads the frozen front, one frame past the size that admitted, and copying it
   in would grow the successor's shut cube by one frame of travel on its second
@@ -211,6 +266,7 @@ this generator has since dropped fails at the door instead of being accepted
 silently and built at the default.
 """
 
+import itertools
 import os
 import re
 import sys
@@ -234,13 +290,14 @@ CONFIG = {
                                 #   Coincident receivers read one sender bit-identically in the client, so this is not sized
                                 #   against readout noise; it covers a one-step skew between the two slots' readings on the
                                 #   admission frame, and two real hands are still far outside its ball (the lint bounds it)
-    "sweepSeconds": 2.0,        # the front's travel time from 0 to acqHalf at enable, load and resume; resolution = front travel per collision step
+    "sweepSeconds": 2.0,        # the front's travel time from the centre to the face, every pass: the period between two offers to a hand and
+                                #   the resolution (front travel per collision step, the same-shell merge window) at once
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
     "prefix": "CR",             # internal param namespace; never published
     "enable": "ContactRadar/Enable",
-    "enableDefault": True,      # the enable parameter's default; False loads quiet (the prefab Toggle's default must agree)
+    "enableDefault": True,      # the enable parameter's default; False means the first pass starts when the toggle turns on (the prefab Toggle's default must agree)
 }
 
 
@@ -410,14 +467,8 @@ def emit_layer(o, c, k, ks):
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Armed, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
-    o("      Armed:                       # flag shut: every hand already inside stays invisible to this slot; collapsed while a sweep runs")
-    o("        motion:")
-    o("          tree: 1d")
-    o(f"          name: Slot{k} armed")
-    o(f"          param: {P}/Sweeping")
-    o("          children:")
-    o(f"            - {{ clip: slot{k}_armed, threshold: 0 }}")
-    o(f"            - {{ clip: slot{k}_armed_collapsed, threshold: 1 }}")
+    o("      Armed:                       # flag shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front")
+    o(f"        motion: {{ clip: slot{k}_armed }}")
     o("        transitions:")
     rungs()
     for i in ks:
@@ -431,21 +482,19 @@ def emit_layer(o, c, k, ks):
         si = slot_name(c, i)
         ring = [f"{me}/Armed greater 0.5"] + [f"{slot_name(c, m)}/Armed less 0.5" for m in between]
         # The edge twin: slot i latches on its own Hit edge a step before its readings land, so the readings rung
-        # below would never see it Open and reading at once. This twin reads i's Open one frame stale (still 1) and
-        # the same fresh edge, so it hands off in the SAME evaluation; next frame i's Open reads 0 and it is dead.
+        # below would never see it holding the front and reading at once. This twin reads i's Open one frame stale
+        # (still 1) and the same fresh edge, so it hands off in the SAME evaluation; next frame i's Open reads 0 and it
+        # is dead. Open and not Front: Partial writes Open 1 with Front 0 and an edge there (a second hand arriving in
+        # its grace step) latches and must hand off; an edge in SweepShut is impossible, its flag being shut and its
+        # boxes collapsed in Armed, so Open admits no false source.
         pconds = [f"{si}/Open greater 0.5", f"{si}/Hit greater 0.5", f"{si}/HitPrev less 0.5"] + ring
-        # Mid-sweep the source must be the slot riding the front (Front 1): SweepShut also writes Open 1 and carries no
-        # latch rung, so without this an edge during its shut step would advance the ring with nothing latched.
-        o(f"          - {{ to: SweepShut, when: [ {', '.join(pconds + [f'{si}/Front greater 0.5', f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the edge: slot {i} latched mid-sweep")
-        o(f"          - {{ to: Open, when: [ {', '.join(pconds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring on the edge: slot {i} latched")
+        o(f"          - {{ to: SweepShut, when: [ {', '.join(pconds)} ] }}   # ring on the edge: slot {i} latched")
         conds = [f"{si}/Open greater 0.5"] + [f"{si}/{ax} greater 0" for ax in ax4] + ring
-        o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ] }}   # ring on the readings: slot {i} fired mid-sweep, nothing Armed between")
-        o(f"          - {{ to: Open, when: [ {', '.join(conds + [f'{P}/Sweeping less 0.5'])} ] }}   # ring on the readings: slot {i} fired, nothing Armed between")
+        o(f"          - {{ to: SweepShut, when: [ {', '.join(conds)} ] }}   # ring on the readings: slot {i} fired, nothing Armed between")
     conds = [f"{slot_name(c, j)}/Open less 0.5" for j in ks if j != k]
     conds += [f"{slot_name(c, j)}/Armed less 0.5" for j in ks if j < k]
     conds += [f"{me}/Armed greater 0.5"]
-    o(f"          - {{ to: SweepShut, when: [ {', '.join(conds + [f'{P}/Sweeping greater 0.5'])} ], exitTime: 1.0 }}   # self-open into the sweep: nothing Open, no lower Armed; re-checked only on a crossing")
-    o(f"          - {{ to: Open, when: [ {', '.join(conds + [f'{P}/Sweeping less 0.5'])} ], exitTime: 1.0 }}   # self-open: nothing Open, no lower Armed; re-checked only on a crossing, so it costs at most one stepSeconds with nothing Open — the common-path recovery when the ring's one-frame handoff finds no taker")
+    o(f"          - {{ to: SweepShut, when: [ {', '.join(conds)} ], exitTime: 1.0 }}   # self-open: nothing holding the front, no lower Armed; re-checked only on a crossing, so it costs at most one stepSeconds with nothing riding — the common-path recovery when the ring's one-frame handoff finds no taker")
     o("      SweepShut:                   # the cube appears at the front SHUT for a step: everything inside it is re-rejected")
     o("        motion:")
     o("          tree: direct")
@@ -474,17 +523,10 @@ def emit_layer(o, c, k, ks):
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     for ax in ax4:
         o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
-    o(f"          - {{ to: Open, when: [ {P}/Sweep greater {fmt(acq)} ] }}   # the front reached the face: the sweep is over")
-    o(f"          - {{ to: Open, when: [ {P}/Sweeping less 0.5 ] }}   # the Sweep layer went Idle on the frame this slot took the front (Idle parks Sweep exactly at the face)")
-    o("      Open:                        # flag up at full size: only overlaps beginning now are admitted")
-    o(f"        motion: {{ clip: slot{k}_open }}")
-    o("        transitions:")
-    rungs()
-    o(f"          - {{ to: Latch, when: [ {edge} ] }}   # this slot's own admission edge: a step before the readings, one frame wide")
-    o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
-    for ax in ax4:
-        o(f"          - {{ to: Partial, when: [ {me}/{ax} greater 0 ] }}")
-    o("      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — an Open slot may never stall")
+    # No exit at the face. The Sweep layer restarts the front there and this cube collapses with it (front_scale × Sweep
+    # reads 0 over the collapsed base scale), which ends every overlap it was rejecting, and the next pass regrows it
+    # from the centre with the flag still up.
+    o("      Partial:                     # one box read a hand the others did not: a step's grace at the current front, else Recycle — a slot holding the front may never stall")
     o("        motion:")
     o("          tree: direct")
     o(f"          name: Slot{k} partial")
@@ -494,7 +536,7 @@ def emit_layer(o, c, k, ks):
     o(f"            - {{ clip: slot{k}_front_scale, directWeight: {P}/Sweep }}")
     o("        transitions:")
     rungs()
-    o(f"          - {{ to: Latch, when: [ {edge} ] }}   # Partial writes Open 1, so it must latch on the edge the ring hands off on — near-dead, since the Hit box rises a step before any axis and Open would have taken it")
+    o(f"          - {{ to: Latch, when: [ {edge} ] }}   # Partial writes Open 1, so it must latch on the edge the ring hands off on — near-dead, since the Hit box rises a step before any axis and Sweep would have taken it")
     o(f"          - {{ to: Latch, when: [ {all_pos} ] }}")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }")
     o("      Latch:                       # flag shut + hold cube in one write; readout parked outside the zone; waits latchSeconds for the readings")
@@ -532,8 +574,37 @@ def emit_layer(o, c, k, ks):
             dconds.append(f"{sj}/Settled greater 0.5")
             why = f"slot {j} holds this point and has settled (a higher index yields only to that)"
         o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # dedup: {why}")
+    # Phantom dedup. A same-step merge of hands other slots already hold reads, on every axis, exactly one of those
+    # holders' readings: a Proximity receiver reports its strongest sender, and coincident congruent boxes read one
+    # sender bit-identically. So a fresh reading composed axis-wise of held readings is a phantom of those holders and
+    # releases. One rung per assignment of the axes to other slots that is not all one slot (the all-one case is the
+    # ordinary rung above), each distinct holder Held and, where its index is higher, Settled, for the reason above. A
+    # real hand fires one of these only by coinciding with a different holder on every axis at once. A phantom with an
+    # unheld member matches nothing here and stands until a member leaves the hold cube (README §Traps).
+    others = [j for j in ks if j != k]
+    for assign in itertools.product(others, repeat=len(ax4)):
+        if len(set(assign)) == 1:
+            continue
+        dconds = []
+        for ax, j in zip(ax4, assign):
+            lo, hi = min(j, k), max(j, k)
+            dconds.append(f"{P}/D/{lo}_{hi}/{ax} greater {nde}")
+            dconds.append(f"{P}/D/{lo}_{hi}/{ax} less {de}")
+        for j in sorted(set(assign)):
+            dconds.append(f"{slot_name(c, j)}/Held greater 0.5")
+            if j > k:
+                dconds.append(f"{slot_name(c, j)}/Settled greater 0.5")
+        o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # phantom: {'/'.join(f'{ax} of slot {j}' for ax, j in zip(ax4, assign))}")
     release()
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
+    # Fresh ends by time as well as by reaching the sphere. The dedup rungs above have fired by the second or third
+    # frame here if they ever will (D lands a frame after the readings, r² a frame after that), so a slot still in
+    # TrackOut two of its own periods later holds a distinct hand and settles: the front re-offers every held hand
+    # each pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the
+    # fresh-versus-fresh rule, hopping slots once a pass. A Direct tree's length is data (the weighted sum of its
+    # one-frame children, a few frames), and an exit time above 1 is checked once; listed last, so any rung above
+    # that is eligible on the same frame wins.
+    o("          - { to: TrackBand, when: [], exitTime: 2.0 }   # fresh no longer: settle outside the sphere")
     o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
     o("        transitions:")
@@ -541,27 +612,38 @@ def emit_layer(o, c, k, ks):
     release()
     for conds in outside:
         o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-    o("      TrackBand:                   # retreated past the re-arm radius, still held and settled: TrackOut's rungs without dedup, so a re-arm never re-runs the coincidence test")
+    o("      TrackBand:                   # settled outside the sphere, by retreating past the re-arm radius or by holding outside it past the fresh window: TrackOut's rungs without dedup, so the coincidence test never re-runs on a track")
     emit_tree(o, c, k, hold=f"slot{k}_hold_band")
     o("        transitions:")
     rungs()
     release()
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
-    o("      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected")
+    o("      Recycle:                     # collapsed for a step, flag shut: every overlap this slot held ends; then straight onto the front, or Armed")
     o(f"        motion: {{ clip: slot{k}_recycle }}")
     o("        transitions:")
     rungs()
+    # The shortcut onto the front: with nothing holding it and nothing Armed, this is the slot that would self-open
+    # after another step in Armed, so it goes to SweepShut directly and saves that step on every duplicate release. The
+    # lower-index Held reads are the tie-break: every flag here is an AAP read one frame late, and two slots releasing
+    # on one frame would each see the other as neither Open nor Armed (Recycle writes both 0) and both ride the front.
+    # Requiring every lower slot to read Held sends the higher one to Armed, where the ordinary self-open rule (no
+    # lower Armed) resolves it a step later. A lower slot in Latch reads Held 0 as well, which costs that one step and
+    # nothing else.
+    conds = [f"{slot_name(c, j)}/Open less 0.5" for j in ks if j != k]
+    conds += [f"{slot_name(c, j)}/Armed less 0.5" for j in ks if j != k]
+    conds += [f"{slot_name(c, j)}/Held greater 0.5" for j in ks if j < k]
+    o(f"          - {{ to: SweepShut, when: [ {', '.join(conds)} ], exitTime: 1.0 }}   # nothing holding the front, nothing Armed, every lower slot holding: straight onto the front")
     o("          - { to: Armed, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
 
 
 def emit_sweep_layer(o, c, ks):
-    """The one writer of the four shared sweep AAPs. Every state writes all four — a WD-ON state
+    """The one writer of the three shared sweep AAPs. Every state writes all three — a WD-ON state
     reverts any AAP it does not write to its default (measured on this rig), so a value that
     must persist across a state is written back to itself through a direct child weighted by
     its own value. SweepPrev is the same idiom read one frame late on purpose: in Ramp a child
@@ -569,18 +651,13 @@ def emit_sweep_layer(o, c, ks):
     flag-up cube had and therefore the size the next slot's shut cube must appear at. Wait holds
     it off itself (weight SweepPrev): Wait is entered on the admission frame, when Sweep already
     reads the frozen front one frame past that size, and a copy there would hand the successor a
-    cube one frame of travel too large on its second shut frame."""
+    cube one frame of travel too large on its second shut frame. Restart is the pass boundary: a
+    plain clip of stepSeconds parking all three at 0, so the sweeper's cube is collapsed for a
+    sampled collision step (every overlap it held ends) before the next pass grows from the centre."""
     P = c["prefix"]
     en = c["enable"]
     acq = c["acqHalf"]
     fronts_down = ", ".join(f"{slot_name(c, k)}/Front less 0.5" for k in ks)
-    # The successor's shut cube reads SweepPrev, and Idle's clip writes SweepPrev = acqHalf. So Idle may not be
-    # entered while any slot is still in SweepShut: on the last handoff of a sweep the front has already passed
-    # the face, both this layer's Idle rung and the freeze rung are eligible, and an Idle that wins clobbers
-    # SweepPrev to the full acquisition size under the cube that is reading it — the shut cube then appears at
-    # the face and re-rejects everything inside it, including senders the sweep never reached. Slot<k>/Shut is
-    # 1 only in slot<k>_sweepshut, so this holds the front parked until that step is over.
-    shut_down = ", ".join(f"{slot_name(c, k)}/Shut less 0.5" for k in ks)
     paused = "          - { to: Paused, when: [ IsAnimatorEnabled is false ] }"
     off = f"          - {{ to: Disabled, when: [ {en} is false ] }}"
 
@@ -594,34 +671,34 @@ def emit_sweep_layer(o, c, ks):
             o(f"            - {{ clip: {clip}, directWeight: {w} }}")
 
     o("  - name: Sweep")
-    o("    # The expanding front, shared by every slot: Sweeping (collapse the Armed slots),")
-    o("    # Sweep (the front half-extent, m), SweepBase (where the current sweeper's ramp started) and SweepPrev (last frame's")
-    o("    # front, which the next slot's shut cube rides). Slot layers read these")
-    o("    # and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to ramp on.")
+    o("    # The expanding front, shared by every slot: Sweep (the front half-extent, m), SweepBase (where the current")
+    o("    # sweeper's ramp started) and SweepPrev (last frame's front, which the next slot's shut cube rides). Slot layers")
+    o("    # read these and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to")
+    o("    # ramp on. The front runs whenever a slot rides it and restarts from 0 at the face, so every hand inside the cube")
+    o("    # is offered to exactly one flag-up cube once per pass.")
     o("    # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).")
     o("    states:")
-    o("      Boot:                        # a fresh animator: the first sweep runs from 0")
+    o("      Boot:                        # a fresh animator: the first pass runs from 0")
     o("        motion: { clip: sw_boot }")
     o("        transitions:")
     o(paused)
     o(off)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Disabled:                    # the toggle is off: the next sweep runs from 0")
+    o("      Disabled:                    # the toggle is off: the next pass runs from 0")
     o("        motion: { clip: sw_off }")
     o("        transitions:")
     o(paused)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Paused:                      # a distance-hide: the resume sweep runs from 0")
+    o("      Paused:                      # a distance-hide: the resume pass runs from 0")
     o("        motion: { clip: sw_paused }")
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
-    o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, SweepPrev holds")
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
+    o("      Wait:                        # nothing rides the front: it holds, SweepBase latches it, SweepPrev holds")
+    hold_tree("Sweep wait", [("sw_shown", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
     o("        transitions:")
     o(paused)
     o(off)
-    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}")
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
@@ -634,23 +711,23 @@ def emit_sweep_layer(o, c, ks):
         # drops. Ramp's clip is not sampled on the frame it leaves, so the front stops at the size that admitted,
         # and the successor's shut cube (× SweepPrev) appears at exactly that size. Without it the front advances
         # one more frame and leaves a band no cube ever offered.
-        # Listed BEFORE the Idle rung, not after: on the sweep's last handoff the front has already read past the
-        # face, so both rungs are eligible in the same evaluation and first-match decides. Idle would end the sweep
-        # on the admission frame and park SweepPrev at acqHalf, so the successor's shut cube — already entered on
-        # the same evaluation — would appear at the full acquisition size instead of at the size that just
-        # admitted, re-rejecting everything the front had not yet reached. The freeze wins; Idle gets the frame
-        # after, once Shut is down.
+        # Listed BEFORE the restart rung, not after: on a pass's last handoff the front has already read past the
+        # face, so both rungs are eligible in the same evaluation and first-match decides. A restart on the admission
+        # frame would park SweepPrev at 0 under the successor's shut cube, entered on the same evaluation, and re-run
+        # the pass with the just-admitted hand's slot still in Latch; the freeze wins, and the restart comes a few
+        # frames later, once the successor rides the front from past the face.
         o(f"          - {{ to: Wait, when: [ {slot_name(c, k)}/Front greater 0.5, {slot_name(c, k)}/Hit greater 0.5, {slot_name(c, k)}/HitPrev less 0.5 ] }}   # slot {k} latched: freeze the front on the admission frame")
-    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}   # the face: the sweep is over, once no successor's shut cube is still reading SweepPrev")
+    o(f"          - {{ to: Restart, when: [ {P}/Sweep greater {fmt(acq)} ] }}   # the face: the pass is over, the next one runs from 0")
     o(f"          - {{ to: Wait, when: [ {fronts_down} ] }}   # the sweeper latched a frame ago (its edge was missed) or stalled: hold the front for the next slot's shut step")
-    o("      Idle:                        # no sweep: Armed slots at full size, the front parked at the face")
-    o("        motion: { clip: sw_idle }")
+    o("      Restart:                     # the pass boundary: the front parked at 0 for a sampled step, so the sweeper's cube collapses and every overlap it held ends")
+    o("        motion: { clip: sw_restart }")
     o("        transitions:")
     o(paused)
     o(off)
+    o("          - { to: Wait, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Idle: [30, 450] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Restart: [30, 450] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -660,35 +737,33 @@ def emit_sweep_clips(o, c):
     P = c["prefix"]
     T = c["sweepSeconds"]
     acq = c["acqHalf"]
+    step = c["stepSeconds"]
     reach = acq * 1.05   # the ramp aims a little past the face so `Sweep greater acqHalf` fires before it ends
 
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    def full(sweeping, sweep, base, shown):
+    def full(sweep, base, shown):
         # SweepPrev = Sweep in every plain-clip state: each of them parks the front, so last frame's front is this
         # frame's. Only the two tree states, where the front moves, need the one-frame lag a × Sweep child gives.
-        d = {f"{P}/Sweeping": sweeping, f"{P}/Sweep": fmt(sweep),
-             f"{P}/SweepBase": fmt(base), f"{P}/SweepPrev": fmt(sweep)}
+        d = {f"{P}/Sweep": fmt(sweep), f"{P}/SweepBase": fmt(base), f"{P}/SweepPrev": fmt(sweep)}
         d.update(boundary_bindings(c, shown))
         return d
 
     o("  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).")
-    o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.")
-    clip("sw_boot", full(1, 0, 0, 0), None, "a fresh animator: front at 0")
-    clip("sw_off", full(1, 0, 0, 0), None, "the toggle off: front at 0")
-    clip("sw_paused", full(1, 0, 0, 0), None, "a distance-hide: front at 0")
-    clip("sw_idle", full(0, acq, 0, 1), None, "no sweep: the front parked at the face")
-    sweeping = {f"{P}/Sweeping": 1}
-    sweeping.update(boundary_bindings(c, 1))
-    clip("sw_sweeping", sweeping, None, "the constant part of Wait and Ramp")
+    o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only while enabled.")
+    clip("sw_boot", full(0, 0, 0), None, "a fresh animator: front at 0")
+    clip("sw_off", full(0, 0, 0), None, "the toggle off: front at 0")
+    clip("sw_paused", full(0, 0, 0), None, "a distance-hide: front at 0")
+    clip("sw_restart", full(0, 0, 1), step, "the pass boundary: front, base and previous front at 0 for a sampled step")
+    clip("sw_shown", boundary_bindings(c, 1), None, "the constant part of Wait and Ramp: the boundary drawn")
     clip("sw_hold_sweep", {f"{P}/Sweep": 1}, None, "× Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)")
     clip("sw_hold_prev", {f"{P}/SweepPrev": 1}, None, "× Sweep (Ramp): SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact); × SweepPrev (Wait): hold")
     clip("sw_latch_base", {f"{P}/SweepBase": 1}, None, "× Sweep: SweepBase ← Sweep")
     clip("sw_hold_base", {f"{P}/SweepBase": 1}, None, "× SweepBase: hold")
-    o(f"  sw_ramp:   # × One: Sweeping 1 and the front's own travel, 0 → {fmt(reach)} m over {fmt(T)} s, linear, added to SweepBase")
+    o(f"  sw_ramp:   # × One: the front's own travel, 0 → {fmt(reach)} m over {fmt(T)} s, linear, added to SweepBase")
     o(f"    seconds: {fmt(T)}")
-    ramp_set = ", ".join(f"{k2}: {v}" for k2, v in sweeping.items())
+    ramp_set = ", ".join(f"{k2}: {v}" for k2, v in boundary_bindings(c, 1).items())
     o(f"    set: {{ {ramp_set} }}")
     o("    curves:")
     o(f"      {P}/Sweep: {{ tangents: linear, keys: [ [0, 0], [{fmt(T)}, {fmt(reach)}] ] }}")
@@ -795,13 +870,16 @@ def emit_clips(o, c, k):
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, payload_on, front=0, held=0, settled=0, shut=0):
+    def cfg(active, flag, scale, opn, armed, payload_on, front=0, held=0, settled=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in receivers(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
         if scale is not None:
             for ax in ("x", "y", "z"):
                 d[f"{B}/Transform.m_LocalScale.{ax}"] = fmt(scale)
+        # Open: 1 while this slot holds the front position — SweepShut (shut), Sweep (flag up, Front 1 too) and
+        # Partial. The name predates the always-running front, when it also meant a full-size cube; the self-open
+        # rung and the ring rungs read it.
         d[f"{me}/Open"] = opn
         d[f"{me}/Armed"] = armed
         d[f"{me}/Front"] = front
@@ -809,12 +887,8 @@ def emit_clips(o, c, k):
         # sphere, or the re-arm band after it — every held state but TrackOut, the fresh one. The dedup rungs read
         # another slot's pair, so every state must write both — a state that wrote neither would leave a stale 1
         # standing and make a newcomer yield to a slot that has already released.
-        # Shut: 1 in slot<k>_sweepshut alone, the one step this slot's cube is being scaled off SweepPrev. The
-        # Sweep layer's Idle rungs read it across every slot and hold off while any of them is up, because Idle
-        # parks SweepPrev at acqHalf and would resize that cube out from under the step that is reading it.
         d[f"{me}/Held"] = held
         d[f"{me}/Settled"] = settled
-        d[f"{me}/Shut"] = shut
         d[payload] = payload_on
         # The buffer particle's GameObject is forced on in every state: nothing in the rig turns it off, and the
         # binding is kept so a copy whose Burst was saved inactive still fires on the payload edge.
@@ -824,17 +898,15 @@ def emit_clips(o, c, k):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the six protocol flags, the payload toggle and the buffer particle's force-on.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
-    clip(f"slot{k}_armed", cfg(1, 0, acq, 0, 1, 0), step, "Armed 1 at full size — the ring rule reads it one frame late")
-    clip(f"slot{k}_armed_collapsed", cfg(1, 0, collapsed, 0, 1, 0), step, "Armed 1 collapsed: holds no rejections while a sweep runs")
-    clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0, shut=1), step, "Open 1, Shut 1, flag shut, base scale: the front's own re-rejection step")
+    clip(f"slot{k}_armed", cfg(1, 0, collapsed, 0, 1, 0), step, "Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late")
+    clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0), step, "Open 1, flag shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)")
     clip(f"slot{k}_sweep_cfg", cfg(1, 1, collapsed, 1, 0, 0, front=1), None, "Open 1, Front 1, flag up, base scale: the growing cube's constant part")
     clip(f"slot{k}_front_scale", {f"{B}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
          None, "× Sweep: the cube at the front (the face once the sweep is over)")
-    clip(f"slot{k}_open", cfg(1, 1, acq, 1, 0, 0), None, "Open 1 — the flag up at full size")
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
     # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads 3h².
@@ -845,16 +917,9 @@ def emit_clips(o, c, k):
         latch[f"{me}/R"] = fmt(r)
     clip(f"slot{k}_latch", latch, c["latchSeconds"], "flag shut + hold cube in one write; readout parked at (h, −h, −h) so r² reads 3h²; the wait spans one client step of readings")
     clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off, fresh (outside the sphere, never yet inside it)")
-    clip(f"slot{k}_hold_band", cfg(1, 0, hold, 0, 0, 0, held=1, settled=1), None, "tracking configuration, payload off, settled (the re-arm band)")
+    clip(f"slot{k}_hold_band", cfg(1, 0, hold, 0, 0, 0, held=1, settled=1), None, "tracking configuration, payload off, settled (the re-arm band, or fresh no longer)")
     clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, settled=1), None, "tracking configuration, payload on (inside the sphere)")
-    rec = cfg(1, 0, None, 0, 0, 0)
-    body = ", ".join(f"{k2}: {v}" for k2, v in rec.items())
-    o(f"  slot{k}_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse")
-    o(f"    seconds: {fmt(2 * step)}")
-    o(f"    set: {{ {body} }}")
-    o("    curves:")
-    for ax in ("x", "y", "z"):
-        o(f"      {B}/Transform.m_LocalScale.{ax}: {{ tangents: stepped, keys: [ [0, {fmt(collapsed)}], [{fmt(step)}, {fmt(acq)}], [{fmt(2 * step)}, {fmt(acq)}] ] }}")
+    clip(f"slot{k}_recycle", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed for a step, flag shut: a fresh overlap episode for everything inside, the re-arm primitive")
     two_h = fmt(2 * h)
     if c["fourBox"]:
         o(f"  # Slot {k} readout, four boxes: the opposed X pair measures the sender's radius instead of assuming it —")
@@ -926,11 +991,12 @@ def document(overrides=None):
     rtxt = (f"sender radius measured per slot from the X- box ({c['senderRadius']} m is the lints' assumed maximum)"
             if c["fourBox"] else f"sender radius {c['senderRadius']} m")
     o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s.")
-    o(f"# At enable, load and distance-hide resume one slot at a time sweeps its cube out over {c['sweepSeconds']} s so hands")
-    o("# already inside are admitted one by one (the expanding front), each firing the payload as it is found.")
+    o(f"# One slot at a time rides an expanding front from the centre to the face over {c['sweepSeconds']} s, and the front restarts")
+    o("# there, so every hand inside the cube is offered to exactly one flag-up cube per pass and admitted alone as the front")
+    o("# reaches it; the Dedup layer releases a re-admitted hand another slot already holds.")
     o("# Per-client: every copy of the avatar senses on its own client (receivers localOnly 0);")
     o("# one synced bit (the enable) and nothing else crosses the wire. generate.py's docstring")
-    o("# carries the mechanism; the README carries the traps and the measurements.")
+    o("# carries the mechanism; the README carries the traps.")
     o("")
     o("schema: 1")
     o(f"controller: {c['controller']}")
@@ -945,16 +1011,15 @@ def document(overrides=None):
     o(f"  {c['enable']}: {{ type: bool, default: {'true' if c['enableDefault'] else 'false'}, vrc: {{ synced: true, saved: false }} }}  # the Toggle; off is the reset")
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator")
     o(f"  {P}/One: {{ type: float, default: 1, scratch: true }}   # constant direct weight, never driven")
-    o("  # The sweep (written only by the Sweep layer): Sweeping collapses every Armed slot,")
-    o("  # Sweep is the front half-extent (m), SweepBase the front the current sweeper's ramp started from,")
-    o("  # SweepPrev last frame's Sweep — the size the next slot's shut cube appears at, so the handoff leaves no band.")
-    o(f"  {P}/Sweeping: {{ type: float, aap: true, scratch: true }}")
+    o("  # The front (written only by the Sweep layer): Sweep is the front half-extent (m), SweepBase the front the current")
+    o("  # sweeper's ramp started from, SweepPrev last frame's Sweep — the size the next slot's shut cube appears at, so the")
+    o("  # handoff leaves no band.")
     o(f"  {P}/Sweep: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepBase: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepPrev: {{ type: float, aap: true, scratch: true }}")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the six protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the five protocol flags.")
         for ax in receivers(c):
             note = ("   # the coincident Constant box: 1 from the collision step this slot admits a sender, a step before any"
                     " Proximity value, and 1 until the last admitted sender leaves") if ax == "Hit" else ""
@@ -964,12 +1029,11 @@ def document(overrides=None):
         if c["fourBox"]:
             o(f"  {me}/R: {{ type: float, aap: true, scratch: true }}   # the measured sender radius, m — the export a consumer reads")
         o(f"  {me}/HitPrev: {{ type: float, aap: true, scratch: true }}   # last frame's Hit (the Dedup layer's); with Hit it is the admission edge")
-        o(f"  {me}/Open: {{ type: float, aap: true, scratch: true }}")
-        o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}")
+        o(f"  {me}/Open: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds the front position: shut at SweepPrev, riding it flag-up, or in Partial")
+        o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}   # 1 while collapsed and waiting for the ring")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
         o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the sphere (inside it, or in the re-arm band after): a fresh lower-index slot yields to a settled holder")
-        o(f"  {me}/Shut: {{ type: float, aap: true, scratch: true }}   # 1 for the one step this slot's cube appears shut at SweepPrev; the Sweep layer holds Idle off while it is up")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
     o("  # sender reads 0 on every axis and a freshly latched slot recognises the duplicate. Each defaults to 0, which is")
