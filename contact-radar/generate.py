@@ -38,13 +38,11 @@ piecewise-linear lookup; the burst fires when r² crosses the burst radius. The
 zone is a sphere and nothing else: it is the one shape that is invariant under the
 cube's tilt, so the readout frame never has to be undone in the tree.
 
-Two modes, one flag: `dwell` keeps the slot until the hand leaves the hold cube
-and re-bursts each time it crosses back inside the burst radius after retreating
-past the re-arm radius; `entry` releases the slot at the burst, so the hand has
-to leave the acquisition cube and come back for another. A released slot
-Recycles: its boxes collapse to near zero for `stepSeconds` and restore with the
-flag shut, a fresh overlap episode that rejects every hand still inside
-(measured), then it queues as Armed.
+A slot keeps its hand until the hand leaves the hold cube, and re-bursts each
+time the hand crosses back inside the burst radius after retreating past the
+re-arm radius. A released slot Recycles: its boxes collapse to near zero for
+`stepSeconds` and restore with the flag shut, a fresh overlap episode that
+rejects every hand still inside (measured), then it queues as Armed.
 
 Dedup, and why a slot can admit a hand another slot already holds: the hold cube
 is larger than the acquisition cube, so a tracked hand that retreats into the
@@ -56,12 +54,17 @@ on each axis, and a slot in `TrackOut` — the state reached only from `Latch`, 
 only on a fresh admission — releases itself when every axis of that difference
 is inside `dedupEpsilon` of zero against a slot already holding a sender. Two
 coincident congruent boxes read one sender identically, so the difference is a
-true zero rather than a small one. A slot already inside the sphere always wins;
-between two slots still in the shell the lower index wins, and neither can
-release the other. `TrackBand` is `TrackOut` without those rungs: a hand that
-re-arms in the band re-enters there, so the coincidence test never re-runs for
-the life of a track, where two genuinely distinct senders could drift within
-`dedupEpsilon` of each other and collapse to one slot.
+true zero rather than a small one (measured bit-identical in the shipping
+client, near the origin and a kilometre from it). A slot that has settled —
+reached the sphere, or the re-arm band after it — always wins, whatever its
+index; between two fresh slots still in the shell the lower index wins, and
+neither can release the other. `TrackBand` is `TrackOut` without those rungs: a
+hand that re-arms in the band re-enters there, so the coincidence test never
+re-runs for the life of a track, where two genuinely distinct senders could
+drift within `dedupEpsilon` of each other and collapse to one slot. It writes
+`Settled` like the two inside states do, because a fresh lower-index slot
+yields only to a settled holder: a band holder that read as fresh would be
+admitted a second time by a lower slot and both would burst on re-entry.
 
 A stale `Hit` level, should one ever occur: a `Hit` box reading 1 with nothing
 in its collision set. The candidate is a receiver the client stows and restores
@@ -97,7 +100,7 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   between two steps can pass with none sampling it (docs/runtime.md §Contacts).
   `latchSeconds` is the one dwell sized larger, because it waits for readings
   that land a whole client step after the admission edge.
-- Every slot state writes every flag (Open, Armed, Front, Held, Inside, Shut), the
+- Every slot state writes every flag (Open, Armed, Front, Held, Settled, Shut), the
   burst toggle and the
   payload toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
@@ -151,10 +154,15 @@ What happens at enable, at load and around a pause — the expanding front:
 - `CR/Silent` decides what a hand the front finds inside the sphere does: loud
   (from Disabled — the toggle) bursts as usual; silent (from Boot — a fresh
   animator — and from Paused — a distance-hide resume) lands in TrackInSilent
-  in dwell mode (payload on, the buffer particle's GameObject off: marker, no
-  puff) and releases without a burst in entry mode. The Sweep layer's Idle
-  state clears Silent when the front reaches the face, so a hand that crosses
-  in after the sweep bursts loud.
+  (payload on, the buffer particle's GameObject off: marker, no puff). The
+  Sweep layer's Idle state clears Silent when the front reaches the face, so a
+  hand that crosses in after the sweep bursts loud. Exhaustion clears it too:
+  when every slot holds and nothing rides the frozen front, the layer steps to
+  Exhausted, Wait with Silent written 0, because a slot freed minutes later
+  would otherwise resume the front silently and a hand it then found would
+  never puff. Its Silent 0 becomes readable only the frame after the last
+  resident's own silent-or-loud choice, so that resident stays silent. The cost is that a resident the frozen front had not reached
+  bursts loud when a freed slot finally reaches it.
 - Boot is the default state and is entered only by a fresh animator (load,
   manual hide/show, mirror clones); Disabled is entered only by the toggle.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
@@ -182,7 +190,12 @@ What happens at enable, at load and around a pause — the expanding front:
   slot stood on a stale level, still costs the old two frames of band.
   Idle parks SweepPrev at acqHalf, so it is gated on every slot's Shut flag and
   listed after the freeze rungs: ending the sweep on the last handoff's own
-  frame would resize the successor's shut cube out from under it.
+  frame would resize the successor's shut cube out from under it. Wait holds
+  SweepPrev off itself, never off Sweep: on Wait's first frame Sweep already
+  reads the frozen front, one frame past the size that admitted, and copying it
+  in would grow the successor's shut cube by one frame of travel on its second
+  shut frame, with the flag then rising at that size — a band one frame of
+  travel wide, rejected stickily, at every handoff.
 - The `Ramp` state is a Direct tree whose duration is data: the ramp clip
   carries the timing and every other child is one frame long, which stretches
   the ramp by at most the sum of those children's weights over 60·sweepSeconds.
@@ -195,7 +208,10 @@ construction, only while the toggle is on. `Boundary` ships inactive:
 activating it is the consumer's opt-in, and its material the swap point.
 
 Fragment mode: `document(overrides)` returns the document text and a facts
-dict; `entry-mode/generate.py` is the second consumer.
+dict, the door a venue's owned copy regenerates through at its own CONFIG. A
+key CONFIG does not carry is refused there, so a consumer still passing a key
+this generator has since dropped fails at the door instead of being accepted
+silently and built at the default.
 """
 
 import os
@@ -206,19 +222,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG = {
     "controller": "ContactRadar_Fx",
-    "mode": "dwell",            # dwell | entry
     "K": 4,                     # slots; each is one layer and four receivers (five under fourBox)
     "tags": ["HandR"],
-    "acqHalf": 1.2,             # acquisition cube half-extent, m (entry mode's re-arm surface); at Cage/Size scale 1
+    "acqHalf": 1.2,             # acquisition cube half-extent, m; at Cage/Size scale 1
     "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
     "burstRadius": 1.0,         # R_in, m
-    "rearmRadius": 1.1,         # R_out, m (dwell only)
+    "rearmRadius": 1.1,         # R_out, m
     "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias.
                                 #   Under fourBox the readout measures r instead, and this is only the lints' assumed maximum
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
     "latchSeconds": 0.10,       # Latch's bounded wait for the readings, which land one client step after the admission
-    "dedupEpsilon": 0.002,      # the coincidence band on a [0, 1] reading: two slots this close on every axis are holding one sender
+    "dedupEpsilon": 0.004,      # the coincidence band on a [0, 1] reading: two slots this close on every axis are holding one sender.
+                                #   Coincident receivers read one sender bit-identically in the client, so this is not sized
+                                #   against readout noise; it covers a one-step skew between the two slots' readings on the
+                                #   admission frame, and two real hands are still far outside its ball (the lint bounds it)
     "sweepSeconds": 2.0,        # the front's travel time from 0 to acqHalf at enable, load and resume; resolution = front travel per collision step
     "lookupSegments": 16,       # x² table resolution over [-h, h]
     "epsilon": 1e-5,            # the any-box loss floor
@@ -261,8 +279,6 @@ def receivers(c):
 
 
 def lint(c):
-    if c["mode"] not in ("dwell", "entry"):
-        refuse("mode must be dwell or entry")
     if not isinstance(c["fourBox"], bool):
         refuse("fourBox must be a bool — it selects the rig, not a box count")
     if c["fourBox"] and c["senderRadius"] <= 0:
@@ -274,11 +290,10 @@ def lint(c):
         refuse("holdHalf must be >= acqHalf — the latch expands, never shrinks")
     if c["burstRadius"] + c["senderRadius"] >= c["acqHalf"]:
         refuse("burstRadius + senderRadius must be < acqHalf — the burst must be reachable inside the cube")
-    if c["mode"] == "dwell":
-        if c["rearmRadius"] <= c["burstRadius"]:
-            refuse("rearmRadius must be > burstRadius")
-        if c["rearmRadius"] + c["senderRadius"] >= c["acqHalf"]:
-            refuse("rearmRadius + senderRadius must be < acqHalf — a dwell re-arm must be reachable on axis")
+    if c["rearmRadius"] <= c["burstRadius"]:
+        refuse("rearmRadius must be > burstRadius")
+    if c["rearmRadius"] + c["senderRadius"] >= c["acqHalf"]:
+        refuse("rearmRadius + senderRadius must be < acqHalf — a re-arm must be reachable on axis")
     if c["stepSeconds"] < 2 / 60:
         refuse("stepSeconds must be >= 2/60 — every frame at 60 fps or below carries a collision step, but above 60 fps a step "
                "lands only every second or third frame and the longest gap between two is one step period plus one frame, just "
@@ -310,9 +325,7 @@ def zone_conds(c, me):
     rin2 = c["burstRadius"] ** 2
     rout2 = c["rearmRadius"] ** 2
     inside = [f"{me}/r2 less {fmt(rin2)}"]
-    outside = []
-    if c["mode"] == "dwell":   # entry mode has no band; the cube face is its re-arm
-        outside.append([f"{me}/r2 greater {fmt(rout2)}"])
+    outside = [[f"{me}/r2 greater {fmt(rout2)}"]]
     return inside, outside
 
 
@@ -350,7 +363,6 @@ def emit_clip(o, name, sets, seconds=None, comment=None):
 def emit_layer(o, c, k, ks):
     P = c["prefix"]
     en = c["enable"]
-    mode = c["mode"]
     me = slot_name(c, k)
     eps = c["epsilon"]
     inside, outside = zone_conds(c, me)
@@ -503,10 +515,11 @@ def emit_layer(o, c, k, ks):
     rungs()
     # Dedup: this slot has just latched, and another slot is already holding a sender at the same point. The
     # coincidence test is on the raw readings' difference (the D tree's AAPs), which is bit-exact for two
-    # coincident congruent boxes reading one sender. A slot already INSIDE the sphere always wins; between two
-    # slots still in the shell the lower index wins, so the two never release each other. Listed ahead of the
-    # release and zone rungs: the readings this test reads land a frame before r² becomes real, and first-match
-    # order is what keeps a duplicate from bursting on its way out.
+    # coincident congruent boxes reading one sender. A SETTLED holder (inside the sphere, or in the band after
+    # it) always wins, whatever its index; between two fresh slots still in the shell the lower index wins, so
+    # the two never release each other. Listed ahead of the release and zone rungs: the readings this test reads
+    # land a frame before r² becomes real, and first-match order is what keeps a duplicate from bursting on its
+    # way out.
     for j in ks:
         if j == k:
             continue
@@ -519,44 +532,33 @@ def emit_layer(o, c, k, ks):
         dconds.append(f"{sj}/Held greater 0.5")
         why = f"slot {j} holds this point"
         if j > k:
-            dconds.append(f"{sj}/Inside greater 0.5")
-            why = f"slot {j} holds this point and is already inside the sphere (a higher index yields only to that)"
+            dconds.append(f"{sj}/Settled greater 0.5")
+            why = f"slot {j} holds this point and has settled (a higher index yields only to that)"
         o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # dedup: {why}")
     release()
-    if mode == "dwell":
-        o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
-        o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: marker, no puff")
-    else:
-        o(f"          - {{ to: Burst, when: [ {inside}, {P}/Silent less 0.5 ] }}")
-        o(f"          - {{ to: Recycle, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: release without a burst")
-    if mode == "dwell":
-        o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
-        emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
-        o("        transitions:")
-        rungs()
-        release()
-        for conds in outside:
-            o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-        o("      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs")
-        emit_tree(o, c, k, hold=f"slot{k}_hold_burst_silent")
-        o("        transitions:")
-        rungs()
-        release()
-        for conds in outside:
-            o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-        o("      TrackBand:                   # retreated past the re-arm radius, still held: TrackOut's motion without its dedup rungs, so a re-arm never re-runs the coincidence test")
-        emit_tree(o, c, k, hold=f"slot{k}_hold")
-        o("        transitions:")
-        rungs()
-        release()
-        o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
-        o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # a silent sweep's endpoint survives a re-arm inside the band")
-    else:
-        o("      Burst:                       # the payload on for the tree's own dwell, then release")
-        emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
-        o("        transitions:")
-        rungs()
-        o("          - { to: Recycle, when: [], exitTime: 1.0 }")
+    o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
+    o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: marker, no puff")
+    o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
+    emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
+    o("        transitions:")
+    rungs()
+    release()
+    for conds in outside:
+        o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
+    o("      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs")
+    emit_tree(o, c, k, hold=f"slot{k}_hold_burst_silent")
+    o("        transitions:")
+    rungs()
+    release()
+    for conds in outside:
+        o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
+    o("      TrackBand:                   # retreated past the re-arm radius, still held and settled: TrackOut's rungs without dedup, so a re-arm never re-runs the coincidence test")
+    emit_tree(o, c, k, hold=f"slot{k}_hold_band")
+    o("        transitions:")
+    rungs()
+    release()
+    o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
+    o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # a silent sweep's endpoint survives a re-arm inside the band")
     o("      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected")
     o(f"        motion: {{ clip: slot{k}_recycle }}")
     o("        transitions:")
@@ -564,9 +566,7 @@ def emit_layer(o, c, k, ks):
     o("          - { to: Armed, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    target = "TrackIn" if mode == "dwell" else "Burst"
-    extra = ", TrackInSilent: [510, 630], TrackBand: [30, 630]" if mode == "dwell" else ""
-    o(f"      nodes: {{ Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], {target}: [270, 630]{extra}, Recycle: [30, 720] }}")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackInSilent: [510, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -576,9 +576,12 @@ def emit_sweep_layer(o, c, ks):
     """The one writer of the five shared sweep AAPs. Every state writes all five — a WD-ON state
     reverts any AAP it does not write to its default (measured on this rig), so a value that
     must persist across a state is written back to itself through a direct child weighted by
-    its own value. SweepPrev is the same idiom read one frame late on purpose: a child weighted
-    by Sweep writing 1 lands Sweep(F-1) in it, which is the size the last admitting flag-up cube
-    had and therefore the size the next slot's shut cube must appear at."""
+    its own value. SweepPrev is the same idiom read one frame late on purpose: in Ramp a child
+    weighted by Sweep writing 1 lands Sweep(F-1) in it, which is the size the last admitting
+    flag-up cube had and therefore the size the next slot's shut cube must appear at. Wait holds
+    it off itself (weight SweepPrev): Wait is entered on the admission frame, when Sweep already
+    reads the frozen front one frame past that size, and a copy there would hand the successor a
+    cube one frame of travel too large on its second shut frame."""
     P = c["prefix"]
     en = c["enable"]
     acq = c["acqHalf"]
@@ -625,8 +628,33 @@ def emit_sweep_layer(o, c, ks):
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
-    o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, Silent holds")
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent")])
+    # Exhaustion: every slot HOLDS (Held 1, written from TrackOut on), so nothing can ride the front. The last
+    # resident's own silent-or-loud choice reads r², which its TrackOut tree computes from the readout AAPs one
+    # frame after it writes them: the choice lands two frames after Held is visible. Silent must still read 1 on
+    # that frame, so the clear takes two hops: Wait -> Exhausting (Wait's tree, Silent held) on every Held, then
+    # Exhausting -> Exhausted on the choice's own frame, so its Silent 0 is readable only the frame after. Gating on
+    # "nothing Armed, Front, Open or Shut" instead fires a frame earlier still and the last resident bursts loud
+    # (measured). Silent > 0.5 because a loud sweep has nothing to clear. Ramp -> Wait on the fronts-down rung is
+    # what brings an exhausted sweep here.
+    all_held = ", ".join(f"{slot_name(c, k)}/Held greater 0.5" for k in ks)
+    o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, SweepPrev and Silent hold")
+    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev"), ("sw_hold_silent", f"{P}/Silent")])
+    o("        transitions:")
+    o(paused)
+    o(off)
+    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}")
+    for k in ks:
+        o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
+    o(f"          - {{ to: Exhausting, when: [ {P}/Silent greater 0.5, {all_held} ] }}   # every slot holds and nothing rides the frozen front: the silent sweep is over, whatever it never reached")
+    o("      Exhausting:                  # Wait for one more frame: the last resident's inside choice reads Silent on this frame")
+    hold_tree("Sweep exhausting", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev"), ("sw_hold_silent", f"{P}/Silent")])
+    o("        transitions:")
+    o(paused)
+    o(off)
+    o(f"          - {{ to: Exhausted, when: [ {all_held} ] }}")
+    o(f"          - {{ to: Wait, when: [], exitTime: 1.0 }}   # a slot freed on this very frame: back to Wait, still silent")
+    o("      Exhausted:                   # Wait with Silent cleared: a slot freed later resumes the front loud")
+    hold_tree("Sweep exhausted", [("sw_exhausted", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -659,7 +687,7 @@ def emit_sweep_layer(o, c, ks):
     o(off)
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Idle: [30, 450] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Exhausting: [-210, 360], Exhausted: [-210, 450], Idle: [30, 450] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -690,9 +718,12 @@ def emit_sweep_clips(o, c):
     clip("sw_idle", full(0, 0, acq, 0, 1), None, "no sweep: the front parked at the face")
     sweeping = {f"{P}/Sweeping": 1}
     sweeping.update(boundary_bindings(c, 1))
-    clip("sw_sweeping", sweeping, None, "the constant part of Wait")
+    clip("sw_sweeping", sweeping, None, "the constant part of Wait and Ramp")
+    exhausted = dict(sweeping)
+    exhausted[f"{P}/Silent"] = 0
+    clip("sw_exhausted", exhausted, None, "the constant part of Exhausted: Sweeping 1, Silent 0")
     clip("sw_hold_sweep", {f"{P}/Sweep": 1}, None, "× Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)")
-    clip("sw_hold_prev", {f"{P}/SweepPrev": 1}, None, "× Sweep: SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact)")
+    clip("sw_hold_prev", {f"{P}/SweepPrev": 1}, None, "× Sweep (Ramp): SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact); × SweepPrev (Wait, Exhausted): hold")
     clip("sw_latch_base", {f"{P}/SweepBase": 1}, None, "× Sweep: SweepBase ← Sweep")
     clip("sw_hold_base", {f"{P}/SweepBase": 1}, None, "× SweepBase: hold")
     clip("sw_hold_silent", {f"{P}/Silent": 1}, None, "× Silent: hold")
@@ -805,7 +836,7 @@ def emit_clips(o, c, k):
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, held=0, inside=0, shut=0):
+    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, held=0, settled=0, shut=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in receivers(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -815,14 +846,15 @@ def emit_clips(o, c, k):
         d[f"{me}/Open"] = opn
         d[f"{me}/Armed"] = armed
         d[f"{me}/Front"] = front
-        # Held: this slot is holding a sender (every post-latch state). Inside: and that sender is inside the
-        # sphere. The dedup rungs read another slot's pair, so every state must write both — a state that wrote
-        # neither would leave a stale 1 standing and make a newcomer yield to a slot that has already released.
+        # Held: this slot is holding a sender (every post-latch state). Settled: and that sender has reached the
+        # sphere, or the re-arm band after it — every held state but TrackOut, the fresh one. The dedup rungs read
+        # another slot's pair, so every state must write both — a state that wrote neither would leave a stale 1
+        # standing and make a newcomer yield to a slot that has already released.
         # Shut: 1 in slot<k>_sweepshut alone, the one step this slot's cube is being scaled off SweepPrev. The
         # Sweep layer's Idle rungs read it across every slot and hold off while any of them is up, because Idle
         # parks SweepPrev at acqHalf and would resize that cube out from under the step that is reading it.
         d[f"{me}/Held"] = held
-        d[f"{me}/Inside"] = inside
+        d[f"{me}/Settled"] = settled
         d[f"{me}/Shut"] = shut
         d[payload] = payload_on
         d[buffer] = buffer_on
@@ -851,10 +883,10 @@ def emit_clips(o, c, k):
         # rather than zero. Outside a track R is 0, like x, y and z — no state writes it there.
         latch[f"{me}/R"] = fmt(r)
     clip(f"slot{k}_latch", latch, c["latchSeconds"], "flag shut + hold cube in one write; readout parked at (h, −h, −h) so r² reads 3h²; the wait spans one client step of readings")
-    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off (outside the sphere, and the re-arm band)")
-    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, inside=1), None, "tracking configuration, payload on (inside the sphere)")
-    if c["mode"] == "dwell":
-        clip(f"slot{k}_hold_burst_silent", cfg(1, 0, hold, 0, 0, 1, buffer_on=0, held=1, inside=1), None, "tracking configuration, payload on, buffer particle off (found inside by a silent sweep)")
+    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off, fresh (outside the sphere, never yet inside it)")
+    clip(f"slot{k}_hold_band", cfg(1, 0, hold, 0, 0, 0, held=1, settled=1), None, "tracking configuration, payload off, settled (the re-arm band)")
+    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, settled=1), None, "tracking configuration, payload on (inside the sphere)")
+    clip(f"slot{k}_hold_burst_silent", cfg(1, 0, hold, 0, 0, 1, buffer_on=0, held=1, settled=1), None, "tracking configuration, payload on, buffer particle off (found inside by a silent sweep)")
     rec = cfg(1, 0, None, 0, 0, 0)
     body = ", ".join(f"{k2}: {v}" for k2, v in rec.items())
     o(f"  slot{k}_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse")
@@ -903,10 +935,22 @@ def emit_clips(o, c, k):
         clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t)})
 
 
-def document(overrides=None):
-    """The controller.yaml text for CONFIG updated by `overrides`, plus a facts dict."""
+def config(overrides):
+    """CONFIG updated by `overrides`; a key CONFIG does not carry is refused, since `c.update` would
+    accept it silently and a consumer passing a key this generator has dropped would build at the
+    default without a word."""
+    unknown = sorted(set(overrides or {}) - set(CONFIG))
+    if unknown:
+        refuse(f"unknown CONFIG key(s) {unknown} — this generator's CONFIG has no such knob (a dropped key, or a typo); "
+               f"the keys are {sorted(CONFIG)}")
     c = dict(CONFIG)
     c.update(overrides or {})
+    return c
+
+
+def document(overrides=None):
+    """The controller.yaml text for CONFIG updated by `overrides`, plus a facts dict."""
+    c = config(overrides)
     lint(c)
     K = c["K"]
     ks = list(range(1, K + 1))
@@ -916,13 +960,9 @@ def document(overrides=None):
     L = []
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
-    o(f"# contact-radar: {K} per-sender slots, mode {c['mode']}, tags {c['tags']}, {len(axes(c))} face-proximity boxes each plus a coincident Constant box `Hit`.")
+    o(f"# contact-radar: {K} per-sender slots, tags {c['tags']}, {len(axes(c))} face-proximity boxes each plus a coincident Constant box `Hit`.")
     o("# The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame and the sphere is invariant.")
-    if c["mode"] == "dwell":
-        o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
-    else:
-        o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m); the slot releases at the burst and the")
-        o(f"# acquisition cube face ({c['acqHalf']} m) is the re-arm surface.")
+    o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
     rtxt = (f"sender radius measured per slot from the X- box ({c['senderRadius']} m is the lints' assumed maximum)"
             if c["fourBox"] else f"sender radius {c['senderRadius']} m")
     o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s.")
@@ -969,7 +1009,7 @@ def document(overrides=None):
         o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
-        o(f"  {me}/Inside: {{ type: float, aap: true, scratch: true }}   # 1 while the sender it holds is inside the burst radius")
+        o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the sphere (inside it, or in the re-arm band after): a fresh lower-index slot yields to a settled holder")
         o(f"  {me}/Shut: {{ type: float, aap: true, scratch: true }}   # 1 for the one step this slot's cube appears shut at SweepPrev; the Sweep layer holds Idle off while it is up")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
@@ -993,7 +1033,7 @@ def document(overrides=None):
         emit_clips(o, c, k)
     emit_sweep_clips(o, c)
     emit_dedup_clips(o, c, ks)
-    facts = {"K": K, "mode": c["mode"], "fourBox": c["fourBox"],
+    facts = {"K": K, "fourBox": c["fourBox"],
              "receivers": (len(axes(c)) + 1) * K, "syncedBits": 1,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
@@ -1006,8 +1046,7 @@ def check_files(overrides, here, prefab):
     of that surface — the shipped prefab is three-box, so a fourBox consumer's own
     prefab is what this holds. Reads the prefab YAML textually; a field it cannot
     find is a FAIL, never a pass."""
-    c = dict(CONFIG)
-    c.update(overrides or {})
+    c = config(overrides)
     ok = True
 
     def assert_(cond, msg):
@@ -1045,9 +1084,7 @@ def check_receivers(assert_, c, docs, label):
     on, one parameter each, and the rotation putting each face-proximity box's +Z face on the
     axis its parameter names. `Hit` is partitioned out and held to its own list: it is a Constant
     box, so its receiverType and useFaceProximity differ and it carries no face to assert a
-    rotation against. A variant passes its base's documents minus the subtrees it removes, plus
-    its own — property overrides in the variant's m_Modifications are NOT resolved, so a field
-    changed there is read at the base's value."""
+    rotation against."""
     ax4 = axes(c)
     addx = (" \u2014 fourBox wants a fourth receiver X- in every slot's Boxes, coincident with X+ Y+ Z+ and rotated"
             " so its +Z face is the cage's -X face; duplicate the X+ node, turn it 180 degrees about Y and"
@@ -1131,32 +1168,6 @@ def check_receivers(assert_, c, docs, label):
     ok = assert_(sorted(p or "" for p in params) == expect,
                  f"receiver parameters are exactly {c['prefix']}/Slot1..{c['K']}/{' '.join(receivers(c))}, one each" + addx + addhit) and ok
     return ok
-
-
-def resolve_variant(base_docs, variant_docs, removed_ids):
-    """The variant's receiver surface as Unity resolves it: the base's documents minus the subtrees
-    it removes (m_RemovedGameObjects names only each subtree's root), plus the variant's own, which
-    is where a variant that ADDS a node carries it."""
-    tr_of, kids = {}, {}
-    for d in base_docs:
-        m = re.match(r"4 &(\d+)", d)
-        if not m:
-            continue
-        go = re.search(r"m_GameObject: \{fileID: (\d+)\}", d).group(1)
-        tr_of[go] = m.group(1)
-        kids.setdefault(re.search(r"m_Father: \{fileID: (\d+)\}", d).group(1), []).append((m.group(1), go))
-    gone, stack = set(removed_ids), [tr_of[g] for g in removed_ids if g in tr_of]
-    while stack:
-        for ct, cg in kids.get(stack.pop(), []):
-            gone.add(cg)
-            stack.append(ct)
-    kept = []
-    for d in base_docs:
-        owner = re.search(r"^  m_GameObject: \{fileID: (\d+)\}$", d, re.M) or re.match(r"1 &(\d+)", d)
-        if owner and owner.group(1) in gone:
-            continue
-        kept.append(d)
-    return kept + variant_docs
 
 
 def check_rig(assert_, c, here, docs, particles=True):
@@ -1291,12 +1302,11 @@ def meta_guid(path):
     return m.group(1) if m else None
 
 
-def check_seam(assert_, c, here, body, toggle_body=None):
+def check_seam(assert_, c, here, body):
     """The FullController's silent surface: globalParams exactly the enable, and its two
     objRefs pointing at THIS folder's built/ — a component built by copying a configured one
     keeps the donor's objRef and silently runs the donor's controller. Plus the Toggle holding
-    the enable's other half, which a variant inherits (`toggle_body` is then the base's file):
-    its defaultOn is the same bit as the document's enableDefault, and the two disagreeing is
+    the enable's other half: its defaultOn is the same bit as the document's enableDefault, and the two disagreeing is
     silent — the avatar comes up in the state neither side intended."""
     ok = True
     gp = re.search(r"globalParams:\n((?:\s+- .*\n)*)", body)
@@ -1306,7 +1316,7 @@ def check_seam(assert_, c, here, body, toggle_body=None):
     want = [meta_guid(os.path.join(here, "built", c["controller"] + ".controller")),
             meta_guid(os.path.join(here, "built", c["controller"] + "_Parameters.asset"))]
     ok = assert_(refs == want, f"FullController objRefs == built/{c['controller']} controller + params GUIDs (got {refs})") and ok
-    tog = [b for b in re.split(r"^    - rid: ", toggle_body or body, flags=re.M)[1:]
+    tog = [b for b in re.split(r"^    - rid: ", body, flags=re.M)[1:]
            if "class: Toggle" in b.split("data:", 1)[0]
            and re.search(r"^        useGlobalParam: 1$", b, re.M)
            and re.search(rf"^        globalParam: {re.escape(c['enable'])}$", b, re.M)]
@@ -1326,8 +1336,7 @@ def check_prefab(overrides, prefab_path):
     regenerates its document from this generator and nothing else ties its prefab to it. Not the
     entry-only asserts (the World pins, the built/ GUIDs, the Boundary mesh GUIDs, the Toggle), and
     nothing under Payload: what a copy hangs there (a box, a censor quad) is its own."""
-    c = dict(CONFIG)
-    c.update(overrides or {})
+    c = config(overrides)
     ok = True
 
     def assert_(cond, msg):
@@ -1342,49 +1351,6 @@ def check_prefab(overrides, prefab_path):
     docs = open(prefab_path, encoding="utf-8").read().split("--- !u!")
     ok = check_receivers(assert_, c, docs, os.path.basename(prefab_path)) and ok
     ok = check_rig(assert_, c, None, docs, particles=False) and ok
-    print("OK" if ok else "FAILED")
-    return ok
-
-
-def check_variant(overrides, here, prefab, base_prefab, base_config=None):
-    """A prefab VARIANT's file holds only its overrides, so its receiver surface is resolved
-    against the base (`resolve_variant`) and checked at THIS config — a variant at a config the
-    base's rig cannot serve is the failure this catches. What the variant file itself states is
-    its source, the slot removals taking the base K down to this K, and its own FullController
-    seam; the Toggle it inherits is read from the base."""
-    c = dict(CONFIG)
-    c.update(overrides or {})
-    b = dict(CONFIG)
-    b.update(base_config or {})
-    ok = True
-
-    def assert_(cond, msg):
-        nonlocal ok
-        print(("  ok   " if cond else "  FAIL ") + msg)
-        ok = ok and cond
-        return cond
-
-    path = os.path.join(here, prefab)
-    if not os.path.exists(path):
-        print("  FAIL " + prefab + " is missing")
-        return False
-    body = open(path, encoding="utf-8").read()
-    src = re.search(r"m_SourcePrefab: \{fileID: \d+, guid: ([0-9a-f]{32}), type: 3\}", body)
-    assert_(src is not None and src.group(1) == meta_guid(base_prefab), f"{prefab} is a variant of {os.path.basename(base_prefab)}")
-    removed = re.search(r"m_RemovedGameObjects:\n((?:\s+- \{.*\n)*)", body)
-    base_body = open(base_prefab, encoding="utf-8").read()
-    names = []
-    for fid in re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""):
-        m = re.search(rf"^--- !u!1 &{fid}\nGameObject:\n(?:.*\n)*?  m_Name: (\S+)$", base_body, re.M)
-        names.append(m.group(1) if m else f"<{fid}>")
-    want = sorted([f"Slot{i}" for i in range(c["K"] + 1, b["K"] + 1)] + ["Marker"] * c["K"])
-    assert_(sorted(names) == want, f"removed GameObjects {sorted(names)} == the slots above K plus each kept slot's Marker ({want})")
-    rc = re.search(r"m_RemovedComponents:\n((?:\s+- \{.*\n)*)", body)
-    assert_(rc is not None and len(rc.group(1).splitlines()) == 1, "exactly one removed component (the inherited FullController)")
-    resolved = resolve_variant(base_body.split("--- !u!"), body.split("--- !u!"),
-                               re.findall(r"fileID: (\d+)", removed.group(1) if removed else ""))
-    ok = check_receivers(assert_, c, resolved, os.path.basename(prefab)) and ok
-    ok = check_seam(assert_, c, here, body, toggle_body=base_body) and ok
     print("OK" if ok else "FAILED")
     return ok
 
@@ -1435,7 +1401,7 @@ def main():
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     write_meshes(os.path.join(HERE, "assets"))   # idempotent, so regenerate-and-diff covers the OBJ too
-    print(f"wrote controller.yaml and assets/UnitSphere.obj — mode {facts['mode']}, K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
+    print(f"wrote controller.yaml and assets/UnitSphere.obj — K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
 
 
 if __name__ == "__main__":
