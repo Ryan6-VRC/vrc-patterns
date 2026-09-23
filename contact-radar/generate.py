@@ -67,7 +67,8 @@ is inside `dedupEpsilon` of zero against a slot already holding a sender. Two
 coincident congruent boxes read one sender identically, so the difference is a
 true zero rather than a small one (measured bit-identical in the shipping
 client, near the origin and a kilometre from it). A slot that has settled —
-reached the sphere, or the re-arm band after it — always wins, whatever its
+reached the sphere, the re-arm band after it, or held outside it past the
+fresh window below — always wins, whatever its
 index; between two fresh slots still in the shell the lower index wins, and
 neither can release the other. `TrackBand` is `TrackOut` without those rungs: a
 hand that re-arms in the band re-enters there, so the coincidence test never
@@ -76,11 +77,11 @@ drift within `dedupEpsilon` of each other and collapse to one slot. It writes
 `Settled` like the two inside states do, because a fresh lower-index slot
 yields only to a settled holder: a band holder that read as fresh would be
 admitted a second time by a lower slot and both would burst on re-entry.
-`TrackOut` is also left for `TrackBand` by time, two of its own periods after
-entry (a Direct tree's length is data, a few frames here) with no rung fired:
-the dedup rungs have had their say by then, and a hand held outside the sphere
-that stayed fresh would be re-taken from its holder by every lower-index rider
-the front sends past it, hopping slots once a pass. The fresh-versus-fresh
+`TrackOut` is also left for `TrackBand` once the readout is live (r² off the
+Latch park, checked at each period of the tree, a few frames) with no rung
+fired: the dedup rungs have had their say by then, and a hand held outside the
+sphere that stayed fresh would be re-taken from its holder by every lower-index
+rider the front sends past it, hopping slots once a pass. The fresh-versus-fresh
 index rule covers only the frames both admissions are fresh.
 
 The front re-offers every held hand once per pass, so dedup is the common path,
@@ -95,8 +96,9 @@ fresh reading composed axis-wise of held readings, one rung per assignment of
 the axes to other slots that is not all one slot, each distinct holder Held and
 a higher-index one Settled. A real hand fires one only by coinciding with a
 different holder on every axis at once. A phantom with an unheld member (two
-newcomers on one shell) matches nothing and stands until a member leaves the
-hold cube: the same-step merge trap, present tense (README §Traps).
+newcomers on one shell) matches nothing and stands until its last member leaves
+the hold cube, re-composing at each departure: the same-step merge trap,
+present tense (README §Traps).
 
 A stale `Hit` level, should one ever occur: a `Hit` box reading 1 with nothing
 in its collision set. The candidate is a receiver the client stows and restores
@@ -597,14 +599,15 @@ def emit_layer(o, c, k, ks):
         o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # phantom: {'/'.join(f'{ax} of slot {j}' for ax, j in zip(ax4, assign))}")
     release()
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
-    # Fresh ends by time as well as by reaching the sphere. The dedup rungs above have fired by the second or third
-    # frame here if they ever will (D lands a frame after the readings, r² a frame after that), so a slot still in
-    # TrackOut two of its own periods later holds a distinct hand and settles: the front re-offers every held hand
-    # each pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the
-    # fresh-versus-fresh rule, hopping slots once a pass. A Direct tree's length is data (the weighted sum of its
-    # one-frame children, a few frames), and an exit time above 1 is checked once; listed last, so any rung above
-    # that is eligible on the same frame wins.
-    o("          - { to: TrackBand, when: [], exitTime: 2.0 }   # fresh no longer: settle outside the sphere")
+    # Fresh ends once the readout is live, not only by reaching the sphere: the front re-offers every held hand each
+    # pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the fresh-versus-fresh
+    # rule, hopping slots once a pass. The gate is r² off the Latch park (3h²), which lands a frame after D does, so
+    # by the time this rung is eligible the dedup rungs above have read the second reading's D as well, and a hitch
+    # frame on the first evaluation cannot settle a duplicate before dedup has had that frame. Checked at each
+    # crossing of the tree's own period (a Direct tree's length is data, a few frames here); listed last, so any
+    # rung above that is eligible on the same frame wins. A hand grazing a corner of the hold cube reads 3h² through
+    # the table's clamp and stays fresh there, which costs nothing but the re-take above.
+    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(3 * c['holdHalf'] ** 2 - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the sphere: settle")
     o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
     o("        transitions:")
@@ -906,7 +909,7 @@ def emit_clips(o, c, k):
     clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0), step, "Open 1, flag shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)")
     clip(f"slot{k}_sweep_cfg", cfg(1, 1, collapsed, 1, 0, 0, front=1), None, "Open 1, Front 1, flag up, base scale: the growing cube's constant part")
     clip(f"slot{k}_front_scale", {f"{B}/Transform.m_LocalScale.{ax}": fmt(per_m) for ax in ("x", "y", "z")},
-         None, "× Sweep: the cube at the front (the face once the sweep is over)")
+         None, "× Sweep: the cube at the front")
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
     # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads 3h².
@@ -1033,7 +1036,7 @@ def document(overrides=None):
         o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}   # 1 while collapsed and waiting for the ring")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
-        o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the sphere (inside it, or in the re-arm band after): a fresh lower-index slot yields to a settled holder")
+        o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the sphere (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
     o("  # sender reads 0 on every axis and a freshly latched slot recognises the duplicate. Each defaults to 0, which is")
