@@ -101,8 +101,7 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   `latchSeconds` is the one dwell sized larger, because it waits for readings
   that land a whole client step after the admission edge.
 - Every slot state writes every flag (Open, Armed, Front, Held, Settled, Shut), the
-  burst toggle and the
-  payload toggle, zeros included: an AAP holds its last clip-written value and a scene binding holds
+  payload toggle and the buffer particle's force-on, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
   `cfg()`, is where that rule is enforced — every slot clip goes through it.
 - The burst states carry the readout tree: the payload wrapper enables where Output
@@ -151,18 +150,16 @@ What happens at enable, at load and around a pause — the expanding front:
 - Two hands within one frame of front travel at the same Chebyshev radius
   co-latch, the same window as a normal admission; `sweepSeconds` and the frame
   time are the two knobs on that resolution.
-- `CR/Silent` decides what a hand the front finds inside the sphere does: loud
-  (from Disabled — the toggle) bursts as usual; silent (from Boot — a fresh
-  animator — and from Paused — a distance-hide resume) lands in TrackInSilent
-  (payload on, the buffer particle's GameObject off: marker, no puff). The
-  Sweep layer's Idle state clears Silent when the front reaches the face, so a
-  hand that crosses in after the sweep bursts loud. Exhaustion clears it too:
-  when every slot holds and nothing rides the frozen front, the layer steps to
-  Exhausted, Wait with Silent written 0, because a slot freed minutes later
-  would otherwise resume the front silently and a hand it then found would
-  never puff. Its Silent 0 becomes readable only the frame after the last
-  resident's own silent-or-loud choice, so that resident stays silent. The cost is that a resident the frozen front had not reached
-  bursts loud when a freed slot finally reaches it.
+- Every sweep fires the payload: a hand the front finds inside the sphere fires the
+  payload exactly as a hand crossing in does, whether the sweep came from the
+  toggle, a fresh animator (load, a late joiner, a mirror clone) or a
+  distance-hide resume. There is deliberately no quiet endpoint for the last
+  two: a quiet endpoint costs a state copy per slot, a fifth sweep AAP and an exhaustion
+  cap whose timing (the last resident's inside choice lands two frames after
+  its Held) is the most fragile thing in the rig, and it buys only that an
+  edge reader stays quiet for hands already inside. The consumer's tolerance
+  for one payload edge per resident at each of those events is what this
+  trades on; a level reader (a marker, a mosaic) sees no difference.
 - Boot is the default state and is entered only by a fresh animator (load,
   manual hide/show, mirror clones); Disabled is entered only by the toggle.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
@@ -171,9 +168,9 @@ What happens at enable, at load and around a pause — the expanding front:
   installer for renderer bounds that cover the working volume). Its clip collapses the boxes; on resume the rig passes through
   Paused, Armed (collapsed) and SweepShut at front 0 before anything grows, so
   whatever the receivers did during the pause is discarded and the present
-  hands are re-acquired from scratch, silently.
-- The five sweep AAPs have exactly one writer, the `Sweep` layer, whose every
-  state writes all five: a WD-ON state reverts any AAP it does not write to its
+  hands are re-acquired from scratch.
+- The four sweep AAPs have exactly one writer, the `Sweep` layer, whose every
+  state writes all four: a WD-ON state reverts any AAP it does not write to its
   default (measured on this rig — a 1D-tree Armed state dropped `Sweeping` to 0
   within a frame), so a value that must persist across a state is written back
   to itself through a direct child weighted by its own value. Slot layers read
@@ -395,7 +392,7 @@ def emit_layer(o, c, k, ks):
 
     o(f"  - name: Slot{k}")
     o("    states:")
-    o("      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone — the Sweep layer makes its sweep silent")
+    o("      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone")
     o(f"        motion: {{ clip: slot{k}_boot }}")
     o("        transitions:")
     o(paused)
@@ -536,17 +533,9 @@ def emit_layer(o, c, k, ks):
             why = f"slot {j} holds this point and has settled (a higher index yields only to that)"
         o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # dedup: {why}")
     release()
-    o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
-    o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # found inside by a silent sweep: marker, no puff")
+    o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
     o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
-    o("        transitions:")
-    rungs()
-    release()
-    for conds in outside:
-        o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-    o("      TrackInSilent:               # inside the burst radius with the buffer particle held off: the marker rides, nothing puffs")
-    emit_tree(o, c, k, hold=f"slot{k}_hold_burst_silent")
     o("        transitions:")
     rungs()
     release()
@@ -557,8 +546,7 @@ def emit_layer(o, c, k, ks):
     o("        transitions:")
     rungs()
     release()
-    o(f"          - {{ to: TrackIn, when: [ {inside}, {P}/Silent less 0.5 ] }}")
-    o(f"          - {{ to: TrackInSilent, when: [ {inside}, {P}/Silent greater 0.5 ] }}   # a silent sweep's endpoint survives a re-arm inside the band")
+    o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
     o("      Recycle:                     # collapse a step, restore a step, flag shut: every hand inside is re-rejected")
     o(f"        motion: {{ clip: slot{k}_recycle }}")
     o("        transitions:")
@@ -566,14 +554,14 @@ def emit_layer(o, c, k, ks):
     o("          - { to: Armed, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackInSilent: [510, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Open: [30, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
 
 
 def emit_sweep_layer(o, c, ks):
-    """The one writer of the five shared sweep AAPs. Every state writes all five — a WD-ON state
+    """The one writer of the four shared sweep AAPs. Every state writes all four — a WD-ON state
     reverts any AAP it does not write to its default (measured on this rig), so a value that
     must persist across a state is written back to itself through a direct child weighted by
     its own value. SweepPrev is the same idiom read one frame late on purpose: in Ramp a child
@@ -606,55 +594,30 @@ def emit_sweep_layer(o, c, ks):
             o(f"            - {{ clip: {clip}, directWeight: {w} }}")
 
     o("  - name: Sweep")
-    o("    # The expanding front, shared by every slot: Sweeping (collapse the Armed slots), Silent (the no-puff endpoint),")
+    o("    # The expanding front, shared by every slot: Sweeping (collapse the Armed slots),")
     o("    # Sweep (the front half-extent, m), SweepBase (where the current sweeper's ramp started) and SweepPrev (last frame's")
     o("    # front, which the next slot's shut cube rides). Slot layers read these")
     o("    # and never write them; each slot reports its own Front flag (1 in its Sweep state) for this layer to ramp on.")
     o("    # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).")
     o("    states:")
-    o("      Boot:                        # a fresh animator: the first sweep is silent")
+    o("      Boot:                        # a fresh animator: the first sweep runs from 0")
     o("        motion: { clip: sw_boot }")
     o("        transitions:")
     o(paused)
     o(off)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Disabled:                    # the toggle is off: the next sweep is loud")
+    o("      Disabled:                    # the toggle is off: the next sweep runs from 0")
     o("        motion: { clip: sw_off }")
     o("        transitions:")
     o(paused)
     o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
-    o("      Paused:                      # a distance-hide: the resume sweep is silent")
+    o("      Paused:                      # a distance-hide: the resume sweep runs from 0")
     o("        motion: { clip: sw_paused }")
     o("        transitions:")
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
     o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
-    # Exhaustion: every slot HOLDS (Held 1, written from TrackOut on), so nothing can ride the front. The last
-    # resident's own silent-or-loud choice reads r², which its TrackOut tree computes from the readout AAPs one
-    # frame after it writes them: the choice lands two frames after Held is visible. Silent must still read 1 on
-    # that frame, so the clear takes two hops: Wait -> Exhausting (Wait's tree, Silent held) on every Held, then
-    # Exhausting -> Exhausted on the choice's own frame, so its Silent 0 is readable only the frame after. Gating on
-    # "nothing Armed, Front, Open or Shut" instead fires a frame earlier still and the last resident bursts loud
-    # (measured). Silent > 0.5 because a loud sweep has nothing to clear. Ramp -> Wait on the fronts-down rung is
-    # what brings an exhausted sweep here.
-    all_held = ", ".join(f"{slot_name(c, k)}/Held greater 0.5" for k in ks)
-    o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, SweepPrev and Silent hold")
-    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev"), ("sw_hold_silent", f"{P}/Silent")])
-    o("        transitions:")
-    o(paused)
-    o(off)
-    o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}")
-    for k in ks:
-        o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
-    o(f"          - {{ to: Exhausting, when: [ {P}/Silent greater 0.5, {all_held} ] }}   # every slot holds and nothing rides the frozen front: the silent sweep is over, whatever it never reached")
-    o("      Exhausting:                  # Wait for one more frame: the last resident's inside choice reads Silent on this frame")
-    hold_tree("Sweep exhausting", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev"), ("sw_hold_silent", f"{P}/Silent")])
-    o("        transitions:")
-    o(paused)
-    o(off)
-    o(f"          - {{ to: Exhausted, when: [ {all_held} ] }}")
-    o(f"          - {{ to: Wait, when: [], exitTime: 1.0 }}   # a slot freed on this very frame: back to Wait, still silent")
-    o("      Exhausted:                   # Wait with Silent cleared: a slot freed later resumes the front loud")
-    hold_tree("Sweep exhausted", [("sw_exhausted", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
+    o("      Wait:                        # a sweep is pending or between slots: the front holds, SweepBase latches it, SweepPrev holds")
+    hold_tree("Sweep wait", [("sw_sweeping", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -662,7 +625,7 @@ def emit_sweep_layer(o, c, ks):
     for k in ks:
         o(f"          - {{ to: Ramp, when: [ {slot_name(c, k)}/Front greater 0.5 ] }}")
     o("      Ramp:                        # a slot's flag is up: the front grows from SweepBase at the configured speed")
-    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_prev", f"{P}/Sweep"), ("sw_hold_silent", f"{P}/Silent")])
+    hold_tree("Sweep ramp", [("sw_ramp", f"{P}/One"), ("sw_hold_sweep", f"{P}/SweepBase"), ("sw_hold_base", f"{P}/SweepBase"), ("sw_hold_prev", f"{P}/Sweep")])
     o("        transitions:")
     o(paused)
     o(off)
@@ -680,14 +643,14 @@ def emit_sweep_layer(o, c, ks):
         o(f"          - {{ to: Wait, when: [ {slot_name(c, k)}/Front greater 0.5, {slot_name(c, k)}/Hit greater 0.5, {slot_name(c, k)}/HitPrev less 0.5 ] }}   # slot {k} latched: freeze the front on the admission frame")
     o(f"          - {{ to: Idle, when: [ {P}/Sweep greater {fmt(acq)}, {shut_down} ] }}   # the face: the sweep is over, once no successor's shut cube is still reading SweepPrev")
     o(f"          - {{ to: Wait, when: [ {fronts_down} ] }}   # the sweeper latched a frame ago (its edge was missed) or stalled: hold the front for the next slot's shut step")
-    o("      Idle:                        # no sweep: Armed slots at full size, the front parked at the face, loud")
+    o("      Idle:                        # no sweep: Armed slots at full size, the front parked at the face")
     o("        motion: { clip: sw_idle }")
     o("        transitions:")
     o(paused)
     o(off)
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Exhausting: [-210, 360], Exhausted: [-210, 450], Idle: [30, 450] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Idle: [30, 450] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -702,31 +665,27 @@ def emit_sweep_clips(o, c):
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    def full(sweeping, silent, sweep, base, shown):
+    def full(sweeping, sweep, base, shown):
         # SweepPrev = Sweep in every plain-clip state: each of them parks the front, so last frame's front is this
         # frame's. Only the two tree states, where the front moves, need the one-frame lag a × Sweep child gives.
-        d = {f"{P}/Sweeping": sweeping, f"{P}/Silent": silent, f"{P}/Sweep": fmt(sweep),
+        d = {f"{P}/Sweeping": sweeping, f"{P}/Sweep": fmt(sweep),
              f"{P}/SweepBase": fmt(base), f"{P}/SweepPrev": fmt(sweep)}
         d.update(boundary_bindings(c, shown))
         return d
 
     o("  # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).")
     o("  # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only for the configured shape while enabled.")
-    clip("sw_boot", full(1, 1, 0, 0, 0), None, "a fresh animator: silent, front at 0")
-    clip("sw_off", full(1, 0, 0, 0, 0), None, "the toggle off: loud, front at 0")
-    clip("sw_paused", full(1, 1, 0, 0, 0), None, "a distance-hide: silent, front at 0")
-    clip("sw_idle", full(0, 0, acq, 0, 1), None, "no sweep: the front parked at the face")
+    clip("sw_boot", full(1, 0, 0, 0), None, "a fresh animator: front at 0")
+    clip("sw_off", full(1, 0, 0, 0), None, "the toggle off: front at 0")
+    clip("sw_paused", full(1, 0, 0, 0), None, "a distance-hide: front at 0")
+    clip("sw_idle", full(0, acq, 0, 1), None, "no sweep: the front parked at the face")
     sweeping = {f"{P}/Sweeping": 1}
     sweeping.update(boundary_bindings(c, 1))
     clip("sw_sweeping", sweeping, None, "the constant part of Wait and Ramp")
-    exhausted = dict(sweeping)
-    exhausted[f"{P}/Silent"] = 0
-    clip("sw_exhausted", exhausted, None, "the constant part of Exhausted: Sweeping 1, Silent 0")
     clip("sw_hold_sweep", {f"{P}/Sweep": 1}, None, "× Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)")
-    clip("sw_hold_prev", {f"{P}/SweepPrev": 1}, None, "× Sweep (Ramp): SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact); × SweepPrev (Wait, Exhausted): hold")
+    clip("sw_hold_prev", {f"{P}/SweepPrev": 1}, None, "× Sweep (Ramp): SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact); × SweepPrev (Wait): hold")
     clip("sw_latch_base", {f"{P}/SweepBase": 1}, None, "× Sweep: SweepBase ← Sweep")
     clip("sw_hold_base", {f"{P}/SweepBase": 1}, None, "× SweepBase: hold")
-    clip("sw_hold_silent", {f"{P}/Silent": 1}, None, "× Silent: hold")
     o(f"  sw_ramp:   # × One: Sweeping 1 and the front's own travel, 0 → {fmt(reach)} m over {fmt(T)} s, linear, added to SweepBase")
     o(f"    seconds: {fmt(T)}")
     ramp_set = ", ".join(f"{k2}: {v}" for k2, v in sweeping.items())
@@ -836,7 +795,7 @@ def emit_clips(o, c, k):
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
 
-    def cfg(active, flag, scale, opn, armed, payload_on, buffer_on=1, front=0, held=0, settled=0, shut=0):
+    def cfg(active, flag, scale, opn, armed, payload_on, front=0, held=0, settled=0, shut=0):
         d = {f"{B}/GameObject.m_IsActive": active}
         for ax in receivers(c):
             d[f"{B}/{ax}/VRCContactReceiver.allowOthers"] = flag
@@ -857,13 +816,15 @@ def emit_clips(o, c, k):
         d[f"{me}/Settled"] = settled
         d[f"{me}/Shut"] = shut
         d[payload] = payload_on
-        d[buffer] = buffer_on
+        # The buffer particle's GameObject is forced on in every state: nothing in the rig turns it off, and the
+        # binding is kept so a copy whose Burst was saved inactive still fires on the payload edge.
+        d[buffer] = 1
         return d
 
     def clip(name, sets, seconds=None, comment=None):
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the six protocol flags, the payload toggle and the buffer toggle.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the six protocol flags, the payload toggle and the buffer particle's force-on.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
@@ -886,7 +847,6 @@ def emit_clips(o, c, k):
     clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off, fresh (outside the sphere, never yet inside it)")
     clip(f"slot{k}_hold_band", cfg(1, 0, hold, 0, 0, 0, held=1, settled=1), None, "tracking configuration, payload off, settled (the re-arm band)")
     clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, settled=1), None, "tracking configuration, payload on (inside the sphere)")
-    clip(f"slot{k}_hold_burst_silent", cfg(1, 0, hold, 0, 0, 1, buffer_on=0, held=1, settled=1), None, "tracking configuration, payload on, buffer particle off (found inside by a silent sweep)")
     rec = cfg(1, 0, None, 0, 0, 0)
     body = ", ".join(f"{k2}: {v}" for k2, v in rec.items())
     o(f"  slot{k}_recycle:   # collapse for a step, restore for a step; stepped so nothing eases through the collapse")
@@ -967,7 +927,7 @@ def document(overrides=None):
             if c["fourBox"] else f"sender radius {c['senderRadius']} m")
     o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s.")
     o(f"# At enable, load and distance-hide resume one slot at a time sweeps its cube out over {c['sweepSeconds']} s so hands")
-    o("# already inside are admitted one by one (the expanding front); loud from the toggle, silent from a load or a resume.")
+    o("# already inside are admitted one by one (the expanding front), each firing the payload as it is found.")
     o("# Per-client: every copy of the avatar senses on its own client (receivers localOnly 0);")
     o("# one synced bit (the enable) and nothing else crosses the wire. generate.py's docstring")
     o("# carries the mechanism; the README carries the traps and the measurements.")
@@ -985,11 +945,10 @@ def document(overrides=None):
     o(f"  {c['enable']}: {{ type: bool, default: {'true' if c['enableDefault'] else 'false'}, vrc: {{ synced: true, saved: false }} }}  # the Toggle; off is the reset")
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator")
     o(f"  {P}/One: {{ type: float, default: 1, scratch: true }}   # constant direct weight, never driven")
-    o("  # The sweep (written only by the Sweep layer): Sweeping collapses every Armed slot, Silent picks the no-puff")
-    o("  # endpoint, Sweep is the front half-extent (m), SweepBase the front the current sweeper's ramp started from,")
+    o("  # The sweep (written only by the Sweep layer): Sweeping collapses every Armed slot,")
+    o("  # Sweep is the front half-extent (m), SweepBase the front the current sweeper's ramp started from,")
     o("  # SweepPrev last frame's Sweep — the size the next slot's shut cube appears at, so the handoff leaves no band.")
     o(f"  {P}/Sweeping: {{ type: float, aap: true, scratch: true }}")
-    o(f"  {P}/Silent: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/Sweep: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepBase: {{ type: float, aap: true, scratch: true }}")
     o(f"  {P}/SweepPrev: {{ type: float, aap: true, scratch: true }}")
