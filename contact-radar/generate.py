@@ -36,14 +36,24 @@ The `Open` AAP means "this slot holds the front position" (shut at it, riding
 it, or in Partial); the name predates the always-running front.
 The slots sit tilted, the cube's diagonal vertical, so a standing player's
 stacked senders meet a face at staggered depths instead of one vertical plane
-in one step (README §How it works); the readout lives in that frame and the
-sphere is invariant under it. The latched
+in one step (README §How it works); the readout lives in that frame. The latched
 slot then reconstructs its hand's position exactly (box-tracker's readout,
 three boxes and a configured sender radius — four boxes and a measured one
-under `fourBox`) and computes r² = x²+y²+z² in a
-piecewise-linear lookup; the burst fires when r² crosses the burst radius. The
-zone is a sphere and nothing else: it is the one shape that is invariant under the
-cube's tilt, so the readout frame never has to be undone in the tree.
+under `fourBox`), computes r² = x²+y²+z² in a piecewise-linear lookup, and
+undoes the tilt on the one axis the zone needs: yw = (x+y+z)/sqrt3 is the
+hand's height above the cage centre (the tilt sends the slot's (1,1,1) diagonal
+to world up), a linear term the read clips carry, and p2 = r² − yw² is the
+in-plane radius², a fourth lookup subtracting yw's square. The zone is a
+vertical cylinder about the cage centre with no height bound: the payload
+fires when p2 crosses the burst radius, and a hand leaves the zone through the
+cube's ends only by leaving the hold cube, which is the axis-floor release. The
+cylinder's ends are therefore the tilted cube's corners: at the burst radius a
+hand is inside the acquisition cube from every direction within a band of
+half-height sqrt3·acqHalf − sqrt2·(R + r) about the centre (`band_half_height`,
+which the lint holds above zero and the boundary draws), and past the band the
+cube still reaches, direction-dependently. r² stays computed and exported, and
+it is the settle rung's guard off the Latch park; the park writes yw as well,
+so the first p2 the tree computes is never 3h² minus a stale square.
 
 A slot keeps its hand until the hand leaves the hold cube, and re-bursts each
 time the hand crosses back inside the burst radius after retreating past the
@@ -67,7 +77,7 @@ is inside `dedupEpsilon` of zero against a slot already holding a sender. Two
 coincident congruent boxes read one sender identically, so the difference is a
 true zero rather than a small one (measured bit-identical in the shipping
 client, near the origin and a kilometre from it). A slot that has settled —
-reached the sphere, the re-arm band after it, or held outside it past the
+reached the zone, the re-arm band after it, or held outside it past the
 fresh window below — always wins, whatever its
 index; between two fresh slots still in the shell the lower index wins, and
 neither can release the other. `TrackBand` and `TrackIn` carry the SETTLED
@@ -82,7 +92,7 @@ admitted a second time by a lower slot and both would burst on re-entry.
 `TrackOut` is also left for `TrackBand` once the readout is live (r² off the
 Latch park, checked at each period of the tree, a few frames) with no rung
 fired: the dedup rungs have had their say by then, and a hand held outside the
-sphere that stayed fresh would be re-taken from its holder by every lower-index
+zone that stayed fresh would be re-taken from its holder by every lower-index
 rider the front sends past it, hopping slots once a pass. The fresh-versus-fresh
 index rule covers only the frames both admissions are fresh.
 
@@ -145,11 +155,14 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   state keeps writing that position. One toggle serves both consumers: a buffer
   particle reads its enable edge, a mesh reads its level.
 - `Cage/Size` is the consumer's static size knob (README §Knobs): scaling it scales
-  the cubes, the readout, the sphere and every band together, so every lint below
+  the cubes, the readout, the cylinder and every band together, so every lint below
   holds at any scale; only the sender-radius bias term scales when it should not —
   and under `fourBox` there is no such term, so the origin is exact at any scale.
-- Latch parks x, y, z at (h, -h, -h) so the first r² computed in TrackOut is
-  3h², far outside the sphere, and holds until its own readings arrive (its Hit
+- Latch parks x, y, z at (h, -h, -h), and yw at that point's height, so the
+  first r² computed in TrackOut is the tables' reading of that corner (about
+  3h²; `park_r2` is the exact figure the settle guard compares against) and
+  the first p2 about 8h²/3, both far outside the zone, and holds until its own
+  readings arrive (its Hit
   edge fires a step before them) or `latchSeconds` passes with none, in which
   case it recycles: the guard is the state sequence, no settle AAP. The readings
   rung is listed before the exit-time rung, and that ordering — not the duration
@@ -256,12 +269,14 @@ The front, which always runs:
   carries the timing and every other child is one frame long, which stretches
   the ramp by at most the sum of those children's weights over 60·sweepSeconds.
 
-The boundary: `Cage/Size/Boundary` holds one unit mesh, `Sphere` (radius 1),
+The boundary: `Cage/Size/Boundary` holds one unit mesh, `Cylinder` (an open
+tube of radius 1, y in [-1, 1], its ends undrawn because the zone has none),
 written by `--mesh` into assets/. The Sweep layer — the one layer with exactly
-one state live at all times — writes its scale (R,R,R) and MeshRenderer enable
-in every state, so the drawn surface is the configured burst surface by
-construction, only while the toggle is on. `Boundary` ships inactive:
-activating it is the consumer's opt-in, and its material the swap point.
+one state live at all times — writes its scale (R, band, R) and MeshRenderer
+enable in every state, so the drawn surface is the burst radius over the band
+inside which that radius is reached from every direction, by construction,
+only while the toggle is on. `Boundary` ships inactive: activating it is the
+consumer's opt-in, and its material the swap point.
 
 Fragment mode: `document(overrides)` returns the document text and a facts
 dict, the door a venue's owned copy regenerates through at its own CONFIG. A
@@ -283,7 +298,7 @@ CONFIG = {
     "tags": ["HandR"],
     "acqHalf": 1.2,             # acquisition cube half-extent, m; at Cage/Size scale 1
     "holdHalf": 1.3,            # hold cube half-extent, m — h in the readout
-    "burstRadius": 1.0,         # R_in, m
+    "burstRadius": 1.0,         # R_in, m — the zone's horizontal radius (a vertical cylinder about the cage centre)
     "rearmRadius": 1.1,         # R_out, m
     "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias.
@@ -296,7 +311,7 @@ CONFIG = {
                                 #   admission frame, and two real hands are still far outside its ball (the lint bounds it)
     "sweepSeconds": 2.0,        # the front's travel time from the centre to the face, every pass: the period between two offers to a hand and
                                 #   the resolution (front travel per collision step, the same-shell merge window) at once
-    "lookupSegments": 16,       # x² table resolution over [-h, h]
+    "lookupSegments": 16,       # x² table resolution over [-h, h]; the yw² table takes the same chord width over its wider span
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
     "prefix": "CR",             # internal param namespace; never published
@@ -318,6 +333,21 @@ SETTLED_EPSILON = 0.0002
 
 TILT = (-0.325058, 0.0, 0.325058, 0.888074)
 TILT_INV = (0.325058, 0.0, -0.325058, 0.888074)
+SQRT3 = 3 ** 0.5
+# World height in the slot frame: the tilt sends the slot's (1, 1, 1) diagonal to world up, so a point's height
+# above the cage centre is (x + y + z) / sqrt3 of its tilted-frame readout. yw undoes the tilt on the one axis the
+# cylinder needs; the in-plane radius² is then r² − yw², and the readout frame is never undone for x and z.
+YW_PER_AXIS = 1 / SQRT3
+
+
+def band_half_height(c, radius):
+    """The half-height, about the cage centre, of the band inside which a sender at horizontal `radius` is inside
+    the acquisition cube from every direction. The tilted cube's horizontal cross-section is a hexagon at the
+    centre height (inradius acqHalf·sqrt(3/2)) that shrinks toward each vertical corner at sqrt(1/2) per metre in
+    the worst azimuth, so the band is sqrt3·(acqHalf − senderRadius) − sqrt2·radius: the cube shrunk by the sender's
+    radius, a bound the overlap-based admission clears from every direction. Above and below the band the cube still
+    reaches, but not from every direction: the zone's ends are the cube's corners, not caps."""
+    return SQRT3 * (c["acqHalf"] - c["senderRadius"]) - 2 ** 0.5 * radius
 
 
 def refuse(msg):
@@ -352,12 +382,12 @@ def lint(c):
         refuse("K must be >= 2 — one slot has nothing to hand off to")
     if c["holdHalf"] < c["acqHalf"]:
         refuse("holdHalf must be >= acqHalf — the latch expands, never shrinks")
-    if c["burstRadius"] + c["senderRadius"] >= c["acqHalf"]:
-        refuse("burstRadius + senderRadius must be < acqHalf — the burst must be reachable inside the cube")
     if c["rearmRadius"] <= c["burstRadius"]:
         refuse("rearmRadius must be > burstRadius")
-    if c["rearmRadius"] + c["senderRadius"] >= c["acqHalf"]:
-        refuse("rearmRadius + senderRadius must be < acqHalf — a re-arm must be reachable on axis")
+    if band_half_height(c, c["rearmRadius"]) <= 0:
+        refuse("sqrt3*acqHalf must exceed sqrt2*(rearmRadius + senderRadius) — the cylinder's re-arm radius must be inside the "
+               "tilted acquisition cube from every direction at the centre height, or a hand can be in the zone on one side "
+               "of you and unreachable on the other; the band this leaves is the zone's guaranteed height (band_half_height)")
     if c["stepSeconds"] < 2 / 60:
         refuse("stepSeconds must be >= 2/60 — every frame at 60 fps or below carries a collision step, but above 60 fps a step "
                "lands only every second or third frame and the longest gap between two is one step period plus one frame, just "
@@ -385,11 +415,13 @@ def lint(c):
 
 
 def zone_conds(c, me):
-    """The inside predicate (one AND list) and the outside rungs (a list of AND lists — an OR)."""
+    """The inside predicate (one AND list) and the outside rungs (a list of AND lists — an OR). The zone is a
+    vertical cylinder: the compare is on p2, the in-plane radius², and nothing bounds the height, so a hand leaves
+    the zone through the cube's ends by leaving the hold cube (the axis floor), never through a band."""
     rin2 = c["burstRadius"] ** 2
     rout2 = c["rearmRadius"] ** 2
-    inside = [f"{me}/r2 less {fmt(rin2)}"]
-    outside = [[f"{me}/r2 greater {fmt(rout2)}"]]
+    inside = [f"{me}/p2 less {fmt(rin2)}"]
+    outside = [[f"{me}/p2 greater {fmt(rout2)}"]]
     return inside, outside
 
 
@@ -397,12 +429,14 @@ BOUNDARY = "Cage/Size/Boundary"
 
 
 def boundary_bindings(c, on):
-    """The unit sphere's scale and renderer enable — the drawn surface is the configured burst surface."""
+    """The unit tube's scale and renderer enable — the drawn surface is the burst radius, over the band inside
+    which a hand at that radius is reached from every direction (the ends past it are the cube's corners)."""
     R = c["burstRadius"]
+    H = band_half_height(c, R)
     d = {}
-    for ax in ("x", "y", "z"):
-        d[f"{BOUNDARY}/Sphere/Transform.m_LocalScale.{ax}"] = fmt(R)
-    d[f"{BOUNDARY}/Sphere/MeshRenderer.m_Enabled"] = 1 if on else 0
+    for ax, v in (("x", R), ("y", H), ("z", R)):
+        d[f"{BOUNDARY}/Cylinder/Transform.m_LocalScale.{ax}"] = fmt(v)
+    d[f"{BOUNDARY}/Cylinder/MeshRenderer.m_Enabled"] = 1 if on else 0
     return d
 
 
@@ -630,16 +664,17 @@ def emit_layer(o, c, k, ks):
     dedup_rungs(settled=False)
     release()
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
-    # Fresh ends once the readout is live, not only by reaching the sphere: the front re-offers every held hand each
+    # Fresh ends once the readout is live, not only by reaching the zone: the front re-offers every held hand each
     # pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the fresh-versus-fresh
-    # rule, hopping slots once a pass. The gate is r² off the Latch park (3h²), which lands a frame after D does, so
+    # rule, hopping slots once a pass. The gate is r² off the Latch park (the tables' own reading of it), which lands a frame after D does, so
     # by the time this rung is eligible the dedup rungs above have read the second reading's D as well, and a hitch
     # frame on the first evaluation cannot settle a duplicate before dedup has had that frame. Checked at each
-    # crossing of the tree's own period (a Direct tree's length is data, a few frames here); listed last, so any
-    # rung above that is eligible on the same frame wins. A hand grazing a corner of the hold cube reads 3h² through
-    # the table's clamp and stays fresh there, which costs nothing but the re-take above.
-    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(3 * c['holdHalf'] ** 2 - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the sphere: settle")
-    o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here")
+    # crossing of the tree's own period (a Direct tree's length is data: the weighted sum of its one-frame children,
+    # the four square tables at weight one included, so about eight frames at 60 fps); listed last, so any
+    # rung above that is eligible on the same frame wins. A hand grazing the park's corner of the hold cube reads the
+    # park's r² and stays fresh there, which costs nothing but the re-take above.
+    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(park_r2(c) - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)")
+    o("      TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
     o("        transitions:")
     rungs()
@@ -647,7 +682,7 @@ def emit_layer(o, c, k, ks):
     dedup_rungs(settled=True)
     for conds in outside:
         o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-    o("      TrackBand:                   # settled outside the sphere, by retreating past the re-arm radius or by holding outside it past the fresh window: TrackOut's rungs with the settled dedup test in place of the fresh one")
+    o("      TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window: TrackOut's rungs with the settled dedup test in place of the fresh one")
     emit_tree(o, c, k, hold=f"slot{k}_hold_band")
     o("        transitions:")
     rungs()
@@ -886,9 +921,65 @@ def emit_tree(o, c, k, hold):
         o(f"              param: {me}/{ax}")
         o(f"              directWeight: {P}/One")
         o("              children:")
-        for i in range(N + 1):
-            t = -h + 2 * h * i / N
+        for i, t in enumerate(sq_knots(c)):
             o(f"                - {{ clip: slot{k}_sq_{i}, threshold: {fmt(t)} }}")
+    # The yw² table subtracts the height's square out of p2, leaving the in-plane radius²; same chord width as the
+    # axis tables over yw's wider span, so its error bound is theirs.
+    M = yw_segments(c)
+    o("            - tree: 1d")
+    o(f"              name: Slot{k} −yw²")
+    o(f"              param: {me}/yw")
+    o(f"              directWeight: {P}/One")
+    o("              children:")
+    for i, t in enumerate(yw_knots(c)):
+        o(f"                - {{ clip: slot{k}_nsq_{i}, threshold: {fmt(t)} }}")
+
+
+def yw_segments(c):
+    """The yw² table's segment count: lookupSegments scaled by sqrt3, so a segment is as wide as an axis table's."""
+    return int(round(c["lookupSegments"] * SQRT3))
+
+
+def readout_span(c):
+    """The range one axis readout can take, which the square tables span exactly. Three-box: c = 2h·V − h − r over
+    V in [0, 1] is [−h−r, h−r]; a knot short of −h−r would clamp the bottom r metres and read the square low, which
+    under the sphere sat far outside the zone and under the cylinder, once the height's square is subtracted, can read
+    a hand near the bottom corners inside the burst radius from past the re-arm radius. fourBox measures r out of the
+    readout and spans exactly [−h, h]. The Latch park at (h, −h, −h) then lies off the knots and past the top one, so
+    the settle guard compares r² against the table's own value at the park (`park_r2`), not the analytic 3h²."""
+    h, r = c["holdHalf"], c["senderRadius"]
+    return (-h, h) if c["fourBox"] else (-h - r, h - r)
+
+
+def table_square(knots, v):
+    """What the emitted 1D table reads for a value: the chord between the two nearest knots, clamped at the ends."""
+    if v <= knots[0]:
+        return knots[0] ** 2
+    if v >= knots[-1]:
+        return knots[-1] ** 2
+    for a, b in zip(knots, knots[1:]):
+        if a <= v <= b:
+            w = (v - a) / (b - a)
+            return (1 - w) * a * a + w * b * b
+
+
+def park_r2(c):
+    """r² as the tables read the Latch park (h, −h, −h): the settle rung's guard, so it is exact by construction."""
+    h = c["holdHalf"]
+    return sum(table_square(sq_knots(c), v) for v in (h, -h, -h))
+
+
+def sq_knots(c):
+    lo, hi = readout_span(c)
+    N = c["lookupSegments"]
+    return [lo + (hi - lo) * i / N for i in range(N + 1)]
+
+
+def yw_knots(c):
+    """yw = (x + y + z)/sqrt3 spans sqrt3 times one axis's range."""
+    lo, hi = readout_span(c)
+    M = yw_segments(c)
+    return [SQRT3 * (lo + (hi - lo) * i / M) for i in range(M + 1)]
 
 
 def emit_clips(o, c, k):
@@ -920,7 +1011,7 @@ def emit_clips(o, c, k):
         d[f"{me}/Armed"] = armed
         d[f"{me}/Front"] = front
         # Held: this slot is holding a sender (every post-latch state). Settled: and that sender has reached the
-        # sphere, or the re-arm band after it — every held state but TrackOut, the fresh one. The dedup rungs read
+        # zone, or the re-arm band after it — every held state but TrackOut, the fresh one. The dedup rungs read
         # another slot's pair, so every state must write both — a state that wrote neither would leave a stale 1
         # standing and make a newcomer yield to a slot that has already released.
         d[f"{me}/Held"] = held
@@ -945,55 +1036,67 @@ def emit_clips(o, c, k):
          None, "× Sweep: the cube at the front")
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
-    # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads 3h².
-    latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(-h), f"{me}/z": fmt(-h)})
+    # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads the tables' value
+    # there (park_r2, about 3h²). yw parks at the same point's height, −h/sqrt3, so the first p2 the tree computes is
+    # about 8h²/3 and not r² minus a stale square left over from the last track, which could read inside the zone for
+    # that one frame.
+    latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(-h), f"{me}/z": fmt(-h), f"{me}/yw": fmt(-h * YW_PER_AXIS)})
     if c["fourBox"]:
         # The one frame before the first measurement lands: R carries the configured assumption
         # rather than zero. Outside a track R is 0, like x, y and z — no state writes it there.
         latch[f"{me}/R"] = fmt(r)
     clip(f"slot{k}_latch", latch, c["latchSeconds"], "flag shut + hold cube in one write; readout parked at (h, −h, −h) so r² reads 3h²; the wait spans one client step of readings")
-    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off, fresh (outside the sphere, never yet inside it)")
+    clip(f"slot{k}_hold", cfg(1, 0, hold, 0, 0, 0, held=1), None, "tracking configuration, payload off, fresh (outside the zone, never yet inside it)")
     clip(f"slot{k}_hold_band", cfg(1, 0, hold, 0, 0, 0, held=1, settled=1), None, "tracking configuration, payload off, settled (the re-arm band, or fresh no longer)")
-    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, settled=1), None, "tracking configuration, payload on (inside the sphere)")
+    clip(f"slot{k}_hold_burst", cfg(1, 0, hold, 0, 0, 1, held=1, settled=1), None, "tracking configuration, payload on (inside the zone)")
     clip(f"slot{k}_recycle", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed for a step, flag shut: a fresh overlap episode for everything inside, the re-arm primitive")
     two_h = fmt(2 * h)
     if c["fourBox"]:
         o(f"  # Slot {k} readout, four boxes: the opposed X pair measures the sender's radius instead of assuming it —")
         o("  # r = h·X+ + h·X− − h and x = h·X+ − h·X− (box-tracker's derivation), so y = 2h·Y+ − h·X+ − h·X− and z likewise;")
         o("  # every constant cancels out of x, y and z, leaving pure per-reading coefficients and a bias clip carrying only r.")
+        o("  # yw = (x + y + z)/sqrt3 = (−h·X+ − 3h·X− + 2h·Y+ + 2h·Z+)/sqrt3, the same sums over the tilted diagonal: no bias.")
         o("  # Summed under the non-normalized Direct root into the AAPs, R and Output's localPosition (metres, Size frame).")
         pos, neg = fmt(h), fmt(-h)
-        clip(f"slot{k}_read_xp", {f"{me}/x": pos, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos,
+        yw = lambda v: fmt(v * YW_PER_AXIS)
+        clip(f"slot{k}_read_xp", {f"{me}/x": pos, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos, f"{me}/yw": yw(-h),
                                   f"{O}/Transform.m_LocalPosition.x": pos,
                                   f"{O}/Transform.m_LocalPosition.y": neg,
                                   f"{O}/Transform.m_LocalPosition.z": neg})
-        clip(f"slot{k}_read_xn", {f"{me}/x": neg, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos,
+        clip(f"slot{k}_read_xn", {f"{me}/x": neg, f"{me}/y": neg, f"{me}/z": neg, f"{me}/R": pos, f"{me}/yw": yw(-3 * h),
                                   f"{O}/Transform.m_LocalPosition.x": neg,
                                   f"{O}/Transform.m_LocalPosition.y": neg,
                                   f"{O}/Transform.m_LocalPosition.z": neg})
-        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{O}/Transform.m_LocalPosition.y": two_h})
-        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{O}/Transform.m_LocalPosition.z": two_h})
+        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{me}/yw": yw(2 * h), f"{O}/Transform.m_LocalPosition.y": two_h})
+        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{me}/yw": yw(2 * h), f"{O}/Transform.m_LocalPosition.z": two_h})
         clip(f"slot{k}_read_bias", {f"{me}/R": neg}, None, "the measured radius is the only term left with a constant")
     else:
         o(f"  # Slot {k} readout: c = 2h·V − h − r per axis (face proximity is linear from the +Z face; V is the box reading),")
         o("  # summed under the non-normalized Direct root into both the AAPs and Output's localPosition (metres, cage frame).")
+        o("  # yw = (x + y + z)/sqrt3, the height above the cage centre: 2h/sqrt3 per reading and a bias of −3(h + r)/sqrt3.")
         bias = fmt(-h - r)
-        clip(f"slot{k}_read_xp", {f"{me}/x": two_h, f"{O}/Transform.m_LocalPosition.x": two_h})
-        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{O}/Transform.m_LocalPosition.y": two_h})
-        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{O}/Transform.m_LocalPosition.z": two_h})
-        clip(f"slot{k}_read_bias", {f"{me}/x": bias, f"{me}/y": bias, f"{me}/z": bias,
+        yw = lambda v: fmt(v * YW_PER_AXIS)
+        clip(f"slot{k}_read_xp", {f"{me}/x": two_h, f"{me}/yw": yw(2 * h), f"{O}/Transform.m_LocalPosition.x": two_h})
+        clip(f"slot{k}_read_yp", {f"{me}/y": two_h, f"{me}/yw": yw(2 * h), f"{O}/Transform.m_LocalPosition.y": two_h})
+        clip(f"slot{k}_read_zp", {f"{me}/z": two_h, f"{me}/yw": yw(2 * h), f"{O}/Transform.m_LocalPosition.z": two_h})
+        clip(f"slot{k}_read_bias", {f"{me}/x": bias, f"{me}/y": bias, f"{me}/z": bias, f"{me}/yw": yw(-3 * (h + r)),
                                     f"{O}/Transform.m_LocalPosition.x": bias,
                                     f"{O}/Transform.m_LocalPosition.y": bias,
                                     f"{O}/Transform.m_LocalPosition.z": bias})
-    o(f"  # Slot {k} x² table: {N} segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4")
-    if c["fourBox"]:
-        o("  # inside the table. The measured readout spans exactly [−h, h], so nothing clamps.")
-    else:
-        o("  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any")
-        o("  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.")
-    for i in range(N + 1):
-        t = -h + 2 * h * i / N
-        clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t)})
+    lo, hi = readout_span(c)
+    o(f"  # Slot {k} x² table: {N} segments over [{fmt(lo)}, {fmt(hi)}], the readout's whole range, so nothing clamps; each 1D tree blends")
+    o("  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in")
+    o("  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band")
+    o("  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).")
+    o("  # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;")
+    o("  # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads")
+    o("  # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.")
+    for i, t in enumerate(sq_knots(c)):
+        clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t), f"{me}/p2": fmt(t * t)})
+    yk = yw_knots(c)
+    o(f"  # Slot {k} −yw² table: {len(yk) - 1} segments over [{fmt(yk[0])}, {fmt(yk[-1])}], yw's whole range.")
+    for i, t in enumerate(yk):
+        clip(f"slot{k}_nsq_{i}", {f"{me}/p2": fmt(-t * t)})
 
 
 def config(overrides):
@@ -1022,8 +1125,11 @@ def document(overrides=None):
     o = L.append
     o("# GENERATED by generate.py — edit its CONFIG and rerun; never hand-edit this file.")
     o(f"# contact-radar: {K} per-sender slots, tags {c['tags']}, {len(axes(c))} face-proximity boxes each plus a coincident Constant box `Hit`.")
-    o("# The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame and the sphere is invariant.")
-    o(f"# Burst at r² < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at r² > {fmt(rout2)} (R_out {c['rearmRadius']} m).")
+    o("# The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame, and yw = (x + y + z)/sqrt3")
+    o("# undoes the tilt on the vertical axis alone. The zone is a vertical cylinder: p2 = x² + y² + z² − yw² is the in-plane radius².")
+    o(f"# Burst at p2 < {fmt(rin2)} (R_in {c['burstRadius']} m), re-arm at p2 > {fmt(rout2)} (R_out {c['rearmRadius']} m); no height bound:")
+    o(f"# a hand at the burst radius is inside the acquisition cube from every direction within ±{fmt(band_half_height(c, c['burstRadius']))} m")
+    o("# of the centre height, and past that band the cube's corners are the zone's ends.")
     rtxt = (f"sender radius measured per slot from the X- box ({c['senderRadius']} m is the lints' assumed maximum)"
             if c["fourBox"] else f"sender radius {c['senderRadius']} m")
     o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s.")
@@ -1062,6 +1168,8 @@ def document(overrides=None):
             o(f"  {me}/{ax}: float{note}")
         for ax in ("x", "y", "z", "r2"):
             o(f"  {me}/{ax}: {{ type: float, aap: true, scratch: true }}")
+        o(f"  {me}/yw: {{ type: float, aap: true, scratch: true }}   # the hand's height above the cage centre, m: (x + y + z)/sqrt3 undoes the tilt on that axis")
+        o(f"  {me}/p2: {{ type: float, aap: true, scratch: true }}   # the in-plane radius², r2 − yw²: what the zone compares")
         if c["fourBox"]:
             o(f"  {me}/R: {{ type: float, aap: true, scratch: true }}   # the measured sender radius, m — the export a consumer reads")
         o(f"  {me}/HitPrev: {{ type: float, aap: true, scratch: true }}   # last frame's Hit (the Dedup layer's); with Hit it is the admission edge")
@@ -1069,7 +1177,7 @@ def document(overrides=None):
         o(f"  {me}/Armed: {{ type: float, aap: true, scratch: true }}   # 1 while collapsed and waiting for the ring")
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
-        o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the sphere (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder")
+        o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
     o("  # sender reads 0 on every axis and a freshly latched slot recognises the duplicate. Each defaults to 0, which is")
@@ -1094,6 +1202,7 @@ def document(overrides=None):
     emit_dedup_clips(o, c, ks)
     facts = {"K": K, "fourBox": c["fourBox"],
              "receivers": (len(axes(c)) + 1) * K, "syncedBits": 1,
+             "bandHalfHeight": band_half_height(c, c["burstRadius"]),
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
     return "\n".join(L) + "\n", facts
 
@@ -1285,7 +1394,7 @@ def check_rig(assert_, c, here, docs, particles=True):
     for name, want in places:
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == c["K"] and all(parent_name(t) == want for t in nodes), f"{c['K']} {name} nodes, each under {want}") and ok
-    # The boundary: one inactive Boundary under Size holding Sphere, a MeshFilter on the unit OBJ mesh
+    # The boundary: one inactive Boundary under Size holding Cylinder, a MeshFilter on the unit open-tube OBJ mesh
     # with its renderer enabled — the controller rewrites scale and enable live, so the saved enable is
     # what makes the edit-mode preview honest.
     if here is None:
@@ -1295,7 +1404,9 @@ def check_rig(assert_, c, here, docs, particles=True):
     if bnd:
         bgo = next(d for d in docs if d.startswith(f"1 &{trs[bnd[0]][0]}\n"))
         ok = assert_(re.search(r"^  m_IsActive: 0$", bgo, re.M) is not None, "Boundary ships inactive (the consumer's opt-in)") and ok
-    for name, mesh in (("Sphere", "UnitSphere.obj"),):
+    ok = assert_(not [tid for tid, (go, _, _) in trs.items() if gos[go] == "Sphere" and parent_name(tid) == "Boundary"],
+                 "no Sphere node under Boundary: the zone is a cylinder and the sphere preview was removed") and ok
+    for name, mesh in (("Cylinder", "UnitCylinder.obj"),):
         nodes = [tid for tid, (go, _, _) in trs.items() if gos[go] == name]
         ok = assert_(len(nodes) == 1 and parent_name(nodes[0]) == "Boundary", f"one {name} node, under Boundary") and ok
         if not nodes:
@@ -1415,8 +1526,9 @@ def check_prefab(overrides, prefab_path):
 
 
 def write_meshes(assets):
-    """The unit mesh the Boundary node holds, as OBJ text: a UV sphere of radius 1. The controller
-    scales it to the burst surface."""
+    """The unit mesh the Boundary node holds, as OBJ text: an open tube of radius 1 spanning y in
+    [-1, 1], its ends undrawn because the zone has none. The controller scales it to the burst radius
+    and the guaranteed band."""
     import math
 
     def obj(path, verts, normals, faces, name):
@@ -1427,27 +1539,24 @@ def write_meshes(assets):
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write("\n".join(L) + "\n")
 
-    seg, rings = 48, 24
-    verts, faces = [], []
-    for j in range(rings + 1):
-        phi = math.pi * j / rings
+    seg = 48
+    verts, normals, faces = [], [], []
+    for y in (-1.0, 1.0):
         for i in range(seg + 1):
             th = 2 * math.pi * i / seg
-            verts.append((math.sin(phi) * math.cos(th), math.cos(phi), math.sin(phi) * math.sin(th)))
-    for j in range(rings):
-        for i in range(seg):
-            a, b = j * (seg + 1) + i, (j + 1) * (seg + 1) + i
-            if j > 0:
-                faces.append((a, a + 1, b))
-            if j < rings - 1:
-                faces.append((a + 1, b + 1, b))
-    obj(os.path.join(assets, "UnitSphere.obj"), verts, verts, faces, "UnitSphere")
+            verts.append((math.cos(th), y, math.sin(th)))
+            normals.append((math.cos(th), 0.0, math.sin(th)))
+    for i in range(seg):
+        a, b = i, seg + 1 + i
+        faces.append((a, b, a + 1))
+        faces.append((a + 1, b, b + 1))
+    obj(os.path.join(assets, "UnitCylinder.obj"), verts, normals, faces, "UnitCylinder")
 
 
 def main():
     if "--mesh" in sys.argv:
         write_meshes(os.path.join(HERE, "assets"))
-        print("wrote assets/UnitSphere.obj")
+        print("wrote assets/UnitCylinder.obj")
         return
     if "--check" in sys.argv:
         sys.exit(0 if check_files({}, HERE, "ContactRadar.prefab") else 1)
@@ -1460,7 +1569,8 @@ def main():
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     write_meshes(os.path.join(HERE, "assets"))   # idempotent, so regenerate-and-diff covers the OBJ too
-    print(f"wrote controller.yaml and assets/UnitSphere.obj — K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit")
+    print(f"wrote controller.yaml and assets/UnitCylinder.obj — K={facts['K']}, {facts['receivers']} receivers, {facts['syncedBits']} synced bit; "
+          f"the burst radius is reached from every direction within ±{facts['bandHalfHeight']:.2f} m of the centre height")
 
 
 if __name__ == "__main__":
