@@ -70,10 +70,12 @@ client, near the origin and a kilometre from it). A slot that has settled —
 reached the sphere, the re-arm band after it, or held outside it past the
 fresh window below — always wins, whatever its
 index; between two fresh slots still in the shell the lower index wins, and
-neither can release the other. `TrackBand` is `TrackOut` without those rungs: a
-hand that re-arms in the band re-enters there, so the coincidence test never
-re-runs for the life of a track, where two genuinely distinct senders could
-drift within `dedupEpsilon` of each other and collapse to one slot. It writes
+neither can release the other. `TrackBand` and `TrackIn` carry the SETTLED
+form of those rungs instead: the same tests inside SETTLED_EPSILON, a band only
+bit-identical readings pass, so a hand that re-arms in the band or drifts near
+another is never collapsed by the fresh band, while a merge that resolves onto
+a held hand or splits into held hands releases within a few frames of doing
+so (`dedup_rungs` in `emit_layer` has the two forms). `TrackBand` writes
 `Settled` like the two inside states do, because a fresh lower-index slot
 yields only to a settled holder: a band holder that read as fresh would be
 admitted a second time by a lower slot and both would burst on re-entry.
@@ -96,9 +98,9 @@ fresh reading composed axis-wise of held readings, one rung per assignment of
 the axes to other slots that is not all one slot, each distinct holder Held and
 a higher-index one Settled. A real hand fires one only by coinciding with a
 different holder on every axis at once. A phantom with an unheld member (two
-newcomers on one shell) matches nothing and stands until its last member leaves
-the hold cube, re-composing at each departure: the same-step merge trap,
-present tense (README §Traps).
+newcomers on one shell) matches nothing and stands until every member holds a
+slot of its own or its reading lands on a held hand, re-composing at each
+departure until then: the same-step merge trap, present tense (README §Traps).
 
 A stale `Hit` level, should one ever occur: a `Hit` box reading 1 with nothing
 in its collision set. The candidate is a receiver the client stows and restores
@@ -308,6 +310,12 @@ CONFIG = {
 # (head, mouth, hips, hands) meet a face at staggered depths instead of crossing one vertical plane in a
 # single collision step. Unity's Quaternion.FromToRotation((1,1,1), up), (x, y, z, w). Each Slot<k> carries
 # it and each Output its inverse; `check_rig` holds both, and every owned copy carries it by hand.
+# The settled dedup band on a [0, 1] reading. Not a knob: two settled slots reading one sender are bit-identical
+# (measured in the shipping client), so the test needs no slack, and it runs on every frame of every hold rather than
+# once per admission, so its false-match rate scales as this band to the power of the axis count. dedupEpsilon is the
+# fresh band and covers a one-step admission skew this test never sees.
+SETTLED_EPSILON = 0.0002
+
 TILT = (-0.325058, 0.0, 0.325058, 0.888074)
 TILT_INV = (0.325058, 0.0, -0.325058, 0.888074)
 
@@ -449,6 +457,71 @@ def emit_layer(o, c, k, ks):
         for ax in ax4:
             o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}")
 
+    def dedup_rungs(settled):
+        """The coincidence rungs, to Recycle. Fresh (TrackOut, entered only from Latch): this slot has just latched and
+        another slot already holds a sender at the same point, tested inside dedupEpsilon, which covers the one-step skew
+        the admission frame can carry. Settled (TrackIn, TrackBand): this slot has held for a while and now reads what
+        another settled slot reads, tested inside SETTLED_EPSILON: a merge that resolved onto a hand another slot holds,
+        or that decomposed into hands other slots hold. The test is on the raw readings' difference (the D tree's AAPs),
+        bit-exact for two coincident congruent boxes reading one sender.
+        Duplicate rung, one per other slot j: every axis inside the band, j Held. Fresh: a SETTLED j always wins, whatever
+        its index, and between two fresh slots the lower index wins, so two never release each other. Settled: only
+        against a lower-index settled j, so the higher index yields and a pair never both release; when the lower slot is
+        a merge still holding an outranked second member, this releases the real single and the merge carries it until
+        the next pass (README section Traps).
+        Phantom rung, one per assignment of the axes to other slots that is not all one slot: a same-step merge of hands
+        other slots hold reads, on every axis, exactly one holder's reading (a Proximity receiver reports its strongest
+        sender). Each assigned axis is inside the band of its source AND strictly above every other source in the
+        assignment: a merge is its members' per-axis maximum, so it clears each source on the axes it takes from another,
+        while a duplicate of one source (difference zero everywhere) and a single sender that two merges each contain
+        (below a merge on some axis) both fail. Without that clause the settled rung would release all three slots on one
+        sender at once, and the fresh rung rejects a huddled hand's re-admission every pass. Every holder Held; Settled
+        as for the duplicate rung."""
+        e, ne = (fmt(SETTLED_EPSILON), fmt(-SETTLED_EPSILON)) if settled else (de, nde)
+
+        def within(j, ax):
+            lo, hi = min(j, k), max(j, k)
+            return [f"{P}/D/{lo}_{hi}/{ax} greater {ne}", f"{P}/D/{lo}_{hi}/{ax} less {e}"]
+
+        def above(s2, ax):
+            # this slot's reading minus slot s2's is above the SETTLED band, on the fresh rung too: a same-step merge's
+            # members sit within a step of front travel on the radius axis, inside the fresh band, so a fresh-band test here
+            # would fail on nearly every phantom the rung exists for. Two members tied within this band on an axis leave
+            # the phantom standing until dither or a departure breaks the tie. D/lo_hi is hi minus lo.
+            lo, hi = min(s2, k), max(s2, k)
+            se, nse = fmt(SETTLED_EPSILON), fmt(-SETTLED_EPSILON)
+            return f"{P}/D/{lo}_{hi}/{ax} greater {se}" if k == hi else f"{P}/D/{lo}_{hi}/{ax} less {nse}"
+
+        def holder(j):
+            conds = [f"{slot_name(c, j)}/Held greater 0.5"]
+            if settled or j > k:
+                conds.append(f"{slot_name(c, j)}/Settled greater 0.5")
+            return conds
+
+        tag = "settled dedup" if settled else "dedup"
+        for j in ks:
+            if j == k or (settled and j > k):
+                continue
+            dconds = []
+            for ax in ax4:
+                dconds += within(j, ax)
+            dconds += holder(j)
+            why = (f"slot {j} (lower index, settled) holds this point" if settled else
+                   f"slot {j} holds this point" + (" and has settled (a higher index yields only to that)" if j > k else ""))
+            o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # {tag}: {why}")
+        others = [j for j in ks if j != k]
+        for assign in itertools.product(others, repeat=len(ax4)):
+            srcs = sorted(set(assign))
+            if len(srcs) == 1:
+                continue
+            dconds = []
+            for ax, j in zip(ax4, assign):
+                dconds += within(j, ax)
+                dconds += [above(s2, ax) for s2 in srcs if s2 != j]
+            for j in srcs:
+                dconds += holder(j)
+            o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # {tag} phantom: {'/'.join(f'{ax} of slot {j}' for ax, j in zip(ax4, assign))}")
+
     o(f"  - name: Slot{k}")
     o("    states:")
     o("      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone")
@@ -550,53 +623,11 @@ def emit_layer(o, c, k, ks):
     # evaluation, and first-match takes this one. Do not reorder these two to "simplify" the ladder.
     o(f"          - {{ to: TrackOut, when: [ {all_pos} ] }}")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }   # an edge whose readings never came (an admission the axis boxes missed): release, as Partial does")
-    o("      TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the dedup rungs below run on a FRESH admission and never again")
+    o("      TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track")
     emit_tree(o, c, k, hold=f"slot{k}_hold")
     o("        transitions:")
     rungs()
-    # Dedup: this slot has just latched, and another slot is already holding a sender at the same point. The
-    # coincidence test is on the raw readings' difference (the D tree's AAPs), which is bit-exact for two
-    # coincident congruent boxes reading one sender. A SETTLED holder (inside the sphere, or in the band after
-    # it) always wins, whatever its index; between two fresh slots still in the shell the lower index wins, so
-    # the two never release each other. Listed ahead of the release and zone rungs: the readings this test reads
-    # land a frame before r² becomes real, and first-match order is what keeps a duplicate from bursting on its
-    # way out.
-    for j in ks:
-        if j == k:
-            continue
-        sj = slot_name(c, j)
-        lo, hi = min(j, k), max(j, k)
-        dconds = []
-        for ax in ax4:
-            dconds.append(f"{P}/D/{lo}_{hi}/{ax} greater {nde}")
-            dconds.append(f"{P}/D/{lo}_{hi}/{ax} less {de}")
-        dconds.append(f"{sj}/Held greater 0.5")
-        why = f"slot {j} holds this point"
-        if j > k:
-            dconds.append(f"{sj}/Settled greater 0.5")
-            why = f"slot {j} holds this point and has settled (a higher index yields only to that)"
-        o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # dedup: {why}")
-    # Phantom dedup. A same-step merge of hands other slots already hold reads, on every axis, exactly one of those
-    # holders' readings: a Proximity receiver reports its strongest sender, and coincident congruent boxes read one
-    # sender bit-identically. So a fresh reading composed axis-wise of held readings is a phantom of those holders and
-    # releases. One rung per assignment of the axes to other slots that is not all one slot (the all-one case is the
-    # ordinary rung above), each distinct holder Held and, where its index is higher, Settled, for the reason above. A
-    # real hand fires one of these only by coinciding with a different holder on every axis at once. A phantom with an
-    # unheld member matches nothing here and stands until a member leaves the hold cube (README §Traps).
-    others = [j for j in ks if j != k]
-    for assign in itertools.product(others, repeat=len(ax4)):
-        if len(set(assign)) == 1:
-            continue
-        dconds = []
-        for ax, j in zip(ax4, assign):
-            lo, hi = min(j, k), max(j, k)
-            dconds.append(f"{P}/D/{lo}_{hi}/{ax} greater {nde}")
-            dconds.append(f"{P}/D/{lo}_{hi}/{ax} less {de}")
-        for j in sorted(set(assign)):
-            dconds.append(f"{slot_name(c, j)}/Held greater 0.5")
-            if j > k:
-                dconds.append(f"{slot_name(c, j)}/Settled greater 0.5")
-        o(f"          - {{ to: Recycle, when: [ {', '.join(dconds)} ] }}   # phantom: {'/'.join(f'{ax} of slot {j}' for ax, j in zip(ax4, assign))}")
+    dedup_rungs(settled=False)
     release()
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
     # Fresh ends once the readout is live, not only by reaching the sphere: the front re-offers every held hand each
@@ -608,18 +639,20 @@ def emit_layer(o, c, k, ks):
     # rung above that is eligible on the same frame wins. A hand grazing a corner of the hold cube reads 3h² through
     # the table's clamp and stays fresh there, which costs nothing but the re-take above.
     o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(3 * c['holdHalf'] ** 2 - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the sphere: settle")
-    o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout)")
+    o("      TrackIn:                     # inside the burst radius; the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
     o("        transitions:")
     rungs()
     release()
+    dedup_rungs(settled=True)
     for conds in outside:
         o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
-    o("      TrackBand:                   # settled outside the sphere, by retreating past the re-arm radius or by holding outside it past the fresh window: TrackOut's rungs without dedup, so the coincidence test never re-runs on a track")
+    o("      TrackBand:                   # settled outside the sphere, by retreating past the re-arm radius or by holding outside it past the fresh window: TrackOut's rungs with the settled dedup test in place of the fresh one")
     emit_tree(o, c, k, hold=f"slot{k}_hold_band")
     o("        transitions:")
     rungs()
     release()
+    dedup_rungs(settled=True)
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
     o("      Recycle:                     # collapsed for a step, flag shut: every overlap this slot held ends; then straight onto the front, or Armed")
     o(f"        motion: {{ clip: slot{k}_recycle }}")
