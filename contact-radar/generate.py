@@ -159,8 +159,10 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   holds at any scale; only the sender-radius bias term scales when it should not —
   and under `fourBox` there is no such term, so the origin is exact at any scale.
 - Latch parks x, y, z at (h, -h, -h), and yw at that point's height, so the
-  first r² computed in TrackOut is 3h² and the first p2 is 8h²/3, both far
-  outside the zone, and holds until its own readings arrive (its Hit
+  first r² computed in TrackOut is the tables' reading of that corner (about
+  3h²; `park_r2` is the exact figure the settle guard compares against) and
+  the first p2 about 8h²/3, both far outside the zone, and holds until its own
+  readings arrive (its Hit
   edge fires a step before them) or `latchSeconds` passes with none, in which
   case it recycles: the guard is the state sequence, no settle AAP. The readings
   rung is listed before the exit-time rung, and that ordering — not the duration
@@ -342,10 +344,10 @@ def band_half_height(c, radius):
     """The half-height, about the cage centre, of the band inside which a sender at horizontal `radius` is inside
     the acquisition cube from every direction. The tilted cube's horizontal cross-section is a hexagon at the
     centre height (inradius acqHalf·sqrt(3/2)) that shrinks toward each vertical corner at sqrt(1/2) per metre in
-    the worst azimuth, so the band is sqrt3·acqHalf − sqrt2·(radius + senderRadius), the sender's radius counted
-    as the existing lints count it. Above and below the band the cube still reaches, but not from every direction:
-    the zone's ends are the cube's corners, not caps."""
-    return SQRT3 * c["acqHalf"] - 2 ** 0.5 * (radius + c["senderRadius"])
+    the worst azimuth, so the band is sqrt3·(acqHalf − senderRadius) − sqrt2·radius: the cube shrunk by the sender's
+    radius, a bound the overlap-based admission clears from every direction. Above and below the band the cube still
+    reaches, but not from every direction: the zone's ends are the cube's corners, not caps."""
+    return SQRT3 * (c["acqHalf"] - c["senderRadius"]) - 2 ** 0.5 * radius
 
 
 def refuse(msg):
@@ -664,14 +666,14 @@ def emit_layer(o, c, k, ks):
     o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
     # Fresh ends once the readout is live, not only by reaching the zone: the front re-offers every held hand each
     # pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the fresh-versus-fresh
-    # rule, hopping slots once a pass. The gate is r² off the Latch park (3h²), which lands a frame after D does, so
+    # rule, hopping slots once a pass. The gate is r² off the Latch park (the tables' own reading of it), which lands a frame after D does, so
     # by the time this rung is eligible the dedup rungs above have read the second reading's D as well, and a hitch
     # frame on the first evaluation cannot settle a duplicate before dedup has had that frame. Checked at each
     # crossing of the tree's own period (a Direct tree's length is data: the weighted sum of its one-frame children,
     # the four square tables at weight one included, so about eight frames at 60 fps); listed last, so any
-    # rung above that is eligible on the same frame wins. A hand grazing a corner of the hold cube reads 3h² through
-    # the table's clamp and stays fresh there, which costs nothing but the re-take above.
-    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(3 * c['holdHalf'] ** 2 - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)")
+    # rung above that is eligible on the same frame wins. A hand grazing the park's corner of the hold cube reads the
+    # park's r² and stays fresh there, which costs nothing but the re-take above.
+    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(park_r2(c) - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)")
     o("      TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above")
     emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
     o("        transitions:")
@@ -919,8 +921,7 @@ def emit_tree(o, c, k, hold):
         o(f"              param: {me}/{ax}")
         o(f"              directWeight: {P}/One")
         o("              children:")
-        for i in range(N + 1):
-            t = -h + 2 * h * i / N
+        for i, t in enumerate(sq_knots(c)):
             o(f"                - {{ clip: slot{k}_sq_{i}, threshold: {fmt(t)} }}")
     # The yw² table subtracts the height's square out of p2, leaving the in-plane radius²; same chord width as the
     # axis tables over yw's wider span, so its error bound is theirs.
@@ -930,14 +931,55 @@ def emit_tree(o, c, k, hold):
     o(f"              param: {me}/yw")
     o(f"              directWeight: {P}/One")
     o("              children:")
-    for i in range(M + 1):
-        t = -SQRT3 * h + 2 * SQRT3 * h * i / M
+    for i, t in enumerate(yw_knots(c)):
         o(f"                - {{ clip: slot{k}_nsq_{i}, threshold: {fmt(t)} }}")
 
 
 def yw_segments(c):
     """The yw² table's segment count: lookupSegments scaled by sqrt3, so a segment is as wide as an axis table's."""
     return int(round(c["lookupSegments"] * SQRT3))
+
+
+def readout_span(c):
+    """The range one axis readout can take, which the square tables span exactly. Three-box: c = 2h·V − h − r over
+    V in [0, 1] is [−h−r, h−r]; a knot short of −h−r would clamp the bottom r metres and read the square low, which
+    under the sphere sat far outside the zone and under the cylinder, once the height's square is subtracted, can read
+    a hand near the bottom corners inside the burst radius from past the re-arm radius. fourBox measures r out of the
+    readout and spans exactly [−h, h]. The Latch park at (h, −h, −h) then lies off the knots and past the top one, so
+    the settle guard compares r² against the table's own value at the park (`park_r2`), not the analytic 3h²."""
+    h, r = c["holdHalf"], c["senderRadius"]
+    return (-h, h) if c["fourBox"] else (-h - r, h - r)
+
+
+def table_square(knots, v):
+    """What the emitted 1D table reads for a value: the chord between the two nearest knots, clamped at the ends."""
+    if v <= knots[0]:
+        return knots[0] ** 2
+    if v >= knots[-1]:
+        return knots[-1] ** 2
+    for a, b in zip(knots, knots[1:]):
+        if a <= v <= b:
+            w = (v - a) / (b - a)
+            return (1 - w) * a * a + w * b * b
+
+
+def park_r2(c):
+    """r² as the tables read the Latch park (h, −h, −h): the settle rung's guard, so it is exact by construction."""
+    h = c["holdHalf"]
+    return sum(table_square(sq_knots(c), v) for v in (h, -h, -h))
+
+
+def sq_knots(c):
+    lo, hi = readout_span(c)
+    N = c["lookupSegments"]
+    return [lo + (hi - lo) * i / N for i in range(N + 1)]
+
+
+def yw_knots(c):
+    """yw = (x + y + z)/sqrt3 spans sqrt3 times one axis's range."""
+    lo, hi = readout_span(c)
+    M = yw_segments(c)
+    return [SQRT3 * (lo + (hi - lo) * i / M) for i in range(M + 1)]
 
 
 def emit_clips(o, c, k):
@@ -994,9 +1036,10 @@ def emit_clips(o, c, k):
          None, "× Sweep: the cube at the front")
     clip(f"slot{k}_open_wait", cfg(1, 1, collapsed, 1, 0, 0), step, "Open 1 held a step at base scale: the partial-admission grace")
     latch = cfg(1, 0, hold, 0, 0, 0)
-    # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads 3h². yw parks at
-    # the same point's height, −h/sqrt3, so the first p2 the tree computes is 3h² − h²/3 and not 3h² minus a stale
-    # square left over from the last track, which could read inside the zone for that one frame.
+    # Parked at (h, −h, −h): x at +h is the sentinel a consumer reads as "not yet tracking"; r² reads the tables' value
+    # there (park_r2, about 3h²). yw parks at the same point's height, −h/sqrt3, so the first p2 the tree computes is
+    # about 8h²/3 and not r² minus a stale square left over from the last track, which could read inside the zone for
+    # that one frame.
     latch.update({f"{me}/x": fmt(h), f"{me}/y": fmt(-h), f"{me}/z": fmt(-h), f"{me}/yw": fmt(-h * YW_PER_AXIS)})
     if c["fourBox"]:
         # The one frame before the first measurement lands: R carries the configured assumption
@@ -1040,22 +1083,19 @@ def emit_clips(o, c, k):
                                     f"{O}/Transform.m_LocalPosition.x": bias,
                                     f"{O}/Transform.m_LocalPosition.y": bias,
                                     f"{O}/Transform.m_LocalPosition.z": bias})
-    o(f"  # Slot {k} x² table: {N} segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4")
-    if c["fourBox"]:
-        o("  # inside the table. The measured readout spans exactly [−h, h], so nothing clamps.")
-    else:
-        o("  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any")
-        o("  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.")
+    lo, hi = readout_span(c)
+    o(f"  # Slot {k} x² table: {N} segments over [{fmt(lo)}, {fmt(hi)}], the readout's whole range, so nothing clamps; each 1D tree blends")
+    o("  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in")
+    o("  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band")
+    o("  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).")
     o("  # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;")
     o("  # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads")
     o("  # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.")
-    for i in range(N + 1):
-        t = -h + 2 * h * i / N
+    for i, t in enumerate(sq_knots(c)):
         clip(f"slot{k}_sq_{i}", {f"{me}/r2": fmt(t * t), f"{me}/p2": fmt(t * t)})
-    M = yw_segments(c)
-    o(f"  # Slot {k} −yw² table: {M} segments over [−sqrt3·h, sqrt3·h], yw's whole span at the hold cube's corners.")
-    for i in range(M + 1):
-        t = -SQRT3 * h + 2 * SQRT3 * h * i / M
+    yk = yw_knots(c)
+    o(f"  # Slot {k} −yw² table: {len(yk) - 1} segments over [{fmt(yk[0])}, {fmt(yk[-1])}], yw's whole range.")
+    for i, t in enumerate(yk):
         clip(f"slot{k}_nsq_{i}", {f"{me}/p2": fmt(-t * t)})
 
 

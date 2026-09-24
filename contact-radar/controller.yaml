@@ -3,7 +3,7 @@
 # The acquisition cube is tilted (diagonal vertical) on the prefab; the readout is in that frame, and yw = (x + y + z)/sqrt3
 # undoes the tilt on the vertical axis alone. The zone is a vertical cylinder: p2 = x² + y² + z² − yw² is the in-plane radius².
 # Burst at p2 < 1 (R_in 1.0 m), re-arm at p2 > 1.21 (R_out 1.1 m); no height bound:
-# a hand at the burst radius is inside the acquisition cube from every direction within ±0.593536729 m
+# a hand at the burst radius is inside the acquisition cube from every direction within ±0.577644866 m
 # of the centre height, and past that band the cube's corners are the zone's ends.
 # Cube half-extents: acquisition 1.2 m, hold 1.3 m; sender radius 0.05 m; step dwell 0.035 s, latch wait 0.1 s.
 # One slot at a time rides an expanding front from the centre to the face over 2.0 s, and the front restarts
@@ -221,101 +221,101 @@ layers:
               param: CR/Slot1/x
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 y²
               param: CR/Slot1/y
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 z²
               param: CR/Slot1/z
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 −yw²
               param: CR/Slot1/yw
               directWeight: CR/One
               children:
-                - { clip: slot1_nsq_0, threshold: -2.25166605 }
-                - { clip: slot1_nsq_1, threshold: -2.09083276 }
-                - { clip: slot1_nsq_2, threshold: -1.92999947 }
-                - { clip: slot1_nsq_3, threshold: -1.76916618 }
-                - { clip: slot1_nsq_4, threshold: -1.60833289 }
-                - { clip: slot1_nsq_5, threshold: -1.4474996 }
-                - { clip: slot1_nsq_6, threshold: -1.28666631 }
-                - { clip: slot1_nsq_7, threshold: -1.12583302 }
-                - { clip: slot1_nsq_8, threshold: -0.964999736 }
-                - { clip: slot1_nsq_9, threshold: -0.804166446 }
-                - { clip: slot1_nsq_10, threshold: -0.643333157 }
-                - { clip: slot1_nsq_11, threshold: -0.482499868 }
-                - { clip: slot1_nsq_12, threshold: -0.321666579 }
-                - { clip: slot1_nsq_13, threshold: -0.160833289 }
-                - { clip: slot1_nsq_14, threshold: 0 }
-                - { clip: slot1_nsq_15, threshold: 0.160833289 }
-                - { clip: slot1_nsq_16, threshold: 0.321666579 }
-                - { clip: slot1_nsq_17, threshold: 0.482499868 }
-                - { clip: slot1_nsq_18, threshold: 0.643333157 }
-                - { clip: slot1_nsq_19, threshold: 0.804166446 }
-                - { clip: slot1_nsq_20, threshold: 0.964999736 }
-                - { clip: slot1_nsq_21, threshold: 1.12583302 }
-                - { clip: slot1_nsq_22, threshold: 1.28666631 }
-                - { clip: slot1_nsq_23, threshold: 1.4474996 }
-                - { clip: slot1_nsq_24, threshold: 1.60833289 }
-                - { clip: slot1_nsq_25, threshold: 1.76916618 }
-                - { clip: slot1_nsq_26, threshold: 1.92999947 }
-                - { clip: slot1_nsq_27, threshold: 2.09083276 }
-                - { clip: slot1_nsq_28, threshold: 2.25166605 }
+                - { clip: slot1_nsq_0, threshold: -2.33826859 }
+                - { clip: slot1_nsq_1, threshold: -2.1774353 }
+                - { clip: slot1_nsq_2, threshold: -2.01660201 }
+                - { clip: slot1_nsq_3, threshold: -1.85576872 }
+                - { clip: slot1_nsq_4, threshold: -1.69493543 }
+                - { clip: slot1_nsq_5, threshold: -1.53410214 }
+                - { clip: slot1_nsq_6, threshold: -1.37326885 }
+                - { clip: slot1_nsq_7, threshold: -1.21243557 }
+                - { clip: slot1_nsq_8, threshold: -1.05160228 }
+                - { clip: slot1_nsq_9, threshold: -0.890768987 }
+                - { clip: slot1_nsq_10, threshold: -0.729935697 }
+                - { clip: slot1_nsq_11, threshold: -0.569102408 }
+                - { clip: slot1_nsq_12, threshold: -0.408269119 }
+                - { clip: slot1_nsq_13, threshold: -0.24743583 }
+                - { clip: slot1_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot1_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot1_nsq_16, threshold: 0.235064038 }
+                - { clip: slot1_nsq_17, threshold: 0.395897327 }
+                - { clip: slot1_nsq_18, threshold: 0.556730617 }
+                - { clip: slot1_nsq_19, threshold: 0.717563906 }
+                - { clip: slot1_nsq_20, threshold: 0.878397195 }
+                - { clip: slot1_nsq_21, threshold: 1.03923048 }
+                - { clip: slot1_nsq_22, threshold: 1.20006377 }
+                - { clip: slot1_nsq_23, threshold: 1.36089706 }
+                - { clip: slot1_nsq_24, threshold: 1.52173035 }
+                - { clip: slot1_nsq_25, threshold: 1.68256364 }
+                - { clip: slot1_nsq_26, threshold: 1.84339693 }
+                - { clip: slot1_nsq_27, threshold: 2.00423022 }
+                - { clip: slot1_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -350,7 +350,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }
           - { to: TrackIn, when: [ CR/Slot1/p2 less 1 ] }
-          - { to: TrackBand, when: [ CR/Slot1/r2 less 5.0699 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
+          - { to: TrackBand, when: [ CR/Slot1/r2 less 4.95365 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above
         motion:
           tree: direct
@@ -367,101 +367,101 @@ layers:
               param: CR/Slot1/x
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 y²
               param: CR/Slot1/y
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 z²
               param: CR/Slot1/z
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 −yw²
               param: CR/Slot1/yw
               directWeight: CR/One
               children:
-                - { clip: slot1_nsq_0, threshold: -2.25166605 }
-                - { clip: slot1_nsq_1, threshold: -2.09083276 }
-                - { clip: slot1_nsq_2, threshold: -1.92999947 }
-                - { clip: slot1_nsq_3, threshold: -1.76916618 }
-                - { clip: slot1_nsq_4, threshold: -1.60833289 }
-                - { clip: slot1_nsq_5, threshold: -1.4474996 }
-                - { clip: slot1_nsq_6, threshold: -1.28666631 }
-                - { clip: slot1_nsq_7, threshold: -1.12583302 }
-                - { clip: slot1_nsq_8, threshold: -0.964999736 }
-                - { clip: slot1_nsq_9, threshold: -0.804166446 }
-                - { clip: slot1_nsq_10, threshold: -0.643333157 }
-                - { clip: slot1_nsq_11, threshold: -0.482499868 }
-                - { clip: slot1_nsq_12, threshold: -0.321666579 }
-                - { clip: slot1_nsq_13, threshold: -0.160833289 }
-                - { clip: slot1_nsq_14, threshold: 0 }
-                - { clip: slot1_nsq_15, threshold: 0.160833289 }
-                - { clip: slot1_nsq_16, threshold: 0.321666579 }
-                - { clip: slot1_nsq_17, threshold: 0.482499868 }
-                - { clip: slot1_nsq_18, threshold: 0.643333157 }
-                - { clip: slot1_nsq_19, threshold: 0.804166446 }
-                - { clip: slot1_nsq_20, threshold: 0.964999736 }
-                - { clip: slot1_nsq_21, threshold: 1.12583302 }
-                - { clip: slot1_nsq_22, threshold: 1.28666631 }
-                - { clip: slot1_nsq_23, threshold: 1.4474996 }
-                - { clip: slot1_nsq_24, threshold: 1.60833289 }
-                - { clip: slot1_nsq_25, threshold: 1.76916618 }
-                - { clip: slot1_nsq_26, threshold: 1.92999947 }
-                - { clip: slot1_nsq_27, threshold: 2.09083276 }
-                - { clip: slot1_nsq_28, threshold: 2.25166605 }
+                - { clip: slot1_nsq_0, threshold: -2.33826859 }
+                - { clip: slot1_nsq_1, threshold: -2.1774353 }
+                - { clip: slot1_nsq_2, threshold: -2.01660201 }
+                - { clip: slot1_nsq_3, threshold: -1.85576872 }
+                - { clip: slot1_nsq_4, threshold: -1.69493543 }
+                - { clip: slot1_nsq_5, threshold: -1.53410214 }
+                - { clip: slot1_nsq_6, threshold: -1.37326885 }
+                - { clip: slot1_nsq_7, threshold: -1.21243557 }
+                - { clip: slot1_nsq_8, threshold: -1.05160228 }
+                - { clip: slot1_nsq_9, threshold: -0.890768987 }
+                - { clip: slot1_nsq_10, threshold: -0.729935697 }
+                - { clip: slot1_nsq_11, threshold: -0.569102408 }
+                - { clip: slot1_nsq_12, threshold: -0.408269119 }
+                - { clip: slot1_nsq_13, threshold: -0.24743583 }
+                - { clip: slot1_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot1_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot1_nsq_16, threshold: 0.235064038 }
+                - { clip: slot1_nsq_17, threshold: 0.395897327 }
+                - { clip: slot1_nsq_18, threshold: 0.556730617 }
+                - { clip: slot1_nsq_19, threshold: 0.717563906 }
+                - { clip: slot1_nsq_20, threshold: 0.878397195 }
+                - { clip: slot1_nsq_21, threshold: 1.03923048 }
+                - { clip: slot1_nsq_22, threshold: 1.20006377 }
+                - { clip: slot1_nsq_23, threshold: 1.36089706 }
+                - { clip: slot1_nsq_24, threshold: 1.52173035 }
+                - { clip: slot1_nsq_25, threshold: 1.68256364 }
+                - { clip: slot1_nsq_26, threshold: 1.84339693 }
+                - { clip: slot1_nsq_27, threshold: 2.00423022 }
+                - { clip: slot1_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -509,101 +509,101 @@ layers:
               param: CR/Slot1/x
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 y²
               param: CR/Slot1/y
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 z²
               param: CR/Slot1/z
               directWeight: CR/One
               children:
-                - { clip: slot1_sq_0, threshold: -1.3 }
-                - { clip: slot1_sq_1, threshold: -1.1375 }
-                - { clip: slot1_sq_2, threshold: -0.975 }
-                - { clip: slot1_sq_3, threshold: -0.8125 }
-                - { clip: slot1_sq_4, threshold: -0.65 }
-                - { clip: slot1_sq_5, threshold: -0.4875 }
-                - { clip: slot1_sq_6, threshold: -0.325 }
-                - { clip: slot1_sq_7, threshold: -0.1625 }
-                - { clip: slot1_sq_8, threshold: 0 }
-                - { clip: slot1_sq_9, threshold: 0.1625 }
-                - { clip: slot1_sq_10, threshold: 0.325 }
-                - { clip: slot1_sq_11, threshold: 0.4875 }
-                - { clip: slot1_sq_12, threshold: 0.65 }
-                - { clip: slot1_sq_13, threshold: 0.8125 }
-                - { clip: slot1_sq_14, threshold: 0.975 }
-                - { clip: slot1_sq_15, threshold: 1.1375 }
-                - { clip: slot1_sq_16, threshold: 1.3 }
+                - { clip: slot1_sq_0, threshold: -1.35 }
+                - { clip: slot1_sq_1, threshold: -1.1875 }
+                - { clip: slot1_sq_2, threshold: -1.025 }
+                - { clip: slot1_sq_3, threshold: -0.8625 }
+                - { clip: slot1_sq_4, threshold: -0.7 }
+                - { clip: slot1_sq_5, threshold: -0.5375 }
+                - { clip: slot1_sq_6, threshold: -0.375 }
+                - { clip: slot1_sq_7, threshold: -0.2125 }
+                - { clip: slot1_sq_8, threshold: -0.05 }
+                - { clip: slot1_sq_9, threshold: 0.1125 }
+                - { clip: slot1_sq_10, threshold: 0.275 }
+                - { clip: slot1_sq_11, threshold: 0.4375 }
+                - { clip: slot1_sq_12, threshold: 0.6 }
+                - { clip: slot1_sq_13, threshold: 0.7625 }
+                - { clip: slot1_sq_14, threshold: 0.925 }
+                - { clip: slot1_sq_15, threshold: 1.0875 }
+                - { clip: slot1_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot1 −yw²
               param: CR/Slot1/yw
               directWeight: CR/One
               children:
-                - { clip: slot1_nsq_0, threshold: -2.25166605 }
-                - { clip: slot1_nsq_1, threshold: -2.09083276 }
-                - { clip: slot1_nsq_2, threshold: -1.92999947 }
-                - { clip: slot1_nsq_3, threshold: -1.76916618 }
-                - { clip: slot1_nsq_4, threshold: -1.60833289 }
-                - { clip: slot1_nsq_5, threshold: -1.4474996 }
-                - { clip: slot1_nsq_6, threshold: -1.28666631 }
-                - { clip: slot1_nsq_7, threshold: -1.12583302 }
-                - { clip: slot1_nsq_8, threshold: -0.964999736 }
-                - { clip: slot1_nsq_9, threshold: -0.804166446 }
-                - { clip: slot1_nsq_10, threshold: -0.643333157 }
-                - { clip: slot1_nsq_11, threshold: -0.482499868 }
-                - { clip: slot1_nsq_12, threshold: -0.321666579 }
-                - { clip: slot1_nsq_13, threshold: -0.160833289 }
-                - { clip: slot1_nsq_14, threshold: 0 }
-                - { clip: slot1_nsq_15, threshold: 0.160833289 }
-                - { clip: slot1_nsq_16, threshold: 0.321666579 }
-                - { clip: slot1_nsq_17, threshold: 0.482499868 }
-                - { clip: slot1_nsq_18, threshold: 0.643333157 }
-                - { clip: slot1_nsq_19, threshold: 0.804166446 }
-                - { clip: slot1_nsq_20, threshold: 0.964999736 }
-                - { clip: slot1_nsq_21, threshold: 1.12583302 }
-                - { clip: slot1_nsq_22, threshold: 1.28666631 }
-                - { clip: slot1_nsq_23, threshold: 1.4474996 }
-                - { clip: slot1_nsq_24, threshold: 1.60833289 }
-                - { clip: slot1_nsq_25, threshold: 1.76916618 }
-                - { clip: slot1_nsq_26, threshold: 1.92999947 }
-                - { clip: slot1_nsq_27, threshold: 2.09083276 }
-                - { clip: slot1_nsq_28, threshold: 2.25166605 }
+                - { clip: slot1_nsq_0, threshold: -2.33826859 }
+                - { clip: slot1_nsq_1, threshold: -2.1774353 }
+                - { clip: slot1_nsq_2, threshold: -2.01660201 }
+                - { clip: slot1_nsq_3, threshold: -1.85576872 }
+                - { clip: slot1_nsq_4, threshold: -1.69493543 }
+                - { clip: slot1_nsq_5, threshold: -1.53410214 }
+                - { clip: slot1_nsq_6, threshold: -1.37326885 }
+                - { clip: slot1_nsq_7, threshold: -1.21243557 }
+                - { clip: slot1_nsq_8, threshold: -1.05160228 }
+                - { clip: slot1_nsq_9, threshold: -0.890768987 }
+                - { clip: slot1_nsq_10, threshold: -0.729935697 }
+                - { clip: slot1_nsq_11, threshold: -0.569102408 }
+                - { clip: slot1_nsq_12, threshold: -0.408269119 }
+                - { clip: slot1_nsq_13, threshold: -0.24743583 }
+                - { clip: slot1_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot1_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot1_nsq_16, threshold: 0.235064038 }
+                - { clip: slot1_nsq_17, threshold: 0.395897327 }
+                - { clip: slot1_nsq_18, threshold: 0.556730617 }
+                - { clip: slot1_nsq_19, threshold: 0.717563906 }
+                - { clip: slot1_nsq_20, threshold: 0.878397195 }
+                - { clip: slot1_nsq_21, threshold: 1.03923048 }
+                - { clip: slot1_nsq_22, threshold: 1.20006377 }
+                - { clip: slot1_nsq_23, threshold: 1.36089706 }
+                - { clip: slot1_nsq_24, threshold: 1.52173035 }
+                - { clip: slot1_nsq_25, threshold: 1.68256364 }
+                - { clip: slot1_nsq_26, threshold: 1.84339693 }
+                - { clip: slot1_nsq_27, threshold: 2.00423022 }
+                - { clip: slot1_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -745,101 +745,101 @@ layers:
               param: CR/Slot2/x
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 y²
               param: CR/Slot2/y
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 z²
               param: CR/Slot2/z
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 −yw²
               param: CR/Slot2/yw
               directWeight: CR/One
               children:
-                - { clip: slot2_nsq_0, threshold: -2.25166605 }
-                - { clip: slot2_nsq_1, threshold: -2.09083276 }
-                - { clip: slot2_nsq_2, threshold: -1.92999947 }
-                - { clip: slot2_nsq_3, threshold: -1.76916618 }
-                - { clip: slot2_nsq_4, threshold: -1.60833289 }
-                - { clip: slot2_nsq_5, threshold: -1.4474996 }
-                - { clip: slot2_nsq_6, threshold: -1.28666631 }
-                - { clip: slot2_nsq_7, threshold: -1.12583302 }
-                - { clip: slot2_nsq_8, threshold: -0.964999736 }
-                - { clip: slot2_nsq_9, threshold: -0.804166446 }
-                - { clip: slot2_nsq_10, threshold: -0.643333157 }
-                - { clip: slot2_nsq_11, threshold: -0.482499868 }
-                - { clip: slot2_nsq_12, threshold: -0.321666579 }
-                - { clip: slot2_nsq_13, threshold: -0.160833289 }
-                - { clip: slot2_nsq_14, threshold: 0 }
-                - { clip: slot2_nsq_15, threshold: 0.160833289 }
-                - { clip: slot2_nsq_16, threshold: 0.321666579 }
-                - { clip: slot2_nsq_17, threshold: 0.482499868 }
-                - { clip: slot2_nsq_18, threshold: 0.643333157 }
-                - { clip: slot2_nsq_19, threshold: 0.804166446 }
-                - { clip: slot2_nsq_20, threshold: 0.964999736 }
-                - { clip: slot2_nsq_21, threshold: 1.12583302 }
-                - { clip: slot2_nsq_22, threshold: 1.28666631 }
-                - { clip: slot2_nsq_23, threshold: 1.4474996 }
-                - { clip: slot2_nsq_24, threshold: 1.60833289 }
-                - { clip: slot2_nsq_25, threshold: 1.76916618 }
-                - { clip: slot2_nsq_26, threshold: 1.92999947 }
-                - { clip: slot2_nsq_27, threshold: 2.09083276 }
-                - { clip: slot2_nsq_28, threshold: 2.25166605 }
+                - { clip: slot2_nsq_0, threshold: -2.33826859 }
+                - { clip: slot2_nsq_1, threshold: -2.1774353 }
+                - { clip: slot2_nsq_2, threshold: -2.01660201 }
+                - { clip: slot2_nsq_3, threshold: -1.85576872 }
+                - { clip: slot2_nsq_4, threshold: -1.69493543 }
+                - { clip: slot2_nsq_5, threshold: -1.53410214 }
+                - { clip: slot2_nsq_6, threshold: -1.37326885 }
+                - { clip: slot2_nsq_7, threshold: -1.21243557 }
+                - { clip: slot2_nsq_8, threshold: -1.05160228 }
+                - { clip: slot2_nsq_9, threshold: -0.890768987 }
+                - { clip: slot2_nsq_10, threshold: -0.729935697 }
+                - { clip: slot2_nsq_11, threshold: -0.569102408 }
+                - { clip: slot2_nsq_12, threshold: -0.408269119 }
+                - { clip: slot2_nsq_13, threshold: -0.24743583 }
+                - { clip: slot2_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot2_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot2_nsq_16, threshold: 0.235064038 }
+                - { clip: slot2_nsq_17, threshold: 0.395897327 }
+                - { clip: slot2_nsq_18, threshold: 0.556730617 }
+                - { clip: slot2_nsq_19, threshold: 0.717563906 }
+                - { clip: slot2_nsq_20, threshold: 0.878397195 }
+                - { clip: slot2_nsq_21, threshold: 1.03923048 }
+                - { clip: slot2_nsq_22, threshold: 1.20006377 }
+                - { clip: slot2_nsq_23, threshold: 1.36089706 }
+                - { clip: slot2_nsq_24, threshold: 1.52173035 }
+                - { clip: slot2_nsq_25, threshold: 1.68256364 }
+                - { clip: slot2_nsq_26, threshold: 1.84339693 }
+                - { clip: slot2_nsq_27, threshold: 2.00423022 }
+                - { clip: slot2_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -874,7 +874,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }
           - { to: TrackIn, when: [ CR/Slot2/p2 less 1 ] }
-          - { to: TrackBand, when: [ CR/Slot2/r2 less 5.0699 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
+          - { to: TrackBand, when: [ CR/Slot2/r2 less 4.95365 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above
         motion:
           tree: direct
@@ -891,101 +891,101 @@ layers:
               param: CR/Slot2/x
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 y²
               param: CR/Slot2/y
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 z²
               param: CR/Slot2/z
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 −yw²
               param: CR/Slot2/yw
               directWeight: CR/One
               children:
-                - { clip: slot2_nsq_0, threshold: -2.25166605 }
-                - { clip: slot2_nsq_1, threshold: -2.09083276 }
-                - { clip: slot2_nsq_2, threshold: -1.92999947 }
-                - { clip: slot2_nsq_3, threshold: -1.76916618 }
-                - { clip: slot2_nsq_4, threshold: -1.60833289 }
-                - { clip: slot2_nsq_5, threshold: -1.4474996 }
-                - { clip: slot2_nsq_6, threshold: -1.28666631 }
-                - { clip: slot2_nsq_7, threshold: -1.12583302 }
-                - { clip: slot2_nsq_8, threshold: -0.964999736 }
-                - { clip: slot2_nsq_9, threshold: -0.804166446 }
-                - { clip: slot2_nsq_10, threshold: -0.643333157 }
-                - { clip: slot2_nsq_11, threshold: -0.482499868 }
-                - { clip: slot2_nsq_12, threshold: -0.321666579 }
-                - { clip: slot2_nsq_13, threshold: -0.160833289 }
-                - { clip: slot2_nsq_14, threshold: 0 }
-                - { clip: slot2_nsq_15, threshold: 0.160833289 }
-                - { clip: slot2_nsq_16, threshold: 0.321666579 }
-                - { clip: slot2_nsq_17, threshold: 0.482499868 }
-                - { clip: slot2_nsq_18, threshold: 0.643333157 }
-                - { clip: slot2_nsq_19, threshold: 0.804166446 }
-                - { clip: slot2_nsq_20, threshold: 0.964999736 }
-                - { clip: slot2_nsq_21, threshold: 1.12583302 }
-                - { clip: slot2_nsq_22, threshold: 1.28666631 }
-                - { clip: slot2_nsq_23, threshold: 1.4474996 }
-                - { clip: slot2_nsq_24, threshold: 1.60833289 }
-                - { clip: slot2_nsq_25, threshold: 1.76916618 }
-                - { clip: slot2_nsq_26, threshold: 1.92999947 }
-                - { clip: slot2_nsq_27, threshold: 2.09083276 }
-                - { clip: slot2_nsq_28, threshold: 2.25166605 }
+                - { clip: slot2_nsq_0, threshold: -2.33826859 }
+                - { clip: slot2_nsq_1, threshold: -2.1774353 }
+                - { clip: slot2_nsq_2, threshold: -2.01660201 }
+                - { clip: slot2_nsq_3, threshold: -1.85576872 }
+                - { clip: slot2_nsq_4, threshold: -1.69493543 }
+                - { clip: slot2_nsq_5, threshold: -1.53410214 }
+                - { clip: slot2_nsq_6, threshold: -1.37326885 }
+                - { clip: slot2_nsq_7, threshold: -1.21243557 }
+                - { clip: slot2_nsq_8, threshold: -1.05160228 }
+                - { clip: slot2_nsq_9, threshold: -0.890768987 }
+                - { clip: slot2_nsq_10, threshold: -0.729935697 }
+                - { clip: slot2_nsq_11, threshold: -0.569102408 }
+                - { clip: slot2_nsq_12, threshold: -0.408269119 }
+                - { clip: slot2_nsq_13, threshold: -0.24743583 }
+                - { clip: slot2_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot2_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot2_nsq_16, threshold: 0.235064038 }
+                - { clip: slot2_nsq_17, threshold: 0.395897327 }
+                - { clip: slot2_nsq_18, threshold: 0.556730617 }
+                - { clip: slot2_nsq_19, threshold: 0.717563906 }
+                - { clip: slot2_nsq_20, threshold: 0.878397195 }
+                - { clip: slot2_nsq_21, threshold: 1.03923048 }
+                - { clip: slot2_nsq_22, threshold: 1.20006377 }
+                - { clip: slot2_nsq_23, threshold: 1.36089706 }
+                - { clip: slot2_nsq_24, threshold: 1.52173035 }
+                - { clip: slot2_nsq_25, threshold: 1.68256364 }
+                - { clip: slot2_nsq_26, threshold: 1.84339693 }
+                - { clip: slot2_nsq_27, threshold: 2.00423022 }
+                - { clip: slot2_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1034,101 +1034,101 @@ layers:
               param: CR/Slot2/x
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 y²
               param: CR/Slot2/y
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 z²
               param: CR/Slot2/z
               directWeight: CR/One
               children:
-                - { clip: slot2_sq_0, threshold: -1.3 }
-                - { clip: slot2_sq_1, threshold: -1.1375 }
-                - { clip: slot2_sq_2, threshold: -0.975 }
-                - { clip: slot2_sq_3, threshold: -0.8125 }
-                - { clip: slot2_sq_4, threshold: -0.65 }
-                - { clip: slot2_sq_5, threshold: -0.4875 }
-                - { clip: slot2_sq_6, threshold: -0.325 }
-                - { clip: slot2_sq_7, threshold: -0.1625 }
-                - { clip: slot2_sq_8, threshold: 0 }
-                - { clip: slot2_sq_9, threshold: 0.1625 }
-                - { clip: slot2_sq_10, threshold: 0.325 }
-                - { clip: slot2_sq_11, threshold: 0.4875 }
-                - { clip: slot2_sq_12, threshold: 0.65 }
-                - { clip: slot2_sq_13, threshold: 0.8125 }
-                - { clip: slot2_sq_14, threshold: 0.975 }
-                - { clip: slot2_sq_15, threshold: 1.1375 }
-                - { clip: slot2_sq_16, threshold: 1.3 }
+                - { clip: slot2_sq_0, threshold: -1.35 }
+                - { clip: slot2_sq_1, threshold: -1.1875 }
+                - { clip: slot2_sq_2, threshold: -1.025 }
+                - { clip: slot2_sq_3, threshold: -0.8625 }
+                - { clip: slot2_sq_4, threshold: -0.7 }
+                - { clip: slot2_sq_5, threshold: -0.5375 }
+                - { clip: slot2_sq_6, threshold: -0.375 }
+                - { clip: slot2_sq_7, threshold: -0.2125 }
+                - { clip: slot2_sq_8, threshold: -0.05 }
+                - { clip: slot2_sq_9, threshold: 0.1125 }
+                - { clip: slot2_sq_10, threshold: 0.275 }
+                - { clip: slot2_sq_11, threshold: 0.4375 }
+                - { clip: slot2_sq_12, threshold: 0.6 }
+                - { clip: slot2_sq_13, threshold: 0.7625 }
+                - { clip: slot2_sq_14, threshold: 0.925 }
+                - { clip: slot2_sq_15, threshold: 1.0875 }
+                - { clip: slot2_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot2 −yw²
               param: CR/Slot2/yw
               directWeight: CR/One
               children:
-                - { clip: slot2_nsq_0, threshold: -2.25166605 }
-                - { clip: slot2_nsq_1, threshold: -2.09083276 }
-                - { clip: slot2_nsq_2, threshold: -1.92999947 }
-                - { clip: slot2_nsq_3, threshold: -1.76916618 }
-                - { clip: slot2_nsq_4, threshold: -1.60833289 }
-                - { clip: slot2_nsq_5, threshold: -1.4474996 }
-                - { clip: slot2_nsq_6, threshold: -1.28666631 }
-                - { clip: slot2_nsq_7, threshold: -1.12583302 }
-                - { clip: slot2_nsq_8, threshold: -0.964999736 }
-                - { clip: slot2_nsq_9, threshold: -0.804166446 }
-                - { clip: slot2_nsq_10, threshold: -0.643333157 }
-                - { clip: slot2_nsq_11, threshold: -0.482499868 }
-                - { clip: slot2_nsq_12, threshold: -0.321666579 }
-                - { clip: slot2_nsq_13, threshold: -0.160833289 }
-                - { clip: slot2_nsq_14, threshold: 0 }
-                - { clip: slot2_nsq_15, threshold: 0.160833289 }
-                - { clip: slot2_nsq_16, threshold: 0.321666579 }
-                - { clip: slot2_nsq_17, threshold: 0.482499868 }
-                - { clip: slot2_nsq_18, threshold: 0.643333157 }
-                - { clip: slot2_nsq_19, threshold: 0.804166446 }
-                - { clip: slot2_nsq_20, threshold: 0.964999736 }
-                - { clip: slot2_nsq_21, threshold: 1.12583302 }
-                - { clip: slot2_nsq_22, threshold: 1.28666631 }
-                - { clip: slot2_nsq_23, threshold: 1.4474996 }
-                - { clip: slot2_nsq_24, threshold: 1.60833289 }
-                - { clip: slot2_nsq_25, threshold: 1.76916618 }
-                - { clip: slot2_nsq_26, threshold: 1.92999947 }
-                - { clip: slot2_nsq_27, threshold: 2.09083276 }
-                - { clip: slot2_nsq_28, threshold: 2.25166605 }
+                - { clip: slot2_nsq_0, threshold: -2.33826859 }
+                - { clip: slot2_nsq_1, threshold: -2.1774353 }
+                - { clip: slot2_nsq_2, threshold: -2.01660201 }
+                - { clip: slot2_nsq_3, threshold: -1.85576872 }
+                - { clip: slot2_nsq_4, threshold: -1.69493543 }
+                - { clip: slot2_nsq_5, threshold: -1.53410214 }
+                - { clip: slot2_nsq_6, threshold: -1.37326885 }
+                - { clip: slot2_nsq_7, threshold: -1.21243557 }
+                - { clip: slot2_nsq_8, threshold: -1.05160228 }
+                - { clip: slot2_nsq_9, threshold: -0.890768987 }
+                - { clip: slot2_nsq_10, threshold: -0.729935697 }
+                - { clip: slot2_nsq_11, threshold: -0.569102408 }
+                - { clip: slot2_nsq_12, threshold: -0.408269119 }
+                - { clip: slot2_nsq_13, threshold: -0.24743583 }
+                - { clip: slot2_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot2_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot2_nsq_16, threshold: 0.235064038 }
+                - { clip: slot2_nsq_17, threshold: 0.395897327 }
+                - { clip: slot2_nsq_18, threshold: 0.556730617 }
+                - { clip: slot2_nsq_19, threshold: 0.717563906 }
+                - { clip: slot2_nsq_20, threshold: 0.878397195 }
+                - { clip: slot2_nsq_21, threshold: 1.03923048 }
+                - { clip: slot2_nsq_22, threshold: 1.20006377 }
+                - { clip: slot2_nsq_23, threshold: 1.36089706 }
+                - { clip: slot2_nsq_24, threshold: 1.52173035 }
+                - { clip: slot2_nsq_25, threshold: 1.68256364 }
+                - { clip: slot2_nsq_26, threshold: 1.84339693 }
+                - { clip: slot2_nsq_27, threshold: 2.00423022 }
+                - { clip: slot2_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1271,101 +1271,101 @@ layers:
               param: CR/Slot3/x
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 y²
               param: CR/Slot3/y
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 z²
               param: CR/Slot3/z
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 −yw²
               param: CR/Slot3/yw
               directWeight: CR/One
               children:
-                - { clip: slot3_nsq_0, threshold: -2.25166605 }
-                - { clip: slot3_nsq_1, threshold: -2.09083276 }
-                - { clip: slot3_nsq_2, threshold: -1.92999947 }
-                - { clip: slot3_nsq_3, threshold: -1.76916618 }
-                - { clip: slot3_nsq_4, threshold: -1.60833289 }
-                - { clip: slot3_nsq_5, threshold: -1.4474996 }
-                - { clip: slot3_nsq_6, threshold: -1.28666631 }
-                - { clip: slot3_nsq_7, threshold: -1.12583302 }
-                - { clip: slot3_nsq_8, threshold: -0.964999736 }
-                - { clip: slot3_nsq_9, threshold: -0.804166446 }
-                - { clip: slot3_nsq_10, threshold: -0.643333157 }
-                - { clip: slot3_nsq_11, threshold: -0.482499868 }
-                - { clip: slot3_nsq_12, threshold: -0.321666579 }
-                - { clip: slot3_nsq_13, threshold: -0.160833289 }
-                - { clip: slot3_nsq_14, threshold: 0 }
-                - { clip: slot3_nsq_15, threshold: 0.160833289 }
-                - { clip: slot3_nsq_16, threshold: 0.321666579 }
-                - { clip: slot3_nsq_17, threshold: 0.482499868 }
-                - { clip: slot3_nsq_18, threshold: 0.643333157 }
-                - { clip: slot3_nsq_19, threshold: 0.804166446 }
-                - { clip: slot3_nsq_20, threshold: 0.964999736 }
-                - { clip: slot3_nsq_21, threshold: 1.12583302 }
-                - { clip: slot3_nsq_22, threshold: 1.28666631 }
-                - { clip: slot3_nsq_23, threshold: 1.4474996 }
-                - { clip: slot3_nsq_24, threshold: 1.60833289 }
-                - { clip: slot3_nsq_25, threshold: 1.76916618 }
-                - { clip: slot3_nsq_26, threshold: 1.92999947 }
-                - { clip: slot3_nsq_27, threshold: 2.09083276 }
-                - { clip: slot3_nsq_28, threshold: 2.25166605 }
+                - { clip: slot3_nsq_0, threshold: -2.33826859 }
+                - { clip: slot3_nsq_1, threshold: -2.1774353 }
+                - { clip: slot3_nsq_2, threshold: -2.01660201 }
+                - { clip: slot3_nsq_3, threshold: -1.85576872 }
+                - { clip: slot3_nsq_4, threshold: -1.69493543 }
+                - { clip: slot3_nsq_5, threshold: -1.53410214 }
+                - { clip: slot3_nsq_6, threshold: -1.37326885 }
+                - { clip: slot3_nsq_7, threshold: -1.21243557 }
+                - { clip: slot3_nsq_8, threshold: -1.05160228 }
+                - { clip: slot3_nsq_9, threshold: -0.890768987 }
+                - { clip: slot3_nsq_10, threshold: -0.729935697 }
+                - { clip: slot3_nsq_11, threshold: -0.569102408 }
+                - { clip: slot3_nsq_12, threshold: -0.408269119 }
+                - { clip: slot3_nsq_13, threshold: -0.24743583 }
+                - { clip: slot3_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot3_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot3_nsq_16, threshold: 0.235064038 }
+                - { clip: slot3_nsq_17, threshold: 0.395897327 }
+                - { clip: slot3_nsq_18, threshold: 0.556730617 }
+                - { clip: slot3_nsq_19, threshold: 0.717563906 }
+                - { clip: slot3_nsq_20, threshold: 0.878397195 }
+                - { clip: slot3_nsq_21, threshold: 1.03923048 }
+                - { clip: slot3_nsq_22, threshold: 1.20006377 }
+                - { clip: slot3_nsq_23, threshold: 1.36089706 }
+                - { clip: slot3_nsq_24, threshold: 1.52173035 }
+                - { clip: slot3_nsq_25, threshold: 1.68256364 }
+                - { clip: slot3_nsq_26, threshold: 1.84339693 }
+                - { clip: slot3_nsq_27, threshold: 2.00423022 }
+                - { clip: slot3_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1400,7 +1400,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }
           - { to: TrackIn, when: [ CR/Slot3/p2 less 1 ] }
-          - { to: TrackBand, when: [ CR/Slot3/r2 less 5.0699 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
+          - { to: TrackBand, when: [ CR/Slot3/r2 less 4.95365 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above
         motion:
           tree: direct
@@ -1417,101 +1417,101 @@ layers:
               param: CR/Slot3/x
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 y²
               param: CR/Slot3/y
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 z²
               param: CR/Slot3/z
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 −yw²
               param: CR/Slot3/yw
               directWeight: CR/One
               children:
-                - { clip: slot3_nsq_0, threshold: -2.25166605 }
-                - { clip: slot3_nsq_1, threshold: -2.09083276 }
-                - { clip: slot3_nsq_2, threshold: -1.92999947 }
-                - { clip: slot3_nsq_3, threshold: -1.76916618 }
-                - { clip: slot3_nsq_4, threshold: -1.60833289 }
-                - { clip: slot3_nsq_5, threshold: -1.4474996 }
-                - { clip: slot3_nsq_6, threshold: -1.28666631 }
-                - { clip: slot3_nsq_7, threshold: -1.12583302 }
-                - { clip: slot3_nsq_8, threshold: -0.964999736 }
-                - { clip: slot3_nsq_9, threshold: -0.804166446 }
-                - { clip: slot3_nsq_10, threshold: -0.643333157 }
-                - { clip: slot3_nsq_11, threshold: -0.482499868 }
-                - { clip: slot3_nsq_12, threshold: -0.321666579 }
-                - { clip: slot3_nsq_13, threshold: -0.160833289 }
-                - { clip: slot3_nsq_14, threshold: 0 }
-                - { clip: slot3_nsq_15, threshold: 0.160833289 }
-                - { clip: slot3_nsq_16, threshold: 0.321666579 }
-                - { clip: slot3_nsq_17, threshold: 0.482499868 }
-                - { clip: slot3_nsq_18, threshold: 0.643333157 }
-                - { clip: slot3_nsq_19, threshold: 0.804166446 }
-                - { clip: slot3_nsq_20, threshold: 0.964999736 }
-                - { clip: slot3_nsq_21, threshold: 1.12583302 }
-                - { clip: slot3_nsq_22, threshold: 1.28666631 }
-                - { clip: slot3_nsq_23, threshold: 1.4474996 }
-                - { clip: slot3_nsq_24, threshold: 1.60833289 }
-                - { clip: slot3_nsq_25, threshold: 1.76916618 }
-                - { clip: slot3_nsq_26, threshold: 1.92999947 }
-                - { clip: slot3_nsq_27, threshold: 2.09083276 }
-                - { clip: slot3_nsq_28, threshold: 2.25166605 }
+                - { clip: slot3_nsq_0, threshold: -2.33826859 }
+                - { clip: slot3_nsq_1, threshold: -2.1774353 }
+                - { clip: slot3_nsq_2, threshold: -2.01660201 }
+                - { clip: slot3_nsq_3, threshold: -1.85576872 }
+                - { clip: slot3_nsq_4, threshold: -1.69493543 }
+                - { clip: slot3_nsq_5, threshold: -1.53410214 }
+                - { clip: slot3_nsq_6, threshold: -1.37326885 }
+                - { clip: slot3_nsq_7, threshold: -1.21243557 }
+                - { clip: slot3_nsq_8, threshold: -1.05160228 }
+                - { clip: slot3_nsq_9, threshold: -0.890768987 }
+                - { clip: slot3_nsq_10, threshold: -0.729935697 }
+                - { clip: slot3_nsq_11, threshold: -0.569102408 }
+                - { clip: slot3_nsq_12, threshold: -0.408269119 }
+                - { clip: slot3_nsq_13, threshold: -0.24743583 }
+                - { clip: slot3_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot3_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot3_nsq_16, threshold: 0.235064038 }
+                - { clip: slot3_nsq_17, threshold: 0.395897327 }
+                - { clip: slot3_nsq_18, threshold: 0.556730617 }
+                - { clip: slot3_nsq_19, threshold: 0.717563906 }
+                - { clip: slot3_nsq_20, threshold: 0.878397195 }
+                - { clip: slot3_nsq_21, threshold: 1.03923048 }
+                - { clip: slot3_nsq_22, threshold: 1.20006377 }
+                - { clip: slot3_nsq_23, threshold: 1.36089706 }
+                - { clip: slot3_nsq_24, threshold: 1.52173035 }
+                - { clip: slot3_nsq_25, threshold: 1.68256364 }
+                - { clip: slot3_nsq_26, threshold: 1.84339693 }
+                - { clip: slot3_nsq_27, threshold: 2.00423022 }
+                - { clip: slot3_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1561,101 +1561,101 @@ layers:
               param: CR/Slot3/x
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 y²
               param: CR/Slot3/y
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 z²
               param: CR/Slot3/z
               directWeight: CR/One
               children:
-                - { clip: slot3_sq_0, threshold: -1.3 }
-                - { clip: slot3_sq_1, threshold: -1.1375 }
-                - { clip: slot3_sq_2, threshold: -0.975 }
-                - { clip: slot3_sq_3, threshold: -0.8125 }
-                - { clip: slot3_sq_4, threshold: -0.65 }
-                - { clip: slot3_sq_5, threshold: -0.4875 }
-                - { clip: slot3_sq_6, threshold: -0.325 }
-                - { clip: slot3_sq_7, threshold: -0.1625 }
-                - { clip: slot3_sq_8, threshold: 0 }
-                - { clip: slot3_sq_9, threshold: 0.1625 }
-                - { clip: slot3_sq_10, threshold: 0.325 }
-                - { clip: slot3_sq_11, threshold: 0.4875 }
-                - { clip: slot3_sq_12, threshold: 0.65 }
-                - { clip: slot3_sq_13, threshold: 0.8125 }
-                - { clip: slot3_sq_14, threshold: 0.975 }
-                - { clip: slot3_sq_15, threshold: 1.1375 }
-                - { clip: slot3_sq_16, threshold: 1.3 }
+                - { clip: slot3_sq_0, threshold: -1.35 }
+                - { clip: slot3_sq_1, threshold: -1.1875 }
+                - { clip: slot3_sq_2, threshold: -1.025 }
+                - { clip: slot3_sq_3, threshold: -0.8625 }
+                - { clip: slot3_sq_4, threshold: -0.7 }
+                - { clip: slot3_sq_5, threshold: -0.5375 }
+                - { clip: slot3_sq_6, threshold: -0.375 }
+                - { clip: slot3_sq_7, threshold: -0.2125 }
+                - { clip: slot3_sq_8, threshold: -0.05 }
+                - { clip: slot3_sq_9, threshold: 0.1125 }
+                - { clip: slot3_sq_10, threshold: 0.275 }
+                - { clip: slot3_sq_11, threshold: 0.4375 }
+                - { clip: slot3_sq_12, threshold: 0.6 }
+                - { clip: slot3_sq_13, threshold: 0.7625 }
+                - { clip: slot3_sq_14, threshold: 0.925 }
+                - { clip: slot3_sq_15, threshold: 1.0875 }
+                - { clip: slot3_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot3 −yw²
               param: CR/Slot3/yw
               directWeight: CR/One
               children:
-                - { clip: slot3_nsq_0, threshold: -2.25166605 }
-                - { clip: slot3_nsq_1, threshold: -2.09083276 }
-                - { clip: slot3_nsq_2, threshold: -1.92999947 }
-                - { clip: slot3_nsq_3, threshold: -1.76916618 }
-                - { clip: slot3_nsq_4, threshold: -1.60833289 }
-                - { clip: slot3_nsq_5, threshold: -1.4474996 }
-                - { clip: slot3_nsq_6, threshold: -1.28666631 }
-                - { clip: slot3_nsq_7, threshold: -1.12583302 }
-                - { clip: slot3_nsq_8, threshold: -0.964999736 }
-                - { clip: slot3_nsq_9, threshold: -0.804166446 }
-                - { clip: slot3_nsq_10, threshold: -0.643333157 }
-                - { clip: slot3_nsq_11, threshold: -0.482499868 }
-                - { clip: slot3_nsq_12, threshold: -0.321666579 }
-                - { clip: slot3_nsq_13, threshold: -0.160833289 }
-                - { clip: slot3_nsq_14, threshold: 0 }
-                - { clip: slot3_nsq_15, threshold: 0.160833289 }
-                - { clip: slot3_nsq_16, threshold: 0.321666579 }
-                - { clip: slot3_nsq_17, threshold: 0.482499868 }
-                - { clip: slot3_nsq_18, threshold: 0.643333157 }
-                - { clip: slot3_nsq_19, threshold: 0.804166446 }
-                - { clip: slot3_nsq_20, threshold: 0.964999736 }
-                - { clip: slot3_nsq_21, threshold: 1.12583302 }
-                - { clip: slot3_nsq_22, threshold: 1.28666631 }
-                - { clip: slot3_nsq_23, threshold: 1.4474996 }
-                - { clip: slot3_nsq_24, threshold: 1.60833289 }
-                - { clip: slot3_nsq_25, threshold: 1.76916618 }
-                - { clip: slot3_nsq_26, threshold: 1.92999947 }
-                - { clip: slot3_nsq_27, threshold: 2.09083276 }
-                - { clip: slot3_nsq_28, threshold: 2.25166605 }
+                - { clip: slot3_nsq_0, threshold: -2.33826859 }
+                - { clip: slot3_nsq_1, threshold: -2.1774353 }
+                - { clip: slot3_nsq_2, threshold: -2.01660201 }
+                - { clip: slot3_nsq_3, threshold: -1.85576872 }
+                - { clip: slot3_nsq_4, threshold: -1.69493543 }
+                - { clip: slot3_nsq_5, threshold: -1.53410214 }
+                - { clip: slot3_nsq_6, threshold: -1.37326885 }
+                - { clip: slot3_nsq_7, threshold: -1.21243557 }
+                - { clip: slot3_nsq_8, threshold: -1.05160228 }
+                - { clip: slot3_nsq_9, threshold: -0.890768987 }
+                - { clip: slot3_nsq_10, threshold: -0.729935697 }
+                - { clip: slot3_nsq_11, threshold: -0.569102408 }
+                - { clip: slot3_nsq_12, threshold: -0.408269119 }
+                - { clip: slot3_nsq_13, threshold: -0.24743583 }
+                - { clip: slot3_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot3_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot3_nsq_16, threshold: 0.235064038 }
+                - { clip: slot3_nsq_17, threshold: 0.395897327 }
+                - { clip: slot3_nsq_18, threshold: 0.556730617 }
+                - { clip: slot3_nsq_19, threshold: 0.717563906 }
+                - { clip: slot3_nsq_20, threshold: 0.878397195 }
+                - { clip: slot3_nsq_21, threshold: 1.03923048 }
+                - { clip: slot3_nsq_22, threshold: 1.20006377 }
+                - { clip: slot3_nsq_23, threshold: 1.36089706 }
+                - { clip: slot3_nsq_24, threshold: 1.52173035 }
+                - { clip: slot3_nsq_25, threshold: 1.68256364 }
+                - { clip: slot3_nsq_26, threshold: 1.84339693 }
+                - { clip: slot3_nsq_27, threshold: 2.00423022 }
+                - { clip: slot3_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1799,101 +1799,101 @@ layers:
               param: CR/Slot4/x
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 y²
               param: CR/Slot4/y
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 z²
               param: CR/Slot4/z
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 −yw²
               param: CR/Slot4/yw
               directWeight: CR/One
               children:
-                - { clip: slot4_nsq_0, threshold: -2.25166605 }
-                - { clip: slot4_nsq_1, threshold: -2.09083276 }
-                - { clip: slot4_nsq_2, threshold: -1.92999947 }
-                - { clip: slot4_nsq_3, threshold: -1.76916618 }
-                - { clip: slot4_nsq_4, threshold: -1.60833289 }
-                - { clip: slot4_nsq_5, threshold: -1.4474996 }
-                - { clip: slot4_nsq_6, threshold: -1.28666631 }
-                - { clip: slot4_nsq_7, threshold: -1.12583302 }
-                - { clip: slot4_nsq_8, threshold: -0.964999736 }
-                - { clip: slot4_nsq_9, threshold: -0.804166446 }
-                - { clip: slot4_nsq_10, threshold: -0.643333157 }
-                - { clip: slot4_nsq_11, threshold: -0.482499868 }
-                - { clip: slot4_nsq_12, threshold: -0.321666579 }
-                - { clip: slot4_nsq_13, threshold: -0.160833289 }
-                - { clip: slot4_nsq_14, threshold: 0 }
-                - { clip: slot4_nsq_15, threshold: 0.160833289 }
-                - { clip: slot4_nsq_16, threshold: 0.321666579 }
-                - { clip: slot4_nsq_17, threshold: 0.482499868 }
-                - { clip: slot4_nsq_18, threshold: 0.643333157 }
-                - { clip: slot4_nsq_19, threshold: 0.804166446 }
-                - { clip: slot4_nsq_20, threshold: 0.964999736 }
-                - { clip: slot4_nsq_21, threshold: 1.12583302 }
-                - { clip: slot4_nsq_22, threshold: 1.28666631 }
-                - { clip: slot4_nsq_23, threshold: 1.4474996 }
-                - { clip: slot4_nsq_24, threshold: 1.60833289 }
-                - { clip: slot4_nsq_25, threshold: 1.76916618 }
-                - { clip: slot4_nsq_26, threshold: 1.92999947 }
-                - { clip: slot4_nsq_27, threshold: 2.09083276 }
-                - { clip: slot4_nsq_28, threshold: 2.25166605 }
+                - { clip: slot4_nsq_0, threshold: -2.33826859 }
+                - { clip: slot4_nsq_1, threshold: -2.1774353 }
+                - { clip: slot4_nsq_2, threshold: -2.01660201 }
+                - { clip: slot4_nsq_3, threshold: -1.85576872 }
+                - { clip: slot4_nsq_4, threshold: -1.69493543 }
+                - { clip: slot4_nsq_5, threshold: -1.53410214 }
+                - { clip: slot4_nsq_6, threshold: -1.37326885 }
+                - { clip: slot4_nsq_7, threshold: -1.21243557 }
+                - { clip: slot4_nsq_8, threshold: -1.05160228 }
+                - { clip: slot4_nsq_9, threshold: -0.890768987 }
+                - { clip: slot4_nsq_10, threshold: -0.729935697 }
+                - { clip: slot4_nsq_11, threshold: -0.569102408 }
+                - { clip: slot4_nsq_12, threshold: -0.408269119 }
+                - { clip: slot4_nsq_13, threshold: -0.24743583 }
+                - { clip: slot4_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot4_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot4_nsq_16, threshold: 0.235064038 }
+                - { clip: slot4_nsq_17, threshold: 0.395897327 }
+                - { clip: slot4_nsq_18, threshold: 0.556730617 }
+                - { clip: slot4_nsq_19, threshold: 0.717563906 }
+                - { clip: slot4_nsq_20, threshold: 0.878397195 }
+                - { clip: slot4_nsq_21, threshold: 1.03923048 }
+                - { clip: slot4_nsq_22, threshold: 1.20006377 }
+                - { clip: slot4_nsq_23, threshold: 1.36089706 }
+                - { clip: slot4_nsq_24, threshold: 1.52173035 }
+                - { clip: slot4_nsq_25, threshold: 1.68256364 }
+                - { clip: slot4_nsq_26, threshold: 1.84339693 }
+                - { clip: slot4_nsq_27, threshold: 2.00423022 }
+                - { clip: slot4_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1928,7 +1928,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }
           - { to: TrackIn, when: [ CR/Slot4/p2 less 1 ] }
-          - { to: TrackBand, when: [ CR/Slot4/r2 less 5.0699 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
+          - { to: TrackBand, when: [ CR/Slot4/r2 less 4.95365 ], exitTime: 1.0 }   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above
         motion:
           tree: direct
@@ -1945,101 +1945,101 @@ layers:
               param: CR/Slot4/x
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 y²
               param: CR/Slot4/y
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 z²
               param: CR/Slot4/z
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 −yw²
               param: CR/Slot4/yw
               directWeight: CR/One
               children:
-                - { clip: slot4_nsq_0, threshold: -2.25166605 }
-                - { clip: slot4_nsq_1, threshold: -2.09083276 }
-                - { clip: slot4_nsq_2, threshold: -1.92999947 }
-                - { clip: slot4_nsq_3, threshold: -1.76916618 }
-                - { clip: slot4_nsq_4, threshold: -1.60833289 }
-                - { clip: slot4_nsq_5, threshold: -1.4474996 }
-                - { clip: slot4_nsq_6, threshold: -1.28666631 }
-                - { clip: slot4_nsq_7, threshold: -1.12583302 }
-                - { clip: slot4_nsq_8, threshold: -0.964999736 }
-                - { clip: slot4_nsq_9, threshold: -0.804166446 }
-                - { clip: slot4_nsq_10, threshold: -0.643333157 }
-                - { clip: slot4_nsq_11, threshold: -0.482499868 }
-                - { clip: slot4_nsq_12, threshold: -0.321666579 }
-                - { clip: slot4_nsq_13, threshold: -0.160833289 }
-                - { clip: slot4_nsq_14, threshold: 0 }
-                - { clip: slot4_nsq_15, threshold: 0.160833289 }
-                - { clip: slot4_nsq_16, threshold: 0.321666579 }
-                - { clip: slot4_nsq_17, threshold: 0.482499868 }
-                - { clip: slot4_nsq_18, threshold: 0.643333157 }
-                - { clip: slot4_nsq_19, threshold: 0.804166446 }
-                - { clip: slot4_nsq_20, threshold: 0.964999736 }
-                - { clip: slot4_nsq_21, threshold: 1.12583302 }
-                - { clip: slot4_nsq_22, threshold: 1.28666631 }
-                - { clip: slot4_nsq_23, threshold: 1.4474996 }
-                - { clip: slot4_nsq_24, threshold: 1.60833289 }
-                - { clip: slot4_nsq_25, threshold: 1.76916618 }
-                - { clip: slot4_nsq_26, threshold: 1.92999947 }
-                - { clip: slot4_nsq_27, threshold: 2.09083276 }
-                - { clip: slot4_nsq_28, threshold: 2.25166605 }
+                - { clip: slot4_nsq_0, threshold: -2.33826859 }
+                - { clip: slot4_nsq_1, threshold: -2.1774353 }
+                - { clip: slot4_nsq_2, threshold: -2.01660201 }
+                - { clip: slot4_nsq_3, threshold: -1.85576872 }
+                - { clip: slot4_nsq_4, threshold: -1.69493543 }
+                - { clip: slot4_nsq_5, threshold: -1.53410214 }
+                - { clip: slot4_nsq_6, threshold: -1.37326885 }
+                - { clip: slot4_nsq_7, threshold: -1.21243557 }
+                - { clip: slot4_nsq_8, threshold: -1.05160228 }
+                - { clip: slot4_nsq_9, threshold: -0.890768987 }
+                - { clip: slot4_nsq_10, threshold: -0.729935697 }
+                - { clip: slot4_nsq_11, threshold: -0.569102408 }
+                - { clip: slot4_nsq_12, threshold: -0.408269119 }
+                - { clip: slot4_nsq_13, threshold: -0.24743583 }
+                - { clip: slot4_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot4_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot4_nsq_16, threshold: 0.235064038 }
+                - { clip: slot4_nsq_17, threshold: 0.395897327 }
+                - { clip: slot4_nsq_18, threshold: 0.556730617 }
+                - { clip: slot4_nsq_19, threshold: 0.717563906 }
+                - { clip: slot4_nsq_20, threshold: 0.878397195 }
+                - { clip: slot4_nsq_21, threshold: 1.03923048 }
+                - { clip: slot4_nsq_22, threshold: 1.20006377 }
+                - { clip: slot4_nsq_23, threshold: 1.36089706 }
+                - { clip: slot4_nsq_24, threshold: 1.52173035 }
+                - { clip: slot4_nsq_25, threshold: 1.68256364 }
+                - { clip: slot4_nsq_26, threshold: 1.84339693 }
+                - { clip: slot4_nsq_27, threshold: 2.00423022 }
+                - { clip: slot4_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -2090,101 +2090,101 @@ layers:
               param: CR/Slot4/x
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 y²
               param: CR/Slot4/y
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 z²
               param: CR/Slot4/z
               directWeight: CR/One
               children:
-                - { clip: slot4_sq_0, threshold: -1.3 }
-                - { clip: slot4_sq_1, threshold: -1.1375 }
-                - { clip: slot4_sq_2, threshold: -0.975 }
-                - { clip: slot4_sq_3, threshold: -0.8125 }
-                - { clip: slot4_sq_4, threshold: -0.65 }
-                - { clip: slot4_sq_5, threshold: -0.4875 }
-                - { clip: slot4_sq_6, threshold: -0.325 }
-                - { clip: slot4_sq_7, threshold: -0.1625 }
-                - { clip: slot4_sq_8, threshold: 0 }
-                - { clip: slot4_sq_9, threshold: 0.1625 }
-                - { clip: slot4_sq_10, threshold: 0.325 }
-                - { clip: slot4_sq_11, threshold: 0.4875 }
-                - { clip: slot4_sq_12, threshold: 0.65 }
-                - { clip: slot4_sq_13, threshold: 0.8125 }
-                - { clip: slot4_sq_14, threshold: 0.975 }
-                - { clip: slot4_sq_15, threshold: 1.1375 }
-                - { clip: slot4_sq_16, threshold: 1.3 }
+                - { clip: slot4_sq_0, threshold: -1.35 }
+                - { clip: slot4_sq_1, threshold: -1.1875 }
+                - { clip: slot4_sq_2, threshold: -1.025 }
+                - { clip: slot4_sq_3, threshold: -0.8625 }
+                - { clip: slot4_sq_4, threshold: -0.7 }
+                - { clip: slot4_sq_5, threshold: -0.5375 }
+                - { clip: slot4_sq_6, threshold: -0.375 }
+                - { clip: slot4_sq_7, threshold: -0.2125 }
+                - { clip: slot4_sq_8, threshold: -0.05 }
+                - { clip: slot4_sq_9, threshold: 0.1125 }
+                - { clip: slot4_sq_10, threshold: 0.275 }
+                - { clip: slot4_sq_11, threshold: 0.4375 }
+                - { clip: slot4_sq_12, threshold: 0.6 }
+                - { clip: slot4_sq_13, threshold: 0.7625 }
+                - { clip: slot4_sq_14, threshold: 0.925 }
+                - { clip: slot4_sq_15, threshold: 1.0875 }
+                - { clip: slot4_sq_16, threshold: 1.25 }
             - tree: 1d
               name: Slot4 −yw²
               param: CR/Slot4/yw
               directWeight: CR/One
               children:
-                - { clip: slot4_nsq_0, threshold: -2.25166605 }
-                - { clip: slot4_nsq_1, threshold: -2.09083276 }
-                - { clip: slot4_nsq_2, threshold: -1.92999947 }
-                - { clip: slot4_nsq_3, threshold: -1.76916618 }
-                - { clip: slot4_nsq_4, threshold: -1.60833289 }
-                - { clip: slot4_nsq_5, threshold: -1.4474996 }
-                - { clip: slot4_nsq_6, threshold: -1.28666631 }
-                - { clip: slot4_nsq_7, threshold: -1.12583302 }
-                - { clip: slot4_nsq_8, threshold: -0.964999736 }
-                - { clip: slot4_nsq_9, threshold: -0.804166446 }
-                - { clip: slot4_nsq_10, threshold: -0.643333157 }
-                - { clip: slot4_nsq_11, threshold: -0.482499868 }
-                - { clip: slot4_nsq_12, threshold: -0.321666579 }
-                - { clip: slot4_nsq_13, threshold: -0.160833289 }
-                - { clip: slot4_nsq_14, threshold: 0 }
-                - { clip: slot4_nsq_15, threshold: 0.160833289 }
-                - { clip: slot4_nsq_16, threshold: 0.321666579 }
-                - { clip: slot4_nsq_17, threshold: 0.482499868 }
-                - { clip: slot4_nsq_18, threshold: 0.643333157 }
-                - { clip: slot4_nsq_19, threshold: 0.804166446 }
-                - { clip: slot4_nsq_20, threshold: 0.964999736 }
-                - { clip: slot4_nsq_21, threshold: 1.12583302 }
-                - { clip: slot4_nsq_22, threshold: 1.28666631 }
-                - { clip: slot4_nsq_23, threshold: 1.4474996 }
-                - { clip: slot4_nsq_24, threshold: 1.60833289 }
-                - { clip: slot4_nsq_25, threshold: 1.76916618 }
-                - { clip: slot4_nsq_26, threshold: 1.92999947 }
-                - { clip: slot4_nsq_27, threshold: 2.09083276 }
-                - { clip: slot4_nsq_28, threshold: 2.25166605 }
+                - { clip: slot4_nsq_0, threshold: -2.33826859 }
+                - { clip: slot4_nsq_1, threshold: -2.1774353 }
+                - { clip: slot4_nsq_2, threshold: -2.01660201 }
+                - { clip: slot4_nsq_3, threshold: -1.85576872 }
+                - { clip: slot4_nsq_4, threshold: -1.69493543 }
+                - { clip: slot4_nsq_5, threshold: -1.53410214 }
+                - { clip: slot4_nsq_6, threshold: -1.37326885 }
+                - { clip: slot4_nsq_7, threshold: -1.21243557 }
+                - { clip: slot4_nsq_8, threshold: -1.05160228 }
+                - { clip: slot4_nsq_9, threshold: -0.890768987 }
+                - { clip: slot4_nsq_10, threshold: -0.729935697 }
+                - { clip: slot4_nsq_11, threshold: -0.569102408 }
+                - { clip: slot4_nsq_12, threshold: -0.408269119 }
+                - { clip: slot4_nsq_13, threshold: -0.24743583 }
+                - { clip: slot4_nsq_14, threshold: -0.0866025404 }
+                - { clip: slot4_nsq_15, threshold: 0.0742307489 }
+                - { clip: slot4_nsq_16, threshold: 0.235064038 }
+                - { clip: slot4_nsq_17, threshold: 0.395897327 }
+                - { clip: slot4_nsq_18, threshold: 0.556730617 }
+                - { clip: slot4_nsq_19, threshold: 0.717563906 }
+                - { clip: slot4_nsq_20, threshold: 0.878397195 }
+                - { clip: slot4_nsq_21, threshold: 1.03923048 }
+                - { clip: slot4_nsq_22, threshold: 1.20006377 }
+                - { clip: slot4_nsq_23, threshold: 1.36089706 }
+                - { clip: slot4_nsq_24, threshold: 1.52173035 }
+                - { clip: slot4_nsq_25, threshold: 1.68256364 }
+                - { clip: slot4_nsq_26, threshold: 1.84339693 }
+                - { clip: slot4_nsq_27, threshold: 2.00423022 }
+                - { clip: slot4_nsq_28, threshold: 2.16506351 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -2366,59 +2366,60 @@ clips:
   slot1_read_yp: { set: { CR/Slot1/y: 2.6, CR/Slot1/yw: 1.5011107, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 2.6 } }
   slot1_read_zp: { set: { CR/Slot1/z: 2.6, CR/Slot1/yw: 1.5011107, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 2.6 } }
   slot1_read_bias: { set: { CR/Slot1/x: -1.35, CR/Slot1/y: -1.35, CR/Slot1/z: -1.35, CR/Slot1/yw: -2.33826859, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -1.35, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -1.35, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -1.35 } }
-  # Slot 1 x² table: 16 segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4
-  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any
-  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.
+  # Slot 1 x² table: 16 segments over [-1.35, 1.25], the readout's whole range, so nothing clamps; each 1D tree blends
+  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in
+  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band
+  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).
   # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;
   # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads
   # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.
-  slot1_sq_0: { set: { CR/Slot1/r2: 1.69, CR/Slot1/p2: 1.69 } }
-  slot1_sq_1: { set: { CR/Slot1/r2: 1.29390625, CR/Slot1/p2: 1.29390625 } }
-  slot1_sq_2: { set: { CR/Slot1/r2: 0.950625, CR/Slot1/p2: 0.950625 } }
-  slot1_sq_3: { set: { CR/Slot1/r2: 0.66015625, CR/Slot1/p2: 0.66015625 } }
-  slot1_sq_4: { set: { CR/Slot1/r2: 0.4225, CR/Slot1/p2: 0.4225 } }
-  slot1_sq_5: { set: { CR/Slot1/r2: 0.23765625, CR/Slot1/p2: 0.23765625 } }
-  slot1_sq_6: { set: { CR/Slot1/r2: 0.105625, CR/Slot1/p2: 0.105625 } }
-  slot1_sq_7: { set: { CR/Slot1/r2: 0.02640625, CR/Slot1/p2: 0.02640625 } }
-  slot1_sq_8: { set: { CR/Slot1/r2: 0, CR/Slot1/p2: 0 } }
-  slot1_sq_9: { set: { CR/Slot1/r2: 0.02640625, CR/Slot1/p2: 0.02640625 } }
-  slot1_sq_10: { set: { CR/Slot1/r2: 0.105625, CR/Slot1/p2: 0.105625 } }
-  slot1_sq_11: { set: { CR/Slot1/r2: 0.23765625, CR/Slot1/p2: 0.23765625 } }
-  slot1_sq_12: { set: { CR/Slot1/r2: 0.4225, CR/Slot1/p2: 0.4225 } }
-  slot1_sq_13: { set: { CR/Slot1/r2: 0.66015625, CR/Slot1/p2: 0.66015625 } }
-  slot1_sq_14: { set: { CR/Slot1/r2: 0.950625, CR/Slot1/p2: 0.950625 } }
-  slot1_sq_15: { set: { CR/Slot1/r2: 1.29390625, CR/Slot1/p2: 1.29390625 } }
-  slot1_sq_16: { set: { CR/Slot1/r2: 1.69, CR/Slot1/p2: 1.69 } }
-  # Slot 1 −yw² table: 28 segments over [−sqrt3·h, sqrt3·h], yw's whole span at the hold cube's corners.
-  slot1_nsq_0: { set: { CR/Slot1/p2: -5.07 } }
-  slot1_nsq_1: { set: { CR/Slot1/p2: -4.37158163 } }
-  slot1_nsq_2: { set: { CR/Slot1/p2: -3.72489796 } }
-  slot1_nsq_3: { set: { CR/Slot1/p2: -3.12994898 } }
-  slot1_nsq_4: { set: { CR/Slot1/p2: -2.58673469 } }
-  slot1_nsq_5: { set: { CR/Slot1/p2: -2.0952551 } }
-  slot1_nsq_6: { set: { CR/Slot1/p2: -1.6555102 } }
-  slot1_nsq_7: { set: { CR/Slot1/p2: -1.2675 } }
-  slot1_nsq_8: { set: { CR/Slot1/p2: -0.93122449 } }
-  slot1_nsq_9: { set: { CR/Slot1/p2: -0.646683673 } }
-  slot1_nsq_10: { set: { CR/Slot1/p2: -0.413877551 } }
-  slot1_nsq_11: { set: { CR/Slot1/p2: -0.232806122 } }
-  slot1_nsq_12: { set: { CR/Slot1/p2: -0.103469388 } }
-  slot1_nsq_13: { set: { CR/Slot1/p2: -0.0258673469 } }
-  slot1_nsq_14: { set: { CR/Slot1/p2: -0 } }
-  slot1_nsq_15: { set: { CR/Slot1/p2: -0.0258673469 } }
-  slot1_nsq_16: { set: { CR/Slot1/p2: -0.103469388 } }
-  slot1_nsq_17: { set: { CR/Slot1/p2: -0.232806122 } }
-  slot1_nsq_18: { set: { CR/Slot1/p2: -0.413877551 } }
-  slot1_nsq_19: { set: { CR/Slot1/p2: -0.646683673 } }
-  slot1_nsq_20: { set: { CR/Slot1/p2: -0.93122449 } }
-  slot1_nsq_21: { set: { CR/Slot1/p2: -1.2675 } }
-  slot1_nsq_22: { set: { CR/Slot1/p2: -1.6555102 } }
-  slot1_nsq_23: { set: { CR/Slot1/p2: -2.0952551 } }
-  slot1_nsq_24: { set: { CR/Slot1/p2: -2.58673469 } }
-  slot1_nsq_25: { set: { CR/Slot1/p2: -3.12994898 } }
-  slot1_nsq_26: { set: { CR/Slot1/p2: -3.72489796 } }
-  slot1_nsq_27: { set: { CR/Slot1/p2: -4.37158163 } }
-  slot1_nsq_28: { set: { CR/Slot1/p2: -5.07 } }
+  slot1_sq_0: { set: { CR/Slot1/r2: 1.8225, CR/Slot1/p2: 1.8225 } }
+  slot1_sq_1: { set: { CR/Slot1/r2: 1.41015625, CR/Slot1/p2: 1.41015625 } }
+  slot1_sq_2: { set: { CR/Slot1/r2: 1.050625, CR/Slot1/p2: 1.050625 } }
+  slot1_sq_3: { set: { CR/Slot1/r2: 0.74390625, CR/Slot1/p2: 0.74390625 } }
+  slot1_sq_4: { set: { CR/Slot1/r2: 0.49, CR/Slot1/p2: 0.49 } }
+  slot1_sq_5: { set: { CR/Slot1/r2: 0.28890625, CR/Slot1/p2: 0.28890625 } }
+  slot1_sq_6: { set: { CR/Slot1/r2: 0.140625, CR/Slot1/p2: 0.140625 } }
+  slot1_sq_7: { set: { CR/Slot1/r2: 0.04515625, CR/Slot1/p2: 0.04515625 } }
+  slot1_sq_8: { set: { CR/Slot1/r2: 0.0025, CR/Slot1/p2: 0.0025 } }
+  slot1_sq_9: { set: { CR/Slot1/r2: 0.01265625, CR/Slot1/p2: 0.01265625 } }
+  slot1_sq_10: { set: { CR/Slot1/r2: 0.075625, CR/Slot1/p2: 0.075625 } }
+  slot1_sq_11: { set: { CR/Slot1/r2: 0.19140625, CR/Slot1/p2: 0.19140625 } }
+  slot1_sq_12: { set: { CR/Slot1/r2: 0.36, CR/Slot1/p2: 0.36 } }
+  slot1_sq_13: { set: { CR/Slot1/r2: 0.58140625, CR/Slot1/p2: 0.58140625 } }
+  slot1_sq_14: { set: { CR/Slot1/r2: 0.855625, CR/Slot1/p2: 0.855625 } }
+  slot1_sq_15: { set: { CR/Slot1/r2: 1.18265625, CR/Slot1/p2: 1.18265625 } }
+  slot1_sq_16: { set: { CR/Slot1/r2: 1.5625, CR/Slot1/p2: 1.5625 } }
+  # Slot 1 −yw² table: 28 segments over [-2.33826859, 2.16506351], yw's whole range.
+  slot1_nsq_0: { set: { CR/Slot1/p2: -5.4675 } }
+  slot1_nsq_1: { set: { CR/Slot1/p2: -4.74122449 } }
+  slot1_nsq_2: { set: { CR/Slot1/p2: -4.06668367 } }
+  slot1_nsq_3: { set: { CR/Slot1/p2: -3.44387755 } }
+  slot1_nsq_4: { set: { CR/Slot1/p2: -2.87280612 } }
+  slot1_nsq_5: { set: { CR/Slot1/p2: -2.35346939 } }
+  slot1_nsq_6: { set: { CR/Slot1/p2: -1.88586735 } }
+  slot1_nsq_7: { set: { CR/Slot1/p2: -1.47 } }
+  slot1_nsq_8: { set: { CR/Slot1/p2: -1.10586735 } }
+  slot1_nsq_9: { set: { CR/Slot1/p2: -0.793469388 } }
+  slot1_nsq_10: { set: { CR/Slot1/p2: -0.532806122 } }
+  slot1_nsq_11: { set: { CR/Slot1/p2: -0.323877551 } }
+  slot1_nsq_12: { set: { CR/Slot1/p2: -0.166683673 } }
+  slot1_nsq_13: { set: { CR/Slot1/p2: -0.0612244898 } }
+  slot1_nsq_14: { set: { CR/Slot1/p2: -0.0075 } }
+  slot1_nsq_15: { set: { CR/Slot1/p2: -0.00551020408 } }
+  slot1_nsq_16: { set: { CR/Slot1/p2: -0.055255102 } }
+  slot1_nsq_17: { set: { CR/Slot1/p2: -0.156734694 } }
+  slot1_nsq_18: { set: { CR/Slot1/p2: -0.30994898 } }
+  slot1_nsq_19: { set: { CR/Slot1/p2: -0.514897959 } }
+  slot1_nsq_20: { set: { CR/Slot1/p2: -0.771581633 } }
+  slot1_nsq_21: { set: { CR/Slot1/p2: -1.08 } }
+  slot1_nsq_22: { set: { CR/Slot1/p2: -1.44015306 } }
+  slot1_nsq_23: { set: { CR/Slot1/p2: -1.85204082 } }
+  slot1_nsq_24: { set: { CR/Slot1/p2: -2.31566327 } }
+  slot1_nsq_25: { set: { CR/Slot1/p2: -2.83102041 } }
+  slot1_nsq_26: { set: { CR/Slot1/p2: -3.39811224 } }
+  slot1_nsq_27: { set: { CR/Slot1/p2: -4.01693878 } }
+  slot1_nsq_28: { set: { CR/Slot1/p2: -4.6875 } }
   # Slot 2 configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.
   slot2_boot: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot2_off: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
@@ -2440,59 +2441,60 @@ clips:
   slot2_read_yp: { set: { CR/Slot2/y: 2.6, CR/Slot2/yw: 1.5011107, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 2.6 } }
   slot2_read_zp: { set: { CR/Slot2/z: 2.6, CR/Slot2/yw: 1.5011107, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 2.6 } }
   slot2_read_bias: { set: { CR/Slot2/x: -1.35, CR/Slot2/y: -1.35, CR/Slot2/z: -1.35, CR/Slot2/yw: -2.33826859, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -1.35, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -1.35, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -1.35 } }
-  # Slot 2 x² table: 16 segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4
-  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any
-  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.
+  # Slot 2 x² table: 16 segments over [-1.35, 1.25], the readout's whole range, so nothing clamps; each 1D tree blends
+  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in
+  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band
+  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).
   # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;
   # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads
   # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.
-  slot2_sq_0: { set: { CR/Slot2/r2: 1.69, CR/Slot2/p2: 1.69 } }
-  slot2_sq_1: { set: { CR/Slot2/r2: 1.29390625, CR/Slot2/p2: 1.29390625 } }
-  slot2_sq_2: { set: { CR/Slot2/r2: 0.950625, CR/Slot2/p2: 0.950625 } }
-  slot2_sq_3: { set: { CR/Slot2/r2: 0.66015625, CR/Slot2/p2: 0.66015625 } }
-  slot2_sq_4: { set: { CR/Slot2/r2: 0.4225, CR/Slot2/p2: 0.4225 } }
-  slot2_sq_5: { set: { CR/Slot2/r2: 0.23765625, CR/Slot2/p2: 0.23765625 } }
-  slot2_sq_6: { set: { CR/Slot2/r2: 0.105625, CR/Slot2/p2: 0.105625 } }
-  slot2_sq_7: { set: { CR/Slot2/r2: 0.02640625, CR/Slot2/p2: 0.02640625 } }
-  slot2_sq_8: { set: { CR/Slot2/r2: 0, CR/Slot2/p2: 0 } }
-  slot2_sq_9: { set: { CR/Slot2/r2: 0.02640625, CR/Slot2/p2: 0.02640625 } }
-  slot2_sq_10: { set: { CR/Slot2/r2: 0.105625, CR/Slot2/p2: 0.105625 } }
-  slot2_sq_11: { set: { CR/Slot2/r2: 0.23765625, CR/Slot2/p2: 0.23765625 } }
-  slot2_sq_12: { set: { CR/Slot2/r2: 0.4225, CR/Slot2/p2: 0.4225 } }
-  slot2_sq_13: { set: { CR/Slot2/r2: 0.66015625, CR/Slot2/p2: 0.66015625 } }
-  slot2_sq_14: { set: { CR/Slot2/r2: 0.950625, CR/Slot2/p2: 0.950625 } }
-  slot2_sq_15: { set: { CR/Slot2/r2: 1.29390625, CR/Slot2/p2: 1.29390625 } }
-  slot2_sq_16: { set: { CR/Slot2/r2: 1.69, CR/Slot2/p2: 1.69 } }
-  # Slot 2 −yw² table: 28 segments over [−sqrt3·h, sqrt3·h], yw's whole span at the hold cube's corners.
-  slot2_nsq_0: { set: { CR/Slot2/p2: -5.07 } }
-  slot2_nsq_1: { set: { CR/Slot2/p2: -4.37158163 } }
-  slot2_nsq_2: { set: { CR/Slot2/p2: -3.72489796 } }
-  slot2_nsq_3: { set: { CR/Slot2/p2: -3.12994898 } }
-  slot2_nsq_4: { set: { CR/Slot2/p2: -2.58673469 } }
-  slot2_nsq_5: { set: { CR/Slot2/p2: -2.0952551 } }
-  slot2_nsq_6: { set: { CR/Slot2/p2: -1.6555102 } }
-  slot2_nsq_7: { set: { CR/Slot2/p2: -1.2675 } }
-  slot2_nsq_8: { set: { CR/Slot2/p2: -0.93122449 } }
-  slot2_nsq_9: { set: { CR/Slot2/p2: -0.646683673 } }
-  slot2_nsq_10: { set: { CR/Slot2/p2: -0.413877551 } }
-  slot2_nsq_11: { set: { CR/Slot2/p2: -0.232806122 } }
-  slot2_nsq_12: { set: { CR/Slot2/p2: -0.103469388 } }
-  slot2_nsq_13: { set: { CR/Slot2/p2: -0.0258673469 } }
-  slot2_nsq_14: { set: { CR/Slot2/p2: -0 } }
-  slot2_nsq_15: { set: { CR/Slot2/p2: -0.0258673469 } }
-  slot2_nsq_16: { set: { CR/Slot2/p2: -0.103469388 } }
-  slot2_nsq_17: { set: { CR/Slot2/p2: -0.232806122 } }
-  slot2_nsq_18: { set: { CR/Slot2/p2: -0.413877551 } }
-  slot2_nsq_19: { set: { CR/Slot2/p2: -0.646683673 } }
-  slot2_nsq_20: { set: { CR/Slot2/p2: -0.93122449 } }
-  slot2_nsq_21: { set: { CR/Slot2/p2: -1.2675 } }
-  slot2_nsq_22: { set: { CR/Slot2/p2: -1.6555102 } }
-  slot2_nsq_23: { set: { CR/Slot2/p2: -2.0952551 } }
-  slot2_nsq_24: { set: { CR/Slot2/p2: -2.58673469 } }
-  slot2_nsq_25: { set: { CR/Slot2/p2: -3.12994898 } }
-  slot2_nsq_26: { set: { CR/Slot2/p2: -3.72489796 } }
-  slot2_nsq_27: { set: { CR/Slot2/p2: -4.37158163 } }
-  slot2_nsq_28: { set: { CR/Slot2/p2: -5.07 } }
+  slot2_sq_0: { set: { CR/Slot2/r2: 1.8225, CR/Slot2/p2: 1.8225 } }
+  slot2_sq_1: { set: { CR/Slot2/r2: 1.41015625, CR/Slot2/p2: 1.41015625 } }
+  slot2_sq_2: { set: { CR/Slot2/r2: 1.050625, CR/Slot2/p2: 1.050625 } }
+  slot2_sq_3: { set: { CR/Slot2/r2: 0.74390625, CR/Slot2/p2: 0.74390625 } }
+  slot2_sq_4: { set: { CR/Slot2/r2: 0.49, CR/Slot2/p2: 0.49 } }
+  slot2_sq_5: { set: { CR/Slot2/r2: 0.28890625, CR/Slot2/p2: 0.28890625 } }
+  slot2_sq_6: { set: { CR/Slot2/r2: 0.140625, CR/Slot2/p2: 0.140625 } }
+  slot2_sq_7: { set: { CR/Slot2/r2: 0.04515625, CR/Slot2/p2: 0.04515625 } }
+  slot2_sq_8: { set: { CR/Slot2/r2: 0.0025, CR/Slot2/p2: 0.0025 } }
+  slot2_sq_9: { set: { CR/Slot2/r2: 0.01265625, CR/Slot2/p2: 0.01265625 } }
+  slot2_sq_10: { set: { CR/Slot2/r2: 0.075625, CR/Slot2/p2: 0.075625 } }
+  slot2_sq_11: { set: { CR/Slot2/r2: 0.19140625, CR/Slot2/p2: 0.19140625 } }
+  slot2_sq_12: { set: { CR/Slot2/r2: 0.36, CR/Slot2/p2: 0.36 } }
+  slot2_sq_13: { set: { CR/Slot2/r2: 0.58140625, CR/Slot2/p2: 0.58140625 } }
+  slot2_sq_14: { set: { CR/Slot2/r2: 0.855625, CR/Slot2/p2: 0.855625 } }
+  slot2_sq_15: { set: { CR/Slot2/r2: 1.18265625, CR/Slot2/p2: 1.18265625 } }
+  slot2_sq_16: { set: { CR/Slot2/r2: 1.5625, CR/Slot2/p2: 1.5625 } }
+  # Slot 2 −yw² table: 28 segments over [-2.33826859, 2.16506351], yw's whole range.
+  slot2_nsq_0: { set: { CR/Slot2/p2: -5.4675 } }
+  slot2_nsq_1: { set: { CR/Slot2/p2: -4.74122449 } }
+  slot2_nsq_2: { set: { CR/Slot2/p2: -4.06668367 } }
+  slot2_nsq_3: { set: { CR/Slot2/p2: -3.44387755 } }
+  slot2_nsq_4: { set: { CR/Slot2/p2: -2.87280612 } }
+  slot2_nsq_5: { set: { CR/Slot2/p2: -2.35346939 } }
+  slot2_nsq_6: { set: { CR/Slot2/p2: -1.88586735 } }
+  slot2_nsq_7: { set: { CR/Slot2/p2: -1.47 } }
+  slot2_nsq_8: { set: { CR/Slot2/p2: -1.10586735 } }
+  slot2_nsq_9: { set: { CR/Slot2/p2: -0.793469388 } }
+  slot2_nsq_10: { set: { CR/Slot2/p2: -0.532806122 } }
+  slot2_nsq_11: { set: { CR/Slot2/p2: -0.323877551 } }
+  slot2_nsq_12: { set: { CR/Slot2/p2: -0.166683673 } }
+  slot2_nsq_13: { set: { CR/Slot2/p2: -0.0612244898 } }
+  slot2_nsq_14: { set: { CR/Slot2/p2: -0.0075 } }
+  slot2_nsq_15: { set: { CR/Slot2/p2: -0.00551020408 } }
+  slot2_nsq_16: { set: { CR/Slot2/p2: -0.055255102 } }
+  slot2_nsq_17: { set: { CR/Slot2/p2: -0.156734694 } }
+  slot2_nsq_18: { set: { CR/Slot2/p2: -0.30994898 } }
+  slot2_nsq_19: { set: { CR/Slot2/p2: -0.514897959 } }
+  slot2_nsq_20: { set: { CR/Slot2/p2: -0.771581633 } }
+  slot2_nsq_21: { set: { CR/Slot2/p2: -1.08 } }
+  slot2_nsq_22: { set: { CR/Slot2/p2: -1.44015306 } }
+  slot2_nsq_23: { set: { CR/Slot2/p2: -1.85204082 } }
+  slot2_nsq_24: { set: { CR/Slot2/p2: -2.31566327 } }
+  slot2_nsq_25: { set: { CR/Slot2/p2: -2.83102041 } }
+  slot2_nsq_26: { set: { CR/Slot2/p2: -3.39811224 } }
+  slot2_nsq_27: { set: { CR/Slot2/p2: -4.01693878 } }
+  slot2_nsq_28: { set: { CR/Slot2/p2: -4.6875 } }
   # Slot 3 configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.
   slot3_boot: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot3_off: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
@@ -2514,59 +2516,60 @@ clips:
   slot3_read_yp: { set: { CR/Slot3/y: 2.6, CR/Slot3/yw: 1.5011107, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 2.6 } }
   slot3_read_zp: { set: { CR/Slot3/z: 2.6, CR/Slot3/yw: 1.5011107, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 2.6 } }
   slot3_read_bias: { set: { CR/Slot3/x: -1.35, CR/Slot3/y: -1.35, CR/Slot3/z: -1.35, CR/Slot3/yw: -2.33826859, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -1.35, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -1.35, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -1.35 } }
-  # Slot 3 x² table: 16 segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4
-  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any
-  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.
+  # Slot 3 x² table: 16 segments over [-1.35, 1.25], the readout's whole range, so nothing clamps; each 1D tree blends
+  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in
+  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band
+  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).
   # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;
   # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads
   # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.
-  slot3_sq_0: { set: { CR/Slot3/r2: 1.69, CR/Slot3/p2: 1.69 } }
-  slot3_sq_1: { set: { CR/Slot3/r2: 1.29390625, CR/Slot3/p2: 1.29390625 } }
-  slot3_sq_2: { set: { CR/Slot3/r2: 0.950625, CR/Slot3/p2: 0.950625 } }
-  slot3_sq_3: { set: { CR/Slot3/r2: 0.66015625, CR/Slot3/p2: 0.66015625 } }
-  slot3_sq_4: { set: { CR/Slot3/r2: 0.4225, CR/Slot3/p2: 0.4225 } }
-  slot3_sq_5: { set: { CR/Slot3/r2: 0.23765625, CR/Slot3/p2: 0.23765625 } }
-  slot3_sq_6: { set: { CR/Slot3/r2: 0.105625, CR/Slot3/p2: 0.105625 } }
-  slot3_sq_7: { set: { CR/Slot3/r2: 0.02640625, CR/Slot3/p2: 0.02640625 } }
-  slot3_sq_8: { set: { CR/Slot3/r2: 0, CR/Slot3/p2: 0 } }
-  slot3_sq_9: { set: { CR/Slot3/r2: 0.02640625, CR/Slot3/p2: 0.02640625 } }
-  slot3_sq_10: { set: { CR/Slot3/r2: 0.105625, CR/Slot3/p2: 0.105625 } }
-  slot3_sq_11: { set: { CR/Slot3/r2: 0.23765625, CR/Slot3/p2: 0.23765625 } }
-  slot3_sq_12: { set: { CR/Slot3/r2: 0.4225, CR/Slot3/p2: 0.4225 } }
-  slot3_sq_13: { set: { CR/Slot3/r2: 0.66015625, CR/Slot3/p2: 0.66015625 } }
-  slot3_sq_14: { set: { CR/Slot3/r2: 0.950625, CR/Slot3/p2: 0.950625 } }
-  slot3_sq_15: { set: { CR/Slot3/r2: 1.29390625, CR/Slot3/p2: 1.29390625 } }
-  slot3_sq_16: { set: { CR/Slot3/r2: 1.69, CR/Slot3/p2: 1.69 } }
-  # Slot 3 −yw² table: 28 segments over [−sqrt3·h, sqrt3·h], yw's whole span at the hold cube's corners.
-  slot3_nsq_0: { set: { CR/Slot3/p2: -5.07 } }
-  slot3_nsq_1: { set: { CR/Slot3/p2: -4.37158163 } }
-  slot3_nsq_2: { set: { CR/Slot3/p2: -3.72489796 } }
-  slot3_nsq_3: { set: { CR/Slot3/p2: -3.12994898 } }
-  slot3_nsq_4: { set: { CR/Slot3/p2: -2.58673469 } }
-  slot3_nsq_5: { set: { CR/Slot3/p2: -2.0952551 } }
-  slot3_nsq_6: { set: { CR/Slot3/p2: -1.6555102 } }
-  slot3_nsq_7: { set: { CR/Slot3/p2: -1.2675 } }
-  slot3_nsq_8: { set: { CR/Slot3/p2: -0.93122449 } }
-  slot3_nsq_9: { set: { CR/Slot3/p2: -0.646683673 } }
-  slot3_nsq_10: { set: { CR/Slot3/p2: -0.413877551 } }
-  slot3_nsq_11: { set: { CR/Slot3/p2: -0.232806122 } }
-  slot3_nsq_12: { set: { CR/Slot3/p2: -0.103469388 } }
-  slot3_nsq_13: { set: { CR/Slot3/p2: -0.0258673469 } }
-  slot3_nsq_14: { set: { CR/Slot3/p2: -0 } }
-  slot3_nsq_15: { set: { CR/Slot3/p2: -0.0258673469 } }
-  slot3_nsq_16: { set: { CR/Slot3/p2: -0.103469388 } }
-  slot3_nsq_17: { set: { CR/Slot3/p2: -0.232806122 } }
-  slot3_nsq_18: { set: { CR/Slot3/p2: -0.413877551 } }
-  slot3_nsq_19: { set: { CR/Slot3/p2: -0.646683673 } }
-  slot3_nsq_20: { set: { CR/Slot3/p2: -0.93122449 } }
-  slot3_nsq_21: { set: { CR/Slot3/p2: -1.2675 } }
-  slot3_nsq_22: { set: { CR/Slot3/p2: -1.6555102 } }
-  slot3_nsq_23: { set: { CR/Slot3/p2: -2.0952551 } }
-  slot3_nsq_24: { set: { CR/Slot3/p2: -2.58673469 } }
-  slot3_nsq_25: { set: { CR/Slot3/p2: -3.12994898 } }
-  slot3_nsq_26: { set: { CR/Slot3/p2: -3.72489796 } }
-  slot3_nsq_27: { set: { CR/Slot3/p2: -4.37158163 } }
-  slot3_nsq_28: { set: { CR/Slot3/p2: -5.07 } }
+  slot3_sq_0: { set: { CR/Slot3/r2: 1.8225, CR/Slot3/p2: 1.8225 } }
+  slot3_sq_1: { set: { CR/Slot3/r2: 1.41015625, CR/Slot3/p2: 1.41015625 } }
+  slot3_sq_2: { set: { CR/Slot3/r2: 1.050625, CR/Slot3/p2: 1.050625 } }
+  slot3_sq_3: { set: { CR/Slot3/r2: 0.74390625, CR/Slot3/p2: 0.74390625 } }
+  slot3_sq_4: { set: { CR/Slot3/r2: 0.49, CR/Slot3/p2: 0.49 } }
+  slot3_sq_5: { set: { CR/Slot3/r2: 0.28890625, CR/Slot3/p2: 0.28890625 } }
+  slot3_sq_6: { set: { CR/Slot3/r2: 0.140625, CR/Slot3/p2: 0.140625 } }
+  slot3_sq_7: { set: { CR/Slot3/r2: 0.04515625, CR/Slot3/p2: 0.04515625 } }
+  slot3_sq_8: { set: { CR/Slot3/r2: 0.0025, CR/Slot3/p2: 0.0025 } }
+  slot3_sq_9: { set: { CR/Slot3/r2: 0.01265625, CR/Slot3/p2: 0.01265625 } }
+  slot3_sq_10: { set: { CR/Slot3/r2: 0.075625, CR/Slot3/p2: 0.075625 } }
+  slot3_sq_11: { set: { CR/Slot3/r2: 0.19140625, CR/Slot3/p2: 0.19140625 } }
+  slot3_sq_12: { set: { CR/Slot3/r2: 0.36, CR/Slot3/p2: 0.36 } }
+  slot3_sq_13: { set: { CR/Slot3/r2: 0.58140625, CR/Slot3/p2: 0.58140625 } }
+  slot3_sq_14: { set: { CR/Slot3/r2: 0.855625, CR/Slot3/p2: 0.855625 } }
+  slot3_sq_15: { set: { CR/Slot3/r2: 1.18265625, CR/Slot3/p2: 1.18265625 } }
+  slot3_sq_16: { set: { CR/Slot3/r2: 1.5625, CR/Slot3/p2: 1.5625 } }
+  # Slot 3 −yw² table: 28 segments over [-2.33826859, 2.16506351], yw's whole range.
+  slot3_nsq_0: { set: { CR/Slot3/p2: -5.4675 } }
+  slot3_nsq_1: { set: { CR/Slot3/p2: -4.74122449 } }
+  slot3_nsq_2: { set: { CR/Slot3/p2: -4.06668367 } }
+  slot3_nsq_3: { set: { CR/Slot3/p2: -3.44387755 } }
+  slot3_nsq_4: { set: { CR/Slot3/p2: -2.87280612 } }
+  slot3_nsq_5: { set: { CR/Slot3/p2: -2.35346939 } }
+  slot3_nsq_6: { set: { CR/Slot3/p2: -1.88586735 } }
+  slot3_nsq_7: { set: { CR/Slot3/p2: -1.47 } }
+  slot3_nsq_8: { set: { CR/Slot3/p2: -1.10586735 } }
+  slot3_nsq_9: { set: { CR/Slot3/p2: -0.793469388 } }
+  slot3_nsq_10: { set: { CR/Slot3/p2: -0.532806122 } }
+  slot3_nsq_11: { set: { CR/Slot3/p2: -0.323877551 } }
+  slot3_nsq_12: { set: { CR/Slot3/p2: -0.166683673 } }
+  slot3_nsq_13: { set: { CR/Slot3/p2: -0.0612244898 } }
+  slot3_nsq_14: { set: { CR/Slot3/p2: -0.0075 } }
+  slot3_nsq_15: { set: { CR/Slot3/p2: -0.00551020408 } }
+  slot3_nsq_16: { set: { CR/Slot3/p2: -0.055255102 } }
+  slot3_nsq_17: { set: { CR/Slot3/p2: -0.156734694 } }
+  slot3_nsq_18: { set: { CR/Slot3/p2: -0.30994898 } }
+  slot3_nsq_19: { set: { CR/Slot3/p2: -0.514897959 } }
+  slot3_nsq_20: { set: { CR/Slot3/p2: -0.771581633 } }
+  slot3_nsq_21: { set: { CR/Slot3/p2: -1.08 } }
+  slot3_nsq_22: { set: { CR/Slot3/p2: -1.44015306 } }
+  slot3_nsq_23: { set: { CR/Slot3/p2: -1.85204082 } }
+  slot3_nsq_24: { set: { CR/Slot3/p2: -2.31566327 } }
+  slot3_nsq_25: { set: { CR/Slot3/p2: -2.83102041 } }
+  slot3_nsq_26: { set: { CR/Slot3/p2: -3.39811224 } }
+  slot3_nsq_27: { set: { CR/Slot3/p2: -4.01693878 } }
+  slot3_nsq_28: { set: { CR/Slot3/p2: -4.6875 } }
   # Slot 4 configurations — every one writes the box stow, the flag on every receiver (Hit included), the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.
   slot4_boot: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot4_off: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Hit/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
@@ -2588,73 +2591,74 @@ clips:
   slot4_read_yp: { set: { CR/Slot4/y: 2.6, CR/Slot4/yw: 1.5011107, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 2.6 } }
   slot4_read_zp: { set: { CR/Slot4/z: 2.6, CR/Slot4/yw: 1.5011107, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 2.6 } }
   slot4_read_bias: { set: { CR/Slot4/x: -1.35, CR/Slot4/y: -1.35, CR/Slot4/z: -1.35, CR/Slot4/yw: -2.33826859, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -1.35, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -1.35, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -1.35 } }
-  # Slot 4 x² table: 16 segments over [−h, h]; each 1D tree blends the two nearest, a chord that overestimates by ≤ w²/4
-  # inside the table. The readout spans [−h−r, h−r]: the bottom r metres clamp to the first threshold and read low, but any
-  # x below −h already puts r² at h² or more, far outside the burst radius, so the inward bias holds where it matters.
+  # Slot 4 x² table: 16 segments over [-1.35, 1.25], the readout's whole range, so nothing clamps; each 1D tree blends
+  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in
+  # (h − r, h + r), reads h − r at the receiver itself: the square then reads low, and near the hold faces past the band
+  # p2 can read a hand inside the burst radius from a little outside it (README §Traps).
   # Each square clip writes r2 (the distance² from the centre, exported) and p2 (the in-plane radius² the zone reads) alike;
   # the −yw² table below then takes the height's square back out of p2 alone. Its chord overestimates yw² and so reads
   # p2 low by up to the same w²/4, an outward bias of the zone that the axis tables' inward bias partly cancels.
-  slot4_sq_0: { set: { CR/Slot4/r2: 1.69, CR/Slot4/p2: 1.69 } }
-  slot4_sq_1: { set: { CR/Slot4/r2: 1.29390625, CR/Slot4/p2: 1.29390625 } }
-  slot4_sq_2: { set: { CR/Slot4/r2: 0.950625, CR/Slot4/p2: 0.950625 } }
-  slot4_sq_3: { set: { CR/Slot4/r2: 0.66015625, CR/Slot4/p2: 0.66015625 } }
-  slot4_sq_4: { set: { CR/Slot4/r2: 0.4225, CR/Slot4/p2: 0.4225 } }
-  slot4_sq_5: { set: { CR/Slot4/r2: 0.23765625, CR/Slot4/p2: 0.23765625 } }
-  slot4_sq_6: { set: { CR/Slot4/r2: 0.105625, CR/Slot4/p2: 0.105625 } }
-  slot4_sq_7: { set: { CR/Slot4/r2: 0.02640625, CR/Slot4/p2: 0.02640625 } }
-  slot4_sq_8: { set: { CR/Slot4/r2: 0, CR/Slot4/p2: 0 } }
-  slot4_sq_9: { set: { CR/Slot4/r2: 0.02640625, CR/Slot4/p2: 0.02640625 } }
-  slot4_sq_10: { set: { CR/Slot4/r2: 0.105625, CR/Slot4/p2: 0.105625 } }
-  slot4_sq_11: { set: { CR/Slot4/r2: 0.23765625, CR/Slot4/p2: 0.23765625 } }
-  slot4_sq_12: { set: { CR/Slot4/r2: 0.4225, CR/Slot4/p2: 0.4225 } }
-  slot4_sq_13: { set: { CR/Slot4/r2: 0.66015625, CR/Slot4/p2: 0.66015625 } }
-  slot4_sq_14: { set: { CR/Slot4/r2: 0.950625, CR/Slot4/p2: 0.950625 } }
-  slot4_sq_15: { set: { CR/Slot4/r2: 1.29390625, CR/Slot4/p2: 1.29390625 } }
-  slot4_sq_16: { set: { CR/Slot4/r2: 1.69, CR/Slot4/p2: 1.69 } }
-  # Slot 4 −yw² table: 28 segments over [−sqrt3·h, sqrt3·h], yw's whole span at the hold cube's corners.
-  slot4_nsq_0: { set: { CR/Slot4/p2: -5.07 } }
-  slot4_nsq_1: { set: { CR/Slot4/p2: -4.37158163 } }
-  slot4_nsq_2: { set: { CR/Slot4/p2: -3.72489796 } }
-  slot4_nsq_3: { set: { CR/Slot4/p2: -3.12994898 } }
-  slot4_nsq_4: { set: { CR/Slot4/p2: -2.58673469 } }
-  slot4_nsq_5: { set: { CR/Slot4/p2: -2.0952551 } }
-  slot4_nsq_6: { set: { CR/Slot4/p2: -1.6555102 } }
-  slot4_nsq_7: { set: { CR/Slot4/p2: -1.2675 } }
-  slot4_nsq_8: { set: { CR/Slot4/p2: -0.93122449 } }
-  slot4_nsq_9: { set: { CR/Slot4/p2: -0.646683673 } }
-  slot4_nsq_10: { set: { CR/Slot4/p2: -0.413877551 } }
-  slot4_nsq_11: { set: { CR/Slot4/p2: -0.232806122 } }
-  slot4_nsq_12: { set: { CR/Slot4/p2: -0.103469388 } }
-  slot4_nsq_13: { set: { CR/Slot4/p2: -0.0258673469 } }
-  slot4_nsq_14: { set: { CR/Slot4/p2: -0 } }
-  slot4_nsq_15: { set: { CR/Slot4/p2: -0.0258673469 } }
-  slot4_nsq_16: { set: { CR/Slot4/p2: -0.103469388 } }
-  slot4_nsq_17: { set: { CR/Slot4/p2: -0.232806122 } }
-  slot4_nsq_18: { set: { CR/Slot4/p2: -0.413877551 } }
-  slot4_nsq_19: { set: { CR/Slot4/p2: -0.646683673 } }
-  slot4_nsq_20: { set: { CR/Slot4/p2: -0.93122449 } }
-  slot4_nsq_21: { set: { CR/Slot4/p2: -1.2675 } }
-  slot4_nsq_22: { set: { CR/Slot4/p2: -1.6555102 } }
-  slot4_nsq_23: { set: { CR/Slot4/p2: -2.0952551 } }
-  slot4_nsq_24: { set: { CR/Slot4/p2: -2.58673469 } }
-  slot4_nsq_25: { set: { CR/Slot4/p2: -3.12994898 } }
-  slot4_nsq_26: { set: { CR/Slot4/p2: -3.72489796 } }
-  slot4_nsq_27: { set: { CR/Slot4/p2: -4.37158163 } }
-  slot4_nsq_28: { set: { CR/Slot4/p2: -5.07 } }
+  slot4_sq_0: { set: { CR/Slot4/r2: 1.8225, CR/Slot4/p2: 1.8225 } }
+  slot4_sq_1: { set: { CR/Slot4/r2: 1.41015625, CR/Slot4/p2: 1.41015625 } }
+  slot4_sq_2: { set: { CR/Slot4/r2: 1.050625, CR/Slot4/p2: 1.050625 } }
+  slot4_sq_3: { set: { CR/Slot4/r2: 0.74390625, CR/Slot4/p2: 0.74390625 } }
+  slot4_sq_4: { set: { CR/Slot4/r2: 0.49, CR/Slot4/p2: 0.49 } }
+  slot4_sq_5: { set: { CR/Slot4/r2: 0.28890625, CR/Slot4/p2: 0.28890625 } }
+  slot4_sq_6: { set: { CR/Slot4/r2: 0.140625, CR/Slot4/p2: 0.140625 } }
+  slot4_sq_7: { set: { CR/Slot4/r2: 0.04515625, CR/Slot4/p2: 0.04515625 } }
+  slot4_sq_8: { set: { CR/Slot4/r2: 0.0025, CR/Slot4/p2: 0.0025 } }
+  slot4_sq_9: { set: { CR/Slot4/r2: 0.01265625, CR/Slot4/p2: 0.01265625 } }
+  slot4_sq_10: { set: { CR/Slot4/r2: 0.075625, CR/Slot4/p2: 0.075625 } }
+  slot4_sq_11: { set: { CR/Slot4/r2: 0.19140625, CR/Slot4/p2: 0.19140625 } }
+  slot4_sq_12: { set: { CR/Slot4/r2: 0.36, CR/Slot4/p2: 0.36 } }
+  slot4_sq_13: { set: { CR/Slot4/r2: 0.58140625, CR/Slot4/p2: 0.58140625 } }
+  slot4_sq_14: { set: { CR/Slot4/r2: 0.855625, CR/Slot4/p2: 0.855625 } }
+  slot4_sq_15: { set: { CR/Slot4/r2: 1.18265625, CR/Slot4/p2: 1.18265625 } }
+  slot4_sq_16: { set: { CR/Slot4/r2: 1.5625, CR/Slot4/p2: 1.5625 } }
+  # Slot 4 −yw² table: 28 segments over [-2.33826859, 2.16506351], yw's whole range.
+  slot4_nsq_0: { set: { CR/Slot4/p2: -5.4675 } }
+  slot4_nsq_1: { set: { CR/Slot4/p2: -4.74122449 } }
+  slot4_nsq_2: { set: { CR/Slot4/p2: -4.06668367 } }
+  slot4_nsq_3: { set: { CR/Slot4/p2: -3.44387755 } }
+  slot4_nsq_4: { set: { CR/Slot4/p2: -2.87280612 } }
+  slot4_nsq_5: { set: { CR/Slot4/p2: -2.35346939 } }
+  slot4_nsq_6: { set: { CR/Slot4/p2: -1.88586735 } }
+  slot4_nsq_7: { set: { CR/Slot4/p2: -1.47 } }
+  slot4_nsq_8: { set: { CR/Slot4/p2: -1.10586735 } }
+  slot4_nsq_9: { set: { CR/Slot4/p2: -0.793469388 } }
+  slot4_nsq_10: { set: { CR/Slot4/p2: -0.532806122 } }
+  slot4_nsq_11: { set: { CR/Slot4/p2: -0.323877551 } }
+  slot4_nsq_12: { set: { CR/Slot4/p2: -0.166683673 } }
+  slot4_nsq_13: { set: { CR/Slot4/p2: -0.0612244898 } }
+  slot4_nsq_14: { set: { CR/Slot4/p2: -0.0075 } }
+  slot4_nsq_15: { set: { CR/Slot4/p2: -0.00551020408 } }
+  slot4_nsq_16: { set: { CR/Slot4/p2: -0.055255102 } }
+  slot4_nsq_17: { set: { CR/Slot4/p2: -0.156734694 } }
+  slot4_nsq_18: { set: { CR/Slot4/p2: -0.30994898 } }
+  slot4_nsq_19: { set: { CR/Slot4/p2: -0.514897959 } }
+  slot4_nsq_20: { set: { CR/Slot4/p2: -0.771581633 } }
+  slot4_nsq_21: { set: { CR/Slot4/p2: -1.08 } }
+  slot4_nsq_22: { set: { CR/Slot4/p2: -1.44015306 } }
+  slot4_nsq_23: { set: { CR/Slot4/p2: -1.85204082 } }
+  slot4_nsq_24: { set: { CR/Slot4/p2: -2.31566327 } }
+  slot4_nsq_25: { set: { CR/Slot4/p2: -2.83102041 } }
+  slot4_nsq_26: { set: { CR/Slot4/p2: -3.39811224 } }
+  slot4_nsq_27: { set: { CR/Slot4/p2: -4.01693878 } }
+  slot4_nsq_28: { set: { CR/Slot4/p2: -4.6875 } }
   # Sweep layer: constants, and the self-copies a hold needs (weight = the AAP's own value, the clip writes 1).
   # Every constant clip also writes the Boundary meshes: scale = the burst surface, renderer on only while enabled.
-  sw_boot: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a fresh animator: front at 0
-  sw_off: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # the toggle off: front at 0
-  sw_paused: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a distance-hide: front at 0
-  sw_restart: { seconds: 0.035, set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the pass boundary: front, base and previous front at 0 for a sampled step
-  sw_shown: { set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the constant part of Wait and Ramp: the boundary drawn
+  sw_boot: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a fresh animator: front at 0
+  sw_off: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # the toggle off: front at 0
+  sw_paused: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a distance-hide: front at 0
+  sw_restart: { seconds: 0.035, set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the pass boundary: front, base and previous front at 0 for a sampled step
+  sw_shown: { set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the constant part of Wait and Ramp: the boundary drawn
   sw_hold_sweep: { set: { CR/Sweep: 1 } }   # × Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)
   sw_hold_prev: { set: { CR/SweepPrev: 1 } }   # × Sweep (Ramp): SweepPrev ← last frame's Sweep (a Direct weight reads its parameter one frame late; SweepPrev's default 0 makes the fill term vanish, so the read is exact); × SweepPrev (Wait): hold
   sw_latch_base: { set: { CR/SweepBase: 1 } }   # × Sweep: SweepBase ← Sweep
   sw_hold_base: { set: { CR/SweepBase: 1 } }   # × SweepBase: hold
   sw_ramp:   # × One: the front's own travel, 0 → 1.26 m over 2 s, linear, added to SweepBase
     seconds: 2
-    set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.593536729, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 }
+    set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 }
     curves:
       CR/Sweep: { tangents: linear, keys: [ [0, 0], [2, 1.26] ] }
   # Dedup layer: one clip per slot writing HitPrev at weight = that slot's Hit, and one per (slot, axis) carrying
