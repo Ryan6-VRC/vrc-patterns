@@ -125,8 +125,15 @@ face can see Restart win before its readings exist. The admission survives
 shut cube then rides SweepPrev 0 and the new pass re-offers the just-taken hand
 while its holder is still fresh: one extra dedup cycle, and a lower-index rider
 displaces the holder under the fresh-versus-fresh rule. At most once per pass,
-and the hand stays tracked throughout. Release reads the axis floor and nothing
-else.
+and the hand stays tracked throughout. The race has a second form with no
+holder to survive it: a hand standing within one step of front travel inside
+the acquisition face is met on the very step the front crosses the face, its
+readings land a step later, after Restart has collapsed the cube, and the slot
+reads a partial admission and recycles, every pass, so that hand is never held
+until it moves (measured at 5 and 10 mm inside the face at 60 fps; 0 mm inside
+is taken and survives). The shell is one step of travel thick, at a radius
+where nothing is in the zone, and a real hand dithers more than that per frame.
+Release reads the axis floor and nothing else.
 
 `fourBox` restores box-tracker's fourth receiver, `X-`, coincident with the
 other three and rotated so its +Z face is the cage's -X face. The opposed pair
