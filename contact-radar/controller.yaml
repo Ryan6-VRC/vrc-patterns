@@ -194,7 +194,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
-          - { to: Recycle, when: [], exitTime: 1.0 }   # neither rung read anything: the terminal fallback
+          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back
       TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track
         motion:
           tree: direct
@@ -716,7 +716,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
-          - { to: Recycle, when: [], exitTime: 1.0 }   # neither rung read anything: the terminal fallback
+          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back
       TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track
         motion:
           tree: direct
@@ -1240,7 +1240,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
-          - { to: Recycle, when: [], exitTime: 1.0 }   # neither rung read anything: the terminal fallback
+          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back
       TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track
         motion:
           tree: direct
@@ -1766,7 +1766,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }   # the readings fell on the expansion step: release now, as the tracking states do
-          - { to: Recycle, when: [], exitTime: 1.0 }   # neither rung read anything: the terminal fallback
+          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back
       TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track
         motion:
           tree: direct

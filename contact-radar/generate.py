@@ -175,9 +175,10 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   the first p2 about 8h²/3, both far outside the zone, and leaves for TrackOut
   once `latchSeconds` has passed with every axis still reading (the readings
   rung carries the exit time), on any axis at the floor at once (a cut on the
-  expansion: Recycle now, never a slot left standing expanded), or when the
-  dwell passes with neither, in which case it recycles: the guard is the state
-  sequence, no settle AAP. The dwell exists because the readings that fired the
+  expansion: Recycle now, never a slot left standing expanded); the exit-time
+  Recycle behind them is the terminal fallback, unreachable while a reading is
+  either above zero or at the floor, kept so the ladder ends in a state that
+  gives the slot back: the guard is the state sequence, no settle AAP. The dwell exists because the readings that fired the
   latch were taken by the front-size cube, and above 60 fps the frame after the
   latch can carry no collision step: without it TrackOut's first evaluation
   applies the hold coefficients to front-size floats, decodes a point pushed
@@ -678,11 +679,11 @@ def emit_layer(o, c, k, ks):
     # than the whole dwell makes this rung and the fallback eligible in the same evaluation, and first-match takes
     # this one. Do not reorder these to "simplify" the ladder.
     o(f"          - {{ to: TrackOut, when: [ {all_pos} ], exitTime: 1.0 }}")
-    # A cut on the expansion: the hold-size step zeroes the readings (a crowd's shared pair budget does this to the
-    # cube that just grew). Without this rung the slot would stand expanded and shut for latchSeconds doing nothing.
+    # A cut on the expansion: the hold-size step zeroes the readings (a crowd cut does this to the cube that
+    # just grew). Without this rung the slot would stand expanded and shut for latchSeconds doing nothing.
     for ax in ax4:
         o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}   # the readings fell on the expansion step: release now, as the tracking states do")
-    o("          - { to: Recycle, when: [], exitTime: 1.0 }   # neither rung read anything: the terminal fallback")
+    o("          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back")
     o("      TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track")
     emit_tree(o, c, k, hold=f"slot{k}_hold")
     o("        transitions:")
