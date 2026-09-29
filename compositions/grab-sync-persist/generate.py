@@ -187,6 +187,9 @@ def split_states(lines, start, stop):
     """{state name: (first, last+1)} for the 6-space state blocks inside lines[start:stop]."""
     heads = [(i, m.group(1)) for i in range(start, stop)
              for m in [re.match(r"^      ([A-Za-z_][\w ]*):\s*$", lines[i])] if m]
+    dup = sorted({n for _, n in heads if [h for _, h in heads].count(n) > 1})
+    if dup:
+        refuse(f"grab-sync's layer declares the state(s) {dup} more than once; the transform would edit only the last.")
     return {n: (i, heads[k + 1][0] if k + 1 < len(heads) else stop) for k, (i, n) in enumerate(heads)}
 
 
@@ -213,28 +216,28 @@ def emit_persist_states(pl):
         "        motion: { clip: dropped }",
         "        transitions:",
         f"          - {{ to: Disabled, when: [ {EN} less 0.5 ] }}",
-        f"          - {{ to: Dropped,  when: [ {DETACHED} is true ] }}",
-        "      # The restore branch, wearer-only. A hop gated on a driver's own write waits on the value it wrote: a driver's write",
-        "      # reaches no transition on the evaluation that runs it. The exits back to the boot are unconditional, so a late or",
-        "      # doubled bridge write cannot hold the branch.",
+        "          - { to: Dropped,  when: [ ], exitTime: 1.0 }   # the stamp landed at entry",
+        "      # The restore branch, wearer-only. The rule it holds: every state in it has an exit that no value on the wire can",
+        "      # withhold, a timed or unconditional one, so a late, doubled or missing OSC write can delay the boot but never hold it.",
+        "      # A driver's write lands on the state's entry, before any exit can fire, so no hop waits on its own driver's value.",
         "      Persist Quiesce:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, set: {{ {EN}: 0, {reset} }} }}",
         "        motion: { clip: disabled }",
         "        transitions:",
-        f"          - {{ to: Persist Announce, when: [ {EN} less 0.5 ] }}",
+        "          - { to: Persist Announce, when: [ ], exitTime: 1.0 }",
         "      Persist Announce:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, copy: {{ {ANNOUNCE}: {ID} }} }}",
         "        motion: { clip: persist_announce }",
         "        transitions:",
-        f"          - {{ to: Persist Boot, when: [ {ANNOUNCE} notEqual 0 ], exitTime: 1.0 }}   # Boot follows by the contract's lead at least",
+        "          - { to: Persist Boot, when: [ ], exitTime: 1.0 }   # Boot follows by the contract's lead at least",
         "      Persist Boot:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, random: {{ {BOOT}: {{ min: 0.001, max: 1 }} }} }}",
         "        motion: { clip: disabled }",
         "        transitions:",
-        f"          - {{ to: Persist Wait, when: [ {BOOT} greater 0 ] }}",
+        "          - { to: Persist Wait, when: [ ], exitTime: 1.0 }",
         "      # Step 1 or nothing: no bridge, or nothing to restore, and the boot goes on as Id 0's does, one wait later.",
         "      Persist Wait:",
         "        motion: { clip: persist_boot_wait }",
@@ -244,9 +247,10 @@ def emit_persist_states(pl):
         "      Persist Ack:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, set: {{ {RESTORE}: 2, {reset} }} }}   # step 2: payload the snapshot does not name stays at its default",
-        "        motion: { clip: disabled }",
+        "        motion: { clip: persist_write_wait }",
         "        transitions:",
-        f"          - {{ to: Persist Write, when: [ {RESTORE} notEqual 1 ] }}   # our 2 has landed; a late duplicate 1 cannot hold the branch here",
+        f"          - {{ to: Persist Write, when: [ {RESTORE} notEqual 1 ] }}   # our 2, or the bridge's 3",
+        "          - { to: Persist Abort, when: [ ], exitTime: 1.0 }   # a duplicate 1 overwrote our 2 and the bridge never saw it",
         "      # Step 3 lands a settle after the payload, so the payload reads current here.",
         "      Persist Write:",
         "        motion: { clip: persist_write_wait }",
@@ -264,7 +268,7 @@ def emit_persist_states(pl):
         f"          - driver: {{ localOnly: true, set: {{ {EN}: 1, {RESTORE}: 0 }} }}   # step 4; placed means enabled",
         "        motion: { clip: dropped }",
         "        transitions:",
-        f"          - {{ to: Dropped, when: [ {EN} greater 0.5 ] }}",
+        "          - { to: Dropped, when: [ ], exitTime: 1.0 }",
         "      Persist Home:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, copy: {{ {EN}: {ENABLED} }} }}   # the restored enable state, or the default",
@@ -290,6 +294,9 @@ LAYOUT_ADD = {"Place": [260, 460], "Persist Quiesce": [800, 110], "Persist Annou
 def parse_clip_blocks(lines, lo, hi):
     """{clip name: (first, last+1)} for the 2-space clip heads inside lines[lo:hi]."""
     heads = [(i, m.group(1)) for i in range(lo, hi) for m in [re.match(r"^  ([\w]+):", lines[i])] if m]
+    dup = sorted({n for _, n in heads if [h for _, h in heads].count(n) > 1})
+    if dup:
+        refuse(f"grab-sync's clip table declares the clip(s) {dup} more than once; the transform would edit only the last.")
     return {n: (i, heads[k + 1][0] if k + 1 < len(heads) else hi) for k, (i, n) in enumerate(heads)}
 
 
@@ -299,9 +306,9 @@ def transform(src, words, hold):
 
     # --- document head: grab-sync's header comment is replaced by ours.
     schema = index_of(lines, "schema: 1", "document head")
-    index_of(lines, "controller: GrabSync_Fx", "controller name")
     body = lines[schema:]
-    body = [f"controller: {CONTROLLER}" if l == "controller: GrabSync_Fx" else l for l in body]
+    name_at = index_of(body, "controller: GrabSync_Fx", "controller name, below `schema: 1`")
+    body[name_at] = f"controller: {CONTROLLER}"
 
     # --- parameters.
     p0 = index_of(body, "parameters:", "parameters block")

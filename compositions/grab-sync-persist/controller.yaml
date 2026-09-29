@@ -188,28 +188,28 @@ layers:
         motion: { clip: dropped }
         transitions:
           - { to: Disabled, when: [ ObjectSync/Enable less 0.5 ] }
-          - { to: Dropped,  when: [ BridgePersist/GrabSyncPersist/Detached is true ] }
-      # The restore branch, wearer-only. A hop gated on a driver's own write waits on the value it wrote: a driver's write
-      # reaches no transition on the evaluation that runs it. The exits back to the boot are unconditional, so a late or
-      # doubled bridge write cannot hold the branch.
+          - { to: Dropped,  when: [ ], exitTime: 1.0 }   # the stamp landed at entry
+      # The restore branch, wearer-only. The rule it holds: every state in it has an exit that no value on the wire can
+      # withhold, a timed or unconditional one, so a late, doubled or missing OSC write can delay the boot but never hold it.
+      # A driver's write lands on the state's entry, before any exit can fire, so no hop waits on its own driver's value.
       Persist Quiesce:
         behaviours:
           - driver: { localOnly: true, set: { ObjectSync/Enable: 0, BridgePersist/GrabSyncPersist/Prop/PX/C: 0, BridgePersist/GrabSyncPersist/Prop/PX/F: 0, BridgePersist/GrabSyncPersist/Prop/PY/C: 0, BridgePersist/GrabSyncPersist/Prop/PY/F: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F: 0, BridgePersist/GrabSyncPersist/Prop/RA/X: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z: 0, BridgePersist/GrabSyncPersist/Prop/PX/C0: 0, BridgePersist/GrabSyncPersist/Prop/PX/C1: 0, BridgePersist/GrabSyncPersist/Prop/PX/C2: 0, BridgePersist/GrabSyncPersist/Prop/PX/C3: 0, BridgePersist/GrabSyncPersist/Prop/PX/F0: 0, BridgePersist/GrabSyncPersist/Prop/PX/F1: 0, BridgePersist/GrabSyncPersist/Prop/PX/F2: 0, BridgePersist/GrabSyncPersist/Prop/PX/F3: 0, BridgePersist/GrabSyncPersist/Prop/PY/C0: 0, BridgePersist/GrabSyncPersist/Prop/PY/C1: 0, BridgePersist/GrabSyncPersist/Prop/PY/C2: 0, BridgePersist/GrabSyncPersist/Prop/PY/C3: 0, BridgePersist/GrabSyncPersist/Prop/PY/F0: 0, BridgePersist/GrabSyncPersist/Prop/PY/F1: 0, BridgePersist/GrabSyncPersist/Prop/PY/F2: 0, BridgePersist/GrabSyncPersist/Prop/PY/F3: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C0: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C1: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C2: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C3: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F0: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F1: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F2: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F3: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B0: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B1: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B2: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B3: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B0: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B1: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B2: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B3: 0, BridgePersist/GrabSyncPersist/Detached: 0, BridgePersist/GrabSyncPersist/Enabled: 1 } }
         motion: { clip: disabled }
         transitions:
-          - { to: Persist Announce, when: [ ObjectSync/Enable less 0.5 ] }
+          - { to: Persist Announce, when: [ ], exitTime: 1.0 }
       Persist Announce:
         behaviours:
           - driver: { localOnly: true, copy: { BridgePersist/GrabSyncPersist/Announce: BridgePersist/GrabSyncPersist/Id } }
         motion: { clip: persist_announce }
         transitions:
-          - { to: Persist Boot, when: [ BridgePersist/GrabSyncPersist/Announce notEqual 0 ], exitTime: 1.0 }   # Boot follows by the contract's lead at least
+          - { to: Persist Boot, when: [ ], exitTime: 1.0 }   # Boot follows by the contract's lead at least
       Persist Boot:
         behaviours:
           - driver: { localOnly: true, random: { BridgePersist/GrabSyncPersist/Boot: { min: 0.001, max: 1 } } }
         motion: { clip: disabled }
         transitions:
-          - { to: Persist Wait, when: [ BridgePersist/GrabSyncPersist/Boot greater 0 ] }
+          - { to: Persist Wait, when: [ ], exitTime: 1.0 }
       # Step 1 or nothing: no bridge, or nothing to restore, and the boot goes on as Id 0's does, one wait later.
       Persist Wait:
         motion: { clip: persist_boot_wait }
@@ -219,9 +219,10 @@ layers:
       Persist Ack:
         behaviours:
           - driver: { localOnly: true, set: { BridgePersist/GrabSyncPersist/Restore: 2, BridgePersist/GrabSyncPersist/Prop/PX/C: 0, BridgePersist/GrabSyncPersist/Prop/PX/F: 0, BridgePersist/GrabSyncPersist/Prop/PY/C: 0, BridgePersist/GrabSyncPersist/Prop/PY/F: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F: 0, BridgePersist/GrabSyncPersist/Prop/RA/X: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z: 0, BridgePersist/GrabSyncPersist/Prop/PX/C0: 0, BridgePersist/GrabSyncPersist/Prop/PX/C1: 0, BridgePersist/GrabSyncPersist/Prop/PX/C2: 0, BridgePersist/GrabSyncPersist/Prop/PX/C3: 0, BridgePersist/GrabSyncPersist/Prop/PX/F0: 0, BridgePersist/GrabSyncPersist/Prop/PX/F1: 0, BridgePersist/GrabSyncPersist/Prop/PX/F2: 0, BridgePersist/GrabSyncPersist/Prop/PX/F3: 0, BridgePersist/GrabSyncPersist/Prop/PY/C0: 0, BridgePersist/GrabSyncPersist/Prop/PY/C1: 0, BridgePersist/GrabSyncPersist/Prop/PY/C2: 0, BridgePersist/GrabSyncPersist/Prop/PY/C3: 0, BridgePersist/GrabSyncPersist/Prop/PY/F0: 0, BridgePersist/GrabSyncPersist/Prop/PY/F1: 0, BridgePersist/GrabSyncPersist/Prop/PY/F2: 0, BridgePersist/GrabSyncPersist/Prop/PY/F3: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C0: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C1: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C2: 0, BridgePersist/GrabSyncPersist/Prop/PZ/C3: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F0: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F1: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F2: 0, BridgePersist/GrabSyncPersist/Prop/PZ/F3: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B0: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B1: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B2: 0, BridgePersist/GrabSyncPersist/Prop/RA/X/B3: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B0: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B1: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B2: 0, BridgePersist/GrabSyncPersist/Prop/RA/Z/B3: 0, BridgePersist/GrabSyncPersist/Detached: 0, BridgePersist/GrabSyncPersist/Enabled: 1 } }   # step 2: payload the snapshot does not name stays at its default
-        motion: { clip: disabled }
+        motion: { clip: persist_write_wait }
         transitions:
-          - { to: Persist Write, when: [ BridgePersist/GrabSyncPersist/Restore notEqual 1 ] }   # our 2 has landed; a late duplicate 1 cannot hold the branch here
+          - { to: Persist Write, when: [ BridgePersist/GrabSyncPersist/Restore notEqual 1 ] }   # our 2, or the bridge's 3
+          - { to: Persist Abort, when: [ ], exitTime: 1.0 }   # a duplicate 1 overwrote our 2 and the bridge never saw it
       # Step 3 lands a settle after the payload, so the payload reads current here.
       Persist Write:
         motion: { clip: persist_write_wait }
@@ -239,7 +240,7 @@ layers:
           - driver: { localOnly: true, set: { ObjectSync/Enable: 1, BridgePersist/GrabSyncPersist/Restore: 0 } }   # step 4; placed means enabled
         motion: { clip: dropped }
         transitions:
-          - { to: Dropped, when: [ ObjectSync/Enable greater 0.5 ] }
+          - { to: Dropped, when: [ ], exitTime: 1.0 }
       Persist Home:
         behaviours:
           - driver: { localOnly: true, copy: { ObjectSync/Enable: BridgePersist/GrabSyncPersist/Enabled } }   # the restored enable state, or the default
