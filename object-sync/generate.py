@@ -133,6 +133,17 @@ CONFIG = {
     # and is still not a contract to build on). The GO name and this string are
     # a hand-maintained pairing.
     "mountPath": "",
+    # Where the word table lives. "" is the shipped shape: each object's words
+    # sit at a bare `<object>/…` root that no published wildcard reaches, so
+    # they take the instance prefix like everything else sealed. Set, every
+    # object's words move to `<wordRoot>/<object>/…` and `<wordRoot>/*` joins
+    # the derived globalParams, so the whole table comes out bare at build and
+    # a reader outside the avatar can read and write it by name over OSC (the
+    # use it exists for: a bridge that carries a placed prop across an avatar
+    # swap). Bare names are capturable (docs/gimmicks.md §Packaging), so the
+    # root must be one nothing else on the avatar declares under; one build
+    # per root, and a multi-object build's words land under it per object.
+    "wordRoot": "",
     # `Enable`'s declared default: at True the enable tree evaluates armed
     # from frame one, where a driver forcing it true leaves a one-frame off->on
     # that, above 60 fps, deafens every receiver whenever the collision scene
@@ -443,6 +454,45 @@ def mnt(c, path):
     return f"{mp}/{path}" if mp else path
 
 
+def word_root(c):
+    """CONFIG's `wordRoot`, refused unless it can stand as a published root.
+
+    "" (or an absent key, which is how every consumer config predating the
+    option reads) is the shipped shape and returns ""."""
+    root = c.get("wordRoot", "")
+    if not isinstance(root, str):
+        raise SystemExit(f"REFUSE: wordRoot {root!r} — a string parameter path, "
+                         "or \"\" for the shipped shape (None is not a spelling of it).")
+    if not root:
+        return ""
+    if (root != root.strip("/") or "//" in root or "*" in root
+            or any(ch.isspace() for ch in root)):
+        raise SystemExit(
+            f"REFUSE: wordRoot {root!r} — a bare parameter path: no leading or "
+            "trailing '/', no empty segment, no '*' and no whitespace. The "
+            "published wildcard is the root plus '/*', and a malformed root "
+            "publishes something other than the word table.")
+    sealed = {c["prefix"].split("/")[0], c["internal"].split("/")[0],
+              c["channel"].split("/")[0]}
+    if root.split("/")[0] in sealed:
+        raise SystemExit(
+            f"REFUSE: wordRoot {root!r} starts under {root.split('/')[0]!r}, "
+            f"which is one of this entry's own roots ({sorted(sealed)}). The "
+            "word table needs a root of its own: under the published prefix "
+            "the words would widen the sealed interface, and under the "
+            "internal or channel root the float mirrors and the wire would "
+            "share a namespace with a published wildcard.")
+    return root
+
+
+def word_stem(c, o):
+    """The parameter-path stem one object's words hang from: `<o>`, or
+    `<wordRoot>/<o>` with the option set. Every word name is built on this,
+    so the table, the decode's reads and the commits cannot disagree."""
+    root = word_root(c)
+    return f"{root}/{o}" if root else o
+
+
 AXES = ("X", "Y", "Z")
 LOWER = {"X": "x", "Y": "y", "Z": "z"}
 # Marker A rides local +Z (the aim axis), marker B local +Y (the up axis).
@@ -518,21 +568,22 @@ def word_table(c):
     numbers, bools, groups = [], [], []
     for ob in c["objects"]:
         o = ob["name"]
+        w = word_stem(c, o)
         for a in AXES:
             g = f"{o}/p{LOWER[a]}"
-            numbers.append({"name": f"{o}/P{a}/C", "kind": "byte", "group": g})
-            numbers.append({"name": f"{o}/P{a}/F", "kind": "byte", "group": g})
+            numbers.append({"name": f"{w}/P{a}/C", "kind": "byte", "group": g})
+            numbers.append({"name": f"{w}/P{a}/F", "kind": "byte", "group": g})
             for j in range(cb - 8):
-                bools.append({"name": f"{o}/P{a}/C{j}", "group": g})
+                bools.append({"name": f"{w}/P{a}/C{j}", "group": g})
             for j in range(fb - 8):
-                bools.append({"name": f"{o}/P{a}/F{j}", "group": g})
+                bools.append({"name": f"{w}/P{a}/F{j}", "group": g})
             groups.append(g)
         for g, comps in rot_groups(c, ob):
             for comp in comps:
-                numbers.append({"name": f"{o}/R{comp}", "kind": "byte", "group": g})
+                numbers.append({"name": f"{w}/R{comp}", "kind": "byte", "group": g})
             for comp in comps:
                 for j in range(rb - 8):
-                    bools.append({"name": f"{o}/R{comp}/B{j}", "group": g})
+                    bools.append({"name": f"{w}/R{comp}/B{j}", "group": g})
             groups.append(g)
     return numbers, bools, groups
 
@@ -860,6 +911,26 @@ def build(c):
     # their own install.
     published = [f"{c['prefix']}/Enable"]
     wcm.check_namespaces(published, declared)
+    global_params = wcm.published_wildcards(published)
+    # `wordRoot` publishes the word table under its own wildcard. The derived
+    # grammar above keys wildcards on a name's FIRST segment, which would
+    # publish everything under the root's first segment; this wildcard is the
+    # root itself, so a sibling namespace under that segment (a second
+    # composition's) stays out of reach. The refusal is the same proposition
+    # check_namespaces enforces for the prefix: nothing this document declares
+    # under the root may be anything but a word.
+    root = word_root(c)
+    if root:
+        words = {w["name"] for w in numbers + bools}
+        stray = sorted(n for n in declared
+                       if n.startswith(root + "/") and n not in words)
+        if stray:
+            raise SystemExit(
+                f"REFUSE: {stray} are declared under wordRoot {root!r} but are "
+                "not words, so its wildcard would publish them. Move them off "
+                "the root.")
+        published += [w["name"] for w in numbers + bools]
+        global_params.append(f"{root}/*")
 
     return {
         "header": header(c, d, facts, numbers, bools),
@@ -868,7 +939,8 @@ def build(c):
         "clips": doc.clips,
         "facts": dict(facts, **{
             "published": published,
-            "globalParams": wcm.published_wildcards(published),
+            "globalParams": global_params,
+            "wordRoot": root,
             "mountPath": c.get("mountPath", ""),
             "collisionTags": {ob["name"]: tag_set(c, ob["name"])
                               for ob in c["objects"]},
@@ -1035,19 +1107,20 @@ def decode_display_layer(doc, c, d):
     kids = []
     for ob in c["objects"]:
         o = ob["name"]
+        w = word_stem(c, o)
         for a in AXES:
             for stage, bits in (("C", c["coarseBits"]), ("F", c["fineBits"])):
                 dest = f"{p}/D/{o}/P{a}/{stage}"
                 doc.param(f"  {dest}: {{ type: float, aap: true }}", dest)
                 kids += assemble_children(
-                    doc, c, dest, f"{o}/P{a}/{stage}",
-                    [f"{o}/P{a}/{stage}{j}" for j in range(bits - 8)], bits)
+                    doc, c, dest, f"{w}/P{a}/{stage}",
+                    [f"{w}/P{a}/{stage}{j}" for j in range(bits - 8)], bits)
         for comp in rot_comps(ob["rotation"]):
             dest = f"{p}/D/{o}/R{comp}"
             doc.param(f"  {dest}: {{ type: float, aap: true }}", dest)
             kids += assemble_children(
-                doc, c, dest, f"{o}/R{comp}",
-                [f"{o}/R{comp}/B{j}" for j in range(c["rotBits"] - 8)],
+                doc, c, dest, f"{w}/R{comp}",
+                [f"{w}/R{comp}/B{j}" for j in range(c["rotBits"] - 8)],
                 c["rotBits"])
     for ob in c["objects"]:
         o = ob["name"]
@@ -1710,12 +1783,12 @@ def position_walk(doc, c, d, a, ob=None):
              "{ to: Idle, when: [ IsLocal is false ] }"]
     commit_states = []
     for x in commit_objs:
-        o = x["name"]
-        commit = {f"{o}/P{a}/C": f"{st}/C", f"{o}/P{a}/F": f"{st}/F"}
+        o, w = x["name"], word_stem(c, x["name"])
+        commit = {f"{w}/P{a}/C": f"{st}/C", f"{w}/P{a}/F": f"{st}/F"}
         for j in range(c["coarseBits"] - 8):
-            commit[f"{o}/P{a}/C{j}"] = f"{st}/C{j}"
+            commit[f"{w}/P{a}/C{j}"] = f"{st}/C{j}"
         for j in range(c["fineBits"] - 8):
-            commit[f"{o}/P{a}/F{j}"] = f"{st}/F{j}"
+            commit[f"{w}/P{a}/F{j}"] = f"{st}/F{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
         done = ({slice_done_param(c, f"P{a}"): 1} if shared else None)
@@ -1805,12 +1878,12 @@ def pair_layer(doc, c, d, shared):
                       None, out, z_exit)
     commit_states = []
     for x in rot_obs:
-        o = x["name"]
+        o, w = x["name"], word_stem(c, x["name"])
         commit = {}
         for comp in Y_COMPS:
-            commit[f"{o}/R{comp}"] = sts[comp]
+            commit[f"{w}/R{comp}"] = sts[comp]
             for j in range(c["rotBits"] - 8):
-                commit[f"{o}/R{comp}/B{j}"] = f"{sts[comp]}/B{j}"
+                commit[f"{w}/R{comp}/B{j}"] = f"{sts[comp]}/B{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
         done = ({slice_done_param(c, "Ry"): 1} if shared else None)
@@ -1870,10 +1943,10 @@ def component_walk(doc, c, d, comp, ob=None):
     rows = emit_walk("R", c["rotBits"], res, plan, None, out, end_rungs)
     commit_states = []
     for x in commit_objs:
-        o = x["name"]
-        commit = {f"{o}/R{comp}": st}
+        o, w = x["name"], word_stem(c, x["name"])
+        commit = {f"{w}/R{comp}": st}
         for j in range(c["rotBits"] - 8):
-            commit[f"{o}/R{comp}/B{j}"] = f"{st}/B{j}"
+            commit[f"{w}/R{comp}/B{j}"] = f"{st}/B{j}"
         cs = f"Commit_{o}" if shared else "Commit"
         commit_states.append(cs)
         done = ({slice_done_param(c, f"R{comp}"): 1} if shared else None)
@@ -1949,11 +2022,19 @@ def header(c, d, facts, numbers, bools):
     o("#   is the spec the prefab is kept against. The park is the object node's transform")
     o("#   localPosition under the origin-pinned Rig; the World pin's source offset is ZERO,")
     o("#   because the client scales a source's offset by the avatar's per-client scale factor.")
-    o(f"# Interface: SEALED — globalParams covers {p}/Enable alone; every other param takes the")
-    o("#   VRCFury instance prefix. A consumer reading past it (Ready, the channel, the word")
-    o("#   table) merges its controller through the SAME FullController component as this build:")
-    o("#   one component prefixes identically, so the shared names unify; a second component is")
-    o("#   a second sealed instance (that is what two builds on one avatar are).")
+    root = word_root(c)
+    if root:
+        o(f"# Interface: globalParams covers {p}/Enable and the word table, published under {root}/*")
+        o("#   (CONFIG's wordRoot) so an OSC reader outside the avatar reaches every word by its bare")
+        o("#   name; every other param takes the VRCFury instance prefix. A consumer reading past it")
+        o("#   (Ready, the channel) merges its controller through the SAME FullController component")
+        o("#   as this build: one component prefixes identically, so the shared names unify.")
+    else:
+        o(f"# Interface: SEALED — globalParams covers {p}/Enable alone; every other param takes the")
+        o("#   VRCFury instance prefix. A consumer reading past it (Ready, the channel, the word")
+        o("#   table) merges its controller through the SAME FullController component as this build:")
+        o("#   one component prefixes identically, so the shared names unify; a second component is")
+        o("#   a second sealed instance (that is what two builds on one avatar are).")
     if c.get("mountPath"):
         o(f"# Mount: every binding is prefixed {c['mountPath']}/ — the FullController carrying this")
         o("#   document sits on that GO's PARENT (the shared merge component), and the GO's name")
