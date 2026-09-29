@@ -171,10 +171,11 @@ def validate(c):
     for n in c["placed"]:
         if n not in types or types[n][0] != "bool":
             refuse(f"placed name {n!r} is not a bool payload name.")
-    if not (isinstance(c["hold"], (int, float)) and c["hold"] > 0):
+    # bool is an int subclass, and a True here would emit as 1.
+    if not (isinstance(c["hold"], (int, float)) and not isinstance(c["hold"], bool) and c["hold"] > 0):
         refuse(f"hold {c['hold']!r}: a positive number of seconds.")
     ident = minted_id(ns) if c.get("id") is None else c["id"]
-    if not (isinstance(ident, int) and 0 <= ident <= 255):
+    if not (isinstance(ident, int) and not isinstance(ident, bool) and 0 <= ident <= 255):
         refuse(f"id {ident!r}: an int in 0..255, 0 meaning off.")
     en_type = spec_type_default(en, en_spec)
     if en_type[0] == "int":

@@ -276,6 +276,12 @@ def transform(src, flag):
     # Delta item 4 rests on Timer's wearer rung being the glue's one load path into Disabled.
     a, b = states["Timer"]
     index_of(body, "          - { to: Disabled, when: [ IsLocal is true ] }", "Timer's wearer rung", a, b)
+    # Every other way in must wait on Enable falling: Disabled resets Detached on entry, so a rung
+    # that re-enters it while the layer holds Enable off would land after the bridge's write.
+    for i in range(l0, default):
+        if re.match(r"^\s+- \{ to: Disabled,", body[i]) and not a <= i < b \
+                and not re.search(rf"when: \[ {re.escape(EN)} less 0\.5 \]", body[i]):
+            refuse(f"a rung into Disabled does not wait on {EN} falling: {body[i].strip()!r}.")
 
     edits = []   # (index, replace_count, new lines), applied bottom-up
     a, b = states["Disabled"]
