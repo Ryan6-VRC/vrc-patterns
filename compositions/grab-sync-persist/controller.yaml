@@ -84,6 +84,7 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { BridgePersist/GrabSyncPersist/Detached: 0 } }   # off-is-reset: recall home
           - driver: { localOnly: true, copy: { BridgePersist/GrabSyncPersist/Enabled: ObjectSync/Enable } }   # the enable mirror: this state's Enable, never the branch's
+          - driver: { localOnly: true, set: { GrabSyncPersist/Place: 0 } }   # a Place written while the prop was away does not fire at the next Anchored
         transitions:
           - { to: Waiting,  when: [ IsLocal is false, BridgePersist/GrabSyncPersist/Detached is true, ObjectSync/Enable greater 0.5 ] }   # a restore's return: hidden until the word, never shown at home
           - { to: Anchored, when: [ ObjectSync/Enable greater 0.5 ] }

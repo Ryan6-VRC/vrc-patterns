@@ -52,13 +52,15 @@ THE DELTA
    where they settled, so a re-grab picks the prop up there and the resumed walks measure the
    restored pose rather than home. ACQUIRE could not serve: it holds the cell frozen at home.
 5. Enable. `Disabled` copies Enable into `Enabled` and `Anchored` writes 1; no state inside
-   the branch copies Enable into it (its resets write the declared default), so the branch's
+   the branch copies Enable into it (its resets write Enable's default), so the branch's
    own Enable-off is never recorded as disabled. The
    restore sets Enable from the payload: placed means on, otherwise `Persist Home` copies
-   `Enabled` back into Enable, which after the reset is the declared default. So `Enabled`'s
-   declared default is read off grab-sync's Enable declaration and must stay equal to it.
+   `Enabled` back into Enable, which after the reset is Enable's default. The reset value and
+   `Enabled`'s declared default are both read off grab-sync's Enable declaration at generation, so
+   changing Enable's default is a regeneration, never a first-listed declaration in a variant.
 6. `Place`. A local, unsynced control: from `Anchored` it drops the prop where it stands with
-   no grab, stamping `Detached` as a grab would, and consumes itself. Desktop has no physbone
+   no grab, stamping `Detached` as a grab would, and consumes itself; `Disabled` clears it too, so a write while the
+   prop is away is dropped rather than latched. Desktop has no physbone
    grab, so this is also how an unattended client sets the prop down; it is published bare
    by its own `globalParams` entry and fronted by the menu's button.
 7. A remote's return. In grab-sync, Enable coming back on always finds `Detached` false, because
@@ -342,7 +344,8 @@ def transform(src, words, hold):
     edits.append((t, 0, [f"          - {{ to: Persist Quiesce, when: [ IsLocal is true, {ID} notEqual 0 ] }}   # the restore branch; at Id 0 the next rung takes the same evaluation"]))
     a, b = states["Disabled"]
     d = index_of(body, f"          - driver: {{ localOnly: true, set: {{ {DETACHED}: 0 }} }}   # off-is-reset: recall home", "Disabled's reset driver", a, b)
-    edits.append((d + 1, 0, [f"          - driver: {{ localOnly: true, copy: {{ {ENABLED}: {EN} }} }}   # the enable mirror: this state's Enable, never the branch's"]))
+    edits.append((d + 1, 0, [f"          - driver: {{ localOnly: true, copy: {{ {ENABLED}: {EN} }} }}   # the enable mirror: this state's Enable, never the branch's",
+                             f"          - driver: {{ localOnly: true, set: {{ {PLACE}: 0 }} }}   # a Place written while the prop was away does not fire at the next Anchored"]))
     en_on = index_of(body, f"          - {{ to: Anchored, when: [ {EN} greater 0.5 ] }}", "Disabled's enable rung", a, b)
     edits.append((en_on, 0, [f"          - {{ to: Waiting,  when: [ IsLocal is false, {DETACHED} is true, {EN} greater 0.5 ] }}   # a restore's return: hidden until the word, never shown at home"]))
     a, b = states["Anchored"]
