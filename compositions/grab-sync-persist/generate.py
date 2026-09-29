@@ -38,19 +38,22 @@ THE DELTA
    ahead of `Boot`, because the walks commit the home pose a fraction of a second into the
    load and a committed home pose is what the next swap would otherwise snapshot. Enable
    stays off until the prop is placed, which is both the quiesce (no walk can overwrite a
-   restored word) and far past the receiver-deaf floor at any frame rate. Announce and Boot
-   are ANNOUNCE_GAP apart, several frames rather than the contract's one, so a bridge that
-   handles datagrams out of order still reads this avatar's `Announce` when `Boot` lands.
+   restored word) and far past the receiver-deaf floor at any frame rate. `Boot` follows
+   `Announce` by at least ANNOUNCE_LEAD: the bridge handles each datagram on its own thread
+   and reads `Announce` when `Boot` arrives, so the lead is what orders the two.
 4. Placement. A wearer's own `Sync` rides `Sync_Target`, which rides the mux, so only the
    sync build's reconstruction (`ObjectSync/Rig/Prop/Display`) shows the wearer the restored
    words. The mux gains that node as a fourth slot on both channels (the prefab's), every
    clip holds it at 0, and `persist_place` is `anchored` with the mux moved onto it: the cell
    rides its rest frame live onto the reconstruction and the drag heading stays parked on
-   it. `Persist Resume` then plays `dropped`, which freezes the cell and unparks the heading
+   it. It holds there, measurement still off, for one full wire refresh at the sync build's floor
+   frame rate (place_len()), because remotes re-engage the moment Enable returns and must read the
+   restored table rather than the quiesce's zeroed one. `Persist Resume` then plays `dropped`, which freezes the cell and unparks the heading
    where they settled, so a re-grab picks the prop up there and the resumed walks measure the
    restored pose rather than home. ACQUIRE could not serve: it holds the cell frozen at home.
 5. Enable. `Disabled` copies Enable into `Enabled` and `Anchored` writes 1; no state inside
-   the branch writes it, so the branch's own Enable-off is never recorded as disabled. The
+   the branch copies Enable into it (its resets write the declared default), so the branch's
+   own Enable-off is never recorded as disabled. The
    restore sets Enable from the payload: placed means on, otherwise `Persist Home` copies
    `Enabled` back into Enable, which after the reset is the declared default. So `Enabled`'s
    declared default is read off grab-sync's Enable declaration and must stay equal to it.
@@ -58,12 +61,17 @@ THE DELTA
    no grab, stamping `Detached` as a grab would, and consumes itself. Desktop has no physbone
    grab, so this is also how an unattended client sets the prop down; it is published bare
    by its own `globalParams` entry and fronted by the menu's button.
+7. A remote's return. In grab-sync, Enable coming back on always finds `Detached` false, because
+   switching off resets it; after a restore it can find it true. A remote in `Disabled` then goes
+   to grab-sync's hidden late-join path (`Waiting`, then `Acquire` on `OS/Ready`) instead of
+   `Anchored`, so it never shows the prop at home before gliding to the word.
 
 The synced bit count is grab-sync's: `Detached` moves, nothing else synced is added.
 """
 
 import hashlib
 import importlib.util
+import math
 import os
 import re
 import sys
@@ -89,17 +97,33 @@ MOUNT = "ObjectSync"
 # int to a byte.
 MINTED_ID = int(hashlib.sha256(NAMESPACE.encode()).hexdigest(), 16) % 255 + 1
 
-# The wire contract's avatar-side waits, as clip lengths. The bridge carries the same numbers,
-# so change neither here alone.
+# The wire contract's avatar-side waits, as clip lengths (ANNOUNCE_LEAD_SECS, BOOT_WAIT_SECS,
+# WRITE_WAIT_SECS). The bridge carries the same numbers, so change none of them here alone.
+# ANNOUNCE_LEAD is the least time from the Announce write to the Boot write.
+ANNOUNCE_LEAD = 0.1
 BOOT_WAIT = 0.5
 WRITE_WAIT = 2.0
-# Announce to Boot. The contract asks for one frame; several keep a bridge that handles two
-# datagrams out of order from comparing this Boot against the outgoing avatar's Announce.
-ANNOUNCE_GAP = 0.1
-# How long the cell rides the reconstruction before Dropped freezes it: the cell's constraint
-# ring and the drag park, plus the delayed show. [EMPIRICAL: re-measure the placed pose at a
-# low frame rate after any change to the cell or the mux]
-PLACE_LEN = 0.5
+# How long Persist Place holds Enable off with the prop on the restored words. Two floors, the
+# longer wins. The cell's settle: its constraint ring, the drag park and the delayed show.
+# [EMPIRICAL: re-measure the placed pose at a low frame rate after any change to the cell or the
+# mux] And one full wire refresh at the sync build's floor frame rate (its sliceFloorFps): the
+# quiesce's zeroed words went out on the wire, the refresh is counted in the wearer's frames, and
+# a remote re-engages the moment Enable returns, so the restored table has to have crossed the wire
+# by then or the remote glides in from a torn table. Step 4 is written at the end of the hold, so
+# it must stay inside the bridge's ACK_WAIT_SECS; place_len() refuses otherwise.
+PLACE_SETTLE = 0.5
+ACK_WAIT = 3.0        # the bridge's, per the wire contract; read here only to refuse a hold it would abandon
+
+
+def place_len(entry, cfg):
+    facts = entry.document(cfg)[1]["facts"]
+    refresh = facts["cycleSeconds"] * 60 / cfg["sliceFloorFps"]
+    hold = max(PLACE_SETTLE, math.ceil(refresh * 10) / 10)
+    if hold > ACK_WAIT - 0.5:
+        raise SystemExit(f"REFUSE: Persist Place would hold {hold} s (one wire refresh at {cfg['sliceFloorFps']} fps), "
+                         f"leaving under 0.5 s of the bridge's {ACK_WAIT} s wait for step 4. Shorten the sync "
+                         "build's refresh, or take the change to the wire contract.")
+    return hold
 
 MUX = "Prop/Source/VRC{ch}Constraint.Sources.source{i}.Weight"
 
@@ -147,11 +171,11 @@ def payload(words):
 # ------------------------------------------------------------------ the header ---
 HEADER = """\
 # GrabSyncPersist glue controller — GENERATED by generate.py from ../grab-sync/controller.yaml; never hand-edit it, re-run the generator.
-# grab-sync's header owns every design decision this graph carries unchanged; generate.py's docstring owns the persistence delta, and README.md §How persistence works owns why it is shaped so.
+# grab-sync's header owns every design decision this graph carries unchanged; generate.py's docstring owns the persistence delta, and README.md §Design notes owns why it is shaped so.
 # State↔clip mapping, beyond grab-sync's: Place→dropped, Persist Announce→persist_announce, Persist Wait→persist_boot_wait, Persist Write→persist_write_wait, Persist Place→persist_place, Persist Resume→dropped, every other Persist state→disabled.
 # Glue value-sets gain the mux's fourth slot (source3 on both channels, the sync build's reconstruction): 0 in every grab-sync clip, 1 only in persist_place, which is `anchored` with the mux moved there.
 # Detached lives at {detached}: payload, synced, unsaved, default false — grab-sync's bit under the namespace.
-# Enabled ({enabled}) mirrors Enable into payload: Disabled copies it, Anchored writes 1, nothing in the restore branch writes it. Its default equals Enable's.
+# Enabled ({enabled}) mirrors Enable into payload: Disabled copies it, Anchored writes 1, no state in the restore branch copies Enable into it (its resets write the default). Its default equals Enable's.
 # Id default {id} is this prefab's identity; a variant declares its own in a controller listed first in both FullController lists. 0 is off.
 """.format(detached=DETACHED, enabled=ENABLED, id=MINTED_ID)
 
@@ -179,8 +203,8 @@ def rename_detached(line):
 def emit_persist_states(pl):
     reset = ", ".join(f"{n}: 0" if n != ENABLED else f"{n}: {{default}}" for n in pl)
     return [
-        "      # Place: the wearer's no-grab drop, from a menu button or OSC. The cell freezes where it stands, exactly as",
-        "      # a release would leave it, and the stamp is the grab's own. The driver consumes the control.",
+        "      # Place: the wearer's no-grab drop, from a menu button or OSC. The cell rests on its home tip, so it",
+        "      # freezes where it stands with no release pulse to heal it, and the stamp is the grab's own. The driver consumes the control.",
         "      Place:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, set: {{ {DETACHED}: 1, {PLACE}: 0 }} }}",
@@ -188,8 +212,9 @@ def emit_persist_states(pl):
         "        transitions:",
         f"          - {{ to: Disabled, when: [ {EN} less 0.5 ] }}",
         f"          - {{ to: Dropped,  when: [ {DETACHED} is true ] }}",
-        "      # The restore branch, wearer-only. Every hop out of a state whose driver gates the next one waits on the value",
-        "      # that driver wrote: a driver's write reaches no transition on the evaluation that runs it.",
+        "      # The restore branch, wearer-only. A hop gated on a driver's own write waits on the value it wrote: a driver's write",
+        "      # reaches no transition on the evaluation that runs it. The exits back to the boot are unconditional, so a late or",
+        "      # doubled bridge write cannot hold the branch.",
         "      Persist Quiesce:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, set: {{ {EN}: 0, {reset} }} }}",
@@ -201,7 +226,7 @@ def emit_persist_states(pl):
         f"          - driver: {{ localOnly: true, copy: {{ {ANNOUNCE}: {ID} }} }}",
         "        motion: { clip: persist_announce }",
         "        transitions:",
-        f"          - {{ to: Persist Boot, when: [ {ANNOUNCE} notEqual 0 ], exitTime: 1.0 }}   # the gap: several frames, not the contract's one",
+        f"          - {{ to: Persist Boot, when: [ {ANNOUNCE} notEqual 0 ], exitTime: 1.0 }}   # Boot follows by the contract's lead at least",
         "      Persist Boot:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, random: {{ {BOOT}: {{ min: 0.001, max: 1 }} }} }}",
@@ -219,7 +244,7 @@ def emit_persist_states(pl):
         f"          - driver: {{ localOnly: true, set: {{ {RESTORE}: 2, {reset} }} }}   # step 2: payload the snapshot does not name stays at its default",
         "        motion: { clip: disabled }",
         "        transitions:",
-        f"          - {{ to: Persist Write, when: [ {RESTORE} equals 2 ] }}",
+        f"          - {{ to: Persist Write, when: [ {RESTORE} notEqual 1 ] }}   # our 2 has landed; a late duplicate 1 cannot hold the branch here",
         "      # Step 3 lands a settle after the payload, so the payload reads current here.",
         "      Persist Write:",
         "        motion: { clip: persist_write_wait }",
@@ -244,13 +269,13 @@ def emit_persist_states(pl):
         f"          - driver: {{ localOnly: true, set: {{ {RESTORE}: 0 }} }}",
         "        motion: { clip: disabled }",
         "        transitions:",
-        f"          - {{ to: Disabled, when: [ {RESTORE} equals 0 ] }}",
+        "          - { to: Disabled, when: [ ], exitTime: 1.0 }   # unconditional: a late bridge write cannot hold the branch here",
         "      Persist Abort:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, set: {{ {RESTORE}: 0, {reset} }} }}   # no step 3 in time: defaults, then boot",
         "        motion: { clip: disabled }",
         "        transitions:",
-        f"          - {{ to: Persist Home, when: [ {RESTORE} equals 0 ] }}",
+        "          - { to: Persist Home, when: [ ], exitTime: 1.0 }",
     ]
 
 
@@ -266,7 +291,7 @@ def parse_clip_blocks(lines, lo, hi):
     return {n: (i, heads[k + 1][0] if k + 1 < len(heads) else hi) for k, (i, n) in enumerate(heads)}
 
 
-def transform(src, words):
+def transform(src, words, hold):
     lines = src.split("\n")
     pl = payload(words)
 
@@ -318,6 +343,8 @@ def transform(src, words):
     a, b = states["Disabled"]
     d = index_of(body, f"          - driver: {{ localOnly: true, set: {{ {DETACHED}: 0 }} }}   # off-is-reset: recall home", "Disabled's reset driver", a, b)
     edits.append((d + 1, 0, [f"          - driver: {{ localOnly: true, copy: {{ {ENABLED}: {EN} }} }}   # the enable mirror: this state's Enable, never the branch's"]))
+    en_on = index_of(body, f"          - {{ to: Anchored, when: [ {EN} greater 0.5 ] }}", "Disabled's enable rung", a, b)
+    edits.append((en_on, 0, [f"          - {{ to: Waiting,  when: [ IsLocal is false, {DETACHED} is true, {EN} greater 0.5 ] }}   # a restore's return: hidden until the word, never shown at home"]))
     a, b = states["Anchored"]
     mo = index_of(body, "        motion: { clip: anchored }", "Anchored's motion", a, b)
     if any(body[i] == "        behaviours:" for i in range(a, b)):
@@ -362,20 +389,20 @@ def transform(src, words):
         out.extend(blk)
 
     def rows(name):
-        return [l for l in blocks[name][1:] if not l.startswith("    seconds:")]
+        return [l for l in blocks[name][1:] if not l.startswith(("    seconds:", "    #"))]
 
     def clip(name, src, secs, note):
         return [f"  {name}:" + " " * max(1, 16 - len(name) - 3) + f"# {note}",
                 f"    seconds: {secs}"] + rows(src)
 
-    out += clip("persist_announce", "disabled", ANNOUNCE_GAP,
-                "cell `disabled` + HOME hidden, as Disabled; the Announce-to-Boot gap = clip length")
+    out += clip("persist_announce", "disabled", ANNOUNCE_LEAD,
+                "cell `disabled` + HOME hidden, as Disabled; the Announce-to-Boot lead = clip length (the wire contract's)")
     out += clip("persist_boot_wait", "disabled", BOOT_WAIT,
                 "cell `disabled` + HOME hidden; the wait for step 1 = clip length (the wire contract's)")
     out += clip("persist_write_wait", "disabled", WRITE_WAIT,
                 "cell `disabled` + HOME hidden; the wait for step 3 = clip length (the wire contract's)")
-    place = clip("persist_place", "anchored", PLACE_LEN,
-                 "cell `anchored` + the mux on its fourth slot, the reconstruction; park on  [EMPIRICAL: dwell = generate.py's PLACE_LEN]")
+    place = clip("persist_place", "anchored", hold,
+                 "cell `anchored` + the mux on its fourth slot, the reconstruction; park on  dwell = generate.py's place_len()")
     want = {MUX.format(ch=ch, i=i): ("1" if i == 3 else "0") for ch in ("Position", "Rotation") for i in range(4)}
     seen = set()
     for k, l in enumerate(place):
@@ -387,7 +414,7 @@ def transform(src, words):
         refuse(f"`anchored` does not carry every mux row (missing {sorted(set(want) - seen)}).")
     out += place
 
-    body = (body[:note[0]] + ["# Every clip = 7 cell bindings (verbatim values) + 15 glue bindings (value-set, the mux's fourth slot included)."]
+    body = (body[:note[0]] + ["# Every clip = grab-sync's bindings plus the mux's source3 weight on both channels."]
             + body[note[0] + 1:begin[0]] + out + body[end[0] + 1:])
     return HEADER + "\n" + "\n".join(body)
 
@@ -530,13 +557,14 @@ def main():
     if "--check" in sys.argv:
         sys.exit(0 if check(entry, cfg) else 1)
     words = word_lines(entry, cfg)
-    text = transform(open(UPSTREAM_DOC, encoding="utf-8").read(), words)
+    hold = place_len(entry, cfg)
+    text = transform(open(UPSTREAM_DOC, encoding="utf-8").read(), words, hold)
     menu = ["", "menu:", "  - toggle: GrabSync", f"    param: {EN}",
             "  - button: GrabSync Place", f"    param: {PLACE}", ""]
     text = text.rstrip("\n") + "\n" + "\n".join(menu)
     with open(GLUE_DOC, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
-    print(f"wrote controller.yaml: {CONTROLLER}, Id {MINTED_ID}, {len(payload(words))} payload names under {NAMESPACE}/")
+    print(f"wrote controller.yaml: {CONTROLLER}, Id {MINTED_ID}, place hold {hold} s, {len(payload(words))} payload names under {NAMESPACE}/")
     doc, f = entry.document(cfg)
     os.makedirs(os.path.dirname(SYNC_DOC), exist_ok=True)
     with open(SYNC_DOC, "w", encoding="utf-8", newline="\n") as fh:
