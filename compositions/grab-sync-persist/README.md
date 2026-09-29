@@ -8,7 +8,7 @@ A grabbable prop you can set down anywhere, which stays where you left it when y
 - The avatar keeps measuring where the prop rests and stores it as *words*: the quantized world position and heading that `object-sync`, the library's module for syncing a dropped prop, already sends to other players. Beside them sits `Detached`, whether the prop is away from its home spot.
 - The words and `Detached` live under `BridgePersist/GrabSyncPersist/` and keep those exact names on the built avatar, so the bridge can read and write them over OSC.
 - On load, the `bridge-persist` layer switches the gimmick off, asks the bridge for the saved values, and waits a moment (`../../bridge-persist/README.md` has the exchange).
-- If the bridge restores a placed prop, the layer raises its flag. The prop's own controller then moves the prop onto the restored words, keeps it there while the restored position reaches other players, and drops it there when the flag falls. Measurement resumes from that spot.
+- If the bridge restores a placed prop, the layer raises its flag. The prop's own controller then moves the prop onto the restored words, keeps it there while it settles, and drops it there when the flag falls. Measurement resumes from that spot.
 - If nothing answers, the avatar carries on as `GrabSync`.
 - It uses no more synced parameters than `GrabSync`.
 
@@ -72,7 +72,8 @@ Everything the entry generates is `generate.py`'s: edit it, run it, and recompil
 - **The wearer sees the restored words only through the sync build's reconstruction.** The wearer's own `Sync` follows the prop rather than the words, so the mux on `Prop/Source` gains the reconstruction as a fourth slot, weighted only in `Persist Place`.
 - **The hold is the prop's own settle, not the wire's refresh.** The switch-off at load put zeroed words on the wire, and remotes re-engage the moment the gimmick is switched back on. A hold lasting one full refresh of the word wire would cover that, and would keep the prop from every watching player for that long on every swap. At the settle alone, a remote watching a wearer whose frame rate is low enough that a refresh outlasts the hold can see the prop glide in from a half-updated table.
 - **A remote returns through the late-join path.** In `grab-sync`, switching back on always finds `Detached` false. After a restore it finds it true, so a remote goes to `Waiting` rather than `Anchored` and shows the prop only once it can show it at the word.
-- **`MultiGrabSync` would need a four-object sync build at `wordRoot` and a place state per prop.** The layer already takes several placed names; it would reset all four props' words and `Detached_0..3`, and hold whenever any of them is placed. Each prop needs its own `Persist Place` state keyed to its own `Detached`, and the fourth mux slot on its own mux.
+- **One persistent prefab per avatar.** Every `object-sync` build on the avatar shares `ObjectSync/Enable`, and each persistent prefab's layer drives it, so two of them do not restore independently (`../../bridge-persist/README.md` §Additional notes).
+- **`MultiGrabSync` would need a four-object sync build at `wordRoot` and a place state per prop.** The layer already takes several placed names; it would reset all four props' words and `Detached_0..3`, and hold whenever any of them is placed. Each prop needs its own `Persist Place` state keyed to its own `Detached`, its own remote return rung into `Waiting`, and the fourth mux slot on its own mux.
 
 ## Traps
 
