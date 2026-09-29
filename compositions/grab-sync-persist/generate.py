@@ -69,16 +69,15 @@ THE GLUE'S DELTA
 
 THE HOLD
 --------
-How long the flag stays up: one full wire refresh at the sync build's floor frame rate (its
-sliceFloorFps), and never less than PLACE_SETTLE, the cell's own settle. The quiesce's zeroed
-words went out on the wire, the refresh is counted in the wearer's frames, and a remote
-re-engages the moment Enable returns, so the restored table has to have crossed the wire by
-then or a watching remote glides in from a half-updated one. It is one value, `place_len()`,
-passed to the persist layer's config; nothing else reads it.
+How long the flag stays up: PLACE_SETTLE, the cell's own settle, and no longer. The quiesce's
+zeroed words went out on the wire, the wire's refresh is counted in the wearer's frames, and a
+remote re-engages the moment Enable returns. So at a wearer frame rate low enough that one
+refresh outlasts the hold, a watching remote can glide in from a half-updated table. The hold
+does not wait that refresh out, because every watching client would wait it on every swap at
+every frame rate. It is one value, passed to the persist layer's config; nothing else reads it.
 """
 
 import importlib.util
-import math
 import os
 import re
 import sys
@@ -106,12 +105,6 @@ DETACHED_SPEC = "{ type: bool, default: false, vrc: { synced: true, saved: false
 # The cell's settle: its constraint ring, the drag park and the delayed show. [EMPIRICAL: re-measure
 # the placed pose at a low frame rate after any change to the cell or the mux]
 PLACE_SETTLE = 0.5
-
-
-def place_len(entry, cfg):
-    facts = entry.document(cfg)[1]["facts"]
-    refresh = facts["cycleSeconds"] * 60 / cfg["sliceFloorFps"]
-    return max(PLACE_SETTLE, math.ceil(refresh * 10) / 10)
 
 
 MUX = "Prop/Source/VRC{ch}Constraint.Sources.source{i}.Weight"
@@ -170,7 +163,7 @@ def persist_config(entry, cfg, src):
     return {"namespace": NAMESPACE, "internal": INTERNAL, "controller": PERSIST_CONTROLLER,
             "id": None, "enable": (EN, enable_spec(src)),
             "payload": words(entry, cfg) + [(DETACHED, DETACHED_SPEC)],
-            "placed": [DETACHED], "mirror": None, "hold": place_len(entry, cfg), "layer": "Persist"}
+            "placed": [DETACHED], "mirror": None, "hold": PLACE_SETTLE, "layer": "Persist"}
 
 
 # ------------------------------------------------------------------ the header ---

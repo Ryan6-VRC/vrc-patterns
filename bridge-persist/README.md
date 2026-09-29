@@ -58,7 +58,7 @@ States:                8
 | `payload` | Every payload name with its declaration, verbatim. All of them are reset at load; each must sit under the namespace. |
 | `placed` | The payload bools that mean something is placed. With none of them true after a restore, the layer skips the hold. |
 | `mirror` | Where the enable state is mirrored; defaults to `<namespace>/Enabled`, its declared default the enable's. |
-| `hold` | How long the flag stays up after a restore that has something placed: the consumer's own settle time, nothing the bridge waits on. A consumer whose state reaches remotes through a synced wire sizes it to that wire's refresh (`place_len()` in `grab-sync-persist`). |
+| `hold` | How long the flag stays up after a restore that has something placed: the consumer's own settle time, nothing the bridge waits on. A consumer whose state reaches remotes through a synced wire weighs that wire's refresh against the wait every watching player pays; `grab-sync-persist` holds for its settle alone (`PLACE_SETTLE`). |
 
 `validate()` refuses a config that breaks any rule above, and a few more (a repeated or reserved payload name, the mirror listed in `payload`, an enable under the namespace), naming the offender.
 
