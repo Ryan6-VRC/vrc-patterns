@@ -36,8 +36,11 @@ THE DELTA
 3. The restore branch (`Persist …`), wearer-only, entered from Timer on the first evaluation
    that has `IsLocal`. Quiesce drives `ObjectSync/Enable` off and resets the payload there,
    ahead of `Boot`, because the walks commit the home pose a fraction of a second into the
-   load and a committed home pose is what the next swap would otherwise snapshot. Enable
-   stays off until the prop is placed, which is both the quiesce (no walk can overwrite a
+   load and a committed home pose is what the next swap would otherwise snapshot. Enable is
+   written off three times: `set` in Quiesce, `set` again in Announce, and `copy` from the
+   internal always-0 `OFF` in Boot. [OPEN: which of the three lands in the shipping client is
+   being measured; the ones that prove useless go.] Nothing else in the branch writes Enable,
+   so it then stays off until the prop is placed, which is both the quiesce (no walk can overwrite a
    restored word) and far past the receiver-deaf floor at any frame rate. `Boot` follows
    `Announce` by at least ANNOUNCE_LEAD: the bridge handles each datagram on its own thread
    and reads `Announce` when `Boot` arrives, so the lead is what orders the two.
@@ -92,6 +95,9 @@ ENABLED = f"{NAMESPACE}/Enabled"
 ID, ANNOUNCE, BOOT, RESTORE = (f"{NAMESPACE}/{n}" for n in ("Id", "Announce", "Boot", "Restore"))
 PLACE = "GrabSyncPersist/Place"
 EN = "ObjectSync/Enable"
+# An internal float that always holds 0: the source of the quiesce's copy into Enable. Outside the namespace (not
+# payload) and in no globalParams entry, so it takes the instance prefix and is never published.
+OFF = "GrabSyncPersist/Off"
 MOUNT = "ObjectSync"
 
 # The shipped identity. Stable because it is a function of the namespace alone; kept inside
@@ -229,12 +235,14 @@ def emit_persist_states(pl):
         "      Persist Announce:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, copy: {{ {ANNOUNCE}: {ID} }} }}",
+        f"          - driver: {{ localOnly: true, set: {{ {EN}: 0 }} }}   # the quiesce again, a state later",
         "        motion: { clip: persist_announce }",
         "        transitions:",
         "          - { to: Persist Boot, when: [ ], exitTime: 1.0 }   # Boot follows by the contract's lead at least",
         "      Persist Boot:",
         "        behaviours:",
         f"          - driver: {{ localOnly: true, random: {{ {BOOT}: {{ min: 0.001, max: 1 }} }} }}",
+        f"          - driver: {{ localOnly: true, copy: {{ {EN}: {OFF} }} }}   # the quiesce by copy, which lands where a set may not",
         "        motion: { clip: disabled }",
         "        transitions:",
         "          - { to: Persist Wait, when: [ ], exitTime: 1.0 }",
@@ -330,6 +338,7 @@ def transform(src, words, hold):
         f"  {RESTORE}: {{ type: int, default: 0, vrc: {{ synced: false, saved: false }} }}   # the handshake, written by both sides; rests at 0",
         f"  {ENABLED}: {{ type: bool, default: {enabled_default}, vrc: {{ synced: false, saved: false }} }}   # payload: the enable state; default = Enable's",
         f"  {PLACE}: {{ type: bool, default: false, vrc: {{ synced: false, saved: false }} }}   # the wearer's no-grab drop; published bare",
+        f"  {OFF}: {{ type: float, default: 0, scratch: true }}   # always 0: the quiesce's copy source; internal, never written",
     ] + words
     body = body[:det[0]] + decl + body[det[0] + 1:]
 

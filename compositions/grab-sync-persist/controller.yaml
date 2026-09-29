@@ -23,6 +23,7 @@ parameters:
   BridgePersist/GrabSyncPersist/Restore: { type: int, default: 0, vrc: { synced: false, saved: false } }   # the handshake, written by both sides; rests at 0
   BridgePersist/GrabSyncPersist/Enabled: { type: bool, default: true, vrc: { synced: false, saved: false } }   # payload: the enable state; default = Enable's
   GrabSyncPersist/Place: { type: bool, default: false, vrc: { synced: false, saved: false } }   # the wearer's no-grab drop; published bare
+  GrabSyncPersist/Off: { type: float, default: 0, scratch: true }   # always 0: the quiesce's copy source; internal, never written
   BridgePersist/GrabSyncPersist/Prop/PX/C: float            # byte word: integral 0..255
   BridgePersist/GrabSyncPersist/Prop/PX/F: float            # byte word: integral 0..255
   BridgePersist/GrabSyncPersist/Prop/PY/C: float            # byte word: integral 0..255
@@ -201,12 +202,14 @@ layers:
       Persist Announce:
         behaviours:
           - driver: { localOnly: true, copy: { BridgePersist/GrabSyncPersist/Announce: BridgePersist/GrabSyncPersist/Id } }
+          - driver: { localOnly: true, set: { ObjectSync/Enable: 0 } }   # the quiesce again, a state later
         motion: { clip: persist_announce }
         transitions:
           - { to: Persist Boot, when: [ ], exitTime: 1.0 }   # Boot follows by the contract's lead at least
       Persist Boot:
         behaviours:
           - driver: { localOnly: true, random: { BridgePersist/GrabSyncPersist/Boot: { min: 0.001, max: 1 } } }
+          - driver: { localOnly: true, copy: { ObjectSync/Enable: GrabSyncPersist/Off } }   # the quiesce by copy, which lands where a set may not
         motion: { clip: disabled }
         transitions:
           - { to: Persist Wait, when: [ ], exitTime: 1.0 }
