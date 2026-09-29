@@ -25,7 +25,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 
 - The menu gains **GrabSync**, the on/off toggle for the whole gimmick (as in `grab-sync`), and **GrabSync Place**.
 - **GrabSync Place** sets the prop down where it stands, as if you had grabbed and released it there. It works while the prop is at home. Over OSC, send a bool `true` to `/avatar/parameters/GrabSyncPersist/Place`; the avatar clears it, and a write made while the prop is away is dropped.
-- Set the prop down, then change avatar. On the new avatar the prop stays hidden for a moment, then appears where you left it. It stays there, with measurement off, for about half a second more while it settles, and other players see it when that ends; a grab in that window takes effect when it ends.
+- Set the prop down, then change avatar. On the new avatar the prop stays hidden for a moment, then appears where you left it. It stays there, with measurement off, for a moment more while it settles (`PLACE_SETTLE`), and other players see it when that ends; a grab in that window takes effect when it ends.
 - The on/off state travels too: an avatar left switched off comes up switched off. Switching off always sends the prop home, so there is never a placed prop to restore from a switched-off avatar.
 - With no bridge running, the prop is hidden through the layer's window after the avatar loads, then everything works as in `GrabSync`.
 
