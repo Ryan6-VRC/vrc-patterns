@@ -31,10 +31,10 @@ Wearer only, and only with `<namespace>/Id` non-zero; a remote, and a wearer at 
             reads true, else straight to Finish; the window running out goes to Finish.
   Hold      raises the flag and keeps it up for the hold, CONFIG's `hold`: the consumer's glue
             rides its prop onto the restored payload while measurement is still off.
-  Finish    sets Enable from the mirror, writes Restore 0 and lowers the flag, in one driver, so
-            the glue sees the flag fall in the same evaluation Enable returns. On an expired
-            window the mirror holds the reset's default, so the avatar boots as it would with no
-            bridge.
+  Finish    sets Enable from the mirror, writes Restore 0 and lowers the flag. The copy and the
+            set are two drivers, and both run on entry to this one state, so the glue sees the
+            flag fall in the same evaluation Enable returns. On an expired window the mirror
+            holds the reset's default, so the avatar boots as it would with no bridge.
   Mirror On / Mirror Off
             idle. Each keeps the mirror, re-entered whenever Enable changes, so the mirror is
             only ever written here and the layer's own Enable-off is never recorded. A Restore 1
@@ -55,10 +55,13 @@ through the SAME FullController component as its glue, so the flag's instance pr
 
 CONFIG
 ------
-  namespace  required. `BridgePersist/<Name>`, the root the bridge watches; the four reserved
-             leaves (Id, Announce, Boot, Restore) are declared here and nowhere else.
-  internal   required. The prefix for the layer's own local names (the flag). Required rather
-             than defaulted so the collapsed shape, local names inside a published root, is not
+Every key but `id` is required; `validate()` refuses a config missing any, naming each.
+
+  namespace  `BridgePersist/<Name>`, the root the bridge watches; the four reserved leaves (Id,
+             Announce, Boot, Restore) and the mirror, `<namespace>/Enabled` (the enable state,
+             declared with Enable's default), are declared here and nowhere else.
+  internal   the prefix for the layer's own local names (the flag). Required rather than
+             defaulted so the collapsed shape, local names inside a published root, is not
              reachable by omission (docs/gimmicks.md §Packaging and interface).
   controller the emitted controller's name.
   id         the declared default of `<namespace>/Id`, 1..255 so every tool carries it as a
@@ -67,9 +70,7 @@ CONFIG
   payload    [(name, spec)]: every payload name the reset writes, each with its declaration
              verbatim, in the order to declare them. Each must sit under the namespace.
   placed     the payload names (bools) whose truth means a prop is placed and worth holding for.
-  mirror     the payload name the enable state is mirrored into; declared here, default Enable's.
   hold       seconds the flag stays up.
-  layer      the layer's name.
 """
 
 import hashlib
@@ -97,10 +98,9 @@ CONFIG = {
         ("BridgePersist/Example/Value", "{ type: float, default: 0, vrc: { synced: false, saved: false } }"),
     ],
     "placed": ["BridgePersist/Example/Placed"],
-    "mirror": None,
     "hold": 0.5,
-    "layer": "Persist",
 }
+REQUIRED = ("namespace", "internal", "controller", "enable", "payload", "placed", "hold")
 
 
 def refuse(msg):
@@ -135,6 +135,9 @@ def fmt(v):
 
 
 def validate(c):
+    missing = [k for k in REQUIRED if k not in c]
+    if missing:
+        refuse(f"{', '.join(f'`{k}`' for k in missing)} missing: every key but `id` is required.")
     ns = c.get("namespace")
     for k in ("namespace", "internal"):
         if not isinstance(c.get(k), str) or not c[k]:
@@ -152,11 +155,11 @@ def validate(c):
     if en.startswith(ns + "/"):
         refuse(f"enable {en!r} sits under the namespace; the bridge would write it back mid-exchange.")
     reserved = {f"{ns}/{r}" for r in RESERVED}
-    mirror = c.get("mirror") or f"{ns}/Enabled"
+    mirror = f"{ns}/Enabled"
     names = [n for n, _ in c["payload"]]
     if len(set(names)) != len(names):
         refuse(f"payload names repeat: {sorted({n for n in names if names.count(n) > 1})}.")
-    for n in names + [mirror]:
+    for n in names:
         if not n.startswith(ns + "/"):
             refuse(f"payload name {n!r} is outside the namespace {ns!r}; the bridge carries only names under it.")
         if n in reserved:
@@ -230,7 +233,7 @@ def document(c):
     o("  IsLocal: bool")
     o("")
     o("layers:")
-    o(f"  - name: {c['layer']}")
+    o("  - name: Persist")
     o("    states:")
     o("      # A remote, and a wearer at Id 0, stay here for the session. Level rung: IsLocal lands after the entry rungs run.")
     o("      Load:")
@@ -266,7 +269,7 @@ def document(c):
     o("        motion: { clip: hold }")
     o("        transitions:")
     o("          - { to: Finish, when: [ ], exitTime: 1.0 }")
-    o("      # One driver: the glue sees the flag fall in the evaluation Enable returns.")
+    o("      # Two drivers, both run on entry to this one state: the glue sees the flag fall in the evaluation Enable returns.")
     o("      Finish:")
     o("        behaviours:")
     o(f"          - driver: {{ localOnly: true, copy: {{ {en}: {mirror} }} }}")
@@ -296,8 +299,7 @@ def document(c):
     o(f"  step: {{ seconds: {STEP_SECS} }}")
     o(f"  window: {{ seconds: {WINDOW_SECS} }}   # WINDOW_SECS, the wire contract's")
     o(f"  hold: {{ seconds: {fmt(c['hold'])} }}   # CONFIG's hold")
-    facts = {"id": ident, "flag": FLAG, "mirror": mirror, "controller": c["controller"],
-             "namespace": ns, "payload": list(reset), "states": 8, "window": WINDOW_SECS, "hold": c["hold"]}
+    facts = {"id": ident, "flag": FLAG, "controller": c["controller"], "payload": list(reset), "hold": c["hold"]}
     return "\n".join(L) + "\n", facts
 
 

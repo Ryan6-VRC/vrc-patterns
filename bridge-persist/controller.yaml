@@ -62,7 +62,7 @@ layers:
         motion: { clip: hold }
         transitions:
           - { to: Finish, when: [ ], exitTime: 1.0 }
-      # One driver: the glue sees the flag fall in the evaluation Enable returns.
+      # Two drivers, both run on entry to this one state: the glue sees the flag fall in the evaluation Enable returns.
       Finish:
         behaviours:
           - driver: { localOnly: true, copy: { Example/Enable: BridgePersist/Example/Enabled } }

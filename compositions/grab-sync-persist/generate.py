@@ -163,7 +163,7 @@ def persist_config(entry, cfg, src):
     return {"namespace": NAMESPACE, "internal": INTERNAL, "controller": PERSIST_CONTROLLER,
             "id": None, "enable": (EN, enable_spec(src)),
             "payload": words(entry, cfg) + [(DETACHED, DETACHED_SPEC)],
-            "placed": [DETACHED], "mirror": None, "hold": PLACE_SETTLE, "layer": "Persist"}
+            "placed": [DETACHED], "hold": PLACE_SETTLE}
 
 
 # ------------------------------------------------------------------ the header ---
