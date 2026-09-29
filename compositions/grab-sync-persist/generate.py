@@ -32,7 +32,7 @@ Everything about the bridge: the reserved names, the quiesce, Announce and Boot,
 Enable mirror and restoring Enable. The layer drives `ObjectSync/Enable` off for the exchange,
 which parks the glue in its own `Disabled`; it raises its flag (local, outside the namespace)
 for the hold when the restored payload has the prop placed; it lowers the flag and sets Enable
-from the mirror in one driver. Its payload is the sync build's word table plus `Detached`, both
+from the mirror on entry to one state. Its payload is the sync build's word table plus `Detached`, both
 read here at generation, so a word added upstream is reset with the rest.
 
 THE GLUE'S DELTA
