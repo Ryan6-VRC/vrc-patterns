@@ -58,11 +58,11 @@ THE DELTA
    `Enabled` back into Enable, which after the reset is Enable's default. The reset value and
    `Enabled`'s declared default are both read off grab-sync's Enable declaration at generation, so
    changing Enable's default is a regeneration, never a first-listed declaration in a variant.
-6. `Place`. A local, unsynced control: from `Anchored` it drops the prop where it stands with
-   no grab, stamping `Detached` as a grab would, and consumes itself; `Disabled` clears it too, so a write while the
-   prop is away is dropped rather than latched. Desktop has no physbone
-   grab, so this is also how an unattended client sets the prop down; it is published bare
-   by its own `globalParams` entry and fronted by the menu's button.
+6. `Place`. A local, unsynced control that sets the prop down where it stands without a grab,
+   from the menu or over OSC: from `Anchored` it drops the prop, stamping `Detached` as a grab
+   would, and consumes itself; `Disabled` clears it too, so a write while the prop is away is
+   dropped rather than latched. It is published bare by its own `globalParams` entry and
+   fronted by the menu's button.
 7. A remote's return. In grab-sync, Enable coming back on always finds `Detached` false, because
    switching off resets it; after a restore it can find it true. A remote in `Disabled` then goes
    to grab-sync's hidden late-join path (`Waiting`, then `Acquire` on `OS/Ready`) instead of
@@ -114,7 +114,7 @@ WRITE_WAIT = 2.0
 # by then or the remote glides in from a torn table. Step 4 is written at the end of the hold, so
 # it must stay inside the bridge's ACK_WAIT_SECS; place_len() refuses otherwise.
 PLACE_SETTLE = 0.5
-ACK_WAIT = 3.0        # the bridge's, per the wire contract; read here only to refuse a hold it would abandon
+ACK_WAIT = 5.0        # the bridge's, per the wire contract; read here only to refuse a hold it would abandon
 
 
 def place_len(entry, cfg):
