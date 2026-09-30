@@ -68,14 +68,14 @@
       "path": "Holder/Chain",
       "localPosition": [
         0,
-        0,
-        -0.08
+        -0.015,
+        0.0652
       ],
       "localRotation": [
+        0.991445,
         0.0,
-        0.965926,
-        -0.258819,
-        0.0
+        0.0,
+        0.130526
       ]
     },
     {
@@ -83,8 +83,8 @@
       "path": "Holder/Chain/P1",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -98,8 +98,8 @@
       "path": "Holder/Chain/P1/P2",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -113,8 +113,8 @@
       "path": "Holder/Chain/P1/P2/P3",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -128,8 +128,8 @@
       "path": "Holder/Chain/P1/P2/P3/P4",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -143,8 +143,8 @@
       "path": "Holder/Chain/P1/P2/P3/P4/P5",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -158,8 +158,8 @@
       "path": "Holder/Chain/P1/P2/P3/P4/P5/P6",
       "localPosition": [
         0,
-        0,
-        0.15
+        0.15,
+        0
       ],
       "localRotation": [
         0.0,
@@ -170,12 +170,13 @@
     }
   ],
   "tip": "Holder/Chain/P1/P2/P3/P4/P5/P6",
+  "mount": "Neck",
   "ropeRoot": {
     "path": "HipsAnchor/RopeRoot",
     "localPosition": [
       0,
-      0,
-      -0.08
+      -0.015,
+      0.0652
     ],
     "localRotation": [
       0,
@@ -188,19 +189,19 @@
   "L": 0.9,
   "stakeRoot": {
     "localPosition": [
-      0.0,
-      -0.04,
-      0.969282
+      -0.0,
+      -0.059096,
+      0.931364
     ],
     "localRotation": [
-      0.258819,
       0.0,
-      0.0,
-      0.965926
+      0.793353,
+      0.608761,
+      0.0
     ],
     "localEuler": [
-      30.0,
-      0.0,
+      285.0,
+      180.0,
       0.0
     ]
   },
@@ -209,7 +210,8 @@
     "pull": 0.082,
     "spring": 0.718,
     "stiffness": 0.115,
-    "gravity": 0.0,
+    "gravity": 1.0,
+    "gravityFalloff": 1.0,
     "immobileType": "World",
     "immobile": 0.0,
     "radius": 0.03,
@@ -224,115 +226,115 @@
   },
   "visible": [
     {
-      "path": "HipsAnchor/V0",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0",
       "proxy": "Holder/Chain",
       "joint": "Rope/Frame/J0",
       "ropeRotationOffset": [
-        360.0,
-        360.0,
+        90.0,
+        0.0,
         0.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1",
       "proxy": "Holder/Chain/P1",
       "joint": "Rope/Frame/J1",
       "ropeRotationOffset": [
-        360.0,
-        360.0,
+        90.0,
+        0.0,
         0.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1/V2",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2",
       "proxy": "Holder/Chain/P1/P2",
       "joint": "Rope/Frame/J2",
       "ropeRotationOffset": [
-        360.0,
-        360.0,
+        90.0,
+        0.0,
         0.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1/V2/V3",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3",
       "proxy": "Holder/Chain/P1/P2/P3",
       "joint": "Rope/Frame/J3",
       "ropeRotationOffset": [
-        360.0,
-        360.0,
+        90.0,
+        0.0,
         0.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
-        -0.0,
+        0.707107,
         0.0,
-        1.0
+        0.0,
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1/V2/V3/V4",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4",
       "proxy": "Holder/Chain/P1/P2/P3/P4",
       "joint": "Rope/Frame/J4",
       "ropeRotationOffset": [
-        360.0,
+        90.0,
         0.0,
         0.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1/V2/V3/V4/V5",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5",
       "proxy": "Holder/Chain/P1/P2/P3/P4/P5",
       "joint": "Rope/Frame/J5",
       "ropeRotationOffset": [
-        360.0,
-        0.0,
-        0.0
+        90.0,
+        180.0,
+        180.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     },
     {
-      "path": "HipsAnchor/V0/V1/V2/V3/V4/V5/V6",
+      "path": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6",
       "proxy": "Holder/Chain/P1/P2/P3/P4/P5/P6",
       "joint": "Rope/Frame/J6",
       "ropeRotationOffset": [
-        360.0,
-        0.0,
-        0.0
+        90.0,
+        180.0,
+        180.0
       ],
       "ropeRotationOffsetQ": [
-        -0.0,
+        0.707107,
         0.0,
         0.0,
-        1.0
+        0.707107
       ]
     }
   ],

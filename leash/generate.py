@@ -13,7 +13,7 @@ rig.json in the Editor (README §Changing it), and `--check` holds it to CONFIG 
 WHAT THE RIG IS
 ---------------
 A leash whose far end is sensed for the OSC bridge (`vrc-bridge` mapping `osc_leash`). The consumer's
-visible bones (a tail, or the demo's generated tube) are never simulated themselves: each carries a
+visible bones (a tail, or the demo's leash model) are never simulated themselves: each carries a
 two-source parent constraint, source 0 a proxy bone and source 1 a rope joint, weights animated.
 
   Holder    parent of the proxy chain; two sources, HipsAnchor (free, held) and StakeRoot (planted).
@@ -21,7 +21,7 @@ two-source parent constraint, source 0 a proxy bone and source 1 a rope joint, w
             one grabbable, posable physbone `<prefix>/Chain`. Its tip is what the sensing reads.
   Stake     position-constrained to the proxy tip; FreezeToWorld captures it at a plant.
   RopeRoot  a child of HipsAnchor at bone 0's rest position (chain[0].pos), unrotated: where the rope starts,
-            so a visible bone 0 on the rope's first joint stays on its socket rather than on the hips' origin.
+            so a visible bone 0 on the rope's first joint stays on its socket rather than on the mount's origin.
   StakeAim  aims at RopeRoot; frozen with the stake, so it holds the leash line captured at the plant.
   StakeRoot a child of StakeAim placed so that Holder sitting there rests the proxy with its TIP ON THE
             STAKE and its body lying back along the captured line: a hand at the stake finds the tip,
@@ -34,18 +34,18 @@ THE MACHINE (one layer)
 -----------------------
   Load      the default; writes Held and Planted 0 and leaves on the next evaluation, so neither clear
             rests on the first state after a load (docs/runtime.md §Parameters).
-  Disabled  enable off: holder on the hips, visible on the proxy, nothing frozen, sensing stowed. The
+  Disabled  enable off: holder on HipsAnchor, visible on the proxy, nothing frozen, sensing stowed. The
             proxy physbone stays live, because for a tail consumer it IS the tail's physics.
-  Free      holder on the hips, visible on the proxy.
+  Free      holder on HipsAnchor, visible on the proxy.
   Held      the same clip; Held 1. Left on the release: a posed one plants, a plain one goes Free.
             _IsPosed is read as a level when _IsGrabbed falls, never as an edge.
-  Plant     freeze the stake and its aim at entry; fade holder hips->StakeRoot and visible proxy->rope
+  Plant     freeze the stake and its aim at entry; fade holder HipsAnchor->StakeRoot and visible proxy->rope
             over CONFIG `plantFade` frames; one settled frame; then the proxy GameObject off for
             `cycleFrames` frames and on (resetWhenDisabled on), so the chain rests at StakeRoot with
             _IsPosed cleared. The cycle runs after the fade has landed, so it does not show. A grab
             during the fade exits to PHeld (the grab exit); a grab during the cycle frames misses.
   Planted   holder on StakeRoot, visible on the rope, frozen. Planted 1.
-  PHeld     a pick-up: fade holder StakeRoot->hips and visible rope->proxy over `pickupFade` frames
+  PHeld     a pick-up: fade holder StakeRoot->HipsAnchor and visible rope->proxy over `pickupFade` frames
             (longer than the plant's: the grabbed tip trails the moving root by about two frames of
             its travel), and unfreeze at the end. Held 1. Left like Held.
 Every state keys every binding the layer owns (work under either Write Defaults mode).
@@ -61,8 +61,9 @@ CONFIG
                 proxy tip, so the boxes read 1/ratio of the offset. The bridge's `ratio`.
   chain         the consumer's chain, root first: each bone's `visible` binding path (relative to the
                 prefab root, or '/'-rooted from the avatar root), its local position and rotation
-                (Unity Euler degrees) under its parent. Bone 0's parent is HipsAnchor.
-  leafVisible   whether the last bone carries a visible constraint (the demo's tube is skinned to it;
+                (Unity Euler degrees) under its parent. Bone 0's parent is HipsAnchor, or a node whose frame equals it at rest
+                (the demo's model's Collar bone).
+  leafVisible   whether the last bone carries a visible constraint (the demo's handle is skinned to it;
                 an unweighted `_end` leaf is left to ride its parent).
   physbone      the proxy physbone's fields. The leash-owned ones are fixed below (FIXED_PHYSBONE).
   plantFade, pickupFade, cycleFrames   frame counts at 60 fps.
@@ -86,19 +87,23 @@ CONFIG = {
     "boxSize": 6.0,
     "senderRadius": 0.05,
     "ratio": 10,
+    # The demo's leash model (assets/Leash.fbx) under HipsAnchor at local zero: its Collar bone's frame is HipsAnchor's.
     "chain": [
-        {"visible": "HipsAnchor/V0", "pos": (0, 0, -0.08), "rot": (30, 180, 0)},
-        {"visible": "HipsAnchor/V0/V1", "pos": (0, 0, 0.15)},
-        {"visible": "HipsAnchor/V0/V1/V2", "pos": (0, 0, 0.15)},
-        {"visible": "HipsAnchor/V0/V1/V2/V3", "pos": (0, 0, 0.15)},
-        {"visible": "HipsAnchor/V0/V1/V2/V3/V4", "pos": (0, 0, 0.15)},
-        {"visible": "HipsAnchor/V0/V1/V2/V3/V4/V5", "pos": (0, 0, 0.15)},
-        {"visible": "HipsAnchor/V0/V1/V2/V3/V4/V5/V6", "pos": (0, 0, 0.15)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0", "pos": (0, -0.015, 0.0652), "rot": (165, 0, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1", "pos": (0, 0.15, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2", "pos": (0, 0.15, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3", "pos": (0, 0.15, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4", "pos": (0, 0.15, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5", "pos": (0, 0.15, 0)},
+        {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6", "pos": (0, 0.15, 0)},
     ],
     "leafVisible": True,
-    # The demo consumer's own settings (a vendor tail's, gravity 0); immobile is the feel trade a consumer sets.
+    # The demo's mount bone for HipsAnchor's BoneProxy (a tail consumer retargets it to the Hips); --check holds it.
+    "mount": "Neck",
+    # The demo's own settings. Gravity at falloff 1 acts only on a rope pulled off its rest pose: the rope hangs toward plumb
+    # once swung off its authored lean, and the planted proxy, reset to rest, does not sag off the stake.
     "physbone": {"integrationType": "Advanced", "pull": 0.082, "spring": 0.718, "stiffness": 0.115,
-                 "gravity": 0.0, "immobileType": "World", "immobile": 0.0, "radius": 0.03},
+                 "gravity": 1.0, "gravityFalloff": 1.0, "immobileType": "World", "immobile": 0.0, "radius": 0.03},
     "plantFade": 10,
     "pickupFade": 15,
     "cycleFrames": 3,
@@ -260,7 +265,7 @@ def geometry(c):
     tip, root = pos[-1], pos[0]
     chord = sub(tip, root)
     L = math.sqrt(dot(chord, chord))
-    # StakeRoot's rotation under StakeAim maps the chord onto -Z (StakeAim's +Z points at the hips) and the
+    # StakeRoot's rotation under StakeAim maps the chord onto -Z (StakeAim's +Z points at RopeRoot) and the
     # holder's up as near to +Y as the chord allows; its position then puts the rested tip on the stake.
     f = norm(chord)
     up = (0, 1, 0) if abs(f[1]) < 0.999 else (0, 0, 1)
@@ -335,6 +340,7 @@ def rig(c):
         "chain": [{"name": nm, "path": pa, "localPosition": r6(b["pos"]), "localRotation": r6(euler(b.get("rot", (0, 0, 0))))}
                   for nm, pa, b in zip(names, paths, c["chain"])],
         "tip": paths[-1],
+        "mount": c["mount"],
         "ropeRoot": {"path": "HipsAnchor/RopeRoot", "localPosition": r6(c["chain"][0]["pos"]), "localRotation": [0, 0, 0, 1]},
         "chainLength": round(sum(g["bone"]), 6),
         "L": round(g["L"], 6),
@@ -705,6 +711,14 @@ def check(c, prefab_path, entry=True):
         A(close(vec(d, "m_LocalPosition"), r["stakeRoot"]["localPosition"]),
           f"StakeRoot local position {r['stakeRoot']['localPosition']} (L {r['L']} m back along the aim)")
         A(same_rotation(vec(d, "m_LocalRotation"), r["stakeRoot"]["localRotation"]), "StakeRoot faces the stake")
+    # The two BoneProxy seams: HipsAnchor on CONFIG's mount, Collar on the Chest (Unity HumanBodyBones values).
+    HUMAN = {"Hips": 0, "Spine": 7, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest": 54}
+    for path, bone in (("HipsAnchor", r["mount"]), ("Collar", "Chest")):
+        bp = P.components(path, r"^  boneReference:")
+        if A(len(bp) == 1, f"{path} carries one MA BoneProxy"):
+            m = re.search(r"^  boneReference: (\S+)$", bp[0], re.M)
+            got = m.group(1) if m else None
+            A(got == str(HUMAN[bone]), f"{path} BoneProxy targets {bone} ({HUMAN[bone]}; got {got})")
     # RopeRoot: bone 0's rest point under HipsAnchor, where the rope starts and what the leash line aims at.
     rr = r["ropeRoot"]
     d = P.transform(rr["path"])
