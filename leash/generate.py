@@ -500,14 +500,20 @@ class Prefab:
             elif cls == 114:
                 g = fid(d, "m_GameObject")
                 self.comps.setdefault(g, []).append(d)
+        # The mount: the FullController's GameObject. Paths are relative to it, which is the prefab root on the
+        # entry and the rig's root on a consumer's avatar prefab (where the rig sits one level under the avatar).
+        fc = next((fid(d, "m_GameObject") for cls, d in self.docs.values() if cls == 114 and re.search(r"^\s+globalParams:", d, re.M)), None)
+        self.mount = next((i for i, (go, _) in self.tr.items() if fc is not None and go == fc), None)
 
     def path_of_tr(self, i):
         parts = []
         while i and i != "0" and i in self.tr:
+            if i == self.mount:
+                return "/".join(reversed(parts))
             go, fa = self.tr[i]
             parts.append(self.name.get(go))
             i = fa
-        return "/".join(reversed(parts[:-1]))   # relative to the prefab root
+        return "/".join(reversed(parts[:-1]))   # no mount on the walk: relative to the prefab root
 
     def by_path(self):
         return {self.path_of_tr(i): (i, go) for i, (go, _) in self.tr.items()}
