@@ -522,7 +522,8 @@ class Prefab:
             [d for d in (self.comps.get(e[1], []) if e else []) if re.search(has, d, re.M)]
 
     def source_paths(self, d):
-        """The constraint's sources as (transform path or asset guid, weight), up to totalLength."""
+        """The constraint's sources as (transform path or asset guid, weight, position offset, rotation offset
+        as a quaternion), up to totalLength."""
         n = int(re.search(r"^    totalLength: (\d+)", d, re.M).group(1))
         out = []
         for k in range(n):
@@ -530,8 +531,10 @@ class Prefab:
             m = re.search(r"SourceTransform: \{fileID: (-?\d+)(?:, guid: ([0-9a-f]{32}))?", blk)
             w = re.search(r"Weight: (\S+)", blk)
             po = re.search(r"ParentPositionOffset: \{x: (\S+), y: (\S+), z: (\S+)\}", blk)
+            ro = re.search(r"ParentRotationOffset: \{x: (\S+), y: (\S+), z: (\S+)\}", blk)
             tgt = m.group(2) or self.path_of_tr(m.group(1)) if m else None
-            out.append((tgt, float(w.group(1)) if w else None, tuple(float(x) for x in po.groups()) if po else None))
+            out.append((tgt, float(w.group(1)) if w else None, tuple(float(x) for x in po.groups()) if po else None,
+                        euler(tuple(float(x) for x in ro.groups())) if ro else None))
         return out
 
 
@@ -546,6 +549,32 @@ def same_rotation(got, want):
 
 def close(a, b, eps=1e-4):
     return a is not None and b is not None and all(abs(x - y) <= eps for x, y in zip(a, b))
+
+
+ZERO3 = (0.0, 0.0, 0.0)
+ZERO_Q = (0.0, 0.0, 0.0, 1.0)
+
+
+def zero_offset(d):
+    """A position or aim constraint's own PositionOffset / RotationOffset, named when nonzero."""
+    return [f"{k} (got {vec(d, k)})" for k in ("PositionOffset", "RotationOffset")
+            if vec(d, k) is not None and not close(vec(d, k), ZERO3)]
+
+
+def source_faults(src, want):
+    """Each (path, weight, position offset, rotation quaternion) in want against the parsed sources: the
+    fields that differ, named, or [] when every source matches."""
+    if [a for a, *_ in src] != [w[0] for w in want]:
+        return [f"sources {[w[0] for w in want]} (got {[a for a, *_ in src]})"]
+    out = []
+    for (a, w, po, ro), (_, ww, wpo, wro) in zip(src, want):
+        if w is None or abs(w - ww) > 1e-6:
+            out.append(f"{a} weight {ww} (got {w})")
+        if not close(po, wpo):
+            out.append(f"{a} position offset {wpo} (got {po})")
+        if not same_rotation(ro, wro):
+            out.append(f"{a} rotation offset {wro} (got {ro})")
+    return out
 
 
 def meta_guid(path):
@@ -604,11 +633,14 @@ def check(c, prefab_path, entry=True):
         A(m is not None and abs(float(m.group(1)) - s["senderRadius"]) < 1e-6, f"sender radius == {s['senderRadius']}")
         m = re.search(r"^  shapeType: (\S+)$", d, re.M)
         A(m is not None and m.group(1) == "0", "sender is a sphere")
+        m = re.search(r"^  localOnly: (\S+)$", d, re.M)
+        A(m is not None and m.group(1) == "1", "sender localOnly == 1")
+        A(close(vec(d, "position"), (0, 0, 0)), "sender shape offset zero")
     pc = P.components("SenseProxy", r"^  Sources:")
     if A(len(pc) == 1, "SenseProxy carries one constraint"):
-        src = P.source_paths(pc[0])
-        want = [("Sense", s["proxyWeights"][0]), (r["tip"], s["proxyWeights"][1])]
-        A([(a, round(w, 6)) for a, w, _ in src] == want, f"SenseProxy sources == {want} (got {[(a, w) for a, w, _ in src]})")
+        want = [("Sense", s["proxyWeights"][0], ZERO3, ZERO_Q), (r["tip"], s["proxyWeights"][1], ZERO3, ZERO_Q)]
+        bad = source_faults(P.source_paths(pc[0]), want) + zero_offset(pc[0])
+        A(not bad, f"SenseProxy sources [Sense, tip] at {s['proxyWeights']}, zero offsets" + (f": {bad}" if bad else ""))
     # The proxy chain: its poses, and the physbone that makes it a leash.
     for b in r["chain"]:
         d = P.transform(b["path"])
@@ -619,38 +651,43 @@ def check(c, prefab_path, entry=True):
     if A(len(pbs) == 1, "the proxy root carries one physbone"):
         d = pbs[0]
         pb = r["physbone"]
-        m = re.search(r"^  parameter: (.*)$", d, re.M)
-        A(m is not None and m.group(1).strip() == pb["parameter"], f"physbone parameter == {pb['parameter']}")
-        enum = {"True": "1", "False": "0"}
-        for fld in ("maxStretch", "grabMovement", "immobile"):
-            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
-            A(m is not None and abs(float(m.group(1)) - pb[fld]) < 1e-6, f"physbone {fld} == {pb[fld]}")
-        for fld in ("allowGrabbing", "allowPosing", "allowCollision"):
-            m = re.search(rf"^  {fld}: (\S+)$", d, re.M)
-            A(m is not None and m.group(1) == enum[pb[fld]], f"physbone {fld} == {pb[fld]}")
-        m = re.search(r"^  resetWhenDisabled: (\S+)$", d, re.M)
-        A(m is not None and m.group(1) == "1", "physbone resetWhenDisabled on: the plant's cycle returns the proxy to rest")
-        m = re.search(r"^  immobileType: (\S+)$", d, re.M)
-        A(m is not None and m.group(1) == ("0" if pb["immobileType"] == "AllMotion" else "1"), f"physbone immobileType == {pb['immobileType']}")
+        # Every field rig.json emits, as the serialized value: enums and booleans by their stored integer.
+        enum = {"True": "1", "False": "0", True: "1", False: "0", "Simplified": "0", "Advanced": "1",
+                "AllMotion": "0", "World": "1"}
+        for fld, v in pb.items():
+            m = re.search(rf"^  {fld}: (.*)$", d, re.M)
+            got = m.group(1).strip() if m else None
+            if fld == "parameter":
+                good = got == v
+            elif isinstance(v, bool) or isinstance(v, str):
+                good = got == enum[v]
+            else:
+                good = got is not None and abs(float(got) - v) < 1e-6
+            A(good, f"physbone {fld} == {v} (got {got})")
     # The plant geometry: StakeRoot rests the proxy tip on the stake.
     d = P.transform("Stake/StakeAim/StakeRoot")
     if A(d is not None, "Stake/StakeAim/StakeRoot exists"):
         A(close(vec(d, "m_LocalPosition"), r["stakeRoot"]["localPosition"]),
           f"StakeRoot local position {r['stakeRoot']['localPosition']} (L {r['L']} m back along the aim)")
         A(same_rotation(vec(d, "m_LocalRotation"), r["stakeRoot"]["localRotation"]), "StakeRoot faces the stake")
-    for path, want in (("Holder", [("HipsAnchor", None), ("Stake/StakeAim/StakeRoot", None)]),
-                       ("Stake", [(r["tip"], None)]), ("Stake/StakeAim", [("HipsAnchor", None)])):
+    # Rest weights are the Free clip's (the animator overwrites them in play); every offset is zero but a
+    # visible bone's rope rotation offset.
+    for path, want in (("Holder", [("HipsAnchor", 1, ZERO3, ZERO_Q), ("Stake/StakeAim/StakeRoot", 0, ZERO3, ZERO_Q)]),
+                       ("Stake", [(r["tip"], 1, ZERO3, ZERO_Q)]), ("Stake/StakeAim", [("HipsAnchor", 1, ZERO3, ZERO_Q)])):
         cs = P.components(path, r"^  Sources:")
         if A(len(cs) == 1, f"{path} carries one constraint"):
-            src = P.source_paths(cs[0])
-            A([a for a, _, _ in src] == [w[0] for w in want], f"{path} sources == {[w[0] for w in want]} (got {[a for a, _, _ in src]})")
+            bad = source_faults(P.source_paths(cs[0]), want) + zero_offset(cs[0])
+            A(not bad, f"{path} sources {[w[0] for w in want]} at weights {[w[1] for w in want]}, zero offsets"
+              + (f": {bad}" if bad else ""))
     for v in r["visible"]:
         if v["path"].startswith("/"):
-            continue   # a consumer's own bone lives outside this prefab
+            continue   # a consumer's own bone lives outside this prefab: the consumer checks its constraint
         cs = P.components(v["path"], r"^  Sources:")
         if A(len(cs) == 1, f"visible {v['path']} carries one constraint"):
-            src = P.source_paths(cs[0])
-            A([a for a, _, _ in src] == [v["proxy"], v["joint"]], f"{v['path']} sources == [{v['proxy']}, {v['joint']}]")
+            want = [(v["proxy"], 1, ZERO3, ZERO_Q), (v["joint"], 0, ZERO3, tuple(v["ropeRotationOffsetQ"]))]
+            bad = source_faults(P.source_paths(cs[0]), want)
+            A(not bad, f"{v['path']} sources [{v['proxy']}, {v['joint']}] at weights [1, 0], rope rotation offset "
+              f"{v['ropeRotationOffset']}" + (f": {bad}" if bad else ""))
     if entry:
         # The rope frame's world pin: zero source offset, sourced from THIS entry's World.prefab.
         cs = P.components("Rope/Frame", r"^  Sources:")
