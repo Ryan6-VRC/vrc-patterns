@@ -6,7 +6,7 @@ A leash anyone can grab, drag and stake where they let go, whose far end the ava
 
 - The leash you see (the demo tube, or your tail) has no physbone of its own. Each of its bones follows two invisible guides through a two-source parent constraint, and the animator slides the weight between them.
 - One guide is the **proxy**: an invisible copy of those bones carrying the one grabbable physbone, allowed to stretch far so its last bone (the **tip**) follows a hand. The proxy hangs from `Holder`, which sits on the hips while the leash is free or held.
-- The other guide is the **rope**: a curve of constraint-placed joints from the hips to the stake, sagging on two small pendulum physbones.
+- The other guide is the **rope**: a curve of constraint-placed joints from `RopeRoot` (bone 0's rest point on the hips) to the stake, sagging on two small pendulum physbones.
 - Letting go with a pose (VRChat's physbone pose release) **plants** the leash. `Stake` freezes where the tip was. `Holder` fades to `StakeRoot`, a frozen node placed so the resting proxy's tip lies on the stake. The visible bones fade onto the rope.
 - Grabbing the planted end grabs the proxy's tip: a **pick-up**. `Holder` fades back to the hips under the live grab, and the visible bones fade back onto the proxy. A plain release sends the leash home; a pose release plants it again where the hand let go.
 - Three contact boxes at the neck, held level, read where the tip is. They read a point a fixed fraction of the way out to it (the `ratio` knob), which multiplies the boxes' reach by the same factor. The animator also publishes whether the leash is held or planted.
@@ -60,7 +60,7 @@ Everything is `generate.py`'s CONFIG: edit, rerun, recompile `built/` as a unit,
 | Knob | What it does |
 |---|---|
 | `prefix` | The published names' prefix, and the proxy physbone's `<prefix>/Chain`. The bridge's `prefix` must match |
-| `chain` | The consumer's bones, root first: each one's binding path and local pose. It sets the proxy, the rope's segment count, one visible constraint per bone, and `StakeRoot`'s pose, from the bones' rest pose |
+| `chain` | The consumer's bones, root first: each one's binding path and local pose. It sets the proxy, the rope's segment count, one visible constraint per bone, and the poses of `RopeRoot` and `StakeRoot`, from the bones' rest pose |
 | `leafVisible` | Whether the last bone gets a visible constraint: on for a mesh skinned to the tip, off for an unweighted end leaf, which then rides its parent |
 | `physbone` | The consumer's own settings for the proxy; what makes it a leash is fixed in `FIXED_PHYSBONE`. `immobile` is the feel trade: World immobile swings a planted proxy's tip off the stake while the wearer walks, invisibly but away from the hand reaching for it, and World 0 or AllMotion holds it still at an unmeasured cost to the free feel |
 | `plantFade` | Frames for the plant's fades. Shorter makes the visible bones jump further per frame; `validate()` sets a floor below which the proxy is thrown |
@@ -97,11 +97,14 @@ The consumer seams are three: the collar point (`Collar/Offset`, under an MA `Bo
 
 **Taking over a tail.** The tail's own bones become the visible bones and stop simulating themselves.
 
-- *What the generator does:* from the tail's bones in CONFIG's `chain` (each bone's path from the avatar root, starting with `/`, and its local pose) it emits a controller that drives those bones' constraint weights, and a `rig.json` with the proxy, its physbone fields, one two-source constraint per visible bone with its rope rotation offset, a rope of as many segments as the tail, and `StakeRoot`'s pose.
-- *What you do by hand:* work on an owned copy of this folder in your venue, since `generate.py` rewrites `controller.yaml` and `rig.json` beside itself. Build the proxy and the rope from `rig.json` in your copy of the prefab, and put each visible constraint on the tail's own bone. Delete `HipsAnchor/V0` and `Tube`, and retarget `HipsAnchor`'s BoneProxy to the tail's parent bone. Copy the tail's physbone settings into CONFIG, then remove its `VRCPhysBone` (a disabled one still counts toward rank); the proxy's collision is off, so the tail's colliders stop acting.
-- *Checking it:* `generate.py --check-prefab <your prefab>` holds the entry's own nodes; it skips every `/`-rooted bone, so compare each tail bone's constraint against `rig.json`'s `visible` list yourself: sources proxy then joint, rest weights 1 and 0, zero position offsets, and the joint source's rope rotation offset.
+- *What the generator does:* from the tail's bones in CONFIG's `chain` (each bone's path from the avatar root, starting with `/`, and its local pose as the vendor prefab carries it) it emits a controller that drives those bones' constraint weights, and a `rig.json` with the proxy, its physbone fields, `RopeRoot`, one two-source constraint per visible bone with its rope rotation offset, a rope of as many segments as the tail, and `StakeRoot`'s pose.
+- *The rope rotation offsets* are taken against a frame set on bone 0's segment and carried down the chain by the minimal rotation between segments, so a tail lying along a straight rope keeps each bone's rest twist against its parent.
+- *`RopeRoot`* is an unrotated child of `HipsAnchor` at bone 0's rest position. The rope starts there and `StakeAim` aims at it, so a planted bone 0 stays on its socket; a rope started at `HipsAnchor` itself holds bone 0 off its socket by bone 0's own offset.
+- *What you do by hand:* work on an owned copy of this folder in your venue, since `generate.py` rewrites `controller.yaml` and `rig.json` beside itself. Put the rig under the avatar root in an avatar prefab (a variant of the vendor's leaves the vendor untouched), build the proxy, `RopeRoot` and the rope from `rig.json`, and put each visible constraint on the tail's own bone. Delete `HipsAnchor/V0` and `Tube`, and retarget `HipsAnchor`'s BoneProxy to the tail's parent bone.
+- *The proxy's physbone:* copy the tail's `VRCPhysBone` whole onto the proxy root, then set the leash-owned fields (`FIXED_PHYSBONE` and `parameter`) and CONFIG's `physbone` values over it, and empty its colliders and ignore list. CONFIG carries no curves, so the whole-component copy is what keeps the vendor's radius and other curves. Then remove the tail's own `VRCPhysBone` (a disabled one still counts toward rank); the proxy's collision is off, so the tail's colliders stop acting.
+- *Checking it:* `generate.py --check-prefab <avatar prefab>` holds the rig's own nodes, `RopeRoot` and the rope's start included, resolving every path from the FullController's GameObject, so it runs on the avatar prefab the rig sits in. It skips every `/`-rooted bone, so compare each tail bone's constraint against `rig.json`'s `visible` list yourself: sources proxy then joint, rest weights 1 and 0, zero position offsets, and the joint source's rope rotation offset.
 
-**Worked example: a vendor tail.** A tail of nine transforms with an unweighted end leaf takes `leafVisible: False`, eight visible constraints and an eight-segment rope, 50 constraints by the stats formula. Its vendor physbone's World immobile is the `physbone` trade in §Knobs.
+**Worked example: a vendor tail.** Nine transforms whose `_end` leaf carries no skin weight take `leafVisible: False`: eight visible constraints on the tail's own bones, an eight-segment rope, and 50 constraints, as §Performance stats's formula gives and a bake census of the build matches. The bones point along +Y rather than +Z, so every rope rotation offset is non-identity. Bone 0 sits 68 mm from the hips' origin, the gap `RopeRoot` closes. The vendor physbone's World immobile carries over as the `physbone` trade in §Knobs.
 
 ## Traps
 
@@ -112,16 +115,20 @@ The consumer seams are three: the collar point (`Collar/Offset`, under an MA `Bo
 - **`Present` can read 1 while a reading is still 0**, as on re-enabling, when the Constant box can acquire before the Proximity boxes. A reading of 0 is never a position: treat it as no reading whatever `Present` says, as the bridge does.
 - **A plant made while walking captures a little behind the tip.** The stake trails the tip by about one frame of the wearer's travel.
 - **Readings are in the avatar's own scale.** The boxes and the sender scale with the wearer, so at twice the height a decoded metre is two in the world.
+- **The rope's up is the chain parent's +Y at rest.** The rope rotation offsets and `StakeRoot` are computed with the chain parent's +Y as world up, which holds for the Hips on an upright rest pose; a chain parent rotated at rest tilts every bone on the rope by that rotation.
+- **Unequal bones stretch unevenly on the rope.** The rope's joints are evenly spaced, so a bone shorter than its rope segment stretches on the rope and a longer one compresses, with the mesh skinned to it.
+- **A held tail's visible end stops short of the hand.** An unweighted end leaf (`leafVisible: False`) keeps its rest length on its parent while the proxy's last segment stretches to the hand, so the visible end falls short by that segment's stretch.
+- **A planted rope bent hard at its first joint twists bone 1.** The joints aim with world up, so where the rope turns sharply at `J1` bone 1 rolls against bone 0: 30° under a 1 m walk with a 30° turn, recovering as the rope straightens.
 - **The demo tube can cull.** Its bounds ride its root bone at the hips, so a leash staked far away can vanish when only its far end is on screen.
 
 ## What is not proven here
 
-Needs the client: another player's grab and the grab and pose filters; a remote's and a late joiner's view; how immobile trades free feel for planted stillness on a real tail; the pull itself, which is the bridge's. Unverified anywhere: `BoneProxy` resolution on a humanoid, a non-identity rope rotation offset, a real hand's grab during the plant's fades, a plant made while walking, and avatar scale.
+Needs the client: another player's grab and the grab and pose filters; a remote's and a late joiner's view; how immobile trades free feel for planted stillness on a real tail; the pull itself, which is the bridge's. Unverified anywhere: a real hand's grab during the plant's fades, a plant made while walking, and avatar scale.
 
 ## Changing it
 
 - **Regenerate as a unit.** Run `python generate.py`, recompile `built/` over the committed `.meta`s (`CONVENTIONS.md` §The gate), then rebuild whatever `rig.json` moved in the prefab.
-- **Run the check after every prefab edit.** `python generate.py --check` holds `Leash.prefab` to CONFIG. It does not read the rope's joint constraints, `Sense`'s constraint or the pendulums; rebuild those from `rig.json` and read them yourself. Nothing runs it for you.
+- **Run the check after every prefab edit.** `python generate.py --check` holds `Leash.prefab` to CONFIG. Of the rope it reads only the start: `RopeRoot`'s pose, `J0` and each Bezier point's first source on it, and the pendulums' ends there. It does not read the joints' smoothing and aims, the pendulum physbones or `Sense`'s constraint; rebuild those from `rig.json` and read them yourself. Nothing runs it for you.
 
 ## Verifying the install
 
@@ -133,17 +140,18 @@ Run `--check` first. Then in play: the tube's end sits on the proxy tip and `Lea
     ├─ Collar                    MA BoneProxy → Chest
     │  └─ Offset                 the collar point: drag to the front of the neck
     ├─ HipsAnchor                MA BoneProxy → Hips; the chain's mount
+    │  ├─ RopeRoot               bone 0's rest point: where the rope starts
     │  └─ V0 … V6                the demo's visible bones: parent constraint [proxy bone, rope joint]
     ├─ Sense                     position ← Collar/Offset; four local-only boxes: Right, Up, Forward, Present
     ├─ Holder                    parent ← [HipsAnchor, StakeRoot], weights animated
     │  └─ Chain → P1 … P6        the proxy: VRCPhysBone `Leash/Chain` on Chain
     ├─ Stake                     position ← the proxy tip; FreezeToWorld animated
-    │  └─ StakeAim               aim ← HipsAnchor; FreezeToWorld animated with the stake's
+    │  └─ StakeAim               aim ← RopeRoot; FreezeToWorld animated with the stake's
     │     └─ StakeRoot           where Holder rests the proxy tip-on-stake
     ├─ SenseProxy                position ← [Sense, proxy tip] at the ratio's two weights; the sender
     ├─ Rope
     │  ├─ Frame                  pinned to assets/World.prefab; under it J0 … J6 (position, aim at the
-    │  │                         next joint), T1 … T5 (the Bezier: position over HipsAnchor, the two
+    │  │                         next joint), T1 … T5 (the Bezier: position over RopeRoot, the two
     │  │                         pendulum tips and Stake) and M1 … M5 (spring-damping between T and J)
     │  └─ PendA, PendS           position + aim at each end; the pendulum physbone on their Bone child
     └─ Tube                      the demo tube, skinned to V0 … V6, default material
