@@ -69,15 +69,16 @@ THE GLUE'S DELTA
 
 THE HOLD
 --------
-How long the flag stays up: PLACE_SETTLE, the cell's own settle, and no longer. The quiesce's
-zeroed words went out on the wire, the wire's refresh is counted in the wearer's frames, and a
-remote re-engages the moment Enable returns. So at a wearer frame rate low enough that one
-refresh outlasts the hold, a watching remote can glide in from a half-updated table. The hold
-does not wait that refresh out, because every watching client would wait it on every swap at
-every frame rate. It is one value, passed to the persist layer's config; nothing else reads it.
+How long the flag stays up: one full cycle of the sync build's wire (its `cycleSeconds`, read live),
+never less than PLACE_SETTLE, the cell's own settle. The quiesce's zeroed words went out on the wire
+and a remote re-engages the moment Enable returns, so the hold outlasts a whole refresh of the table
+after the restore and a remote engages on restored words only. `cycleSeconds` is a 60 fps figure
+and the wire runs in the wearer's frames, so a very low wearer frame rate can still outlast it.
+It is one value, passed to the persist layer's config; nothing else reads it.
 """
 
 import importlib.util
+import math
 import os
 import re
 import sys
@@ -163,7 +164,13 @@ def persist_config(entry, cfg, src):
     return {"namespace": NAMESPACE, "internal": INTERNAL, "controller": PERSIST_CONTROLLER,
             "id": None, "enable": (EN, enable_spec(src)),
             "payload": words(entry, cfg) + [(DETACHED, DETACHED_SPEC)],
-            "placed": [DETACHED], "hold": PLACE_SETTLE}
+            "placed": [DETACHED], "hold": hold_secs(entry, cfg)}
+
+
+def hold_secs(entry, cfg):
+    """One full cycle of the sync wire, never under the cell's settle, rounded up to 0.1 s."""
+    cycle = entry.document(cfg)[1]["facts"]["cycleSeconds"]
+    return math.ceil(max(cycle, PLACE_SETTLE) * 10) / 10
 
 
 # ------------------------------------------------------------------ the header ---
