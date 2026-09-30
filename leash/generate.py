@@ -191,6 +191,17 @@ def look(f, up=(0, 1, 0)):
     return from_basis(r, cross(f, r), f)
 
 
+def fromto(a, b):
+    """The minimal rotation taking direction a onto direction b (Quaternion.FromToRotation)."""
+    a, b = norm(a), norm(b)
+    c = dot(a, b)
+    if c < -0.999999:
+        ax = cross((1, 0, 0), a) if abs(a[0]) < 0.9 else cross((0, 1, 0), a)
+        return qaxis(norm(ax), 180)
+    x, y, z = cross(a, b)
+    return tuple(v / math.sqrt(2 * (1 + c)) for v in (x, y, z, 1 + c))
+
+
 def to_euler(q):
     """Unity eulerAngles (degrees) of q, for the prefab's Euler hint; the check compares quaternions."""
     x, y, z, w = q
@@ -256,11 +267,16 @@ def geometry(c):
     dst = from_basis(cross((0, 1, 0), (0, 0, -1)), (0, 1, 0), (0, 0, -1))
     rsr = qmul(dst, qinv(src))
     psr = tuple(-x for x in rot(rsr, tip))
-    # Each visible bone's rotation offset against its rope joint, whose frame is +Z along the rope, +Y up.
-    offs = []
+    # Each visible bone's rotation offset against its rope joint, whose frame is +Z along the rope, +Y up. The
+    # reference frame is bone 0's segment framed +Y up, carried bone to bone by the minimal rotation between
+    # segments, so a rope lying straight keeps each bone's rest twist against its parent. A frame taken +Y up per
+    # bone instead would roll wherever a segment hangs near vertical, twisting a hanging tail between bones.
+    offs, F, dprev = [], None, None
     for i in range(len(pos)):
         d = sub(pos[i + 1], pos[i]) if i + 1 < len(pos) else sub(pos[i], pos[i - 1])
-        offs.append(qmul(qinv(look(d)), rq[i]))
+        F = look(d) if F is None else qmul(fromto(dprev, d), F)
+        dprev = d
+        offs.append(qmul(qinv(F), rq[i]))
     return {"pos": pos, "rot": rq, "L": L, "stakeRoot": (psr, rsr), "offsets": offs,
             "bone": [math.sqrt(dot(b["pos"], b["pos"])) for b in c["chain"][1:]]}
 
