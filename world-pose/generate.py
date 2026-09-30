@@ -109,11 +109,12 @@ def validate(c):
         refuse("prefix must be a non-empty parameter path with no spaces or OSC metacharacters.")
     if c["boxSize"] > 6 or c["yawBox"] > 6:
         refuse("a box edge above 6: the SDK editor caps a contact shape at 6 units.")
-    if not c["range"] > 0:
-        refuse("range must be positive.")
-    if not 0 < c["senderRadius"]:
-        refuse("senderRadius must be positive.")
+    for k in ("range", "senderRadius", "boxSize", "yawBox", "yawArm"):
+        if not c[k] > 0:
+            refuse(f"{k} must be positive.")
     g = gain(c)
+    if not 0 < g <= 1:
+        refuse("the gain (boxSize / 2) / (range * (1 + MARGIN)) must lie in (0, 1]: raise range or lower boxSize.")
     if g * c["range"] + c["senderRadius"] >= c["boxSize"] / 2:
         refuse("the sender's surface reaches the +Z face inside range: raise boxSize or lower senderRadius.")
     if not c["yawArm"] + c["senderRadius"] < c["yawBox"] / 2:
@@ -123,7 +124,8 @@ def validate(c):
 
 
 def gain(c):
-    return (c["boxSize"] / 2) / (c["range"] * (1 + MARGIN))
+    """Quantised to the six decimals the prefab stores, so the constraint weight and the decode share one number."""
+    return round((c["boxSize"] / 2) / (c["range"] * (1 + MARGIN)), 6)
 
 
 def names(c):
@@ -345,6 +347,13 @@ def check(c, prefab_path):
             zero_offsets(d, f"World {kind} pin")
             A(field(d, "m_Enabled") == "1" and field(d, "IsActive") == "1" and field(d, "Locked") == "1",
               f"World {kind} pin enabled, active, locked")
+            if kind == "parent":
+                A(all(field(d, f"Affects{ch}{ax}") == "1" for ch in ("Position", "Rotation") for ax in "XYZ"),
+                  "World parent pin affects every position and rotation axis")
+            else:
+                A(all(field(d, f"AffectsScale{ax}") == "1" for ax in "XYZ"), "World scale pin affects every scale axis")
+                A(close(vec(d, "ScaleOffset"), (1, 1, 1)) and close(vec(d, "ScaleAtRest"), (1, 1, 1)),
+                  "World scale pin: ScaleOffset and ScaleAtRest (1, 1, 1)")
     # The head proxy.
     ha = r["headAnchor"]
     d = P.transform(ha["path"])
@@ -367,6 +376,7 @@ def check(c, prefab_path):
             rd = next((x for x in recvs if field(x, "parameter") == w["parameter"]), None)
             if not A(rd is not None, f"a {gpath} receiver writes {w['parameter']}"):
                 continue
+            A(field(rd, "m_Enabled") == "1", f"{w['parameter']}: receiver enabled")
             A(tags_of(rd) == [w["tag"]], f"{w['parameter']}: tags == [{w['tag']}] (got {tags_of(rd)})")
             A(close(vec(rd, "size"), (w["size"],) * 3), f"{w['parameter']}: box edge {w['size']}")
             A(same_rotation(vec(rd, "rotation"), euler(w["rotation"])), f"{w['parameter']}: +Z face on world {w['axis']}")
@@ -381,6 +391,7 @@ def check(c, prefab_path):
         snd = P.components(s["path"], r"^  collisionTags:")
         if A(len(snd) == 1, f"{s['path']} carries one contact sender"):
             x = snd[0]
+            A(field(x, "m_Enabled") == "1", f"{s['path']}: sender enabled")
             A(tags_of(x) == [gspec["tag"]], f"{s['path']}: tags == [{gspec['tag']}] (got {tags_of(x)})")
             A(field(x, "shapeType") == "0" and abs(float(field(x, "radius") or -1) - r["senderRadius"]) < 1e-6,
               f"{s['path']}: sphere of radius {r['senderRadius']}")
@@ -395,6 +406,8 @@ def check(c, prefab_path):
                   f"{s['path']} sources {sp} (the mount, the pinned World) at weights {sw}: the gain g"
                   + f" (got {[(x[0], x[1]) for x in src]})")
                 zero_offsets(cs[0], s["path"])
+                A(field(cs[0], "m_Enabled") == "1" and field(cs[0], "IsActive") == "1" and field(cs[0], "Locked") == "1",
+                  f"{s['path']} constraint enabled, active, locked")
         if "holder" in gspec:
             h = gspec["holder"]
             hd = P.transform(h["path"])
@@ -410,6 +423,8 @@ def check(c, prefab_path):
                   f"{h['path']}: Y axis only")
                 A(close(vec(x, "RotationAtRest"), ZERO3), f"{h['path']}: rotation at rest zero")
                 zero_offsets(x, h["path"])
+                A(field(x, "m_Enabled") == "1" and field(x, "IsActive") == "1" and field(x, "Locked") == "1",
+                  f"{h['path']} constraint enabled, active, locked")
     print("OK" if ok else "FAILED")
     return ok
 
