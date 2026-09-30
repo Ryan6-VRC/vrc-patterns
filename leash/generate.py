@@ -8,7 +8,7 @@ Edit CONFIG, rerun, then recompile built/ as a unit in a mounting Editor (CONVEN
 Both outputs are pure functions of CONFIG. controller.yaml is the FX layer; rig.json is every number
 the prefab is built to (node poses, constraint sources and weights, the proxy physbone, the rope's
 Bezier weights, the sensing geometry). Nothing here writes Unity assets: the prefab is built from
-rig.json in the Editor (README §Changing it), and `--check` holds it to rig.json afterwards.
+rig.json in the Editor (README §Changing it), and `--check` holds it to CONFIG afterwards.
 
 WHAT THE RIG IS
 ---------------
@@ -53,7 +53,7 @@ CONFIG
 ------
   prefix        the published OSC prefix; the bridge's `LeashSettings.prefix` must match.
   tag           the private collision tag the sender and the four sensing boxes share.
-  boxSize       the sensing boxes' edge, metres (the editor caps a contact shape at 6).
+  boxSize       the sensing boxes' edge, metres (the SDK editor caps a contact shape at 6).
   senderRadius  the sensing sender's sphere radius; the bridge's `sender_radius`.
   ratio         range multiplier: SenseProxy sits 1/ratio of the way from the collar carrier to the
                 proxy tip, so the boxes read 1/ratio of the offset. The bridge's `ratio`.
@@ -213,7 +213,7 @@ def validate(c):
     if not 0 < c["senderRadius"] < c["boxSize"] / 2:
         refuse("senderRadius must be positive and smaller than half the box.")
     if c["boxSize"] > 6:
-        refuse("boxSize above 6: the SDK caps a contact shape at 6 units.")
+        refuse("boxSize above 6: the SDK editor caps a contact shape at 6 units.")
     if not (isinstance(c["ratio"], (int, float)) and c["ratio"] >= 1):
         refuse("ratio must be 1 or more (1 senses the tip itself).")
     for k in ("plantFade", "pickupFade", "cycleFrames"):
