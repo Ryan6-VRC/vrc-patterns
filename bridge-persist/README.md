@@ -58,7 +58,7 @@ States:                8
 | `enable` | The gimmick's enable parameter and its declaration, verbatim. The layer declares it identically; a bool or float, never an int. |
 | `payload` | Every payload name with its declaration, verbatim. All of them are reset at load; each must sit under the namespace. |
 | `placed` | The payload bools that mean something is placed. With none of them true after a restore, the layer skips the hold. |
-| `hold` | How long the flag stays up after a restore that has something placed: the consumer's own settle time, nothing the bridge waits on. A consumer whose state reaches remotes through a synced wire weighs that wire's refresh against the wait every watching player pays; `grab-sync-persist` holds for its settle alone (`PLACE_SETTLE`). |
+| `hold` | How long the flag stays up after a restore that has something placed, nothing the bridge waits on: at least the consumer's own settle time and, for a consumer whose state reaches remotes through a synced wire, at least one full cycle of that wire, so a remote engages on a table refreshed since the restore rather than one carrying the load's zeroed values. `grab-sync-persist` derives it that way. |
 
 `validate()` refuses a config that breaks any rule above, and a few more (a missing key, a repeated or reserved payload name, the mirror listed in `payload`, an enable under the namespace), naming the offender.
 
