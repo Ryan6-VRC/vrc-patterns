@@ -70,7 +70,7 @@ tie-break: every flag is read one frame late, and two slots releasing on one
 frame would each see the other as neither Open nor Armed and both ride; the
 higher goes to Armed instead, where the self-open rule resolves it a step later.
 
-Grace, with `graceSeconds` set (None by default): a row in
+Grace, with `graceSeconds` set (0.25 s by default; None turns it off): a row in
 `TrackIn` with every axis at the floor at once, whose last solve (x, y, z, one
 frame stale) lies inside ±(holdHalf − graceHalf) on every axis, is read as a
 cut, not an exit, and the slot rides it out through collapse, open and relatch
@@ -371,7 +371,7 @@ CONFIG = {
     "farRadius": None,          # m, or None: a settled hand whose in-plane radius reads past this is released (TrackBand only),
                                 #   so heads standing between the zone and the cube's reach do not hold slots; None keeps every
                                 #   held hand to the hold cube. Lint: above rearmRadius, below the hold cube's widest in-plane reach
-    "graceSeconds": None,       # s, or None: a cut inside the zone (every axis to the floor at once, the last solve inside the guard)
+    "graceSeconds": 0.25,       # s, or None to turn grace off: a cut inside the zone (every axis to the floor at once, the last solve inside the guard)
                                 #   collapses the slot for a step, then holds it this long flag up on a graceHalf box at the remembered
                                 #   reading, instead of releasing it. None releases on every floor. Lint: >= 2*stepSeconds
     "graceHalf": 0.15,          # m, the grace box's half-extent; read only when graceSeconds is set. Lint: above senderRadius (under
