@@ -70,6 +70,50 @@ tie-break: every flag is read one frame late, and two slots releasing on one
 frame would each see the other as neither Open nor Armed and both ride; the
 higher goes to Armed instead, where the self-open rule resolves it a step later.
 
+Grace, with `graceSeconds` set (0.25 s by default; None turns it off): a row in
+`TrackIn` with every axis at the floor at once, whose last solve (x, y, z, one
+frame stale) lies inside ±(holdHalf − graceHalf) on every axis, is read as a
+cut, not an exit, and the slot rides it out through collapse, open and relatch
+instead of releasing. A crowd cut drops every pair of the sender in one step, so
+every axis reads 0 together. A real exit's last solve sits at a face; a teleport
+away reads a partial face row first (one axis 0, another 1.0), which fails the
+all-axes rung, and on the all-zero row after it the stale solve is that face
+row's, which fails the guard. The memory is `Mem/<ax>`, written in TrackIn's tree
+by a one-frame child weighted by the raw reading (the self-copy idiom on a
+receiver float, in [0, 1], so no weight clamps) and read as a weight one frame
+late, which on the zero row is the last reading before it. All three grace
+states weight the slot's own read clips by Mem, so x, y, z, yw, R and Output stay
+at the remembered solve (r2 and p2, whose tables they do not carry, revert to 0),
+hold Mem off themselves, and keep Payload, Held and Settled up. `GraceCollapse`
+comes first: the overlap that re-forms on the step after the cut meets the shut
+hold cube, because an animator write reaches the contact sim a step after it is
+written, and rejection is sticky for that episode, so the boxes collapse for a
+sampled step to end it. `GraceOpen` then opens a graceHalf box flag-up at the
+remembered point, placed with the read clips' Output coefficients (so Boxes'
+position is a binding every state writes under the knob); a flag-up hold cube
+would admit every hand inside it as one reading. Its exit time is the timeout,
+graceSeconds plus about 2·ΣMem frames of the tree's data length (GraceCollapse
+and Relatch run stepSeconds and latchSeconds plus about ΣMem), which is why
+each grace tree carries one Mem-weighted child per axis and folds the read bias
+into its weight-One configuration clip. The returning readings
+take `Relatch`, Latch's dwell for Latch's reason: they were taken by the grace
+box, and TrackIn must not decode them with hold coefficients; a second floor
+inside it Recycles, one grace per cut. The rider gate: every other slot's
+TrackOut holds its `→ TrackIn` and settle rungs on this slot's `Grace` flag (1
+in the three grace states). A rider that re-admits the returning sender takes it
+on the step after the cut, before the grace box has opened, so its fresh dedup
+rung has nothing to match until the graced slot's hold cube is back and reading,
+and TrackIn would burst on the duplicate first; held in TrackOut, it reads the
+graced slot's hold-cube readings bit-identically from the step the hold cube
+returns, and releases through its fresh rung with no payload edge on the first
+frame that slot's Grace reads 0, one frame after TrackIn entry clears it (the
+dedup and phantom rungs refuse a graced holder, whose readings come from a
+collapsed or moved box), or tracks the head alone if the grace times out.
+The trap: a sender that vanishes with every axis falling to 0 from a normal value
+and never returns (a slot budget staying full, or a removal under `fourBox`,
+whose all-1.0 last row solves at the origin) costs a graceSeconds ghost, payload
+on at a point no sender occupies, before the slot is given back.
+
 Dedup, and why a slot can admit a hand another slot already holds: the front
 re-offers every held hand inside its reach once per pass (below), a tracked hand
 that retreats into the hold shell and comes back is a fresh overlap for the
@@ -157,8 +201,9 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   readings that latched were taken by the front-size cube, and TrackOut must
   not read them, so Latch waits until a collision step has sampled the hold
   cube; a cut on the expansion takes the release rung at once.
-- Every slot state writes every flag (Open, Armed, Front, Held, Settled), the
-  payload toggle and the buffer particle's force-on, zeros included: an AAP holds its last clip-written value and a scene binding holds
+- Every slot state writes every flag (Open, Armed, Front, Held, Settled, and
+  Grace under graceSeconds), the payload toggle and the buffer particle's
+  force-on, and under graceSeconds Boxes' localPosition, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
   `cfg()`, is where that rule is enforced — every slot clip goes through it.
 - The burst states carry the readout tree: the payload wrapper enables where Output
@@ -327,6 +372,12 @@ CONFIG = {
     "farRadius": None,          # m, or None: a settled hand whose in-plane radius reads past this is released (TrackBand only),
                                 #   so heads standing between the zone and the cube's reach do not hold slots; None keeps every
                                 #   held hand to the hold cube. Lint: above rearmRadius, below the hold cube's widest in-plane reach
+    "graceSeconds": 0.25,       # s, or None to turn grace off: a cut inside the zone (every axis to the floor at once, the last solve inside the guard)
+                                #   collapses the slot for a step, then holds it this long flag up on a graceHalf box at the remembered
+                                #   reading, instead of releasing it. None releases on every floor. Lint: >= 2*stepSeconds
+    "graceHalf": 0.15,          # m, the grace box's half-extent; read only when graceSeconds is set. Lint: above senderRadius (under
+                                #   three boxes a sender removed from the scene reads a face on its last row, which then falls outside
+                                #   the guard; under fourBox that row solves at the origin and is graced), below holdHalf/4
     "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
     "senderRadius": 0.05,       # r, m — the hand sender's radius; a capsule reads as a constant bias.
                                 #   Under fourBox the readout measures r instead, and this is only the lints' assumed maximum
@@ -425,6 +476,20 @@ def lint(c):
             refuse("farRadius must be < holdHalf*sqrt2 — the hold cube's widest in-plane reach (its edge midpoints at the centre "
                    "height); past it no held hand can read that radius and the rung can never fire. Under three boxes the readout "
                    "saturates a sender radius short of the + faces, so the usable bound is a little inside this one")
+    if c["graceSeconds"] is not None:
+        if c["graceSeconds"] < 2 * c["stepSeconds"]:
+            refuse("graceSeconds must be >= 2*stepSeconds — a returning sender reads through the grace box only after the "
+                   "Proximity acquisition cost, two collision steps, and stepSeconds is the dwell one step is guaranteed to "
+                   "land in at any frame rate; a shorter grace can time out before any return reads")
+        if c["graceHalf"] <= c["senderRadius"]:
+            refuse("graceHalf must be > senderRadius — under three boxes a sender removed from the scene reads a face (1.0) "
+                   "on its last row, which the readout places holdHalf - senderRadius out; the grace guard is holdHalf - "
+                   "graceHalf, so only a grace box wider than a sender keeps that row outside the guard and lets a removal "
+                   "release on the floor. Under fourBox the reasoning does not hold: an all-1.0 row solves at the origin")
+        if c["graceHalf"] >= c["holdHalf"] / 4:
+            refuse("graceHalf must be < holdHalf/4 — the grace box opens its flag at the remembered point, so every other "
+                   "hand inside it is admitted with the returning one, and the guard (holdHalf - graceHalf) is the part of "
+                   "the hold cube where a cut is graced; a larger box widens the first and shrinks the second")
     if c["dedupEpsilon"] <= 0:
         refuse("dedupEpsilon must be > 0 — a float transition condition compares greater or less and never equal, so a "
                "zero-width band makes every dedup rung unfireable and two slots holding one sender both keep it")
@@ -553,9 +618,18 @@ def emit_layer(o, c, k, ks):
             return f"{P}/D/{lo}_{hi}/{ax} greater {se}" if k == hi else f"{P}/D/{lo}_{hi}/{ax} less {nse}"
 
         def holder(j):
+            """The conditions that make slot j a holder these rungs may match against. Under graceSeconds a slot in
+            GraceCollapse, GraceOpen or Relatch is none: its raw readings there come from a collapsed, or moved and
+            rescaled, box rather than the coincident hold frame every rung assumes, so a slot whose hold-cube readings
+            happened to match them would recycle a different hand. The rider that re-took a graced slot's hand still
+            releases through the fresh rung, on the first frame that slot's Grace reads 0: it clears on TrackIn entry,
+            after the relatch dwell has put hold-size readings under both slots, which is the same evaluation the
+            rider's gated exits become eligible, and the dedup rungs are listed before them."""
             conds = [f"{slot_name(c, j)}/Held greater 0.5"]
             if settled or j > k:
                 conds.append(f"{slot_name(c, j)}/Settled greater 0.5")
+            if c["graceSeconds"] is not None:
+                conds.append(f"{slot_name(c, j)}/Grace less 0.5")
             return conds
 
         tag = "settled dedup" if settled else "dedup"
@@ -684,13 +758,24 @@ def emit_layer(o, c, k, ks):
     for ax in ax4:
         o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}   # the readings fell on the expansion step: release now, as the tracking states do")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback: unreachable while every axis is above zero or at the floor, kept so the ladder gives the slot back")
+    grace = c["graceSeconds"] is not None
+    # The rider gate: a rider that re-admits a returning sender during another slot's grace takes it on the step after
+    # the cut, before the graced slot's box has opened, so its fresh dedup rung has nothing to match until that slot's
+    # hold cube is back and reading, and TrackIn would burst on the duplicate first. Held in TrackOut while any slot is in
+    # grace, the rider meets the graced slot's readings back in the hold frame, bit-identical from the step the hold cube
+    # returns; its fresh rung matches them on the first frame that slot's Grace reads 0, a frame after TrackIn clears it
+    # (holder() refuses a graced slot), the same evaluation this gate opens, and the dedup rungs are listed first, so it releases with no payload edge. If the grace
+    # times out instead, the flags clear and the rider tracks the head it now holds alone. Relatch keeps Grace 1 (its hold
+    # cube's readings must land before the gate opens); TrackIn clears it.
+    gate = "".join(f", {slot_name(c, j)}/Grace less 0.5" for j in ks if j != k) if grace else ""
     o("      TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track")
     emit_tree(o, c, k, hold=f"slot{k}_hold")
     o("        transitions:")
     rungs()
     dedup_rungs(settled=False)
     release()
-    o(f"          - {{ to: TrackIn, when: [ {inside} ] }}")
+    o(f"          - {{ to: TrackIn, when: [ {inside}{gate} ] }}"
+      + ("   # the rider gate: held while any other slot is in grace" if grace else ""))
     # Fresh ends once the readout is live, not only by reaching the zone: the front re-offers every held hand each
     # pass, and a holder that stayed fresh would be re-taken by every lower-index rider under the fresh-versus-fresh
     # rule, hopping slots once a pass. The gate is r² off the Latch park (the tables' own reading of it), which lands a frame after D does, so
@@ -700,15 +785,73 @@ def emit_layer(o, c, k, ks):
     # the four square tables at weight one included, so about eight frames at 60 fps); listed last, so any
     # rung above that is eligible on the same frame wins. A hand grazing the park's corner of the hold cube reads the
     # park's r² and stays fresh there, which costs nothing but the re-take above.
-    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(park_r2(c) - 1e-4)} ], exitTime: 1.0 }}   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)")
-    o("      TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above")
-    emit_tree(o, c, k, hold=f"slot{k}_hold_burst")
+    o(f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(park_r2(c) - 1e-4)}{gate} ], exitTime: 1.0 }}   # readout live and still outside the zone: settle (r2 off the park, not p2: the zone's own predicate is above)")
+    o("      TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here. No height rung: a hand leaving through the cube's end takes the axis floor above"
+      + ("; every axis at the floor inside the grace guard takes GraceCollapse instead" if grace else ""))
+    emit_tree(o, c, k, hold=f"slot{k}_hold_burst", mem=grace)
     o("        transitions:")
     rungs()
+    if grace:
+        # The grace rung: every axis at the floor, and the last solve (x, y, z read one frame stale, so the L-1 solve on the
+        # zero row) inside ±(holdHalf − graceHalf) on every axis. Every axis, not any: a crowd cut drops every pair of the
+        # sender in one step, so every axis reads 0 at once, while a teleport away reads a partial face row first (one
+        # axis 0, another 1.0), on which an any-axis rung fired grace with the stale inside solve; on the all-zero row that
+        # follows, the stale solve is the face row's and the guard refuses it. Listed BEFORE release(): a cut inside the
+        # guard takes grace, while a real exit's last solve sits at a face and falls through to the floor rungs below.
+        lim = c["holdHalf"] - c["graceHalf"]
+        floor = ", ".join(f"{me}/{ax} less {fmt(eps)}" for ax in ax4)
+        guard = ", ".join(f"{me}/{a} greater {fmt(-lim)}, {me}/{a} less {fmt(lim)}" for a in ("x", "y", "z"))
+        o(f"          - {{ to: GraceCollapse, when: [ {floor}, {guard} ] }}   # grace: every reading fell at once with the last solve well inside the hold cube, a cut rather than an exit")
     release()
     dedup_rungs(settled=True)
     for conds in outside:
         o(f"          - {{ to: TrackBand, when: [ {', '.join(conds)} ] }}")
+    if grace:
+        def mem_tree(name, cfg_clip, place):
+            """The remembered solve, one Mem-weighted child per axis: `memhold_<ax>` carries read_<ax>'s bindings and
+            Mem/<ax> 1, so at weight Mem/<ax> (the last reading before the cut) it both holds x, y, z, yw, R and Output
+            at the remembered solve and holds Mem off itself; the read bias rides the configuration clip at weight One.
+            Every one-frame child adds its weight in frames to the state's length, which is the dwell (the collapse step,
+            the timeout, Relatch's wait), so the tree carries no child it can fold. In GraceOpen alone, `place_<ax>`
+            puts the grace box on the same point with the read clips' Output coefficients."""
+            o("        motion:")
+            o("          tree: direct")
+            o(f"          name: Slot{k} {name}")
+            o("          normalized: false")
+            o("          children:")
+            o(f"            - {{ clip: {cfg_clip}, directWeight: {P}/One }}")
+            for kind in ("memhold",) + (("place",) if place else ()):
+                for ax in ax4:
+                    o(f"            - {{ clip: slot{k}_{kind}_{ax_tag(ax)}, directWeight: {me}/Mem/{ax} }}")
+
+        o("      GraceCollapse:               # a cut inside the zone: boxes collapsed for a sampled step, flag shut, readout and payload held, so the episode the shut hold cube rejected ends before the grace box opens")
+        mem_tree("grace collapse", f"slot{k}_gracecollapse_cfg", place=False)
+        o("        transitions:")
+        rungs()
+        # The cut ended the sender's overlap, and the overlap that re-forms on the next step meets the shut hold cube,
+        # because an animator write reaches the contact sim a step after it is written; rejection is sticky for the
+        # episode. A collapse spanning a sampled step ends that episode (the docstring's collapse rule), and the box then
+        # opens flag-up to a fresh acquisition. The dwell is the tree's length, stepSeconds plus
+        # about ΣMem frames (docs/animator-schema.md §motions), which is the floor the rule wants.
+        o("          - { to: GraceOpen, when: [], exitTime: 1.0 }")
+        o("      GraceOpen:                   # the grace box: flag up on a graceHalf box at the remembered reading, the readout and payload held; the returning sender is admitted through it")
+        mem_tree("grace", f"slot{k}_grace_cfg", place=True)
+        o("        transitions:")
+        rungs()
+        o(f"          - {{ to: Relatch, when: [ {all_pos} ] }}   # the sender is back, read by the grace box")
+        # The timeout rides the tree's duration, which is data: graceSeconds from the configuration clip plus one frame per
+        # unit of weight on the one-frame memhold and place children, about 2·ΣMem frames (docs/animator-schema.md §motions).
+        o("          - { to: Recycle, when: [], exitTime: 1.0 }   # the timeout: nothing came back, give the slot up")
+        o("      Relatch:                     # hold cube back at the origin, flag shut, readout still remembered: Latch's dwell, so TrackIn never decodes the grace box's readings with hold coefficients")
+        mem_tree("relatch", f"slot{k}_relatch_cfg", place=False)
+        o("        transitions:")
+        rungs()
+        # Listed FIRST among the exits, as in Latch: the ordering, not the dwell, is what survives a hitch frame longer
+        # than the whole dwell, which makes this and the fallback eligible in one evaluation.
+        o(f"          - {{ to: TrackIn, when: [ {all_pos} ], exitTime: 1.0 }}")
+        for ax in ax4:
+            o(f"          - {{ to: Recycle, when: [ {me}/{ax} less {fmt(eps)} ] }}   # a second cut inside the dwell: give the slot back, one grace per cut")
+        o("          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, as Latch's")
     o("      TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window: TrackOut's rungs with the settled dedup test in place of the fresh one" + ("; the far release lives here" if c["farRadius"] is not None else ""))
     emit_tree(o, c, k, hold=f"slot{k}_hold_band")
     o("        transitions:")
@@ -740,7 +883,8 @@ def emit_layer(o, c, k, ks):
     o("          - { to: Armed, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackBand: [30, 630], Recycle: [30, 720] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 540], TrackOut: [-210, 630], TrackIn: [270, 630], TrackBand: [30, 630], Recycle: [30, 720]"
+      + (", GraceCollapse: [510, 720], GraceOpen: [510, 630], Relatch: [510, 540]" if grace else "") + " }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -929,7 +1073,11 @@ def emit_dedup_clips(o, c, ks):
             emit_clip(o, f"d_slot{k}_{ax_tag(ax)}", sets, None, f"× Slot{k}/{ax}")
 
 
-def emit_tree(o, c, k, hold):
+def emit_tree(o, c, k, hold, mem=False):
+    """A tracking state's readout tree. `mem` (TrackIn under graceSeconds) adds the memory: per axis a one-frame child
+    weighted by the raw reading that writes Mem/<ax> 1, so Mem holds this frame's reading and GraceOpen, which reads it
+    as a weight one frame late, gets the last reading before the cut. The raw floats lie in [0, 1], so no weight clamps;
+    TrackIn carries no exit-time rung, so the added length moves no dwell."""
     P = c["prefix"]
     me = slot_name(c, k)
     h = c["holdHalf"]
@@ -946,6 +1094,9 @@ def emit_tree(o, c, k, hold):
         o(f"            - {{ clip: slot{k}_read_xn, directWeight: {me}/X- }}")
     o(f"            - {{ clip: slot{k}_read_yp, directWeight: {me}/Y+ }}")
     o(f"            - {{ clip: slot{k}_read_zp, directWeight: {me}/Z+ }}")
+    if mem:
+        for ax in axes(c):
+            o(f"            - {{ clip: slot{k}_mem_{ax_tag(ax)}, directWeight: {me}/{ax} }}")
     for ax in ("x", "y", "z"):
         o("            - tree: 1d")
         o(f"              name: Slot{k} {ax}²")
@@ -1027,6 +1178,7 @@ def emit_clips(o, c, k):
     per_m = 2 / c["boxSize"]          # box scale per metre of front half-extent
     payload = f"{O}/Payload/GameObject.m_IsActive"
     buffer = f"{O}/Payload/Burst/GameObject.m_IsActive"
+    grace = c["graceSeconds"] is not None
 
     def cfg(active, flag, scale, opn, armed, payload_on, front=0, held=0, settled=0):
         d = {f"{B}/GameObject.m_IsActive": active}
@@ -1035,6 +1187,11 @@ def emit_clips(o, c, k):
         if scale is not None:
             for ax in ("x", "y", "z"):
                 d[f"{B}/Transform.m_LocalScale.{ax}"] = fmt(scale)
+        if grace:
+            # GraceOpen moves Boxes onto the remembered point, so under the knob Boxes' position is a binding this layer
+            # owns and every state writes it: 0 everywhere but the grace configuration, which overwrites it with the bias.
+            for ax in ("x", "y", "z"):
+                d[f"{B}/Transform.m_LocalPosition.{ax}"] = 0
         # Open: 1 while this slot holds the front position — SweepShut (shut), Sweep (flag up, Front 1 too) and
         # Partial. The name predates the always-running front, when it also meant a full-size cube; the self-open
         # rung and the ring rungs read it.
@@ -1047,16 +1204,25 @@ def emit_clips(o, c, k):
         # standing and make a newcomer yield to a slot that has already released.
         d[f"{me}/Held"] = held
         d[f"{me}/Settled"] = settled
+        if grace:
+            # Grace: 1 from the grace rung until TrackIn (GraceCollapse, GraceOpen, Relatch); another slot's TrackOut holds
+            # a fresh admission on it (the rider gate in emit_layer).
+            d[f"{me}/Grace"] = 0
         d[payload] = payload_on
         # The buffer particle's GameObject is forced on in every state: nothing in the rig turns it off, and the
         # binding is kept so a copy whose Burst was saved inactive still fires on the payload edge.
         d[buffer] = 1
         return d
 
+    emitted = {}
+
     def clip(name, sets, seconds=None, comment=None):
+        emitted[name] = sets
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver, the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver, the scale, "
+      + ("Boxes' position, the six protocol flags (Grace the sixth)" if grace else "the five protocol flags")
+      + ", the payload toggle and the buffer particle's force-on.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
@@ -1114,6 +1280,39 @@ def emit_clips(o, c, k):
                                     f"{O}/Transform.m_LocalPosition.x": bias,
                                     f"{O}/Transform.m_LocalPosition.y": bias,
                                     f"{O}/Transform.m_LocalPosition.z": bias})
+    if grace:
+        # Boxes' localPosition per unit of each reading: exactly what that axis's read clip gives Output's, so the grace
+        # box sits on the point Output shows (both nodes hang under Slot<k>, so both positions are in the tilted frame).
+        # The constant part (three boxes: −h − r on every axis; four: none) rides grace_cfg, which carries weight one.
+        if c["fourBox"]:
+            pos, neg = fmt(h), fmt(-h)
+            place = {"X+": (pos, neg, neg), "X-": (neg, neg, neg), "Y+": (None, two_h, None), "Z+": (None, None, two_h)}
+            place_bias = 0
+        else:
+            place = {"X+": (two_h, None, None), "Y+": (None, two_h, None), "Z+": (None, None, two_h)}
+            place_bias = fmt(-h - r)
+        o(f"  # Slot {k} grace: the memory, its hold, the grace box's placement, and the three configurations.")
+        for ax in axes(c):
+            t = ax_tag(ax)
+            clip(f"slot{k}_mem_{t}", {f"{me}/Mem/{ax}": 1}, None, f"× {me}/{ax} (TrackIn): Mem/{ax} ← this frame's reading")
+            clip(f"slot{k}_memhold_{t}", {f"{me}/Mem/{ax}": 1, **emitted[f"slot{k}_read_{t}"]}, None,
+                 f"× {me}/Mem/{ax} (the grace states): Mem/{ax} held, and read_{t}'s bindings at the remembered reading")
+            clip(f"slot{k}_place_{t}", {f"{B}/Transform.m_LocalPosition.{a}": v for a, v in zip("xyz", place[ax]) if v is not None},
+                 None, f"× {me}/Mem/{ax} (GraceOpen): the grace box on the remembered point, read_{t}'s Output coefficients")
+        # The three configurations sit at weight One, so each carries read_bias's bindings too (the readout's constant).
+        gcol = cfg(1, 0, collapsed, 0, 0, 1, held=1, settled=1)
+        gcol[f"{me}/Grace"] = 1
+        gcol.update(emitted[f"slot{k}_read_bias"])
+        clip(f"slot{k}_gracecollapse_cfg", gcol, step, "collapsed for a sampled step, flag shut, payload held on: ends the episode the shut hold cube rejected")
+        gcfg = cfg(1, 1, 2 * c["graceHalf"] / c["boxSize"], 0, 0, 1, held=1, settled=1)
+        gcfg.update({f"{B}/Transform.m_LocalPosition.{a}": place_bias for a in "xyz"})
+        gcfg[f"{me}/Grace"] = 1
+        gcfg.update(emitted[f"slot{k}_read_bias"])
+        clip(f"slot{k}_grace_cfg", gcfg, c["graceSeconds"], "flag up, the graceHalf box, payload held on, Held and Settled held; carries the placement's constant; its length is the timeout")
+        rcfg = cfg(1, 0, hold, 0, 0, 1, held=1, settled=1)
+        rcfg[f"{me}/Grace"] = 1
+        rcfg.update(emitted[f"slot{k}_read_bias"])
+        clip(f"slot{k}_relatch_cfg", rcfg, c["latchSeconds"], "the hold configuration back at the origin, flag shut: Latch's dwell for the grace box's readings")
     lo, hi = readout_span(c)
     o(f"  # Slot {k} x² table: {N} segments over [{fmt(lo)}, {fmt(hi)}], the readout's whole range, so nothing clamps; each 1D tree blends")
     o("  # the two nearest knots, a chord that overestimates by ≤ w²/4. On three boxes a true coordinate past the + face, in")
@@ -1164,7 +1363,9 @@ def document(overrides=None):
     o("# of the centre height, and past that band the cube's corners are the zone's ends.")
     rtxt = (f"sender radius measured per slot from the X- box ({c['senderRadius']} m is the lints' assumed maximum)"
             if c["fourBox"] else f"sender radius {c['senderRadius']} m")
-    o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s.")
+    grace = (f"; grace {c['graceSeconds']} s on a {c['graceHalf']} m box at the remembered reading (TrackIn only)"
+             if c["graceSeconds"] is not None else "")
+    o(f"# Cube half-extents: acquisition {c['acqHalf']} m, hold {c['holdHalf']} m; {rtxt}; step dwell {c['stepSeconds']} s, latch wait {c['latchSeconds']} s{grace}.")
     o(f"# One slot at a time rides an expanding front from the centre to the face over {c['sweepSeconds']} s, and the front restarts")
     o("# there, so every hand inside the cube is offered to exactly one flag-up cube per pass and admitted alone as the front")
     o("# reaches it; the Dedup layer releases a re-admitted hand another slot already holds.")
@@ -1193,7 +1394,8 @@ def document(overrides=None):
     o(f"  {P}/SweepPrev: {{ type: float, aap: true, scratch: true }}")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the five protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the "
+          + ("five protocol flags, then the grace memory and Grace, the sixth flag." if c["graceSeconds"] is not None else "five protocol flags."))
         for ax in axes(c):
             o(f"  {me}/{ax}: float")
         for ax in ("x", "y", "z", "r2"):
@@ -1207,6 +1409,10 @@ def document(overrides=None):
         o(f"  {me}/Front: {{ type: float, aap: true, scratch: true }}   # 1 while this slot's cube rides the front")
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: every state past Latch")
         o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder")
+        if c["graceSeconds"] is not None:
+            for ax in axes(c):
+                o(f"  {me}/Mem/{ax}: {{ type: float, aap: true, scratch: true }}   # the {ax} reading as TrackIn last saw it; the grace states weight the read clips by it")
+            o(f"  {me}/Grace: {{ type: float, aap: true, scratch: true }}   # 1 from the grace rung until TrackIn (GraceCollapse, GraceOpen, Relatch): another slot's fresh admission waits in TrackOut on it")
     o("  # The Dedup layer's differences: D/<j>_<k>/<ax> = Slot<k>/<ax> - Slot<j>/<ax> on the raw readings, for every pair")
     o("  # j < k and every axis. Two coincident congruent boxes read one sender identically, so a pair holding the same")
     o("  # sender reads 0 on every axis and a freshly latched slot recognises the duplicate. Each defaults to 0, which is")
@@ -1230,6 +1436,7 @@ def document(overrides=None):
     emit_sweep_clips(o, c)
     emit_dedup_clips(o, c, ks)
     facts = {"K": K, "fourBox": c["fourBox"], "farRadius": c["farRadius"],
+             "graceSeconds": c["graceSeconds"], "graceHalf": c["graceHalf"] if c["graceSeconds"] is not None else None,
              "receivers": len(axes(c)) * K, "syncedBits": 1,
              "bandHalfHeight": band_half_height(c, c["burstRadius"]),
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "holdScale": 2 * c["holdHalf"] / c["boxSize"]}
@@ -1397,6 +1604,13 @@ def check_rig(assert_, c, here, docs, particles=True):
                      f"{gos[trs[t][0]]} sits at local position zero (got {poss.get(t)}) — dedup rests on every slot's boxes standing in the same place in world space") and ok
         ok = assert_(trs[t][2] == (1.0, 1.0, 1.0),
                      f"{gos[trs[t][0]]} carries local scale one (got {trs[t][2]}) — dedup rests on every slot's boxes being the same size, and Boxes is the only size lever") and ok
+        # Boxes at the slot's origin: with graceSeconds off no state writes its position, so the saved one stands, and a
+        # Boxes nudged on one slot moves that slot's receivers off every other slot's, the dedup break above one node
+        # down; nudged on all of them, it moves the readout's origin off Output's. Under graceSeconds every state writes it.
+        bxs = [b for b, (go, father, _) in trs.items() if father == t and gos[go] == "Boxes"]
+        ok = assert_(len(bxs) == 1 and poss.get(bxs[0]) == (0.0, 0.0, 0.0),
+                     f"{gos[trs[t][0]]}/Boxes sits at local position zero (got {[poss.get(b) for b in bxs]}) — the readout's "
+                     "coefficients place a sender relative to the slot's origin, and dedup rests on every slot's boxes standing in the same place") and ok
         outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
         ok = assert_(len(outs) == 1 and same_rotation(rots.get(outs[0]), TILT_INV), f"{gos[trs[t][0]]}/Output carries the inverse tilt (got {[rots.get(o) for o in outs]})") and ok
     # Payload is the node the controller toggles; Burst and Emit are the shipped particle mechanism, which an owned
