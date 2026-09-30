@@ -521,10 +521,15 @@ class Prefab:
                 self.comps.setdefault(g, []).append(d)
         # The mount: the FullController's GameObject. Paths are relative to it, which is the prefab root on the
         # entry and the rig's root on a consumer's avatar prefab (where the rig sits one level under the avatar).
-        fc = next((fid(d, "m_GameObject") for cls, d in self.docs.values() if cls == 114 and re.search(r"^\s+globalParams:", d, re.M)), None)
-        self.mount = next((i for i, (go, _) in self.tr.items() if fc is not None and go == fc), None)
+        fcs = [fid(d, "m_GameObject") for cls, d in self.docs.values() if cls == 114 and re.search(r"^\s+globalParams:", d, re.M)]
+        if len(fcs) != 1:
+            refuse(f"{path}: expected exactly one FullController (a component with globalParams), found {len(fcs)}")
+        self.mount = next((i for i, (go, _) in self.tr.items() if go == fcs[0]), None)
+        if self.mount is None:
+            refuse(f"{path}: the FullController's GameObject has no Transform in this file")
 
     def path_of_tr(self, i):
+        """The path from the mount, or None for a transform outside the mount's subtree (an avatar's own bones)."""
         parts = []
         while i and i != "0" and i in self.tr:
             if i == self.mount:
@@ -532,10 +537,15 @@ class Prefab:
             go, fa = self.tr[i]
             parts.append(self.name.get(go))
             i = fa
-        return "/".join(reversed(parts[:-1]))   # no mount on the walk: relative to the prefab root
+        return None
 
     def by_path(self):
-        return {self.path_of_tr(i): (i, go) for i, (go, _) in self.tr.items()}
+        m = {}
+        for i, (go, _) in self.tr.items():
+            p = self.path_of_tr(i)
+            if p is not None:
+                m[p] = (i, go)
+        return m
 
     def transform(self, path):
         e = self.by_path().get(path)
