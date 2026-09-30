@@ -17,6 +17,8 @@ Doctrine an entry *embodies* — seams, build order, gimmick packaging, the bind
 
 **Entries may nest** (variant builds take subfolders; every composition is a nested entry, and a nested entry is a full entry), but `built/` and `assets/` may not hold one — the gate ignores those directories, so an entry misfiled there is silently never gated.
 
+**A `.blend` source ships under `assets/Blender~/`**, a folder Unity ignores, because a `.blend` placed directly in `assets/` is imported by Unity as a second model through Blender.
+
 **No two committed `.meta` under one top-level tree may declare the same GUID.** After copying an entry, re-GUID the copy's `built/` `.meta`s and repoint its prefab in the same edit; the gate names both offenders.
 
 A module's menu ships as an asset once it has more than one control, authored as `controller.yaml`'s `menu:` block so it regenerates with everything else; a bare `Toggle` is reserved for a lone enable on a module that cannot be instanced twice (two instances export the same un-prefixed name), and a module already bound single-instance by that enable may add a second bare `Toggle` for a control whose object action must switch GameObjects with no animator layer of its own; the entry README states why the layer is not worth having. A menu the schema cannot express (puppets, per-control icons) stays hand-maintained in `assets/`.
