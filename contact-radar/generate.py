@@ -105,10 +105,10 @@ on the step after the cut, before the grace box has opened, so its fresh dedup
 rung has nothing to match until the graced slot's hold cube is back and reading,
 and TrackIn would burst on the duplicate first; held in TrackOut, it reads the
 graced slot's hold-cube readings bit-identically from the step the hold cube
-returns, and releases through its fresh rung with no payload edge on the frame
-that slot's Grace clears on TrackIn entry (the dedup and phantom rungs refuse a
-graced holder, whose readings come from a collapsed or moved box), or tracks
-the head alone if the grace times out.
+returns, and releases through its fresh rung with no payload edge on the first
+frame that slot's Grace reads 0, one frame after TrackIn entry clears it (the
+dedup and phantom rungs refuse a graced holder, whose readings come from a
+collapsed or moved box), or tracks the head alone if the grace times out.
 The trap: a sender that vanishes with every axis falling to 0 from a normal value
 and never returns (a slot budget staying full, or a removal under `fourBox`,
 whose all-1.0 last row solves at the origin) costs a graceSeconds ghost, payload
@@ -201,8 +201,9 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   readings that latched were taken by the front-size cube, and TrackOut must
   not read them, so Latch waits until a collision step has sampled the hold
   cube; a cut on the expansion takes the release rung at once.
-- Every slot state writes every flag (Open, Armed, Front, Held, Settled), the
-  payload toggle and the buffer particle's force-on, zeros included: an AAP holds its last clip-written value and a scene binding holds
+- Every slot state writes every flag (Open, Armed, Front, Held, Settled, and
+  Grace under graceSeconds), the payload toggle and the buffer particle's
+  force-on, and under graceSeconds Boxes' localPosition, zeros included: an AAP holds its last clip-written value and a scene binding holds
   whatever last wrote it (docs/runtime.md §Animator evaluation). One function,
   `cfg()`, is where that rule is enforced — every slot clip goes through it.
 - The burst states carry the readout tree: the payload wrapper enables where Output
@@ -762,8 +763,8 @@ def emit_layer(o, c, k, ks):
     # the cut, before the graced slot's box has opened, so its fresh dedup rung has nothing to match until that slot's
     # hold cube is back and reading, and TrackIn would burst on the duplicate first. Held in TrackOut while any slot is in
     # grace, the rider meets the graced slot's readings back in the hold frame, bit-identical from the step the hold cube
-    # returns; its fresh rung matches them on the frame that slot's Grace clears (holder() refuses a graced slot), the same
-    # evaluation this gate opens, and the dedup rungs are listed first, so it releases with no payload edge. If the grace
+    # returns; its fresh rung matches them on the first frame that slot's Grace reads 0, a frame after TrackIn clears it
+    # (holder() refuses a graced slot), the same evaluation this gate opens, and the dedup rungs are listed first, so it releases with no payload edge. If the grace
     # times out instead, the flags clear and the rider tracks the head it now holds alone. Relatch keeps Grace 1 (its hold
     # cube's readings must land before the gate opens); TrackIn clears it.
     gate = "".join(f", {slot_name(c, j)}/Grace less 0.5" for j in ks if j != k) if grace else ""
@@ -1219,7 +1220,9 @@ def emit_clips(o, c, k):
         emitted[name] = sets
         emit_clip(o, name, sets, seconds, comment)
 
-    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver, the scale, the five protocol flags, the payload toggle and the buffer particle's force-on.")
+    o(f"  # Slot {k} configurations — every one writes the box stow, the flag on every receiver, the scale, "
+      + ("Boxes' position, the six protocol flags (Grace the sixth)" if grace else "the five protocol flags")
+      + ", the payload toggle and the buffer particle's force-on.")
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
@@ -1391,7 +1394,8 @@ def document(overrides=None):
     o(f"  {P}/SweepPrev: {{ type: float, aap: true, scratch: true }}")
     for k in ks:
         me = slot_name(c, k)
-        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the five protocol flags.")
+        o(f"  # Slot {k}: receiver floats (never a clip), the readout AAPs, and the "
+          + ("five protocol flags, then the grace memory and Grace, the sixth flag." if c["graceSeconds"] is not None else "five protocol flags."))
         for ax in axes(c):
             o(f"  {me}/{ax}: float")
         for ax in ("x", "y", "z", "r2"):
