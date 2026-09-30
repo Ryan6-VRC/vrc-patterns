@@ -98,6 +98,8 @@ CONFIG = {
         {"visible": "HipsAnchor/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6", "pos": (0, 0.15, 0)},
     ],
     "leafVisible": True,
+    # The demo's mount bone for HipsAnchor's BoneProxy (a tail consumer retargets it to the Hips); --check holds it.
+    "mount": "Neck",
     # The demo's own settings. Gravity at falloff 1 acts only on a rope pulled off its rest pose: the rope hangs toward plumb
     # once swung off its authored lean, and the planted proxy, reset to rest, does not sag off the stake.
     "physbone": {"integrationType": "Advanced", "pull": 0.082, "spring": 0.718, "stiffness": 0.115,
@@ -338,6 +340,7 @@ def rig(c):
         "chain": [{"name": nm, "path": pa, "localPosition": r6(b["pos"]), "localRotation": r6(euler(b.get("rot", (0, 0, 0))))}
                   for nm, pa, b in zip(names, paths, c["chain"])],
         "tip": paths[-1],
+        "mount": c["mount"],
         "ropeRoot": {"path": "HipsAnchor/RopeRoot", "localPosition": r6(c["chain"][0]["pos"]), "localRotation": [0, 0, 0, 1]},
         "chainLength": round(sum(g["bone"]), 6),
         "L": round(g["L"], 6),
@@ -708,6 +711,14 @@ def check(c, prefab_path, entry=True):
         A(close(vec(d, "m_LocalPosition"), r["stakeRoot"]["localPosition"]),
           f"StakeRoot local position {r['stakeRoot']['localPosition']} (L {r['L']} m back along the aim)")
         A(same_rotation(vec(d, "m_LocalRotation"), r["stakeRoot"]["localRotation"]), "StakeRoot faces the stake")
+    # The two BoneProxy seams: HipsAnchor on CONFIG's mount, Collar on the Chest (Unity HumanBodyBones values).
+    HUMAN = {"Hips": 0, "Spine": 7, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest": 54}
+    for path, bone in (("HipsAnchor", r["mount"]), ("Collar", "Chest")):
+        bp = P.components(path, r"^  boneReference:")
+        if A(len(bp) == 1, f"{path} carries one MA BoneProxy"):
+            m = re.search(r"^  boneReference: (\S+)$", bp[0], re.M)
+            got = m.group(1) if m else None
+            A(got == str(HUMAN[bone]), f"{path} BoneProxy targets {bone} ({HUMAN[bone]}; got {got})")
     # RopeRoot: bone 0's rest point under HipsAnchor, where the rope starts and what the leash line aims at.
     rr = r["ropeRoot"]
     d = P.transform(rr["path"])
