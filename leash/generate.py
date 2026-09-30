@@ -20,11 +20,13 @@ two-source parent constraint, source 0 a proxy bone and source 1 a rope joint, w
   Chain     the proxy: a copy of the consumer's chain (same local poses) under Holder, carrying the
             one grabbable, posable physbone `<prefix>/Chain`. Its tip is what the sensing reads.
   Stake     position-constrained to the proxy tip; FreezeToWorld captures it at a plant.
-  StakeAim  aims at HipsAnchor; frozen with the stake, so it holds the leash line captured at the plant.
+  RopeRoot  a child of HipsAnchor at bone 0's rest position (chain[0].pos), unrotated: where the rope starts,
+            so a visible bone 0 on the rope's first joint stays on its socket rather than on the hips' origin.
+  StakeAim  aims at RopeRoot; frozen with the stake, so it holds the leash line captured at the plant.
   StakeRoot a child of StakeAim placed so that Holder sitting there rests the proxy with its TIP ON THE
             STAKE and its body lying back along the captured line: a hand at the stake finds the tip,
             and a posed release from that grab re-plants where the hand let go.
-  Rope      a cubic Bezier from HipsAnchor to Stake: two one-bone pendulum physbones supply the control
+  Rope      a cubic Bezier from RopeRoot to Stake: two one-bone pendulum physbones supply the control
             points, each joint a four-source position constraint (Bernstein weights) smoothed by a
             spring-damping pair under a world-pinned frame, and aimed at the next joint.
 
@@ -333,6 +335,7 @@ def rig(c):
         "chain": [{"name": nm, "path": pa, "localPosition": r6(b["pos"]), "localRotation": r6(euler(b.get("rot", (0, 0, 0))))}
                   for nm, pa, b in zip(names, paths, c["chain"])],
         "tip": paths[-1],
+        "ropeRoot": {"path": "HipsAnchor/RopeRoot", "localPosition": r6(c["chain"][0]["pos"]), "localRotation": [0, 0, 0, 1]},
         "chainLength": round(sum(g["bone"]), 6),
         "L": round(g["L"], 6),
         "stakeRoot": {"localPosition": r6(g["stakeRoot"][0]), "localRotation": r6(g["stakeRoot"][1]),
@@ -692,15 +695,34 @@ def check(c, prefab_path, entry=True):
         A(close(vec(d, "m_LocalPosition"), r["stakeRoot"]["localPosition"]),
           f"StakeRoot local position {r['stakeRoot']['localPosition']} (L {r['L']} m back along the aim)")
         A(same_rotation(vec(d, "m_LocalRotation"), r["stakeRoot"]["localRotation"]), "StakeRoot faces the stake")
+    # RopeRoot: bone 0's rest point under HipsAnchor, where the rope starts and what the leash line aims at.
+    rr = r["ropeRoot"]
+    d = P.transform(rr["path"])
+    if A(d is not None, f"{rr['path']} exists"):
+        A(close(vec(d, "m_LocalPosition"), rr["localPosition"]), f"{rr['path']}: local position {rr['localPosition']} (bone 0's rest)")
+        A(same_rotation(vec(d, "m_LocalRotation"), rr["localRotation"]), f"{rr['path']}: unrotated")
     # Rest weights are the Free clip's (the animator overwrites them in play); every offset is zero but a
     # visible bone's rope rotation offset.
     for path, want in (("Holder", [("HipsAnchor", 1, ZERO3, ZERO_Q), ("Stake/StakeAim/StakeRoot", 0, ZERO3, ZERO_Q)]),
-                       ("Stake", [(r["tip"], 1, ZERO3, ZERO_Q)]), ("Stake/StakeAim", [("HipsAnchor", 1, ZERO3, ZERO_Q)])):
+                       ("Stake", [(r["tip"], 1, ZERO3, ZERO_Q)]), ("Stake/StakeAim", [(rr["path"], 1, ZERO3, ZERO_Q)])):
         cs = P.components(path, r"^  Sources:")
         if A(len(cs) == 1, f"{path} carries one constraint"):
             bad = source_faults(P.source_paths(cs[0]), want) + zero_offset(cs[0])
             A(not bad, f"{path} sources {[w[0] for w in want]} at weights {[w[1] for w in want]}, zero offsets"
               + (f": {bad}" if bad else ""))
+    # The rope's start end is RopeRoot: J0 sits on it, every Bezier point's first source is it, PendA stands on it
+    # and PendS aims at it. The rest of the rope (the joints' smoothing and aims, the pendulums) is not read here.
+    def one(path, aim):
+        cs = [x for x in P.components(path, r"^  Sources:") if bool(re.search(r"^  AimAxis:", x, re.M)) == aim]
+        return P.source_paths(cs[0]) if len(cs) == 1 else None
+    j0, pa, ps = one("Rope/Frame/J0", False), one("Rope/PendA", False), one("Rope/PendS", True)
+    A(j0 is not None and [x[0] for x in j0] == [rr["path"]], f"Rope/Frame/J0 position source [{rr['path']}] (got {j0 and [x[0] for x in j0]})")
+    A(pa is not None and [x[0] for x in pa] == [rr["path"]], f"Rope/PendA position source [{rr['path']}] (got {pa and [x[0] for x in pa]})")
+    A(ps is not None and [x[0] for x in ps] == [rr["path"]], f"Rope/PendS aim source [{rr['path']}] (got {ps and [x[0] for x in ps]})")
+    for i in range(1, r["rope"]["segments"]):
+        tb = one(f"Rope/Frame/T{i}", False)
+        A(tb is not None and len(tb) == 4 and tb[0][0] == rr["path"],
+          f"Rope/Frame/T{i}: four Bezier sources, the first {rr['path']} (got {tb and [x[0] for x in tb]})")
     for v in r["visible"]:
         if v["path"].startswith("/"):
             continue   # a consumer's own bone lives outside this prefab: the consumer checks its constraint
