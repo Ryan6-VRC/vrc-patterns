@@ -103,9 +103,12 @@ TrackOut holds its `→ TrackIn` and settle rungs on this slot's `Grace` flag (1
 in the three grace states). A rider that re-admits the returning sender takes it
 on the step after the cut, before the grace box has opened, so its fresh dedup
 rung has nothing to match until the graced slot's hold cube is back and reading,
-and TrackIn would burst on the duplicate first; held in TrackOut, it meets the
-relatched readings, bit-identical from the step the hold cube returns, and
-releases with no payload edge, or tracks the head alone if the grace times out.
+and TrackIn would burst on the duplicate first; held in TrackOut, it reads the
+graced slot's hold-cube readings bit-identically from the step the hold cube
+returns, and releases through its fresh rung with no payload edge on the frame
+that slot's Grace clears on TrackIn entry (the dedup and phantom rungs refuse a
+graced holder, whose readings come from a collapsed or moved box), or tracks
+the head alone if the grace times out.
 The trap: a sender that vanishes with every axis falling to 0 from a normal value
 and never returns (a slot budget staying full, or a removal under `fourBox`,
 whose all-1.0 last row solves at the origin) costs a graceSeconds ghost, payload
@@ -614,9 +617,18 @@ def emit_layer(o, c, k, ks):
             return f"{P}/D/{lo}_{hi}/{ax} greater {se}" if k == hi else f"{P}/D/{lo}_{hi}/{ax} less {nse}"
 
         def holder(j):
+            """The conditions that make slot j a holder these rungs may match against. Under graceSeconds a slot in
+            GraceCollapse, GraceOpen or Relatch is none: its raw readings there come from a collapsed, or moved and
+            rescaled, box rather than the coincident hold frame every rung assumes, so a slot whose hold-cube readings
+            happened to match them would recycle a different hand. The rider that re-took a graced slot's hand still
+            releases through the fresh rung, on the first frame that slot's Grace reads 0: it clears on TrackIn entry,
+            after the relatch dwell has put hold-size readings under both slots, which is the same evaluation the
+            rider's gated exits become eligible, and the dedup rungs are listed before them."""
             conds = [f"{slot_name(c, j)}/Held greater 0.5"]
             if settled or j > k:
                 conds.append(f"{slot_name(c, j)}/Settled greater 0.5")
+            if c["graceSeconds"] is not None:
+                conds.append(f"{slot_name(c, j)}/Grace less 0.5")
             return conds
 
         tag = "settled dedup" if settled else "dedup"
@@ -749,9 +761,11 @@ def emit_layer(o, c, k, ks):
     # The rider gate: a rider that re-admits a returning sender during another slot's grace takes it on the step after
     # the cut, before the graced slot's box has opened, so its fresh dedup rung has nothing to match until that slot's
     # hold cube is back and reading, and TrackIn would burst on the duplicate first. Held in TrackOut while any slot is in
-    # grace, the rider's fresh rung meets the relatched readings, bit-identical from the step the hold cube returns, and
-    # releases it with no payload edge; if the grace times out instead, the flags clear and the rider tracks the head it
-    # now holds alone. Relatch keeps Grace 1 (its hold cube's readings must land before the gate opens); TrackIn clears it.
+    # grace, the rider meets the graced slot's readings back in the hold frame, bit-identical from the step the hold cube
+    # returns; its fresh rung matches them on the frame that slot's Grace clears (holder() refuses a graced slot), the same
+    # evaluation this gate opens, and the dedup rungs are listed first, so it releases with no payload edge. If the grace
+    # times out instead, the flags clear and the rider tracks the head it now holds alone. Relatch keeps Grace 1 (its hold
+    # cube's readings must land before the gate opens); TrackIn clears it.
     gate = "".join(f", {slot_name(c, j)}/Grace less 0.5" for j in ks if j != k) if grace else ""
     o("      TrackOut:                    # readout live, payload off; outside the burst radius. Entered only from Latch, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a tighter test for the life of the track")
     emit_tree(o, c, k, hold=f"slot{k}_hold")
