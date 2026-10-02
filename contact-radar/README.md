@@ -138,11 +138,11 @@ Deliberately not shipped: a height bound on the cylinder (caps with their own re
 
 ## What is not proven here
 
-The shipping client has never run the follower hold. Everything below is open in the client:
+The shipping client has run the follower hold once: two wearers of one consumer, each rig holding the other's head, still and at a slow walk. That showed the follower converging on a still and a slowly moving sender at the client's reaction delay, `R` reading live under `fourBox`, every per-pass re-admission recycled on the wearer's own rig with no payload edge, no cut on a still sender, and the remote-copy dwell margin (§Traps). Everything below is still open in the client:
 
 - `pairDelay`: the evaluation on which a raw reading first reflects a move of the cluster's centre, at 60 fps, at a jittered 30 fps and at 144 fps;
-- the follower's lag and error on a moving hand, and the speed at which a hand leaves the hold cluster at a crowd client's frame rate;
-- the fresh latch: the admission surviving the shrink and move, and under `fourBox` the fourth box admitting through its placement and `R` reading live after the grow;
+- the follower's lag and error on a fast hand, and the speed at which a hand leaves the hold cluster at a crowd client's frame rate;
+- the fresh latch on a hand arriving at speed: the admission surviving the shrink and move while the hand moves;
 - the reacquire landing on a cut hand inside the zone with the payload level unbroken, and a rider that re-took the hand released with no second burst;
 - the placement dropping a same-step merge of two hands apart by more than its reach, and what a closer merge leaves;
 - the bound and the far release on a settled hand walking away;
@@ -150,7 +150,7 @@ The shipping client has never run the follower hold. Everything below is open in
 - the burst landing on the toucher's hand as the toucher and a third observer each see it, the real capsule hand's `senderRadius`, and readout dither at range, which sizes the re-arm band;
 - an avatar carrying two copies (this entry beside an owned one), which stacks both receiver counts in one spot;
 - sticky rejection itself, which every pass leans on (`runtime.md` §Contacts);
-- whether a re-admission of a held hand fires the payload, which the client cannot show on the wire;
+- whether a re-admission of a held hand fires the payload on a remote copy with the dwell margin in place, which the client cannot show on the wire and only a viewer on another client can see;
 - a hand standing where a reacquire opens being admitted on some of its receivers and not others on the frame it opens: the reopened cluster has no partial rung, so that reacquire waits out its timeout and releases.
 
 ## Changing it
