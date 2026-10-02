@@ -37,7 +37,7 @@ The hold is a follower, not a cube. A latched slot shrinks its boxes to a small
 cluster at the sender's decoded point and moves the cluster with the sender
 every frame; the cluster's centre is owned by the animator as parameters and
 written to `Boxes`' localPosition, since the animator cannot read a transform
-it does not write (box-tracker carries the same rule). The rig's standing
+it does not write. The rig's standing
 contact-pair load is then one pair per sender inside a cluster, not one per
 sender in a cage-sized hold cube. The placement, in three states:
 - `Latch`, one evaluation: decodes the sender's point from the three riding
@@ -70,7 +70,7 @@ that corner keeps a sender only if it lies within placeHalf plus its radius of
 the corner on every axis, so two senders farther apart than that both fall out,
 the readings go to the floor and the slot recycles within a step. The sender
 that does stay inside keeps its admission: an overlap that never breaks keeps
-its episode through a scale and position change (docs/runtime.md §Contacts).
+its episode through a scale and position change (the rig's own premise; README §Design notes).
 
 The follower (TrackOut, TrackIn, TrackBand). Per slot the animator owns the
 cluster centre `C/<x|y|z>`, its delayed copies `C1/…` (and `C2/…` under
@@ -116,7 +116,8 @@ slot's (1,1,1) diagonal to world up), p2 = r² − yw² the in-plane radius², a
 the payload fires when p2 crosses the burst radius. At the burst radius a
 sender is inside the acquisition cube from every direction within a band of
 half-height sqrt3·(acqHalf − r) − sqrt2·R about the centre
-(`band_half_height`, which the lint holds above zero and the boundary draws).
+(`band_half_height`; the lint holds it above zero at the re-arm radius, and the
+boundary draws it at the burst radius).
 
 Reacquire, the cut. In a crowd a held sender can drop out of a receiver cluster
 for one collision step (docs/runtime.md §Contacts); every axis reads 0. Any
@@ -132,7 +133,8 @@ to read; `ReShut*` shuts the flags and grows to followHalf for `latchSeconds`
 before Track resumes. A second cut inside ReShut recycles, so one reacquire per
 cut. Readout x, y, z, yw, R, Output, Held, Settled and the payload hold
 throughout; r2 and p2 read 0 there (their tables do not ride these trees: four
-one-frame tables would add four frames to every dwell). `Re` is 1 in the six
+one-frame tables would add four frames to every dwell); the latch states park
+them outside every zone. `Re` is 1 in the six
 states. TrackOut's two zone rungs wait on every other slot's Re: a reacquiring
 slot's Mem is frozen at the cut, and a rider that re-took a fast sender could
 decode it past dedupBand from there and burst on the duplicate. Re stands at
@@ -206,7 +208,8 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   second or third frame, and a collapse or stow shorter than the longest gap
   between two steps can pass with none sampling it (docs/runtime.md §Contacts).
 - Every slot state writes every scene binding and flag its layer owns: the box
-  stow, every receiver's flag, `Boxes`' scale and localPosition, X-'s scale
+  stow, every receiver's flag, `Boxes`' scale and localPosition, `Output`'s
+  localPosition, X-'s scale
   under fourBox, Open, Armed, Front, Held, Settled, Re, the payload toggle and
   the buffer particle's force-on, zeros included: an AAP holds its last
   clip-written value and a scene binding holds whatever last wrote it
@@ -237,7 +240,7 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
 - The parameter driver lives only in Disabled (off-state hygiene, localOnly false:
   every client zeroes its own receiver floats).
 - An admission can land on some of a slot's coincident boxes and not the
-  others when the overlap begins on the very frame the slot opens (measured), so
+  others when the overlap begins on the very frame the slot opens, so
   the riding slot steps aside to Partial on any single riding reading and
   Recycles a step later if the rest never arrive. A slot holding the front that
   stalls blocks every admission on the avatar.
@@ -999,7 +1002,7 @@ def emit_reacquire(o, c, k, suffix, back, rungs, floor, dwell, all_pos):
 
 def emit_sweep_layer(o, c, ks):
     """The one writer of the three shared sweep AAPs. Every state writes all three — a WD-ON state
-    reverts any AAP it does not write to its default (measured on this rig), so a value that
+    reverts any AAP it does not write to its default (docs/runtime.md §Animator evaluation), so a value that
     must persist across a state is written back to itself through a direct child weighted by
     its own value. SweepPrev is the same idiom read one frame late on purpose: in Ramp a child
     weighted by Sweep writing 1 lands Sweep(F-1) in it, which is the size the last admitting
@@ -1260,6 +1263,11 @@ def build_clips(c, k):
         if pos is not None:
             for a, v in zip(POS, pos):
                 d[f"{BX}/Transform.m_LocalPosition.{a}"] = fmt(v)
+        # Output's localPosition likewise: the track and reacquire trees write it from the registers (their constants
+        # replace these zeros), every other state parks it at the cage centre, so a free or latching slot's Output reads
+        # the centre at WD OFF as well as ON.
+        for a in POS:
+            d[f"{O}/Transform.m_LocalPosition.{a}"] = 0
         if four:
             # X-'s own scale, relative to Boxes: collapsed while the other three ride the front (it would never read
             # above zero there), coincident with them everywhere else. Transform vectors animate as a unit.
@@ -1340,6 +1348,9 @@ def build_clips(c, k):
         # every zone, and the settle guard compares against the tables' own value there (park_r2). yw parks at that
         # point's height, so the first p2 the tree computes is about 8B²/3 and not r² minus a stale square.
         d = {f"{me}/x": fmt(B), f"{me}/y": fmt(-B), f"{me}/z": fmt(-B), f"{me}/yw": fmt(-B * YW_PER_AXIS)}
+        # r2 and p2 as the tables would read the park, so a consumer gating on p2 reads the latch outside every zone.
+        d[f"{me}/r2"] = fmt(park_r2(c))
+        d[f"{me}/p2"] = fmt(park_r2(c) - table_square(yw_knots(c), -B * YW_PER_AXIS))
         if four:
             # The frames before the first measurement lands: R carries the configured assumption rather than zero.
             d[f"{me}/R"] = fmt(r)
@@ -1673,13 +1684,13 @@ def check_receivers(assert_, c, docs, label):
     ok = assert_(len(recv) == len(ax4) * c["K"],
                  f"{label}: {len(recv)} slot receivers == {len(ax4)}K ({len(ax4)} face-proximity boxes per slot)" + addx) and ok
     def coincident(d, param, what):
-        """The two facts dedup rests on past the size and the node scale: the shape sits ON its transform
+        """The two facts the readout rests on past the size and the node scale: the shape sits ON its transform
         (a nonzero offset moves one box off its siblings while every field still reads right), and the node
         hangs under `Boxes` of the very `Slot<k>` its parameter names (a box filed under the wrong slot, or
-        under a node of its own beside Boxes, is animated by the wrong clip and moves independently). Dedup
-        decides two slots hold one sender by their readings being bit-identical, which is only true while
-        every slot's boxes are the same box in world space; both of these silently break that."""
-        why = "dedup calls two slots one sender only because their boxes are identical in world space"
+        under a node of its own beside Boxes, is animated by the wrong clip and moves independently). The
+        latch's decode and the follower's readout take a slot's boxes to be one coincident cluster at Boxes'
+        position; both of these silently break that, and the decoded point dedup compares with it."""
+        why = "the readout takes a slot's boxes to be one coincident cluster at Boxes' position"
         good = assert_(re.search(r"^  position: \{x: 0, y: 0, z: 0\}$", d, re.M) is not None,
                        f"{what} {param}: shape offset is zero (the shape sits on its transform) — {why}")
         boxes, slot = transform_ancestry(docs, d)
@@ -1752,24 +1763,23 @@ def check_rig(assert_, c, here, docs, particles=True):
     slots = [tid for tid, (go, _, _) in trs.items() if re.fullmatch(r"Slot\d+", gos[go]) and parent_name(tid) == "Size"]
     ok = assert_(len(slots) == c["K"], f"{len(slots)} Slot nodes directly under Size == K {c['K']}") and ok
     # Every slot is the SAME transform as every other: same tilt, no offset from Size, no scale of its own.
-    # That is what makes two slots' coincident boxes read one sender bit-identically, which is the whole of
-    # the dedup rule — a slot nudged a centimetre or scaled 1.001 still tracks, still bursts, and quietly
-    # stops recognising the duplicate it was added to catch.
+    # Dedup compares points decoded in each slot's own frame, so a slot nudged or scaled off the others still
+    # tracks, still bursts, and quietly stops recognising the duplicate it was added to catch.
     ok = assert_(not [tid for tid, (go, _, _) in trs.items() if gos[go] == "Gate"],
                  "no Gate node: the shared OnEnter gate was removed; delete it from this copy") and ok
     for t in slots:
         ok = assert_(same_rotation(rots.get(t), TILT), f"{gos[trs[t][0]]} carries the tilt (got {rots.get(t)})") and ok
         ok = assert_(poss.get(t) == (0.0, 0.0, 0.0),
-                     f"{gos[trs[t][0]]} sits at local position zero (got {poss.get(t)}) — dedup rests on every slot's boxes standing in the same place in world space") and ok
+                     f"{gos[trs[t][0]]} sits at local position zero (got {poss.get(t)}) — dedup compares points decoded in each slot's own frame, so every slot's frame must be the same") and ok
         ok = assert_(trs[t][2] == (1.0, 1.0, 1.0),
-                     f"{gos[trs[t][0]]} carries local scale one (got {trs[t][2]}) — dedup rests on every slot's boxes being the same size, and Boxes is the only size lever") and ok
-        # Boxes at the slot's origin: with graceSeconds off no state writes its position, so the saved one stands, and a
-        # Boxes nudged on one slot moves that slot's receivers off every other slot's, the dedup break above one node
-        # down; nudged on all of them, it moves the readout's origin off Output's. Under graceSeconds every state writes it.
+                     f"{gos[trs[t][0]]} carries local scale one (got {trs[t][2]}) — dedup compares points decoded in each slot's own frame, and Boxes is the only size lever") and ok
+        # Boxes at the slot's origin: every state writes its position, so the saved one is only the edit-mode rest, but a
+        # copy built by hand starts from it, and the readout's coefficients and the latch's placement take Boxes and Output
+        # to share the slot's origin.
         bxs = [b for b, (go, father, _) in trs.items() if father == t and gos[go] == "Boxes"]
         ok = assert_(len(bxs) == 1 and poss.get(bxs[0]) == (0.0, 0.0, 0.0),
                      f"{gos[trs[t][0]]}/Boxes sits at local position zero (got {[poss.get(b) for b in bxs]}) — the readout's "
-                     "coefficients place a sender relative to the slot's origin, and dedup rests on every slot's boxes standing in the same place") and ok
+                     "coefficients and the latch's placement put a sender relative to the slot's origin, which Output shares") and ok
         outs = [o for o, (go, father, _) in trs.items() if father == t and gos[go] == "Output"]
         ok = assert_(len(outs) == 1 and same_rotation(rots.get(outs[0]), TILT_INV), f"{gos[trs[t][0]]}/Output carries the inverse tilt (got {[rots.get(o) for o in outs]})") and ok
     # Payload is the node the controller toggles; Burst and Emit are the shipped particle mechanism, which an owned
