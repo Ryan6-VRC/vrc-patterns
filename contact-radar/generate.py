@@ -48,8 +48,12 @@ sender in a cage-sized hold cube. The placement, in three states:
   pass boundary and an admission on that frame would decode against zero).
   F·V is a product of two parameters, so the decode is a nested Direct tree: a
   child weighted by F holding a tree whose children are weighted by the
-  readings. The point goes to `Boxes`' position, to every centre register and
-  to Mem; the riding flags shut, the boxes shrink to `placeHalf`, X- opens flag
+  readings. An axis whose reading is the clamp, exactly 1.0, adds 2·r: the
+  admitting face reads 1.0 because the sender straddles it, the overlap having
+  begun when the front reached the sender's near surface, so its centre sits
+  about F + r out where the decode gives F − r (a 1D tree per riding axis on its
+  raw reading, 0 at 0.999 and 2·r at 1.0). The point goes to `Boxes`' position,
+  to every centre register and to Mem; the riding flags shut, the boxes shrink to `placeHalf`, X- opens flag
   up there (fourBox), the readout parks, Held 1. Latch leaves on its own `Held
   greater 0.5`, false on the entry evaluation and true on the next, so the
   decode samples front-size readings only: a tree state re-samples every frame,
@@ -73,8 +77,8 @@ that does stay inside keeps its admission: an overlap that never breaks keeps
 its episode through a scale and position change (the rig's own premise; README §Design notes).
 
 The follower (TrackOut, TrackIn, TrackBand). Per slot the animator owns the
-cluster centre `C/<x|y|z>`, its delayed copies `C1/…` (and `C2/…` under
-`pairDelay` 3) and `Mem/…`, the last decoded point. Every one of them is stored
+cluster centre `C/<x|y|z>`, the delayed copies `pairDelay` needs (`C1/…` at 2,
+`C2/…` at 3, none at the default 1) and `Mem/…`, the last decoded point. Every one of them is stored
 as (value + A)/S: a Direct weight clamps negative to zero, and a Direct tree's
 length is Σ(weight × child length), so a register read as a weight must be
 non-negative and small. A = B + 1 and S = 16 keep every register in (0, 0.5)
@@ -124,9 +128,11 @@ for one collision step (docs/runtime.md §Contacts); every axis reads 0. Any
 axis at the floor in TrackIn or TrackBand takes the reacquire, three states
 written twice (`emit_reacquire`, once per payload bit, since the payload is a
 discrete binding a Direct tree cannot blend from a remembered flag):
-`ReCollapse*` collapses the boxes at Mem for `stepSeconds` (the overlap that
-re-forms after a cut meets the shut flag and is rejected for its whole length;
-a collapse spanning a sampled step ends it) and resets the whole chain to Mem
+`ReCollapse*` collapses the boxes at the cage centre for `stepSeconds` (the
+overlap that re-forms after a cut meets the shut flag and is rejected for its
+whole length; a collapse spanning a sampled step ends it, and only away from the
+sender: a collapsed box at the sender's own point stays inside its sphere, so the
+rejected overlap never breaks) and resets the whole chain to Mem
 (the centre lags the sender; Mem is where it last decoded); `ReOpen*` opens all
 boxes flag up at placeHalf on Mem and waits `reacquireSeconds` for every axis
 to read; `ReShut*` shuts the flags and grows to followHalf for `latchSeconds`
