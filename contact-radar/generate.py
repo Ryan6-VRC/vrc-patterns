@@ -490,10 +490,10 @@ def lint(c):
         refuse("placeHalf + senderRadius must exceed sqrt3*senderRadius — the latch decodes with the assumed radius, and a "
                "sender of twice it carries a bias of that radius on each tilted axis, sqrt3 times it in distance; a placement "
                "cluster that cannot reach that far loses every sender larger than the assumption")
-    if c["placeHalf"] + c["senderRadius"] <= c["acqHalf"] * c["stepSeconds"] / c["sweepSeconds"] + c["senderRadius"]:
-        refuse("placeHalf + senderRadius must exceed acqHalf*stepSeconds/sweepSeconds + senderRadius — after the saturated-axis "
-               "correction the latch's residual on that axis is one step of front travel plus the radius mismatch, and the "
-               "placement cluster must still contain the sender's surface there")
+    if c["placeHalf"] + c["senderRadius"] <= 2 * c["acqHalf"] * c["stepSeconds"] / c["sweepSeconds"] + c["senderRadius"]:
+        refuse("placeHalf + senderRadius must exceed 2*acqHalf*stepSeconds/sweepSeconds + senderRadius — after the saturated-axis "
+               "correction the latch's residual on that axis is up to two steps of front travel (F is the front one step after the "
+               "admitting cube) plus the radius mismatch, and the placement cluster must still contain the sender's surface there")
     if c["reacquireSeconds"] < 2 * c["stepSeconds"]:
         refuse("reacquireSeconds must be >= 2*stepSeconds — a returning sender reads through the placement cluster only after "
                "the Proximity acquisition cost, two collision steps, and stepSeconds is the dwell one step is guaranteed to "
