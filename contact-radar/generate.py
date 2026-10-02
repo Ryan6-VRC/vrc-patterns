@@ -344,7 +344,7 @@ CONFIG = {
                                 #   and placeHalf + senderRadius above sqrt3·senderRadius, the three-box bias a sender of twice the radius carries
     "followGain": 0.5,          # per-frame fraction of the decoded offset the cluster centre moves by. Lint: in (0, 1]; below 1 keeps the
                                 #   loop bounded when the true sampling delay is a frame off pairDelay
-    "pairDelay": 2,             # evaluations between a centre write and the first evaluation whose reading was sampled against it: 1, 2 or 3
+    "pairDelay": 1,             # evaluations between a centre write and the first evaluation whose reading was sampled against it: 1, 2 or 3
     "dedupBand": 0.05,          # m per axis within which two slots' decoded points are one sender
     "reacquireSeconds": 0.1,    # s the placement cluster stands flag up after a cut before the slot is given back. Lint: >= 2*stepSeconds
     "fourBox": False,           # add the X- receiver and measure r per sender instead of assuming it (needs a 4-box prefab)
@@ -484,6 +484,10 @@ def lint(c):
         refuse("placeHalf + senderRadius must exceed sqrt3*senderRadius — the latch decodes with the assumed radius, and a "
                "sender of twice it carries a bias of that radius on each tilted axis, sqrt3 times it in distance; a placement "
                "cluster that cannot reach that far loses every sender larger than the assumption")
+    if c["placeHalf"] + c["senderRadius"] <= c["acqHalf"] * c["stepSeconds"] / c["sweepSeconds"] + c["senderRadius"]:
+        refuse("placeHalf + senderRadius must exceed acqHalf*stepSeconds/sweepSeconds + senderRadius — after the saturated-axis "
+               "correction the latch's residual on that axis is one step of front travel plus the radius mismatch, and the "
+               "placement cluster must still contain the sender's surface there")
     if c["reacquireSeconds"] < 2 * c["stepSeconds"]:
         refuse("reacquireSeconds must be >= 2*stepSeconds — a returning sender reads through the placement cluster only after "
                "the Proximity acquisition cost, two collision steps, and stepSeconds is the dwell one step is guaranteed to "
@@ -617,7 +621,9 @@ def emit_children(o, children, ind):
             o(f"{pad}  children:")
             emit_children(o, ch[4], ind + 4)
         else:
-            _, name, param, weight, knots = ch
+            _, name, param, weight, knots = ch[:5]
+            if len(ch) > 5:
+                o(f"{pad}# {ch[5]}")
             o(f"{pad}- tree: 1d")
             o(f"{pad}  name: {name}")
             o(f"{pad}  param: {param}")
@@ -660,12 +666,14 @@ def keep_children(c, k, cfg_clip):
                                                for reg in chain(c) + ["Mem"] for a in POS]
 
 
-def re_children(c, k, cfg_clip):
+def re_children(c, k, cfg_clip, at_mem=True):
     """A reacquire state's tree: the configuration at One, and per axis one child weighted by Mem that holds Mem,
-    resets every chain register to it, puts Boxes there and holds the readout at it; R holds itself under fourBox."""
+    resets every chain register to it, holds the readout at it and, with `at_mem`, puts Boxes there (ReCollapse keeps
+    Boxes at the cage centre); R holds itself under fourBox."""
     P = c["prefix"]
     me = slot_name(c, k)
-    ch = [leaf(cfg_clip, f"{P}/One", 1)] + [leaf(f"slot{k}_re_mem_{a}", f"{me}/Mem/{a}", reg_max(c)) for a in POS]
+    kind = "re_mem" if at_mem else "re_hold"
+    ch = [leaf(cfg_clip, f"{P}/One", 1)] + [leaf(f"slot{k}_{kind}_{a}", f"{me}/Mem/{a}", reg_max(c)) for a in POS]
     if c["fourBox"]:
         ch.append(leaf(f"slot{k}_re_R", f"{me}/R", max_sender_radius(c)))
     return ch
@@ -678,8 +686,16 @@ def latch_children(c, k):
     P = c["prefix"]
     me = slot_name(c, k)
     inner = [leaf(f"slot{k}_place_neg", f"{P}/One", 1)] + [leaf(f"slot{k}_place_{ax_tag(ax)}", f"{me}/{ax}", 1) for ax in riding(c)]
+    # The saturated-axis correction, one 1D tree per riding axis on its raw reading. The admitting face reads the clamp,
+    # 1.0, because the sender straddles it: the overlap began when the front reached the sender's near surface, so its
+    # centre sits about F + r out while 2F·V − F − r gives F − r. A reading of exactly 1.0 takes the full +2r, one at or
+    # below 0.999 takes none, and the thin blend between is the face's last millimetre.
+    sat = [("table", f"Slot{k} {RIDE_AXIS[ax]} saturated", f"{me}/{ax}", f"{P}/One",
+            [(f"slot{k}_sat_{ax_tag(ax)}_0", 0.999), (f"slot{k}_sat_{ax_tag(ax)}_2r", 1.0)],
+            f"{ax} at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it")
+           for ax in riding(c)]
     return [leaf(f"slot{k}_latch", f"{P}/One", 1),
-            subtree(f"Slot{k} latch decode", f"{me}/F", c["acqHalf"] * 1.05, inner)]
+            subtree(f"Slot{k} latch decode", f"{me}/F", c["acqHalf"] * 1.05, inner)] + sat
 
 
 def emit_layer(o, c, k, ks, lengths):
@@ -976,8 +992,8 @@ def emit_reacquire(o, c, k, suffix, back, rungs, floor, dwell, all_pos):
     a discrete binding a Direct tree cannot blend from a remembered flag."""
     ax4 = axes(c)
     s = suffix.lower()
-    col = re_children(c, k, f"slot{k}_recollapse_{s}")
-    o(f"      ReCollapse{suffix}:" + " " * (18 - len(suffix)) + "# a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1")
+    col = re_children(c, k, f"slot{k}_recollapse_{s}", at_mem=False)
+    o(f"      ReCollapse{suffix}:" + " " * (18 - len(suffix)) + "# a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1")
     emit_motion(o, f"Slot{k} recollapse {s}", col)
     o("        transitions:")
     rungs()
@@ -1399,6 +1415,14 @@ def build_clips(c, k):
         clip(f"slot{k}_place_{ax_tag(ax)}", {f"{BX}/Transform.m_LocalPosition.{a}": 2, **{f"{me}/{reg}/{a}": fmt(2 / S) for reg in regs}},
              None, f"× F × {ax}: the decode's reading term on {a}")
 
+    for ax in riding(c):
+        a = RIDE_AXIS[ax]
+        corr = 2 * r
+        clip(f"slot{k}_sat_{ax_tag(ax)}_0", {f"{BX}/Transform.m_LocalPosition.{a}": 0, **{f"{me}/{reg}/{a}": 0 for reg in regs}},
+             None, f"{ax} at or below 0.999: no correction on {a}")
+        clip(f"slot{k}_sat_{ax_tag(ax)}_2r", {f"{BX}/Transform.m_LocalPosition.{a}": fmt(corr), **{f"{me}/{reg}/{a}": fmt(corr / S) for reg in regs}},
+             None, f"{ax} at 1.0: +2·senderRadius on {a}, the sender's centre past the face it straddles")
+
     note(f"Slot {k} latch wait and grow: the placement held. Boxes sits at S·C − A, every register copies itself.")
     lw = cfg(1, 0, place, 0, 0, 0, held=1, xn_flag=1, pos=None)
     lw.update(held_const(False))
@@ -1448,13 +1472,20 @@ def build_clips(c, k):
                 + (["the decoded point's base"] if reg == pairing(c) else [])
             clip(f"slot{k}_follow_{reg}_{a}", fmts(d), None, f"× {reg}/{a}: " + ", ".join(parts))
 
-    note(f"Slot {k} reacquire: Boxes, the readout and every register at Mem; the configurations differ in scale, flags and payload.")
+    note(f"Slot {k} reacquire: the readout and every register at Mem, Boxes at Mem once reopened (the collapse sits at the centre).")
     for s, payload_on in (("in", 1), ("band", 0)):
         for state, scale, flag, secs, why in (("recollapse", collapsed, 0, step, "collapsed for a sampled step, flags shut: ends the episode the shut flag rejected"),
                                               ("reopen", place, 1, c["reacquireSeconds"], "every box flag up at placeHalf: its length is the timeout"),
                                               ("reshut", follow, 0, c["latchSeconds"], "flags shut, the followHalf cluster: a step samples it before the follower resumes")):
-            d = cfg(1, flag, scale, 0, 0, payload_on, held=1, settled=1, re_=1, pos=None)
-            d.update(held_const(True))
+            # ReCollapse collapses at the cage centre, not at Mem: a collapsed box at the sender's own point is still inside
+            # the sender's sphere, so the rejected overlap never breaks and ReOpen could never re-admit a still sender.
+            # Recycle collapses at the centre for the same reason. ReOpen and ReShut put Boxes back at Mem.
+            at_mem = state != "recollapse"
+            d = cfg(1, flag, scale, 0, 0, payload_on, held=1, settled=1, re_=1, pos=None if at_mem else (0, 0, 0))
+            hc = held_const(True)
+            if not at_mem:
+                hc = {key: v for key, v in hc.items() if not key.startswith(f"{BX}/")}
+            d.update(hc)
             clip(f"slot{k}_{state}_{s}", d, secs, why + (", payload held on" if payload_on else ", payload held off"))
     for j, a in enumerate(POS):
         d = {f"{me}/{reg}/{a}": 1 for reg in regs}
@@ -1465,6 +1496,8 @@ def build_clips(c, k):
             if key != f"{me}/Mem/{a}":
                 d[key] = v
         clip(f"slot{k}_re_mem_{a}", fmts(d), None, f"× Mem/{a}: Mem held, the chain reset to it, Boxes and the readout there")
+        d = {key: v for key, v in d.items() if not key.startswith(f"{BX}/")}
+        clip(f"slot{k}_re_hold_{a}", fmts(d), None, f"× Mem/{a}: Mem held, the chain reset to it, the readout there; Boxes stays at the centre")
     if four:
         clip(f"slot{k}_re_R", {f"{me}/R": 1}, None, "× R: the measured radius held")
     clip(f"slot{k}_recycle", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed at the cage centre for a step, flags shut: a fresh overlap episode for everything inside, the re-arm primitive")
