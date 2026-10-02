@@ -355,7 +355,7 @@ CONFIG = {
                                 #   cluster before the follower decodes its readings with followHalf coefficients
     "sweepSeconds": 2.0,        # the front's travel time from the centre to the face, every pass: the period between two offers to a sender and
                                 #   the resolution (front travel over the two collision steps an admission spans, the same-shell merge window) at once
-    "lookupSegments": 16,       # square-table resolution: segments per 0.8 m of the ±B span (table_segments); the yw² table takes the same chord width
+    "lookupSegments": 16,       # square-table resolution: segments per 2·TABLE_REF of the ±B span (table_segments); the yw² table takes the same chord width
     "epsilon": 1e-5,            # the any-box loss floor
     "boxSize": 1.0,             # the receiver box `size` on every axis; the Boxes scale multiplies it
     "prefix": "CR",             # internal param namespace; never published
@@ -381,8 +381,9 @@ YW_PER_AXIS = 1 / SQRT3
 # under half a frame to its state's length and every weight stays positive.
 S_REG = 16
 # The chord-width reference of the square tables: lookupSegments segments span ±TABLE_REF, so the tables over ±B
-# carry lookupSegments·B/TABLE_REF segments and the chord width does not move with B.
-TABLE_REF = 0.4
+# carry lookupSegments·B/TABLE_REF segments and the chord width does not move with B. 1.3 m is the half-extent the
+# shipped tables spanned, so the default keeps their chord width, 2·1.3/16 m per segment.
+TABLE_REF = 1.3
 FRAME = 1 / 60                  # a set clip's floored length, the length of every one-frame child
 POS = ("x", "y", "z")
 RIDE_AXIS = {"X+": "x", "Y+": "y", "Z+": "z"}   # the riding box whose reading decodes each tilted axis at the latch
@@ -1175,7 +1176,7 @@ def emit_dedup_clips(o, c, ks):
 def table_segments(c):
     """The axis tables' segment count over ±B: lookupSegments per 2·TABLE_REF of span, so the chord width stays put
     as B moves."""
-    return int(math.ceil(c["lookupSegments"] * bound(c) / TABLE_REF))
+    return int(round(c["lookupSegments"] * bound(c) / TABLE_REF))
 
 
 def yw_segments(c):
