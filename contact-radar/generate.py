@@ -67,7 +67,10 @@ not per sender inside a cage-sized hold cube. The placement, in three states:
   recycles (X- never read: the sender's surface was not inside the placement
   cluster on its axis).
 - `LatchGrow`, `latchSeconds` plus its tree's register term: every flag shut, the cluster grown to
-  `followHalf`, so a step samples the grown cluster before TrackOut decodes it.
+  `followHalf`, so a step samples the grown cluster before TrackOut decodes it. The dwell spans two
+  collision steps, not one: a remote clone's receiver values reach its animator about a frame later
+  than the wearer's own, so a one-step dwell that holds on the wearer lets a clone's rider decode the
+  placement cluster's readings with followHalf coefficients, miss dedupBand and fire the zone rung.
 Why place small and grow after: a same-step merge of two senders latches to the
 per-axis maximum of their readings, a corner on neither. A placeHalf cluster at
 that corner keeps a sender only if it lies within placeHalf plus its radius of
@@ -361,8 +364,10 @@ CONFIG = {
     "senderRadius": 0.05,       # r, m — the senders' typical radius: the placement offset at every latch (both rigs) and the
                                 #   three-box readout's bias. Under fourBox the follower measures r instead
     "stepSeconds": 0.035,       # every step-spanning dwell; >= 2 collision steps
-    "latchSeconds": 0.035,      # LatchGrow's and ReShut's dwell: >= one collision step at any frame rate, so a step samples the grown
-                                #   cluster before the follower decodes its readings with followHalf coefficients
+    "latchSeconds": 0.07,       # LatchGrow's and ReShut's dwell, so a step samples the grown cluster before the follower decodes its readings
+                                #   with followHalf coefficients: two collision steps, because a remote clone's receivers reach its animator a frame
+                                #   later than the wearer's, so a dwell sized to one step on the wearer is one step short on every other client.
+                                #   Lint: >= 2*stepSeconds
     "sweepSeconds": 2.0,        # the front's travel time from the centre to the face, every pass: the period between two offers to a sender and
                                 #   the resolution (front travel over the two collision steps an admission spans, the same-shell merge window) at once
     "lookupSegments": 16,       # square-table resolution: segments per 2·TABLE_REF of the ±B span (table_segments); the yw² table takes the same chord width
@@ -480,10 +485,11 @@ def lint(c):
         refuse("stepSeconds must be >= 2/60 — every frame at 60 fps or below carries a collision step, but above 60 fps a step "
                "lands only every second or third frame and the longest gap between two is one step period plus one frame, just "
                "under 2/60 s; a dwell shorter than that gap can open and close with no step sampling it")
-    if c["latchSeconds"] < c["stepSeconds"]:
-        refuse("latchSeconds must be >= stepSeconds — LatchGrow and ReShut dwell so that a collision step samples the grown "
-               "cluster before the follower reads it, and stepSeconds is the shortest dwell one step is guaranteed to land in "
-               "at any frame rate; a shorter dwell hands the follower placement-size readings decoded with followHalf coefficients")
+    if c["latchSeconds"] < 2 * c["stepSeconds"]:
+        refuse("latchSeconds must be >= 2*stepSeconds — LatchGrow and ReShut dwell so that a collision step samples the grown "
+               "cluster before the follower reads it, stepSeconds is the shortest dwell one step is guaranteed to land in at any "
+               "frame rate, and a remote clone's receivers reach its animator a frame later than the wearer's; a shorter dwell "
+               "hands a clone's follower placement-size readings decoded with followHalf coefficients")
     if not c["followHalf"] > c["placeHalf"] > c["senderRadius"]:
         refuse("followHalf > placeHalf > senderRadius must hold — the placement cluster must contain a sender's surface at the "
                "decoded point (placeHalf above the radius), and the follow cluster grows from it (followHalf above placeHalf)")
