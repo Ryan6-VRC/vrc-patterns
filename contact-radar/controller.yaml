@@ -6,7 +6,7 @@
 # a sender at the burst radius is inside the acquisition cube from every direction within ±0.577644866 m
 # of the centre height, and past that band the cube's corners are the zone's ends.
 # Acquisition half-extent 1.2 m; a latch places a 0.15 m cluster at the decoded point and grows it to 0.5 m,
-# which follows the sender at gain 0.5, paired 2 evaluations back; bound ±1.7 m per tilted axis; sender radius 0.05 m;
+# which follows the sender at gain 0.5, paired 1 evaluations back; bound ±1.7 m per tilted axis; sender radius 0.05 m;
 # step dwell 0.035 s, grow dwell 0.035 s, reacquire wait 0.1 s; dedup band 0.05 m.
 # One slot at a time rides an expanding front from the centre to the face over 2.0 s, and the front restarts
 # there, so every sender inside the cube is offered to exactly one flag-up cube per pass and admitted alone as the front
@@ -55,9 +55,6 @@ parameters:
   CR/Slot1/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot1/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot1/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
-  CR/Slot1/C1/x: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot1/C1/y: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot1/C1/z: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
   CR/Slot1/Mem/x: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot1/Mem/y: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot1/Mem/z: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
@@ -82,9 +79,6 @@ parameters:
   CR/Slot2/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot2/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot2/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
-  CR/Slot2/C1/x: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot2/C1/y: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot2/C1/z: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
   CR/Slot2/Mem/x: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot2/Mem/y: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot2/Mem/z: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
@@ -109,9 +103,6 @@ parameters:
   CR/Slot3/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot3/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot3/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
-  CR/Slot3/C1/x: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot3/C1/y: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot3/C1/z: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
   CR/Slot3/Mem/x: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot3/Mem/y: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot3/Mem/z: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
@@ -136,9 +127,6 @@ parameters:
   CR/Slot4/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot4/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot4/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
-  CR/Slot4/C1/x: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot4/C1/y: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
-  CR/Slot4/C1/z: { type: float, aap: true, scratch: true }   # the centre one evaluation older than C, stored (value + A)/S
   CR/Slot4/Mem/x: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot4/Mem/y: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
   CR/Slot4/Mem/z: { type: float, aap: true, scratch: true }   # the last decoded point, stored (value + A)/S
@@ -249,6 +237,30 @@ layers:
                 - { clip: slot1_place_xp, directWeight: CR/Slot1/X+ }
                 - { clip: slot1_place_yp, directWeight: CR/Slot1/Y+ }
                 - { clip: slot1_place_zp, directWeight: CR/Slot1/Z+ }
+            # X+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot1 x saturated
+              param: CR/Slot1/X+
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sat_xp_0, threshold: 0.999 }
+                - { clip: slot1_sat_xp_2r, threshold: 1 }
+            # Y+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot1 y saturated
+              param: CR/Slot1/Y+
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sat_yp_0, threshold: 0.999 }
+                - { clip: slot1_sat_yp_2r, threshold: 1 }
+            # Z+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot1 z saturated
+              param: CR/Slot1/Z+
+              directWeight: CR/One
+              children:
+                - { clip: slot1_sat_zp_0, threshold: 0.999 }
+                - { clip: slot1_sat_zp_2r, threshold: 1 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -263,9 +275,6 @@ layers:
             - { clip: slot1_keep_C_x, directWeight: CR/Slot1/C/x }
             - { clip: slot1_keep_C_y, directWeight: CR/Slot1/C/y }
             - { clip: slot1_keep_C_z, directWeight: CR/Slot1/C/z }
-            - { clip: slot1_keep_C1_x, directWeight: CR/Slot1/C1/x }
-            - { clip: slot1_keep_C1_y, directWeight: CR/Slot1/C1/y }
-            - { clip: slot1_keep_C1_z, directWeight: CR/Slot1/C1/z }
             - { clip: slot1_keep_Mem_x, directWeight: CR/Slot1/Mem/x }
             - { clip: slot1_keep_Mem_y, directWeight: CR/Slot1/Mem/y }
             - { clip: slot1_keep_Mem_z, directWeight: CR/Slot1/Mem/z }
@@ -275,7 +284,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
-          - { to: LatchGrow, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1112 s (Σ weight max × child length)
+          - { to: LatchGrow, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0975 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, unreachable while every axis is above zero or at the floor
       LatchGrow:                   # every flag shut, the cluster grown to followHalf: a collision step samples it before TrackOut decodes
         motion:
@@ -287,9 +296,6 @@ layers:
             - { clip: slot1_keep_C_x, directWeight: CR/Slot1/C/x }
             - { clip: slot1_keep_C_y, directWeight: CR/Slot1/C/y }
             - { clip: slot1_keep_C_z, directWeight: CR/Slot1/C/z }
-            - { clip: slot1_keep_C1_x, directWeight: CR/Slot1/C1/x }
-            - { clip: slot1_keep_C1_y, directWeight: CR/Slot1/C1/y }
-            - { clip: slot1_keep_C1_z, directWeight: CR/Slot1/C1/z }
             - { clip: slot1_keep_Mem_x, directWeight: CR/Slot1/Mem/x }
             - { clip: slot1_keep_Mem_y, directWeight: CR/Slot1/Mem/y }
             - { clip: slot1_keep_Mem_z, directWeight: CR/Slot1/Mem/z }
@@ -299,7 +305,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/X+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }   # the readings fell on the grow step: release now
-          - { to: TrackOut, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0762 s (Σ weight max × child length)
+          - { to: TrackOut, when: [ CR/Slot1/X+ greater 0, CR/Slot1/Y+ greater 0, CR/Slot1/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0625 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, as LatchWait's
       TrackOut:                    # the follower live, payload off; outside the burst radius. Entered only from LatchGrow, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a narrower test for the life of the track
         motion:
@@ -314,9 +320,6 @@ layers:
             - { clip: slot1_follow_C_x, directWeight: CR/Slot1/C/x }
             - { clip: slot1_follow_C_y, directWeight: CR/Slot1/C/y }
             - { clip: slot1_follow_C_z, directWeight: CR/Slot1/C/z }
-            - { clip: slot1_follow_C1_x, directWeight: CR/Slot1/C1/x }
-            - { clip: slot1_follow_C1_y, directWeight: CR/Slot1/C1/y }
-            - { clip: slot1_follow_C1_z, directWeight: CR/Slot1/C1/z }
             - tree: 1d
               name: Slot1 x²
               param: CR/Slot1/x
@@ -481,7 +484,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot1/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot1/z less -1.7 ] }
-          - { to: TrackBand, when: [ CR/Slot1/r2 less 8.6699, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1608 s (Σ weight max × child length); the fresh window, reacquire-gated
+          - { to: TrackBand, when: [ CR/Slot1/r2 less 8.6699, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
         motion:
           tree: direct
@@ -495,9 +498,6 @@ layers:
             - { clip: slot1_follow_C_x, directWeight: CR/Slot1/C/x }
             - { clip: slot1_follow_C_y, directWeight: CR/Slot1/C/y }
             - { clip: slot1_follow_C_z, directWeight: CR/Slot1/C/z }
-            - { clip: slot1_follow_C1_x, directWeight: CR/Slot1/C1/x }
-            - { clip: slot1_follow_C1_y, directWeight: CR/Slot1/C1/y }
-            - { clip: slot1_follow_C1_z, directWeight: CR/Slot1/C1/z }
             - tree: 1d
               name: Slot1 x²
               param: CR/Slot1/x
@@ -672,9 +672,6 @@ layers:
             - { clip: slot1_follow_C_x, directWeight: CR/Slot1/C/x }
             - { clip: slot1_follow_C_y, directWeight: CR/Slot1/C/y }
             - { clip: slot1_follow_C_z, directWeight: CR/Slot1/C/z }
-            - { clip: slot1_follow_C1_x, directWeight: CR/Slot1/C1/x }
-            - { clip: slot1_follow_C1_y, directWeight: CR/Slot1/C1/y }
-            - { clip: slot1_follow_C1_z, directWeight: CR/Slot1/C1/z }
             - tree: 1d
               name: Slot1 x²
               param: CR/Slot1/x
@@ -836,16 +833,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot1/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot1/z less -1.7 ] }
-      ReCollapseIn:                # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseIn:                # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot1 recollapse in
           normalized: false
           children:
             - { clip: slot1_recollapse_in, directWeight: CR/One }
-            - { clip: slot1_re_mem_x, directWeight: CR/Slot1/Mem/x }
-            - { clip: slot1_re_mem_y, directWeight: CR/Slot1/Mem/y }
-            - { clip: slot1_re_mem_z, directWeight: CR/Slot1/Mem/z }
+            - { clip: slot1_re_hold_x, directWeight: CR/Slot1/Mem/x }
+            - { clip: slot1_re_hold_y, directWeight: CR/Slot1/Mem/y }
+            - { clip: slot1_re_hold_z, directWeight: CR/Slot1/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -883,16 +880,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/Y+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
-      ReCollapseBand:              # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseBand:              # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot1 recollapse band
           normalized: false
           children:
             - { clip: slot1_recollapse_band, directWeight: CR/One }
-            - { clip: slot1_re_mem_x, directWeight: CR/Slot1/Mem/x }
-            - { clip: slot1_re_mem_y, directWeight: CR/Slot1/Mem/y }
-            - { clip: slot1_re_mem_z, directWeight: CR/Slot1/Mem/z }
+            - { clip: slot1_re_hold_x, directWeight: CR/Slot1/Mem/x }
+            - { clip: slot1_re_hold_y, directWeight: CR/Slot1/Mem/y }
+            - { clip: slot1_re_hold_z, directWeight: CR/Slot1/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1028,6 +1025,30 @@ layers:
                 - { clip: slot2_place_xp, directWeight: CR/Slot2/X+ }
                 - { clip: slot2_place_yp, directWeight: CR/Slot2/Y+ }
                 - { clip: slot2_place_zp, directWeight: CR/Slot2/Z+ }
+            # X+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot2 x saturated
+              param: CR/Slot2/X+
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sat_xp_0, threshold: 0.999 }
+                - { clip: slot2_sat_xp_2r, threshold: 1 }
+            # Y+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot2 y saturated
+              param: CR/Slot2/Y+
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sat_yp_0, threshold: 0.999 }
+                - { clip: slot2_sat_yp_2r, threshold: 1 }
+            # Z+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot2 z saturated
+              param: CR/Slot2/Z+
+              directWeight: CR/One
+              children:
+                - { clip: slot2_sat_zp_0, threshold: 0.999 }
+                - { clip: slot2_sat_zp_2r, threshold: 1 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1042,9 +1063,6 @@ layers:
             - { clip: slot2_keep_C_x, directWeight: CR/Slot2/C/x }
             - { clip: slot2_keep_C_y, directWeight: CR/Slot2/C/y }
             - { clip: slot2_keep_C_z, directWeight: CR/Slot2/C/z }
-            - { clip: slot2_keep_C1_x, directWeight: CR/Slot2/C1/x }
-            - { clip: slot2_keep_C1_y, directWeight: CR/Slot2/C1/y }
-            - { clip: slot2_keep_C1_z, directWeight: CR/Slot2/C1/z }
             - { clip: slot2_keep_Mem_x, directWeight: CR/Slot2/Mem/x }
             - { clip: slot2_keep_Mem_y, directWeight: CR/Slot2/Mem/y }
             - { clip: slot2_keep_Mem_z, directWeight: CR/Slot2/Mem/z }
@@ -1054,7 +1072,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
-          - { to: LatchGrow, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1112 s (Σ weight max × child length)
+          - { to: LatchGrow, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0975 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, unreachable while every axis is above zero or at the floor
       LatchGrow:                   # every flag shut, the cluster grown to followHalf: a collision step samples it before TrackOut decodes
         motion:
@@ -1066,9 +1084,6 @@ layers:
             - { clip: slot2_keep_C_x, directWeight: CR/Slot2/C/x }
             - { clip: slot2_keep_C_y, directWeight: CR/Slot2/C/y }
             - { clip: slot2_keep_C_z, directWeight: CR/Slot2/C/z }
-            - { clip: slot2_keep_C1_x, directWeight: CR/Slot2/C1/x }
-            - { clip: slot2_keep_C1_y, directWeight: CR/Slot2/C1/y }
-            - { clip: slot2_keep_C1_z, directWeight: CR/Slot2/C1/z }
             - { clip: slot2_keep_Mem_x, directWeight: CR/Slot2/Mem/x }
             - { clip: slot2_keep_Mem_y, directWeight: CR/Slot2/Mem/y }
             - { clip: slot2_keep_Mem_z, directWeight: CR/Slot2/Mem/z }
@@ -1078,7 +1093,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/X+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }   # the readings fell on the grow step: release now
-          - { to: TrackOut, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0762 s (Σ weight max × child length)
+          - { to: TrackOut, when: [ CR/Slot2/X+ greater 0, CR/Slot2/Y+ greater 0, CR/Slot2/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0625 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, as LatchWait's
       TrackOut:                    # the follower live, payload off; outside the burst radius. Entered only from LatchGrow, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a narrower test for the life of the track
         motion:
@@ -1093,9 +1108,6 @@ layers:
             - { clip: slot2_follow_C_x, directWeight: CR/Slot2/C/x }
             - { clip: slot2_follow_C_y, directWeight: CR/Slot2/C/y }
             - { clip: slot2_follow_C_z, directWeight: CR/Slot2/C/z }
-            - { clip: slot2_follow_C1_x, directWeight: CR/Slot2/C1/x }
-            - { clip: slot2_follow_C1_y, directWeight: CR/Slot2/C1/y }
-            - { clip: slot2_follow_C1_z, directWeight: CR/Slot2/C1/z }
             - tree: 1d
               name: Slot2 x²
               param: CR/Slot2/x
@@ -1260,7 +1272,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot2/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot2/z less -1.7 ] }
-          - { to: TrackBand, when: [ CR/Slot2/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1608 s (Σ weight max × child length); the fresh window, reacquire-gated
+          - { to: TrackBand, when: [ CR/Slot2/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
         motion:
           tree: direct
@@ -1274,9 +1286,6 @@ layers:
             - { clip: slot2_follow_C_x, directWeight: CR/Slot2/C/x }
             - { clip: slot2_follow_C_y, directWeight: CR/Slot2/C/y }
             - { clip: slot2_follow_C_z, directWeight: CR/Slot2/C/z }
-            - { clip: slot2_follow_C1_x, directWeight: CR/Slot2/C1/x }
-            - { clip: slot2_follow_C1_y, directWeight: CR/Slot2/C1/y }
-            - { clip: slot2_follow_C1_z, directWeight: CR/Slot2/C1/z }
             - tree: 1d
               name: Slot2 x²
               param: CR/Slot2/x
@@ -1452,9 +1461,6 @@ layers:
             - { clip: slot2_follow_C_x, directWeight: CR/Slot2/C/x }
             - { clip: slot2_follow_C_y, directWeight: CR/Slot2/C/y }
             - { clip: slot2_follow_C_z, directWeight: CR/Slot2/C/z }
-            - { clip: slot2_follow_C1_x, directWeight: CR/Slot2/C1/x }
-            - { clip: slot2_follow_C1_y, directWeight: CR/Slot2/C1/y }
-            - { clip: slot2_follow_C1_z, directWeight: CR/Slot2/C1/z }
             - tree: 1d
               name: Slot2 x²
               param: CR/Slot2/x
@@ -1617,16 +1623,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot2/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot2/z less -1.7 ] }
-      ReCollapseIn:                # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseIn:                # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot2 recollapse in
           normalized: false
           children:
             - { clip: slot2_recollapse_in, directWeight: CR/One }
-            - { clip: slot2_re_mem_x, directWeight: CR/Slot2/Mem/x }
-            - { clip: slot2_re_mem_y, directWeight: CR/Slot2/Mem/y }
-            - { clip: slot2_re_mem_z, directWeight: CR/Slot2/Mem/z }
+            - { clip: slot2_re_hold_x, directWeight: CR/Slot2/Mem/x }
+            - { clip: slot2_re_hold_y, directWeight: CR/Slot2/Mem/y }
+            - { clip: slot2_re_hold_z, directWeight: CR/Slot2/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1664,16 +1670,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/Y+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
-      ReCollapseBand:              # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseBand:              # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot2 recollapse band
           normalized: false
           children:
             - { clip: slot2_recollapse_band, directWeight: CR/One }
-            - { clip: slot2_re_mem_x, directWeight: CR/Slot2/Mem/x }
-            - { clip: slot2_re_mem_y, directWeight: CR/Slot2/Mem/y }
-            - { clip: slot2_re_mem_z, directWeight: CR/Slot2/Mem/z }
+            - { clip: slot2_re_hold_x, directWeight: CR/Slot2/Mem/x }
+            - { clip: slot2_re_hold_y, directWeight: CR/Slot2/Mem/y }
+            - { clip: slot2_re_hold_z, directWeight: CR/Slot2/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1809,6 +1815,30 @@ layers:
                 - { clip: slot3_place_xp, directWeight: CR/Slot3/X+ }
                 - { clip: slot3_place_yp, directWeight: CR/Slot3/Y+ }
                 - { clip: slot3_place_zp, directWeight: CR/Slot3/Z+ }
+            # X+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot3 x saturated
+              param: CR/Slot3/X+
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sat_xp_0, threshold: 0.999 }
+                - { clip: slot3_sat_xp_2r, threshold: 1 }
+            # Y+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot3 y saturated
+              param: CR/Slot3/Y+
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sat_yp_0, threshold: 0.999 }
+                - { clip: slot3_sat_yp_2r, threshold: 1 }
+            # Z+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot3 z saturated
+              param: CR/Slot3/Z+
+              directWeight: CR/One
+              children:
+                - { clip: slot3_sat_zp_0, threshold: 0.999 }
+                - { clip: slot3_sat_zp_2r, threshold: 1 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -1823,9 +1853,6 @@ layers:
             - { clip: slot3_keep_C_x, directWeight: CR/Slot3/C/x }
             - { clip: slot3_keep_C_y, directWeight: CR/Slot3/C/y }
             - { clip: slot3_keep_C_z, directWeight: CR/Slot3/C/z }
-            - { clip: slot3_keep_C1_x, directWeight: CR/Slot3/C1/x }
-            - { clip: slot3_keep_C1_y, directWeight: CR/Slot3/C1/y }
-            - { clip: slot3_keep_C1_z, directWeight: CR/Slot3/C1/z }
             - { clip: slot3_keep_Mem_x, directWeight: CR/Slot3/Mem/x }
             - { clip: slot3_keep_Mem_y, directWeight: CR/Slot3/Mem/y }
             - { clip: slot3_keep_Mem_z, directWeight: CR/Slot3/Mem/z }
@@ -1835,7 +1862,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
-          - { to: LatchGrow, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1112 s (Σ weight max × child length)
+          - { to: LatchGrow, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0975 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, unreachable while every axis is above zero or at the floor
       LatchGrow:                   # every flag shut, the cluster grown to followHalf: a collision step samples it before TrackOut decodes
         motion:
@@ -1847,9 +1874,6 @@ layers:
             - { clip: slot3_keep_C_x, directWeight: CR/Slot3/C/x }
             - { clip: slot3_keep_C_y, directWeight: CR/Slot3/C/y }
             - { clip: slot3_keep_C_z, directWeight: CR/Slot3/C/z }
-            - { clip: slot3_keep_C1_x, directWeight: CR/Slot3/C1/x }
-            - { clip: slot3_keep_C1_y, directWeight: CR/Slot3/C1/y }
-            - { clip: slot3_keep_C1_z, directWeight: CR/Slot3/C1/z }
             - { clip: slot3_keep_Mem_x, directWeight: CR/Slot3/Mem/x }
             - { clip: slot3_keep_Mem_y, directWeight: CR/Slot3/Mem/y }
             - { clip: slot3_keep_Mem_z, directWeight: CR/Slot3/Mem/z }
@@ -1859,7 +1883,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/X+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }   # the readings fell on the grow step: release now
-          - { to: TrackOut, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0762 s (Σ weight max × child length)
+          - { to: TrackOut, when: [ CR/Slot3/X+ greater 0, CR/Slot3/Y+ greater 0, CR/Slot3/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0625 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, as LatchWait's
       TrackOut:                    # the follower live, payload off; outside the burst radius. Entered only from LatchGrow, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a narrower test for the life of the track
         motion:
@@ -1874,9 +1898,6 @@ layers:
             - { clip: slot3_follow_C_x, directWeight: CR/Slot3/C/x }
             - { clip: slot3_follow_C_y, directWeight: CR/Slot3/C/y }
             - { clip: slot3_follow_C_z, directWeight: CR/Slot3/C/z }
-            - { clip: slot3_follow_C1_x, directWeight: CR/Slot3/C1/x }
-            - { clip: slot3_follow_C1_y, directWeight: CR/Slot3/C1/y }
-            - { clip: slot3_follow_C1_z, directWeight: CR/Slot3/C1/z }
             - tree: 1d
               name: Slot3 x²
               param: CR/Slot3/x
@@ -2041,7 +2062,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot3/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot3/z less -1.7 ] }
-          - { to: TrackBand, when: [ CR/Slot3/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1608 s (Σ weight max × child length); the fresh window, reacquire-gated
+          - { to: TrackBand, when: [ CR/Slot3/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
         motion:
           tree: direct
@@ -2055,9 +2076,6 @@ layers:
             - { clip: slot3_follow_C_x, directWeight: CR/Slot3/C/x }
             - { clip: slot3_follow_C_y, directWeight: CR/Slot3/C/y }
             - { clip: slot3_follow_C_z, directWeight: CR/Slot3/C/z }
-            - { clip: slot3_follow_C1_x, directWeight: CR/Slot3/C1/x }
-            - { clip: slot3_follow_C1_y, directWeight: CR/Slot3/C1/y }
-            - { clip: slot3_follow_C1_z, directWeight: CR/Slot3/C1/z }
             - tree: 1d
               name: Slot3 x²
               param: CR/Slot3/x
@@ -2234,9 +2252,6 @@ layers:
             - { clip: slot3_follow_C_x, directWeight: CR/Slot3/C/x }
             - { clip: slot3_follow_C_y, directWeight: CR/Slot3/C/y }
             - { clip: slot3_follow_C_z, directWeight: CR/Slot3/C/z }
-            - { clip: slot3_follow_C1_x, directWeight: CR/Slot3/C1/x }
-            - { clip: slot3_follow_C1_y, directWeight: CR/Slot3/C1/y }
-            - { clip: slot3_follow_C1_z, directWeight: CR/Slot3/C1/z }
             - tree: 1d
               name: Slot3 x²
               param: CR/Slot3/x
@@ -2400,16 +2415,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot3/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot3/z less -1.7 ] }
-      ReCollapseIn:                # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseIn:                # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot3 recollapse in
           normalized: false
           children:
             - { clip: slot3_recollapse_in, directWeight: CR/One }
-            - { clip: slot3_re_mem_x, directWeight: CR/Slot3/Mem/x }
-            - { clip: slot3_re_mem_y, directWeight: CR/Slot3/Mem/y }
-            - { clip: slot3_re_mem_z, directWeight: CR/Slot3/Mem/z }
+            - { clip: slot3_re_hold_x, directWeight: CR/Slot3/Mem/x }
+            - { clip: slot3_re_hold_y, directWeight: CR/Slot3/Mem/y }
+            - { clip: slot3_re_hold_z, directWeight: CR/Slot3/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -2447,16 +2462,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/Y+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
-      ReCollapseBand:              # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseBand:              # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot3 recollapse band
           normalized: false
           children:
             - { clip: slot3_recollapse_band, directWeight: CR/One }
-            - { clip: slot3_re_mem_x, directWeight: CR/Slot3/Mem/x }
-            - { clip: slot3_re_mem_y, directWeight: CR/Slot3/Mem/y }
-            - { clip: slot3_re_mem_z, directWeight: CR/Slot3/Mem/z }
+            - { clip: slot3_re_hold_x, directWeight: CR/Slot3/Mem/x }
+            - { clip: slot3_re_hold_y, directWeight: CR/Slot3/Mem/y }
+            - { clip: slot3_re_hold_z, directWeight: CR/Slot3/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -2592,6 +2607,30 @@ layers:
                 - { clip: slot4_place_xp, directWeight: CR/Slot4/X+ }
                 - { clip: slot4_place_yp, directWeight: CR/Slot4/Y+ }
                 - { clip: slot4_place_zp, directWeight: CR/Slot4/Z+ }
+            # X+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot4 x saturated
+              param: CR/Slot4/X+
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sat_xp_0, threshold: 0.999 }
+                - { clip: slot4_sat_xp_2r, threshold: 1 }
+            # Y+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot4 y saturated
+              param: CR/Slot4/Y+
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sat_yp_0, threshold: 0.999 }
+                - { clip: slot4_sat_yp_2r, threshold: 1 }
+            # Z+ at the clamp (1.0): the sender straddles that face, its centre about 2·senderRadius past the decode; add it
+            - tree: 1d
+              name: Slot4 z saturated
+              param: CR/Slot4/Z+
+              directWeight: CR/One
+              children:
+                - { clip: slot4_sat_zp_0, threshold: 0.999 }
+                - { clip: slot4_sat_zp_2r, threshold: 1 }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -2606,9 +2645,6 @@ layers:
             - { clip: slot4_keep_C_x, directWeight: CR/Slot4/C/x }
             - { clip: slot4_keep_C_y, directWeight: CR/Slot4/C/y }
             - { clip: slot4_keep_C_z, directWeight: CR/Slot4/C/z }
-            - { clip: slot4_keep_C1_x, directWeight: CR/Slot4/C1/x }
-            - { clip: slot4_keep_C1_y, directWeight: CR/Slot4/C1/y }
-            - { clip: slot4_keep_C1_z, directWeight: CR/Slot4/C1/z }
             - { clip: slot4_keep_Mem_x, directWeight: CR/Slot4/Mem/x }
             - { clip: slot4_keep_Mem_y, directWeight: CR/Slot4/Mem/y }
             - { clip: slot4_keep_Mem_z, directWeight: CR/Slot4/Mem/z }
@@ -2618,7 +2654,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }   # a riding axis fell: a cut on the shrink step, or a merge corner that holds nothing
-          - { to: LatchGrow, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1112 s (Σ weight max × child length)
+          - { to: LatchGrow, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0975 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, unreachable while every axis is above zero or at the floor
       LatchGrow:                   # every flag shut, the cluster grown to followHalf: a collision step samples it before TrackOut decodes
         motion:
@@ -2630,9 +2666,6 @@ layers:
             - { clip: slot4_keep_C_x, directWeight: CR/Slot4/C/x }
             - { clip: slot4_keep_C_y, directWeight: CR/Slot4/C/y }
             - { clip: slot4_keep_C_z, directWeight: CR/Slot4/C/z }
-            - { clip: slot4_keep_C1_x, directWeight: CR/Slot4/C1/x }
-            - { clip: slot4_keep_C1_y, directWeight: CR/Slot4/C1/y }
-            - { clip: slot4_keep_C1_z, directWeight: CR/Slot4/C1/z }
             - { clip: slot4_keep_Mem_x, directWeight: CR/Slot4/Mem/x }
             - { clip: slot4_keep_Mem_y, directWeight: CR/Slot4/Mem/y }
             - { clip: slot4_keep_Mem_z, directWeight: CR/Slot4/Mem/z }
@@ -2642,7 +2675,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/X+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }   # the readings fell on the grow step: release now
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }   # the readings fell on the grow step: release now
-          - { to: TrackOut, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0762 s (Σ weight max × child length)
+          - { to: TrackOut, when: [ CR/Slot4/X+ greater 0, CR/Slot4/Y+ greater 0, CR/Slot4/Z+ greater 0 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.0625 s (Σ weight max × child length)
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback, as LatchWait's
       TrackOut:                    # the follower live, payload off; outside the burst radius. Entered only from LatchGrow, so the fresh dedup rungs below run on a fresh admission; the settled rungs in TrackIn and TrackBand re-run a narrower test for the life of the track
         motion:
@@ -2657,9 +2690,6 @@ layers:
             - { clip: slot4_follow_C_x, directWeight: CR/Slot4/C/x }
             - { clip: slot4_follow_C_y, directWeight: CR/Slot4/C/y }
             - { clip: slot4_follow_C_z, directWeight: CR/Slot4/C/z }
-            - { clip: slot4_follow_C1_x, directWeight: CR/Slot4/C1/x }
-            - { clip: slot4_follow_C1_y, directWeight: CR/Slot4/C1/y }
-            - { clip: slot4_follow_C1_z, directWeight: CR/Slot4/C1/z }
             - tree: 1d
               name: Slot4 x²
               param: CR/Slot4/x
@@ -2824,7 +2854,7 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot4/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot4/z less -1.7 ] }
-          - { to: TrackBand, when: [ CR/Slot4/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1608 s (Σ weight max × child length); the fresh window, reacquire-gated
+          - { to: TrackBand, when: [ CR/Slot4/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
         motion:
           tree: direct
@@ -2838,9 +2868,6 @@ layers:
             - { clip: slot4_follow_C_x, directWeight: CR/Slot4/C/x }
             - { clip: slot4_follow_C_y, directWeight: CR/Slot4/C/y }
             - { clip: slot4_follow_C_z, directWeight: CR/Slot4/C/z }
-            - { clip: slot4_follow_C1_x, directWeight: CR/Slot4/C1/x }
-            - { clip: slot4_follow_C1_y, directWeight: CR/Slot4/C1/y }
-            - { clip: slot4_follow_C1_z, directWeight: CR/Slot4/C1/z }
             - tree: 1d
               name: Slot4 x²
               param: CR/Slot4/x
@@ -3018,9 +3045,6 @@ layers:
             - { clip: slot4_follow_C_x, directWeight: CR/Slot4/C/x }
             - { clip: slot4_follow_C_y, directWeight: CR/Slot4/C/y }
             - { clip: slot4_follow_C_z, directWeight: CR/Slot4/C/z }
-            - { clip: slot4_follow_C1_x, directWeight: CR/Slot4/C1/x }
-            - { clip: slot4_follow_C1_y, directWeight: CR/Slot4/C1/y }
-            - { clip: slot4_follow_C1_z, directWeight: CR/Slot4/C1/z }
             - tree: 1d
               name: Slot4 x²
               param: CR/Slot4/x
@@ -3185,16 +3209,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/y less -1.7 ] }
           - { to: Recycle, when: [ CR/Slot4/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot4/z less -1.7 ] }
-      ReCollapseIn:                # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseIn:                # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot4 recollapse in
           normalized: false
           children:
             - { clip: slot4_recollapse_in, directWeight: CR/One }
-            - { clip: slot4_re_mem_x, directWeight: CR/Slot4/Mem/x }
-            - { clip: slot4_re_mem_y, directWeight: CR/Slot4/Mem/y }
-            - { clip: slot4_re_mem_z, directWeight: CR/Slot4/Mem/z }
+            - { clip: slot4_re_hold_x, directWeight: CR/Slot4/Mem/x }
+            - { clip: slot4_re_hold_y, directWeight: CR/Slot4/Mem/y }
+            - { clip: slot4_re_hold_z, directWeight: CR/Slot4/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -3232,16 +3256,16 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/Y+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
-      ReCollapseBand:              # a cut: boxes collapsed at Mem for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
+      ReCollapseBand:              # a cut: boxes collapsed at the cage centre for a sampled step, flags shut, the chain reset to Mem, readout and payload held, Re 1
         motion:
           tree: direct
           name: Slot4 recollapse band
           normalized: false
           children:
             - { clip: slot4_recollapse_band, directWeight: CR/One }
-            - { clip: slot4_re_mem_x, directWeight: CR/Slot4/Mem/x }
-            - { clip: slot4_re_mem_y, directWeight: CR/Slot4/Mem/y }
-            - { clip: slot4_re_mem_z, directWeight: CR/Slot4/Mem/z }
+            - { clip: slot4_re_hold_x, directWeight: CR/Slot4/Mem/x }
+            - { clip: slot4_re_hold_y, directWeight: CR/Slot4/Mem/y }
+            - { clip: slot4_re_hold_z, directWeight: CR/Slot4/Mem/z }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
@@ -3410,48 +3434,51 @@ clips:
   slot1_open_wait: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
   # Slot 1 latch: the decode at the admitting front size, per axis 2·F·V − F − r (r = senderRadius), into Boxes' position
   # (metres) and every register ((point + A)/S). F·V is the nested tree: the place_* clips sit under a child weighted by F.
-  slot1_latch: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot1/C/x: 0.165625, CR/Slot1/C1/x: 0.165625, CR/Slot1/Mem/x: 0.165625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot1/C/y: 0.165625, CR/Slot1/C1/y: 0.165625, CR/Slot1/Mem/y: 0.165625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot1/C/z: 0.165625, CR/Slot1/C1/z: 0.165625, CR/Slot1/Mem/z: 0.165625, CR/Slot1/x: 1.7, CR/Slot1/y: -1.7, CR/Slot1/z: -1.7, CR/Slot1/yw: -0.981495458, CR/Slot1/r2: 8.67, CR/Slot1/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
-  slot1_place_neg: { set: { CR/Slot1/F: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot1/C/x: -0.0625, CR/Slot1/C1/x: -0.0625, CR/Slot1/Mem/x: -0.0625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot1/C/y: -0.0625, CR/Slot1/C1/y: -0.0625, CR/Slot1/Mem/y: -0.0625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot1/C/z: -0.0625, CR/Slot1/C1/z: -0.0625, CR/Slot1/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
-  slot1_place_xp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot1/C/x: 0.125, CR/Slot1/C1/x: 0.125, CR/Slot1/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
-  slot1_place_yp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot1/C/y: 0.125, CR/Slot1/C1/y: 0.125, CR/Slot1/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
-  slot1_place_zp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot1/C/z: 0.125, CR/Slot1/C1/z: 0.125, CR/Slot1/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot1_latch: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot1/C/x: 0.165625, CR/Slot1/Mem/x: 0.165625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot1/C/y: 0.165625, CR/Slot1/Mem/y: 0.165625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot1/C/z: 0.165625, CR/Slot1/Mem/z: 0.165625, CR/Slot1/x: 1.7, CR/Slot1/y: -1.7, CR/Slot1/z: -1.7, CR/Slot1/yw: -0.981495458, CR/Slot1/r2: 8.67, CR/Slot1/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
+  slot1_place_neg: { set: { CR/Slot1/F: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot1/C/x: -0.0625, CR/Slot1/Mem/x: -0.0625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot1/C/y: -0.0625, CR/Slot1/Mem/y: -0.0625, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot1/C/z: -0.0625, CR/Slot1/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
+  slot1_place_xp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot1/C/x: 0.125, CR/Slot1/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
+  slot1_place_yp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot1/C/y: 0.125, CR/Slot1/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
+  slot1_place_zp: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot1/C/z: 0.125, CR/Slot1/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot1_sat_xp_0: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, CR/Slot1/C/x: 0, CR/Slot1/Mem/x: 0 } }   # X+ at or below 0.999: no correction on x
+  slot1_sat_xp_2r: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0.1, CR/Slot1/C/x: 0.00625, CR/Slot1/Mem/x: 0.00625 } }   # X+ at 1.0: +2·senderRadius on x, the sender's centre past the face it straddles
+  slot1_sat_yp_0: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, CR/Slot1/C/y: 0, CR/Slot1/Mem/y: 0 } }   # Y+ at or below 0.999: no correction on y
+  slot1_sat_yp_2r: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0.1, CR/Slot1/C/y: 0.00625, CR/Slot1/Mem/y: 0.00625 } }   # Y+ at 1.0: +2·senderRadius on y, the sender's centre past the face it straddles
+  slot1_sat_zp_0: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, CR/Slot1/C/z: 0, CR/Slot1/Mem/z: 0 } }   # Z+ at or below 0.999: no correction on z
+  slot1_sat_zp_2r: { set: { Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0.1, CR/Slot1/C/z: 0.00625, CR/Slot1/Mem/z: 0.00625 } }   # Z+ at 1.0: +2·senderRadius on z, the sender's centre past the face it straddles
   # Slot 1 latch wait and grow: the placement held. Boxes sits at S·C − A, every register copies itself.
   slot1_latchwait: { seconds: 0.07, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: 1.7, CR/Slot1/y: -1.7, CR/Slot1/z: -1.7, CR/Slot1/yw: -0.981495458, CR/Slot1/r2: 8.67, CR/Slot1/p2: 7.70666667 } }   # the placement as Latch wrote it, for two collision steps
   slot1_latchgrow: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: 1.7, CR/Slot1/y: -1.7, CR/Slot1/z: -1.7, CR/Slot1/yw: -0.981495458, CR/Slot1/r2: 8.67, CR/Slot1/p2: 7.70666667 } }   # every flag shut, the followHalf cluster: a collision step samples it before TrackOut decodes
   slot1_keep_C_x: { set: { CR/Slot1/C/x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 16 } }   # × C/x: hold, Boxes there
   slot1_keep_C_y: { set: { CR/Slot1/C/y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 16 } }   # × C/y: hold, Boxes there
   slot1_keep_C_z: { set: { CR/Slot1/C/z: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 16 } }   # × C/z: hold, Boxes there
-  slot1_keep_C1_x: { set: { CR/Slot1/C1/x: 1 } }   # × C1/x: hold
-  slot1_keep_C1_y: { set: { CR/Slot1/C1/y: 1 } }   # × C1/y: hold
-  slot1_keep_C1_z: { set: { CR/Slot1/C1/z: 1 } }   # × C1/z: hold
   slot1_keep_Mem_x: { set: { CR/Slot1/Mem/x: 1 } }   # × Mem/x: hold
   slot1_keep_Mem_y: { set: { CR/Slot1/Mem/y: 1 } }   # × Mem/y: hold
   slot1_keep_Mem_z: { set: { CR/Slot1/Mem/z: 1 } }   # × Mem/z: hold
   # Slot 1 follower: the configurations carry the readout's constants (bias and −A); the reading children the offset at
   # h = followHalf; the register children the centre's (1 − g) share, the chain's copies and, on the pairing register, the
-  # decoded point's base. Pairing register: C1 (pairDelay 2); g = 0.5; A = 2.7, S = 16.
+  # decoded point's base. Pairing register: C (pairDelay 1); g = 0.5; A = 2.7, S = 16.
   slot1_hold: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: -3.25, CR/Slot1/Mem/x: -0.034375, CR/Slot1/C/x: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot1/y: -3.25, CR/Slot1/Mem/y: -0.034375, CR/Slot1/C/y: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot1/z: -3.25, CR/Slot1/Mem/z: -0.034375, CR/Slot1/C/z: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot1/yw: -5.62916512 } }   # the follower, payload off, fresh (outside the zone, never yet inside it)
   slot1_hold_band: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: -3.25, CR/Slot1/Mem/x: -0.034375, CR/Slot1/C/x: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot1/y: -3.25, CR/Slot1/Mem/y: -0.034375, CR/Slot1/C/y: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot1/z: -3.25, CR/Slot1/Mem/z: -0.034375, CR/Slot1/C/z: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot1/yw: -5.62916512 } }   # the follower, payload off, settled (the re-arm band, or fresh no longer)
   slot1_hold_burst: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: -3.25, CR/Slot1/Mem/x: -0.034375, CR/Slot1/C/x: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot1/y: -3.25, CR/Slot1/Mem/y: -0.034375, CR/Slot1/C/y: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot1/z: -3.25, CR/Slot1/Mem/z: -0.034375, CR/Slot1/C/z: -0.0171875, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot1/yw: -5.62916512 } }   # the follower, payload on (inside the zone)
   slot1_read_xp: { set: { CR/Slot1/x: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 1, CR/Slot1/Mem/x: 0.0625, CR/Slot1/C/x: 0.03125, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0.5, CR/Slot1/yw: 0.577350269 } }   # × X+: the offset at h = followHalf
   slot1_read_yp: { set: { CR/Slot1/y: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 1, CR/Slot1/Mem/y: 0.0625, CR/Slot1/C/y: 0.03125, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0.5, CR/Slot1/yw: 0.577350269 } }   # × Y+: the offset at h = followHalf
   slot1_read_zp: { set: { CR/Slot1/z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 1, CR/Slot1/Mem/z: 0.0625, CR/Slot1/C/z: 0.03125, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0.5, CR/Slot1/yw: 0.577350269 } }   # × Z+: the offset at h = followHalf
-  slot1_follow_C_x: { set: { CR/Slot1/C/x: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot1/C1/x: 1 } }   # × C/x: the centre's (1 − g) share, C1 ← C
-  slot1_follow_C_y: { set: { CR/Slot1/C/y: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot1/C1/y: 1 } }   # × C/y: the centre's (1 − g) share, C1 ← C
-  slot1_follow_C_z: { set: { CR/Slot1/C/z: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot1/C1/z: 1 } }   # × C/z: the centre's (1 − g) share, C1 ← C
-  slot1_follow_C1_x: { set: { CR/Slot1/x: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 16, CR/Slot1/Mem/x: 1, CR/Slot1/C/x: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot1/yw: 9.23760431 } }   # × C1/x: the decoded point's base
-  slot1_follow_C1_y: { set: { CR/Slot1/y: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 16, CR/Slot1/Mem/y: 1, CR/Slot1/C/y: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot1/yw: 9.23760431 } }   # × C1/y: the decoded point's base
-  slot1_follow_C1_z: { set: { CR/Slot1/z: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 16, CR/Slot1/Mem/z: 1, CR/Slot1/C/z: 0.5, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot1/yw: 9.23760431 } }   # × C1/z: the decoded point's base
-  # Slot 1 reacquire: Boxes, the readout and every register at Mem; the configurations differ in scale, flags and payload.
-  slot1_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
+  slot1_follow_C_x: { set: { CR/Slot1/C/x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot1/x: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 16, CR/Slot1/Mem/x: 1, CR/Slot1/yw: 9.23760431 } }   # × C/x: the centre's (1 − g) share, the decoded point's base
+  slot1_follow_C_y: { set: { CR/Slot1/C/y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot1/y: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 16, CR/Slot1/Mem/y: 1, CR/Slot1/yw: 9.23760431 } }   # × C/y: the centre's (1 − g) share, the decoded point's base
+  slot1_follow_C_z: { set: { CR/Slot1/C/z: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot1/z: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 16, CR/Slot1/Mem/z: 1, CR/Slot1/yw: 9.23760431 } }   # × C/z: the centre's (1 − g) share, the decoded point's base
+  # Slot 1 reacquire: the readout and every register at Mem, Boxes at Mem once reopened (the collapse sits at the centre).
+  slot1_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
   slot1_reopen_in: { seconds: 0.1, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held on
   slot1_reshut_in: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held on
-  slot1_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
+  slot1_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
   slot1_reopen_band: { seconds: 0.1, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held off
   slot1_reshut_band: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 1, CR/Slot1/Settled: 1, CR/Slot1/Re: 1, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot1/x: -2.7, CR/Slot1/y: -2.7, CR/Slot1/z: -2.7, CR/Slot1/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held off
-  slot1_re_mem_x: { set: { CR/Slot1/C/x: 1, CR/Slot1/C1/x: 1, CR/Slot1/Mem/x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot1/x: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
-  slot1_re_mem_y: { set: { CR/Slot1/C/y: 1, CR/Slot1/C1/y: 1, CR/Slot1/Mem/y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot1/y: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
-  slot1_re_mem_z: { set: { CR/Slot1/C/z: 1, CR/Slot1/C1/z: 1, CR/Slot1/Mem/z: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot1/z: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot1_re_mem_x: { set: { CR/Slot1/C/x: 1, CR/Slot1/Mem/x: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot1/x: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
+  slot1_re_hold_x: { set: { CR/Slot1/C/x: 1, CR/Slot1/Mem/x: 1, CR/Slot1/x: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot1_re_mem_y: { set: { CR/Slot1/C/y: 1, CR/Slot1/Mem/y: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot1/y: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
+  slot1_re_hold_y: { set: { CR/Slot1/C/y: 1, CR/Slot1/Mem/y: 1, CR/Slot1/y: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot1_re_mem_z: { set: { CR/Slot1/C/z: 1, CR/Slot1/Mem/z: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot1/z: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot1_re_hold_z: { set: { CR/Slot1/C/z: 1, CR/Slot1/Mem/z: 1, CR/Slot1/z: 16, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 16, CR/Slot1/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
   slot1_recycle: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed at the cage centre for a step, flags shut: a fresh overlap episode for everything inside, the re-arm primitive
   # Slot 1 x² table: 21 segments over [-1.7, 1.7], ±B, the decoded point's whole range, so nothing inside the
   # bound clamps; each 1D tree blends the two nearest knots, a chord that overestimates by ≤ w²/4.
@@ -3529,48 +3556,51 @@ clips:
   slot2_open_wait: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
   # Slot 2 latch: the decode at the admitting front size, per axis 2·F·V − F − r (r = senderRadius), into Boxes' position
   # (metres) and every register ((point + A)/S). F·V is the nested tree: the place_* clips sit under a child weighted by F.
-  slot2_latch: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot2/C/x: 0.165625, CR/Slot2/C1/x: 0.165625, CR/Slot2/Mem/x: 0.165625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot2/C/y: 0.165625, CR/Slot2/C1/y: 0.165625, CR/Slot2/Mem/y: 0.165625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot2/C/z: 0.165625, CR/Slot2/C1/z: 0.165625, CR/Slot2/Mem/z: 0.165625, CR/Slot2/x: 1.7, CR/Slot2/y: -1.7, CR/Slot2/z: -1.7, CR/Slot2/yw: -0.981495458, CR/Slot2/r2: 8.67, CR/Slot2/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
-  slot2_place_neg: { set: { CR/Slot2/F: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot2/C/x: -0.0625, CR/Slot2/C1/x: -0.0625, CR/Slot2/Mem/x: -0.0625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot2/C/y: -0.0625, CR/Slot2/C1/y: -0.0625, CR/Slot2/Mem/y: -0.0625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot2/C/z: -0.0625, CR/Slot2/C1/z: -0.0625, CR/Slot2/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
-  slot2_place_xp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot2/C/x: 0.125, CR/Slot2/C1/x: 0.125, CR/Slot2/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
-  slot2_place_yp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot2/C/y: 0.125, CR/Slot2/C1/y: 0.125, CR/Slot2/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
-  slot2_place_zp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot2/C/z: 0.125, CR/Slot2/C1/z: 0.125, CR/Slot2/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot2_latch: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot2/C/x: 0.165625, CR/Slot2/Mem/x: 0.165625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot2/C/y: 0.165625, CR/Slot2/Mem/y: 0.165625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot2/C/z: 0.165625, CR/Slot2/Mem/z: 0.165625, CR/Slot2/x: 1.7, CR/Slot2/y: -1.7, CR/Slot2/z: -1.7, CR/Slot2/yw: -0.981495458, CR/Slot2/r2: 8.67, CR/Slot2/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
+  slot2_place_neg: { set: { CR/Slot2/F: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot2/C/x: -0.0625, CR/Slot2/Mem/x: -0.0625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot2/C/y: -0.0625, CR/Slot2/Mem/y: -0.0625, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot2/C/z: -0.0625, CR/Slot2/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
+  slot2_place_xp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot2/C/x: 0.125, CR/Slot2/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
+  slot2_place_yp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot2/C/y: 0.125, CR/Slot2/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
+  slot2_place_zp: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot2/C/z: 0.125, CR/Slot2/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot2_sat_xp_0: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, CR/Slot2/C/x: 0, CR/Slot2/Mem/x: 0 } }   # X+ at or below 0.999: no correction on x
+  slot2_sat_xp_2r: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0.1, CR/Slot2/C/x: 0.00625, CR/Slot2/Mem/x: 0.00625 } }   # X+ at 1.0: +2·senderRadius on x, the sender's centre past the face it straddles
+  slot2_sat_yp_0: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, CR/Slot2/C/y: 0, CR/Slot2/Mem/y: 0 } }   # Y+ at or below 0.999: no correction on y
+  slot2_sat_yp_2r: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0.1, CR/Slot2/C/y: 0.00625, CR/Slot2/Mem/y: 0.00625 } }   # Y+ at 1.0: +2·senderRadius on y, the sender's centre past the face it straddles
+  slot2_sat_zp_0: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, CR/Slot2/C/z: 0, CR/Slot2/Mem/z: 0 } }   # Z+ at or below 0.999: no correction on z
+  slot2_sat_zp_2r: { set: { Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0.1, CR/Slot2/C/z: 0.00625, CR/Slot2/Mem/z: 0.00625 } }   # Z+ at 1.0: +2·senderRadius on z, the sender's centre past the face it straddles
   # Slot 2 latch wait and grow: the placement held. Boxes sits at S·C − A, every register copies itself.
   slot2_latchwait: { seconds: 0.07, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: 1.7, CR/Slot2/y: -1.7, CR/Slot2/z: -1.7, CR/Slot2/yw: -0.981495458, CR/Slot2/r2: 8.67, CR/Slot2/p2: 7.70666667 } }   # the placement as Latch wrote it, for two collision steps
   slot2_latchgrow: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: 1.7, CR/Slot2/y: -1.7, CR/Slot2/z: -1.7, CR/Slot2/yw: -0.981495458, CR/Slot2/r2: 8.67, CR/Slot2/p2: 7.70666667 } }   # every flag shut, the followHalf cluster: a collision step samples it before TrackOut decodes
   slot2_keep_C_x: { set: { CR/Slot2/C/x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 16 } }   # × C/x: hold, Boxes there
   slot2_keep_C_y: { set: { CR/Slot2/C/y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 16 } }   # × C/y: hold, Boxes there
   slot2_keep_C_z: { set: { CR/Slot2/C/z: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 16 } }   # × C/z: hold, Boxes there
-  slot2_keep_C1_x: { set: { CR/Slot2/C1/x: 1 } }   # × C1/x: hold
-  slot2_keep_C1_y: { set: { CR/Slot2/C1/y: 1 } }   # × C1/y: hold
-  slot2_keep_C1_z: { set: { CR/Slot2/C1/z: 1 } }   # × C1/z: hold
   slot2_keep_Mem_x: { set: { CR/Slot2/Mem/x: 1 } }   # × Mem/x: hold
   slot2_keep_Mem_y: { set: { CR/Slot2/Mem/y: 1 } }   # × Mem/y: hold
   slot2_keep_Mem_z: { set: { CR/Slot2/Mem/z: 1 } }   # × Mem/z: hold
   # Slot 2 follower: the configurations carry the readout's constants (bias and −A); the reading children the offset at
   # h = followHalf; the register children the centre's (1 − g) share, the chain's copies and, on the pairing register, the
-  # decoded point's base. Pairing register: C1 (pairDelay 2); g = 0.5; A = 2.7, S = 16.
+  # decoded point's base. Pairing register: C (pairDelay 1); g = 0.5; A = 2.7, S = 16.
   slot2_hold: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: -3.25, CR/Slot2/Mem/x: -0.034375, CR/Slot2/C/x: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot2/y: -3.25, CR/Slot2/Mem/y: -0.034375, CR/Slot2/C/y: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot2/z: -3.25, CR/Slot2/Mem/z: -0.034375, CR/Slot2/C/z: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot2/yw: -5.62916512 } }   # the follower, payload off, fresh (outside the zone, never yet inside it)
   slot2_hold_band: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: -3.25, CR/Slot2/Mem/x: -0.034375, CR/Slot2/C/x: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot2/y: -3.25, CR/Slot2/Mem/y: -0.034375, CR/Slot2/C/y: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot2/z: -3.25, CR/Slot2/Mem/z: -0.034375, CR/Slot2/C/z: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot2/yw: -5.62916512 } }   # the follower, payload off, settled (the re-arm band, or fresh no longer)
   slot2_hold_burst: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: -3.25, CR/Slot2/Mem/x: -0.034375, CR/Slot2/C/x: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot2/y: -3.25, CR/Slot2/Mem/y: -0.034375, CR/Slot2/C/y: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot2/z: -3.25, CR/Slot2/Mem/z: -0.034375, CR/Slot2/C/z: -0.0171875, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot2/yw: -5.62916512 } }   # the follower, payload on (inside the zone)
   slot2_read_xp: { set: { CR/Slot2/x: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 1, CR/Slot2/Mem/x: 0.0625, CR/Slot2/C/x: 0.03125, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0.5, CR/Slot2/yw: 0.577350269 } }   # × X+: the offset at h = followHalf
   slot2_read_yp: { set: { CR/Slot2/y: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 1, CR/Slot2/Mem/y: 0.0625, CR/Slot2/C/y: 0.03125, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0.5, CR/Slot2/yw: 0.577350269 } }   # × Y+: the offset at h = followHalf
   slot2_read_zp: { set: { CR/Slot2/z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 1, CR/Slot2/Mem/z: 0.0625, CR/Slot2/C/z: 0.03125, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0.5, CR/Slot2/yw: 0.577350269 } }   # × Z+: the offset at h = followHalf
-  slot2_follow_C_x: { set: { CR/Slot2/C/x: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot2/C1/x: 1 } }   # × C/x: the centre's (1 − g) share, C1 ← C
-  slot2_follow_C_y: { set: { CR/Slot2/C/y: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot2/C1/y: 1 } }   # × C/y: the centre's (1 − g) share, C1 ← C
-  slot2_follow_C_z: { set: { CR/Slot2/C/z: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot2/C1/z: 1 } }   # × C/z: the centre's (1 − g) share, C1 ← C
-  slot2_follow_C1_x: { set: { CR/Slot2/x: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 16, CR/Slot2/Mem/x: 1, CR/Slot2/C/x: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot2/yw: 9.23760431 } }   # × C1/x: the decoded point's base
-  slot2_follow_C1_y: { set: { CR/Slot2/y: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 16, CR/Slot2/Mem/y: 1, CR/Slot2/C/y: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot2/yw: 9.23760431 } }   # × C1/y: the decoded point's base
-  slot2_follow_C1_z: { set: { CR/Slot2/z: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 16, CR/Slot2/Mem/z: 1, CR/Slot2/C/z: 0.5, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot2/yw: 9.23760431 } }   # × C1/z: the decoded point's base
-  # Slot 2 reacquire: Boxes, the readout and every register at Mem; the configurations differ in scale, flags and payload.
-  slot2_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
+  slot2_follow_C_x: { set: { CR/Slot2/C/x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot2/x: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 16, CR/Slot2/Mem/x: 1, CR/Slot2/yw: 9.23760431 } }   # × C/x: the centre's (1 − g) share, the decoded point's base
+  slot2_follow_C_y: { set: { CR/Slot2/C/y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot2/y: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 16, CR/Slot2/Mem/y: 1, CR/Slot2/yw: 9.23760431 } }   # × C/y: the centre's (1 − g) share, the decoded point's base
+  slot2_follow_C_z: { set: { CR/Slot2/C/z: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot2/z: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 16, CR/Slot2/Mem/z: 1, CR/Slot2/yw: 9.23760431 } }   # × C/z: the centre's (1 − g) share, the decoded point's base
+  # Slot 2 reacquire: the readout and every register at Mem, Boxes at Mem once reopened (the collapse sits at the centre).
+  slot2_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
   slot2_reopen_in: { seconds: 0.1, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held on
   slot2_reshut_in: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held on
-  slot2_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
+  slot2_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
   slot2_reopen_band: { seconds: 0.1, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held off
   slot2_reshut_band: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 1, CR/Slot2/Settled: 1, CR/Slot2/Re: 1, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot2/x: -2.7, CR/Slot2/y: -2.7, CR/Slot2/z: -2.7, CR/Slot2/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held off
-  slot2_re_mem_x: { set: { CR/Slot2/C/x: 1, CR/Slot2/C1/x: 1, CR/Slot2/Mem/x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot2/x: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
-  slot2_re_mem_y: { set: { CR/Slot2/C/y: 1, CR/Slot2/C1/y: 1, CR/Slot2/Mem/y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot2/y: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
-  slot2_re_mem_z: { set: { CR/Slot2/C/z: 1, CR/Slot2/C1/z: 1, CR/Slot2/Mem/z: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot2/z: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot2_re_mem_x: { set: { CR/Slot2/C/x: 1, CR/Slot2/Mem/x: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot2/x: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
+  slot2_re_hold_x: { set: { CR/Slot2/C/x: 1, CR/Slot2/Mem/x: 1, CR/Slot2/x: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot2_re_mem_y: { set: { CR/Slot2/C/y: 1, CR/Slot2/Mem/y: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot2/y: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
+  slot2_re_hold_y: { set: { CR/Slot2/C/y: 1, CR/Slot2/Mem/y: 1, CR/Slot2/y: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot2_re_mem_z: { set: { CR/Slot2/C/z: 1, CR/Slot2/Mem/z: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot2/z: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot2_re_hold_z: { set: { CR/Slot2/C/z: 1, CR/Slot2/Mem/z: 1, CR/Slot2/z: 16, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 16, CR/Slot2/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
   slot2_recycle: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed at the cage centre for a step, flags shut: a fresh overlap episode for everything inside, the re-arm primitive
   # Slot 2 x² table: 21 segments over [-1.7, 1.7], ±B, the decoded point's whole range, so nothing inside the
   # bound clamps; each 1D tree blends the two nearest knots, a chord that overestimates by ≤ w²/4.
@@ -3648,48 +3678,51 @@ clips:
   slot3_open_wait: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
   # Slot 3 latch: the decode at the admitting front size, per axis 2·F·V − F − r (r = senderRadius), into Boxes' position
   # (metres) and every register ((point + A)/S). F·V is the nested tree: the place_* clips sit under a child weighted by F.
-  slot3_latch: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot3/C/x: 0.165625, CR/Slot3/C1/x: 0.165625, CR/Slot3/Mem/x: 0.165625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot3/C/y: 0.165625, CR/Slot3/C1/y: 0.165625, CR/Slot3/Mem/y: 0.165625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot3/C/z: 0.165625, CR/Slot3/C1/z: 0.165625, CR/Slot3/Mem/z: 0.165625, CR/Slot3/x: 1.7, CR/Slot3/y: -1.7, CR/Slot3/z: -1.7, CR/Slot3/yw: -0.981495458, CR/Slot3/r2: 8.67, CR/Slot3/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
-  slot3_place_neg: { set: { CR/Slot3/F: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot3/C/x: -0.0625, CR/Slot3/C1/x: -0.0625, CR/Slot3/Mem/x: -0.0625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot3/C/y: -0.0625, CR/Slot3/C1/y: -0.0625, CR/Slot3/Mem/y: -0.0625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot3/C/z: -0.0625, CR/Slot3/C1/z: -0.0625, CR/Slot3/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
-  slot3_place_xp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot3/C/x: 0.125, CR/Slot3/C1/x: 0.125, CR/Slot3/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
-  slot3_place_yp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot3/C/y: 0.125, CR/Slot3/C1/y: 0.125, CR/Slot3/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
-  slot3_place_zp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot3/C/z: 0.125, CR/Slot3/C1/z: 0.125, CR/Slot3/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot3_latch: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot3/C/x: 0.165625, CR/Slot3/Mem/x: 0.165625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot3/C/y: 0.165625, CR/Slot3/Mem/y: 0.165625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot3/C/z: 0.165625, CR/Slot3/Mem/z: 0.165625, CR/Slot3/x: 1.7, CR/Slot3/y: -1.7, CR/Slot3/z: -1.7, CR/Slot3/yw: -0.981495458, CR/Slot3/r2: 8.67, CR/Slot3/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
+  slot3_place_neg: { set: { CR/Slot3/F: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot3/C/x: -0.0625, CR/Slot3/Mem/x: -0.0625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot3/C/y: -0.0625, CR/Slot3/Mem/y: -0.0625, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot3/C/z: -0.0625, CR/Slot3/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
+  slot3_place_xp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot3/C/x: 0.125, CR/Slot3/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
+  slot3_place_yp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot3/C/y: 0.125, CR/Slot3/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
+  slot3_place_zp: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot3/C/z: 0.125, CR/Slot3/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot3_sat_xp_0: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, CR/Slot3/C/x: 0, CR/Slot3/Mem/x: 0 } }   # X+ at or below 0.999: no correction on x
+  slot3_sat_xp_2r: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0.1, CR/Slot3/C/x: 0.00625, CR/Slot3/Mem/x: 0.00625 } }   # X+ at 1.0: +2·senderRadius on x, the sender's centre past the face it straddles
+  slot3_sat_yp_0: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, CR/Slot3/C/y: 0, CR/Slot3/Mem/y: 0 } }   # Y+ at or below 0.999: no correction on y
+  slot3_sat_yp_2r: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0.1, CR/Slot3/C/y: 0.00625, CR/Slot3/Mem/y: 0.00625 } }   # Y+ at 1.0: +2·senderRadius on y, the sender's centre past the face it straddles
+  slot3_sat_zp_0: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, CR/Slot3/C/z: 0, CR/Slot3/Mem/z: 0 } }   # Z+ at or below 0.999: no correction on z
+  slot3_sat_zp_2r: { set: { Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0.1, CR/Slot3/C/z: 0.00625, CR/Slot3/Mem/z: 0.00625 } }   # Z+ at 1.0: +2·senderRadius on z, the sender's centre past the face it straddles
   # Slot 3 latch wait and grow: the placement held. Boxes sits at S·C − A, every register copies itself.
   slot3_latchwait: { seconds: 0.07, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: 1.7, CR/Slot3/y: -1.7, CR/Slot3/z: -1.7, CR/Slot3/yw: -0.981495458, CR/Slot3/r2: 8.67, CR/Slot3/p2: 7.70666667 } }   # the placement as Latch wrote it, for two collision steps
   slot3_latchgrow: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: 1.7, CR/Slot3/y: -1.7, CR/Slot3/z: -1.7, CR/Slot3/yw: -0.981495458, CR/Slot3/r2: 8.67, CR/Slot3/p2: 7.70666667 } }   # every flag shut, the followHalf cluster: a collision step samples it before TrackOut decodes
   slot3_keep_C_x: { set: { CR/Slot3/C/x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 16 } }   # × C/x: hold, Boxes there
   slot3_keep_C_y: { set: { CR/Slot3/C/y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 16 } }   # × C/y: hold, Boxes there
   slot3_keep_C_z: { set: { CR/Slot3/C/z: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 16 } }   # × C/z: hold, Boxes there
-  slot3_keep_C1_x: { set: { CR/Slot3/C1/x: 1 } }   # × C1/x: hold
-  slot3_keep_C1_y: { set: { CR/Slot3/C1/y: 1 } }   # × C1/y: hold
-  slot3_keep_C1_z: { set: { CR/Slot3/C1/z: 1 } }   # × C1/z: hold
   slot3_keep_Mem_x: { set: { CR/Slot3/Mem/x: 1 } }   # × Mem/x: hold
   slot3_keep_Mem_y: { set: { CR/Slot3/Mem/y: 1 } }   # × Mem/y: hold
   slot3_keep_Mem_z: { set: { CR/Slot3/Mem/z: 1 } }   # × Mem/z: hold
   # Slot 3 follower: the configurations carry the readout's constants (bias and −A); the reading children the offset at
   # h = followHalf; the register children the centre's (1 − g) share, the chain's copies and, on the pairing register, the
-  # decoded point's base. Pairing register: C1 (pairDelay 2); g = 0.5; A = 2.7, S = 16.
+  # decoded point's base. Pairing register: C (pairDelay 1); g = 0.5; A = 2.7, S = 16.
   slot3_hold: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: -3.25, CR/Slot3/Mem/x: -0.034375, CR/Slot3/C/x: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot3/y: -3.25, CR/Slot3/Mem/y: -0.034375, CR/Slot3/C/y: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot3/z: -3.25, CR/Slot3/Mem/z: -0.034375, CR/Slot3/C/z: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot3/yw: -5.62916512 } }   # the follower, payload off, fresh (outside the zone, never yet inside it)
   slot3_hold_band: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: -3.25, CR/Slot3/Mem/x: -0.034375, CR/Slot3/C/x: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot3/y: -3.25, CR/Slot3/Mem/y: -0.034375, CR/Slot3/C/y: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot3/z: -3.25, CR/Slot3/Mem/z: -0.034375, CR/Slot3/C/z: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot3/yw: -5.62916512 } }   # the follower, payload off, settled (the re-arm band, or fresh no longer)
   slot3_hold_burst: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: -3.25, CR/Slot3/Mem/x: -0.034375, CR/Slot3/C/x: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot3/y: -3.25, CR/Slot3/Mem/y: -0.034375, CR/Slot3/C/y: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot3/z: -3.25, CR/Slot3/Mem/z: -0.034375, CR/Slot3/C/z: -0.0171875, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot3/yw: -5.62916512 } }   # the follower, payload on (inside the zone)
   slot3_read_xp: { set: { CR/Slot3/x: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 1, CR/Slot3/Mem/x: 0.0625, CR/Slot3/C/x: 0.03125, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0.5, CR/Slot3/yw: 0.577350269 } }   # × X+: the offset at h = followHalf
   slot3_read_yp: { set: { CR/Slot3/y: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 1, CR/Slot3/Mem/y: 0.0625, CR/Slot3/C/y: 0.03125, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0.5, CR/Slot3/yw: 0.577350269 } }   # × Y+: the offset at h = followHalf
   slot3_read_zp: { set: { CR/Slot3/z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 1, CR/Slot3/Mem/z: 0.0625, CR/Slot3/C/z: 0.03125, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0.5, CR/Slot3/yw: 0.577350269 } }   # × Z+: the offset at h = followHalf
-  slot3_follow_C_x: { set: { CR/Slot3/C/x: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot3/C1/x: 1 } }   # × C/x: the centre's (1 − g) share, C1 ← C
-  slot3_follow_C_y: { set: { CR/Slot3/C/y: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot3/C1/y: 1 } }   # × C/y: the centre's (1 − g) share, C1 ← C
-  slot3_follow_C_z: { set: { CR/Slot3/C/z: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot3/C1/z: 1 } }   # × C/z: the centre's (1 − g) share, C1 ← C
-  slot3_follow_C1_x: { set: { CR/Slot3/x: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 16, CR/Slot3/Mem/x: 1, CR/Slot3/C/x: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot3/yw: 9.23760431 } }   # × C1/x: the decoded point's base
-  slot3_follow_C1_y: { set: { CR/Slot3/y: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 16, CR/Slot3/Mem/y: 1, CR/Slot3/C/y: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot3/yw: 9.23760431 } }   # × C1/y: the decoded point's base
-  slot3_follow_C1_z: { set: { CR/Slot3/z: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 16, CR/Slot3/Mem/z: 1, CR/Slot3/C/z: 0.5, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot3/yw: 9.23760431 } }   # × C1/z: the decoded point's base
-  # Slot 3 reacquire: Boxes, the readout and every register at Mem; the configurations differ in scale, flags and payload.
-  slot3_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
+  slot3_follow_C_x: { set: { CR/Slot3/C/x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot3/x: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 16, CR/Slot3/Mem/x: 1, CR/Slot3/yw: 9.23760431 } }   # × C/x: the centre's (1 − g) share, the decoded point's base
+  slot3_follow_C_y: { set: { CR/Slot3/C/y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot3/y: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 16, CR/Slot3/Mem/y: 1, CR/Slot3/yw: 9.23760431 } }   # × C/y: the centre's (1 − g) share, the decoded point's base
+  slot3_follow_C_z: { set: { CR/Slot3/C/z: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot3/z: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 16, CR/Slot3/Mem/z: 1, CR/Slot3/yw: 9.23760431 } }   # × C/z: the centre's (1 − g) share, the decoded point's base
+  # Slot 3 reacquire: the readout and every register at Mem, Boxes at Mem once reopened (the collapse sits at the centre).
+  slot3_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
   slot3_reopen_in: { seconds: 0.1, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held on
   slot3_reshut_in: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held on
-  slot3_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
+  slot3_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
   slot3_reopen_band: { seconds: 0.1, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held off
   slot3_reshut_band: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 1, CR/Slot3/Settled: 1, CR/Slot3/Re: 1, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot3/x: -2.7, CR/Slot3/y: -2.7, CR/Slot3/z: -2.7, CR/Slot3/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held off
-  slot3_re_mem_x: { set: { CR/Slot3/C/x: 1, CR/Slot3/C1/x: 1, CR/Slot3/Mem/x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot3/x: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
-  slot3_re_mem_y: { set: { CR/Slot3/C/y: 1, CR/Slot3/C1/y: 1, CR/Slot3/Mem/y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot3/y: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
-  slot3_re_mem_z: { set: { CR/Slot3/C/z: 1, CR/Slot3/C1/z: 1, CR/Slot3/Mem/z: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot3/z: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot3_re_mem_x: { set: { CR/Slot3/C/x: 1, CR/Slot3/Mem/x: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot3/x: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
+  slot3_re_hold_x: { set: { CR/Slot3/C/x: 1, CR/Slot3/Mem/x: 1, CR/Slot3/x: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot3_re_mem_y: { set: { CR/Slot3/C/y: 1, CR/Slot3/Mem/y: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot3/y: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
+  slot3_re_hold_y: { set: { CR/Slot3/C/y: 1, CR/Slot3/Mem/y: 1, CR/Slot3/y: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot3_re_mem_z: { set: { CR/Slot3/C/z: 1, CR/Slot3/Mem/z: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot3/z: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot3_re_hold_z: { set: { CR/Slot3/C/z: 1, CR/Slot3/Mem/z: 1, CR/Slot3/z: 16, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 16, CR/Slot3/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
   slot3_recycle: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed at the cage centre for a step, flags shut: a fresh overlap episode for everything inside, the re-arm primitive
   # Slot 3 x² table: 21 segments over [-1.7, 1.7], ±B, the decoded point's whole range, so nothing inside the
   # bound clamps; each 1D tree blends the two nearest knots, a chord that overestimates by ≤ w²/4.
@@ -3767,48 +3800,51 @@ clips:
   slot4_open_wait: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1 held a step at base scale: the partial-admission grace
   # Slot 4 latch: the decode at the admitting front size, per axis 2·F·V − F − r (r = senderRadius), into Boxes' position
   # (metres) and every register ((point + A)/S). F·V is the nested tree: the place_* clips sit under a child weighted by F.
-  slot4_latch: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot4/C/x: 0.165625, CR/Slot4/C1/x: 0.165625, CR/Slot4/Mem/x: 0.165625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot4/C/y: 0.165625, CR/Slot4/C1/y: 0.165625, CR/Slot4/Mem/y: 0.165625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot4/C/z: 0.165625, CR/Slot4/C1/z: 0.165625, CR/Slot4/Mem/z: 0.165625, CR/Slot4/x: 1.7, CR/Slot4/y: -1.7, CR/Slot4/z: -1.7, CR/Slot4/yw: -0.981495458, CR/Slot4/r2: 8.67, CR/Slot4/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
-  slot4_place_neg: { set: { CR/Slot4/F: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot4/C/x: -0.0625, CR/Slot4/C1/x: -0.0625, CR/Slot4/Mem/x: -0.0625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot4/C/y: -0.0625, CR/Slot4/C1/y: -0.0625, CR/Slot4/Mem/y: -0.0625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot4/C/z: -0.0625, CR/Slot4/C1/z: -0.0625, CR/Slot4/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
-  slot4_place_xp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot4/C/x: 0.125, CR/Slot4/C1/x: 0.125, CR/Slot4/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
-  slot4_place_yp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot4/C/y: 0.125, CR/Slot4/C1/y: 0.125, CR/Slot4/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
-  slot4_place_zp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot4/C/z: 0.125, CR/Slot4/C1/z: 0.125, CR/Slot4/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot4_latch: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -0.05, CR/Slot4/C/x: 0.165625, CR/Slot4/Mem/x: 0.165625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -0.05, CR/Slot4/C/y: 0.165625, CR/Slot4/Mem/y: 0.165625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -0.05, CR/Slot4/C/z: 0.165625, CR/Slot4/Mem/z: 0.165625, CR/Slot4/x: 1.7, CR/Slot4/y: -1.7, CR/Slot4/z: -1.7, CR/Slot4/yw: -0.981495458, CR/Slot4/r2: 8.67, CR/Slot4/p2: 7.70666667 } }   # placeHalf cluster, riding flags shut, Held 1, readout parked at (B, −B, −B); the decode's constant terms
+  slot4_place_neg: { set: { CR/Slot4/F: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -1, CR/Slot4/C/x: -0.0625, CR/Slot4/Mem/x: -0.0625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -1, CR/Slot4/C/y: -0.0625, CR/Slot4/Mem/y: -0.0625, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -1, CR/Slot4/C/z: -0.0625, CR/Slot4/Mem/z: -0.0625 } }   # × F × One: the −F term on every axis, and F ← F (its self-copy, so a second Latch evaluation decodes at the same size)
+  slot4_place_xp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 2, CR/Slot4/C/x: 0.125, CR/Slot4/Mem/x: 0.125 } }   # × F × X+: the decode's reading term on x
+  slot4_place_yp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 2, CR/Slot4/C/y: 0.125, CR/Slot4/Mem/y: 0.125 } }   # × F × Y+: the decode's reading term on y
+  slot4_place_zp: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 2, CR/Slot4/C/z: 0.125, CR/Slot4/Mem/z: 0.125 } }   # × F × Z+: the decode's reading term on z
+  slot4_sat_xp_0: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, CR/Slot4/C/x: 0, CR/Slot4/Mem/x: 0 } }   # X+ at or below 0.999: no correction on x
+  slot4_sat_xp_2r: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0.1, CR/Slot4/C/x: 0.00625, CR/Slot4/Mem/x: 0.00625 } }   # X+ at 1.0: +2·senderRadius on x, the sender's centre past the face it straddles
+  slot4_sat_yp_0: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, CR/Slot4/C/y: 0, CR/Slot4/Mem/y: 0 } }   # Y+ at or below 0.999: no correction on y
+  slot4_sat_yp_2r: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0.1, CR/Slot4/C/y: 0.00625, CR/Slot4/Mem/y: 0.00625 } }   # Y+ at 1.0: +2·senderRadius on y, the sender's centre past the face it straddles
+  slot4_sat_zp_0: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, CR/Slot4/C/z: 0, CR/Slot4/Mem/z: 0 } }   # Z+ at or below 0.999: no correction on z
+  slot4_sat_zp_2r: { set: { Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0.1, CR/Slot4/C/z: 0.00625, CR/Slot4/Mem/z: 0.00625 } }   # Z+ at 1.0: +2·senderRadius on z, the sender's centre past the face it straddles
   # Slot 4 latch wait and grow: the placement held. Boxes sits at S·C − A, every register copies itself.
   slot4_latchwait: { seconds: 0.07, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: 1.7, CR/Slot4/y: -1.7, CR/Slot4/z: -1.7, CR/Slot4/yw: -0.981495458, CR/Slot4/r2: 8.67, CR/Slot4/p2: 7.70666667 } }   # the placement as Latch wrote it, for two collision steps
   slot4_latchgrow: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: 1.7, CR/Slot4/y: -1.7, CR/Slot4/z: -1.7, CR/Slot4/yw: -0.981495458, CR/Slot4/r2: 8.67, CR/Slot4/p2: 7.70666667 } }   # every flag shut, the followHalf cluster: a collision step samples it before TrackOut decodes
   slot4_keep_C_x: { set: { CR/Slot4/C/x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 16 } }   # × C/x: hold, Boxes there
   slot4_keep_C_y: { set: { CR/Slot4/C/y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 16 } }   # × C/y: hold, Boxes there
   slot4_keep_C_z: { set: { CR/Slot4/C/z: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 16 } }   # × C/z: hold, Boxes there
-  slot4_keep_C1_x: { set: { CR/Slot4/C1/x: 1 } }   # × C1/x: hold
-  slot4_keep_C1_y: { set: { CR/Slot4/C1/y: 1 } }   # × C1/y: hold
-  slot4_keep_C1_z: { set: { CR/Slot4/C1/z: 1 } }   # × C1/z: hold
   slot4_keep_Mem_x: { set: { CR/Slot4/Mem/x: 1 } }   # × Mem/x: hold
   slot4_keep_Mem_y: { set: { CR/Slot4/Mem/y: 1 } }   # × Mem/y: hold
   slot4_keep_Mem_z: { set: { CR/Slot4/Mem/z: 1 } }   # × Mem/z: hold
   # Slot 4 follower: the configurations carry the readout's constants (bias and −A); the reading children the offset at
   # h = followHalf; the register children the centre's (1 − g) share, the chain's copies and, on the pairing register, the
-  # decoded point's base. Pairing register: C1 (pairDelay 2); g = 0.5; A = 2.7, S = 16.
+  # decoded point's base. Pairing register: C (pairDelay 1); g = 0.5; A = 2.7, S = 16.
   slot4_hold: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: -3.25, CR/Slot4/Mem/x: -0.034375, CR/Slot4/C/x: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot4/y: -3.25, CR/Slot4/Mem/y: -0.034375, CR/Slot4/C/y: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot4/z: -3.25, CR/Slot4/Mem/z: -0.034375, CR/Slot4/C/z: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot4/yw: -5.62916512 } }   # the follower, payload off, fresh (outside the zone, never yet inside it)
   slot4_hold_band: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: -3.25, CR/Slot4/Mem/x: -0.034375, CR/Slot4/C/x: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot4/y: -3.25, CR/Slot4/Mem/y: -0.034375, CR/Slot4/C/y: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot4/z: -3.25, CR/Slot4/Mem/z: -0.034375, CR/Slot4/C/z: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot4/yw: -5.62916512 } }   # the follower, payload off, settled (the re-arm band, or fresh no longer)
   slot4_hold_burst: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -3.25, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -3.25, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: -3.25, CR/Slot4/Mem/x: -0.034375, CR/Slot4/C/x: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.975, CR/Slot4/y: -3.25, CR/Slot4/Mem/y: -0.034375, CR/Slot4/C/y: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.975, CR/Slot4/z: -3.25, CR/Slot4/Mem/z: -0.034375, CR/Slot4/C/z: -0.0171875, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.975, CR/Slot4/yw: -5.62916512 } }   # the follower, payload on (inside the zone)
   slot4_read_xp: { set: { CR/Slot4/x: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 1, CR/Slot4/Mem/x: 0.0625, CR/Slot4/C/x: 0.03125, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0.5, CR/Slot4/yw: 0.577350269 } }   # × X+: the offset at h = followHalf
   slot4_read_yp: { set: { CR/Slot4/y: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 1, CR/Slot4/Mem/y: 0.0625, CR/Slot4/C/y: 0.03125, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0.5, CR/Slot4/yw: 0.577350269 } }   # × Y+: the offset at h = followHalf
   slot4_read_zp: { set: { CR/Slot4/z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 1, CR/Slot4/Mem/z: 0.0625, CR/Slot4/C/z: 0.03125, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0.5, CR/Slot4/yw: 0.577350269 } }   # × Z+: the offset at h = followHalf
-  slot4_follow_C_x: { set: { CR/Slot4/C/x: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot4/C1/x: 1 } }   # × C/x: the centre's (1 − g) share, C1 ← C
-  slot4_follow_C_y: { set: { CR/Slot4/C/y: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot4/C1/y: 1 } }   # × C/y: the centre's (1 − g) share, C1 ← C
-  slot4_follow_C_z: { set: { CR/Slot4/C/z: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot4/C1/z: 1 } }   # × C/z: the centre's (1 − g) share, C1 ← C
-  slot4_follow_C1_x: { set: { CR/Slot4/x: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 16, CR/Slot4/Mem/x: 1, CR/Slot4/C/x: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 8, CR/Slot4/yw: 9.23760431 } }   # × C1/x: the decoded point's base
-  slot4_follow_C1_y: { set: { CR/Slot4/y: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 16, CR/Slot4/Mem/y: 1, CR/Slot4/C/y: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 8, CR/Slot4/yw: 9.23760431 } }   # × C1/y: the decoded point's base
-  slot4_follow_C1_z: { set: { CR/Slot4/z: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 16, CR/Slot4/Mem/z: 1, CR/Slot4/C/z: 0.5, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 8, CR/Slot4/yw: 9.23760431 } }   # × C1/z: the decoded point's base
-  # Slot 4 reacquire: Boxes, the readout and every register at Mem; the configurations differ in scale, flags and payload.
-  slot4_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
+  slot4_follow_C_x: { set: { CR/Slot4/C/x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot4/x: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 16, CR/Slot4/Mem/x: 1, CR/Slot4/yw: 9.23760431 } }   # × C/x: the centre's (1 − g) share, the decoded point's base
+  slot4_follow_C_y: { set: { CR/Slot4/C/y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot4/y: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 16, CR/Slot4/Mem/y: 1, CR/Slot4/yw: 9.23760431 } }   # × C/y: the centre's (1 − g) share, the decoded point's base
+  slot4_follow_C_z: { set: { CR/Slot4/C/z: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot4/z: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 16, CR/Slot4/Mem/z: 1, CR/Slot4/yw: 9.23760431 } }   # × C/z: the centre's (1 − g) share, the decoded point's base
+  # Slot 4 reacquire: the readout and every register at Mem, Boxes at Mem once reopened (the collapse sits at the centre).
+  slot4_recollapse_in: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held on
   slot4_reopen_in: { seconds: 0.1, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held on
   slot4_reshut_in: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held on
-  slot4_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
+  slot4_recollapse_band: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # collapsed for a sampled step, flags shut: ends the episode the shut flag rejected, payload held off
   slot4_reopen_band: { seconds: 0.1, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.3, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.3, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # every box flag up at placeHalf: its length is the timeout, payload held off
   slot4_reshut_band: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 1, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: -2.7, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 1, CR/Slot4/Settled: 1, CR/Slot4/Re: 1, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: -2.7, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: -2.7, CR/Slot4/x: -2.7, CR/Slot4/y: -2.7, CR/Slot4/z: -2.7, CR/Slot4/yw: -4.67653718 } }   # flags shut, the followHalf cluster: a step samples it before the follower resumes, payload held off
-  slot4_re_mem_x: { set: { CR/Slot4/C/x: 1, CR/Slot4/C1/x: 1, CR/Slot4/Mem/x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot4/x: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
-  slot4_re_mem_y: { set: { CR/Slot4/C/y: 1, CR/Slot4/C1/y: 1, CR/Slot4/Mem/y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot4/y: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
-  slot4_re_mem_z: { set: { CR/Slot4/C/z: 1, CR/Slot4/C1/z: 1, CR/Slot4/Mem/z: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot4/z: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot4_re_mem_x: { set: { CR/Slot4/C/x: 1, CR/Slot4/Mem/x: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 16, CR/Slot4/x: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, Boxes and the readout there
+  slot4_re_hold_x: { set: { CR/Slot4/C/x: 1, CR/Slot4/Mem/x: 1, CR/Slot4/x: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/x: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot4_re_mem_y: { set: { CR/Slot4/C/y: 1, CR/Slot4/Mem/y: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 16, CR/Slot4/y: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, Boxes and the readout there
+  slot4_re_hold_y: { set: { CR/Slot4/C/y: 1, CR/Slot4/Mem/y: 1, CR/Slot4/y: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/y: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
+  slot4_re_mem_z: { set: { CR/Slot4/C/z: 1, CR/Slot4/Mem/z: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 16, CR/Slot4/z: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, Boxes and the readout there
+  slot4_re_hold_z: { set: { CR/Slot4/C/z: 1, CR/Slot4/Mem/z: 1, CR/Slot4/z: 16, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 16, CR/Slot4/yw: 9.23760431 } }   # × Mem/z: Mem held, the chain reset to it, the readout there; Boxes stays at the centre
   slot4_recycle: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed at the cage centre for a step, flags shut: a fresh overlap episode for everything inside, the re-arm primitive
   # Slot 4 x² table: 21 segments over [-1.7, 1.7], ±B, the decoded point's whole range, so nothing inside the
   # bound clamps; each 1D tree blends the two nearest knots, a chord that overestimates by ≤ w²/4.
