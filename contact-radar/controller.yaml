@@ -51,7 +51,7 @@ parameters:
   CR/Slot1/Held: { type: float, aap: true, scratch: true }   # 1 while this slot holds a sender: Latch and every state after it
   CR/Slot1/Settled: { type: float, aap: true, scratch: true }   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder
   CR/Slot1/Re: { type: float, aap: true, scratch: true }   # 1 in the six reacquire states: another slot's fresh admission waits in TrackOut on it
-  CR/Slot1/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, held in Latch, which decodes against it
+  CR/Slot1/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, read by Latch alone
   CR/Slot1/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot1/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot1/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
@@ -75,7 +75,7 @@ parameters:
   CR/Slot2/Held: { type: float, aap: true, scratch: true }   # 1 while this slot holds a sender: Latch and every state after it
   CR/Slot2/Settled: { type: float, aap: true, scratch: true }   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder
   CR/Slot2/Re: { type: float, aap: true, scratch: true }   # 1 in the six reacquire states: another slot's fresh admission waits in TrackOut on it
-  CR/Slot2/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, held in Latch, which decodes against it
+  CR/Slot2/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, read by Latch alone
   CR/Slot2/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot2/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot2/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
@@ -99,7 +99,7 @@ parameters:
   CR/Slot3/Held: { type: float, aap: true, scratch: true }   # 1 while this slot holds a sender: Latch and every state after it
   CR/Slot3/Settled: { type: float, aap: true, scratch: true }   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder
   CR/Slot3/Re: { type: float, aap: true, scratch: true }   # 1 in the six reacquire states: another slot's fresh admission waits in TrackOut on it
-  CR/Slot3/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, held in Latch, which decodes against it
+  CR/Slot3/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, read by Latch alone
   CR/Slot3/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot3/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot3/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
@@ -123,7 +123,7 @@ parameters:
   CR/Slot4/Held: { type: float, aap: true, scratch: true }   # 1 while this slot holds a sender: Latch and every state after it
   CR/Slot4/Settled: { type: float, aap: true, scratch: true }   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder
   CR/Slot4/Re: { type: float, aap: true, scratch: true }   # 1 in the six reacquire states: another slot's fresh admission waits in TrackOut on it
-  CR/Slot4/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, held in Latch, which decodes against it
+  CR/Slot4/F: { type: float, aap: true, scratch: true }   # the front size the admission was made at, m: written while riding, read by Latch alone
   CR/Slot4/C/x: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot4/C/y: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S
   CR/Slot4/C/z: { type: float, aap: true, scratch: true }   # the cluster centre, stored (value + A)/S

@@ -38,13 +38,13 @@ cluster at the sender's decoded point and moves the cluster with the sender
 every frame; the cluster's centre is owned by the animator as parameters and
 written to `Boxes`' localPosition, since the animator cannot read a transform
 it does not write. The rig's standing
-contact-pair load is then one pair per sender inside a cluster, not one per
-sender in a cage-sized hold cube. The placement, in three states:
+contact-pair load is then one pair per receiver per sender inside the cluster,
+not per sender inside a cage-sized hold cube. The placement, in three states:
 - `Latch`, one evaluation: decodes the sender's point from the three riding
   readings at the front size that admitted it, per axis 2·F·V − F − r, with V
   the reading, r `senderRadius` and F the slot's own front-size register
-  (`Slot<k>/F`, written in Sweep and Partial from `CR/Sweep` one frame late,
-  held in Latch; a slot-local copy because Restart parks SweepPrev at 0 on the
+  (`Slot<k>/F`, written in Sweep and Partial from `CR/Sweep` one frame late and
+  read by Latch alone; a slot-local copy because Restart parks SweepPrev at 0 on the
   pass boundary and an admission on that frame would decode against zero).
   F·V is a product of two parameters, so the decode is a nested Direct tree: a
   child weighted by F holding a tree whose children are weighted by the
@@ -59,14 +59,14 @@ sender in a cage-sized hold cube. The placement, in three states:
   decode samples front-size readings only: a tree state re-samples every frame,
   and once the shrunk cluster's readings land the same tree would decode them
   with front-size coefficients and throw the cluster off the sender.
-- `LatchWait`, two collision steps (2·stepSeconds): everything held. A freshly
+- `LatchWait`, 2·stepSeconds plus its tree's register term: everything held. A freshly
   opened Proximity receiver reads exactly 0 on its first colliding step and its
   value on the second (docs/runtime.md §Contacts), which is X-'s case. A riding
   axis at the floor recycles at once (a cut on the shrink step, or a merge
   corner that holds nothing); every axis reading takes LatchGrow; the fallback
   recycles (X- never read: the sender's surface was not inside the placement
   cluster on its axis).
-- `LatchGrow`, `latchSeconds`: every flag shut, the cluster grown to
+- `LatchGrow`, `latchSeconds` plus its tree's register term: every flag shut, the cluster grown to
   `followHalf`, so a step samples the grown cluster before TrackOut decodes it.
 Why place small and grow after: a same-step merge of two senders latches to the
 per-axis maximum of their readings, a corner on neither. A placeHalf cluster at
@@ -136,6 +136,7 @@ rejected overlap never breaks) and resets the whole chain to Mem
 (the centre lags the sender; Mem is where it last decoded); `ReOpen*` opens all
 boxes flag up at placeHalf on Mem and waits `reacquireSeconds` for every axis
 to read; `ReShut*` shuts the flags and grows to followHalf for `latchSeconds`
+(each of the three dwells its configured base plus its tree's register term)
 before Track resumes. A second cut inside ReShut recycles, so one reacquire per
 cut. Readout x, y, z, yw, R, Output, Held, Settled and the payload hold
 throughout; r2 and p2 read 0 there (their tables do not ride these trees: four
@@ -227,10 +228,13 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   without one because it defaults to 0.
 - Every value that must persist through a tree state is written back to itself
   there through a child weighted by its own value (docs/runtime.md §Animator
-  evaluation): the chain and Mem in every hold state, F in Latch, R in Re*.
+  evaluation): the chain and Mem in every hold state, R in Re*, and F within
+  Latch, its one reader, so a second Latch evaluation decodes at the same size.
 - A dwell inside a tree state is an exit-time rung, and a Direct tree's length
-  is data (Σ weight × child length): each dwell's comment states the bound the
-  generator computes for it from the register and reading weight maxima.
+  is data (Σ weight × child length): every such dwell (LatchWait, LatchGrow, the
+  six Re* states, TrackOut's fresh window) is its configured base plus the tree's
+  register and reading terms, never an exact elapsed wait, and its comment states
+  the bound the generator computes from the weight maxima.
 - Ladders list the readings rung before the fallback, and that ordering — not
   the duration — is what survives a hitch frame longer than the whole dwell.
 - The burst states carry the readout tree: the payload wrapper enables where
@@ -1619,7 +1623,7 @@ def document(overrides=None):
         o(f"  {me}/Held: {{ type: float, aap: true, scratch: true }}   # 1 while this slot holds a sender: Latch and every state after it")
         o(f"  {me}/Settled: {{ type: float, aap: true, scratch: true }}   # 1 once the sender it holds has reached the zone (inside it, or in the re-arm band after) or has been held outside it past the fresh window: a fresh lower-index slot yields to a settled holder")
         o(f"  {me}/Re: {{ type: float, aap: true, scratch: true }}   # 1 in the six reacquire states: another slot's fresh admission waits in TrackOut on it")
-        o(f"  {me}/F: {{ type: float, aap: true, scratch: true }}   # the front size the admission was made at, m: written while riding, held in Latch, which decodes against it")
+        o(f"  {me}/F: {{ type: float, aap: true, scratch: true }}   # the front size the admission was made at, m: written while riding, read by Latch alone")
         for reg in chain(c) + ["Mem"]:
             what = {"C": "the cluster centre", "C1": "the centre one evaluation older than C", "C2": "the centre two evaluations older than C",
                     "Mem": "the last decoded point"}[reg]
