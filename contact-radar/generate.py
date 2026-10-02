@@ -98,7 +98,11 @@ each grace tree carries one Mem-weighted child per axis and folds the read bias
 into its weight-One configuration clip. The returning readings
 take `Relatch`, Latch's dwell for Latch's reason: they were taken by the grace
 box, and TrackIn must not decode them with hold coefficients; a second floor
-inside it Recycles, one grace per cut. The rider gate: every other slot's
+inside it Recycles, one grace per cut, and must: a `Relatch → GraceCollapse`
+rung would loop wherever this slot's own returning hold cube is what cuts the
+sender (a pair budget the cube does not fit in), never reaching TrackIn, so
+Grace would never clear and the rider gate below would hold every fresh slot
+out of the zone for as long as the sender stood there. The rider gate: every other slot's
 TrackOut holds its `→ TrackIn` and settle rungs on this slot's `Grace` flag (1
 in the three grace states). A rider that re-admits the returning sender takes it
 on the step after the cut, before the grace box has opened, so its fresh dedup
