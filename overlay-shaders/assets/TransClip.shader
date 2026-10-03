@@ -90,10 +90,8 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // rasterises before the front face, giving a per-triangle patchy tint from outside.
         //
         // The wall clips in mirrors too by default, and that is a decision rather than an omission.
-        // GammaCrystal suppresses its grading in mirrors because a mirror reflects a scene the bubble has
-        // ALREADY graded, so the reflection would be graded twice; nothing here compounds -- a mirror
-        // camera renders the scene into its own depth buffer, and the wall either clips the transparents in
-        // that render or it does not. Bailing unconditionally would make the reflection disagree with the
+        // Nothing here compounds -- a mirror camera renders the scene into its own depth buffer, and the
+        // wall either clips the transparents in that render or it does not. Bailing unconditionally would make the reflection disagree with the
         // direct view about the same volume. The consequence to expect at the default: from a mirror,
         // transparent materials inside the sphere are clipped there too, including the wearer's own.
         //

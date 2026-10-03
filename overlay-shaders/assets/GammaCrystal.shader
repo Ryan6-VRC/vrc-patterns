@@ -66,9 +66,10 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         // 0 = shell fully obeys scene grading (disappears in dark), 1 = shell ignores it (too bright)
         _Shell_Grading_Resist("Grading resistance", Range(0, 1)) = 0.5
 
-        // At 1 the shell's vertices degenerate in a mirror; the grading pass already bails there
-        // unconditionally, so the whole bubble leaves the reflection. [ToggleUI], not [Toggle(...)]: an
-        // animator drives this per frame, and a keyword would add a shader variant for it.
+        // At 1 the shell's vertices degenerate in a mirror, so the crystal leaves the reflection. The SHELL
+        // only: the grading pass ignores this, because a reflection that skipped the grade would show the
+        // scene ungraded beside a graded direct view. [ToggleUI], not [Toggle(...)]: an animator drives
+        // this per frame, and a keyword would add a shader variant for it.
         [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
     }
 
@@ -159,8 +160,47 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 // Carried rather than recomputed so the vertex stage's own re-projection radius and the
                 // fragment's distance thresholds cannot disagree.
                 nointerpolation float aoe_scale : AOE_SCALE;
+                // Mirror renders only (zero otherwise): the world-space view ray through this pixel, and the
+                // mirror plane. See the MIRROR comment in vertex_stage.
+                float3 mirror_ray_ws : MIRROR_RAY;
+                nointerpolation float4 mirror_plane : MIRROR_PLANE;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
+
+            /// Whether any stage would change a pixel. Shared by the fragment's early exit and the mirror
+            /// path's vertex-stage collapse, so a neutral bubble costs a mirror render nothing.
+            bool grade_is_active()
+            {
+                bool active = abs(_Gamma_Adjust_Value) > 0.001;
+                #ifdef _EXPOSURE_ENABLED
+                    active = active || abs(_Exposure_Value) > 0.001;
+                #endif
+                #ifdef _SCOTOPIC_ENABLED
+                    active = active || _Scotopic_Strength > 0.001;
+                #endif
+                return active;
+            }
+
+            /// True when this mirror render cleared to transparent black: a corner of the grab still holds
+            /// exactly (0,0,0,0). Measured in VRChat: the avatars-only personal mirror clears so and composites
+            /// after every avatar queue (queue 5000 included), so nothing in the direct view can grade it;
+            /// world mirrors and the environment-on personal mirror render their scene there and draw before
+            /// this pass's Overlay queue, so the direct view's grade already covers them. ANY corner, not a
+            /// majority: a personal mirror is framed on the wearer, and leaning in puts their torso over the
+            /// bottom pair. Corners are symmetric, so the grab texture's Y convention cannot matter.
+            bool mirror_background_is_transparent()
+            {
+                static const float2 corners[4] =
+                {
+                    float2(0.02, 0.02), float2(0.98, 0.02), float2(0.02, 0.98), float2(0.98, 0.98)
+                };
+                [unroll] for (int i = 0; i < 4; i++)
+                {
+                    half4 c = UNITY_SAMPLE_TEX2D_LOD(_GammaAdjustGrabTexture, corners[i], 0);
+                    if (max(max(c.r, c.g), max(c.b, c.a)) < 1.0 / 255.0) return true;
+                }
+                return false;
+            }
 
             /// Mean of the object's three axis scales, or 1 with scale-relative off. A SINGLE SCALAR, never
             /// per-axis: the area of effect is spherical by construction, so a per-axis factor would ask for
@@ -179,23 +219,6 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                // Only the GRADING bails in a mirror, and unconditionally -- no _HideInMirror switch
-                // reaches here, because double grading is an artifact rather than a look. The shell pass
-                // draws unless the material opts out, and that default pairing is the whole point: a
-                // mirror reflects a scene this bubble has ALREADY graded, so grading the reflection as
-                // well would compound it -- hold the bubble beside a mirror and the reflected region
-                // would darken twice. The shell must keep rendering by default, or the object disappears
-                // from its own reflection while you are holding it. DELIBERATELY asymmetric with
-                // DebugOverlay, which only suppresses its FULLSCREEN takeover in mirrors.
-                if (_VRChatMirrorMode != 0)
-                {
-                    output.sphere_center_ws = float3(0, 0, 0);
-                    output.position = float4(0, 0, 0, 0);
-                    output.grab_screen_pos = float4(0, 0, 0, 0);
-                    output.aoe_scale = 1;
-                    return;
-                }
-
                 // Sphere center = translation column of the object-to-world matrix.
                 output.sphere_center_ws = float3(
                     unity_ObjectToWorld._m03,
@@ -203,6 +226,53 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                     unity_ObjectToWorld._m23
                 );
                 output.aoe_scale = aoe_scale_factor();
+                output.mirror_ray_ws = float3(0, 0, 0);
+                output.mirror_plane = float4(0, 0, 0, 0);
+
+                // MIRROR. A VRChat mirror is a separate camera that renders BEFORE the direct view, so
+                // nothing in it is graded unless this pass grades it. Whether the direct view's grade then
+                // covers the mirror's surface depends on the mirror (measured): world mirrors and the
+                // environment-on personal mirror draw before this Overlay queue, so the direct view grades
+                // them and grading here too would darken them twice -- those collapse, as before. The
+                // avatars-only personal mirror composites after every avatar queue, so this render is the
+                // only place it can be graded: there the pass covers the whole image and grades each pixel
+                // by the path the light really takes, real eye -> mirror -> surface. No mirror global tells
+                // the kinds apart; the transparent clear does (mirror_background_is_transparent).
+                if (_VRChatMirrorMode != 0)
+                {
+                    if (!grade_is_active() || !mirror_background_is_transparent())
+                    {
+                        output.position = float4(0, 0, 0, 0);
+                        output.grab_screen_pos = float4(0, 0, 0, 0);
+                        return;
+                    }
+
+                    // Flatten the closed host onto a disc that covers the whole target (TransClipScreen's
+                    // idiom): both windings cover every disc point, so Cull Front and the mirror's inverted
+                    // culling cannot leave a hole. Depth 0.5 is inside the clip volume on both conventions;
+                    // ZTest Always ignores it.
+                    float3 dir_os = input.position_os.xyz;
+                    float len_os = length(dir_os);
+                    float2 ndc = len_os > 1e-6 ? dir_os.xy / len_os * 4.0 : float2(0, 0);
+                    output.position = float4(ndc, 0.5, 1);
+                    output.grab_screen_pos = ComputeGrabScreenPos(output.position);
+
+                    // View ray through this NDC point. An oblique projection rewrites row 2 only, and the
+                    // render-texture flip negates P11 and P12 together, so rows 0/1 invert exactly. Affine in
+                    // NDC at w = 1, so interpolating it is exact. InvV still maps view directions to world
+                    // under the mirror's reflected (det -1) view matrix.
+                    float4x4 proj = UNITY_MATRIX_P;
+                    float3 ray_vs = float3((ndc.x + proj._m02 - proj._m03) / proj._m00,
+                                           (ndc.y + proj._m12 - proj._m13) / proj._m11,
+                                           -1);
+                    output.mirror_ray_ws = mul((float3x3) unity_MatrixInvV, ray_vs);
+
+                    // A mirror camera's near clip plane IS the mirror plane (measured: the eye's distance to
+                    // it matched the standing distance). Visible side positive.
+                    float4 plane = UNITY_MATRIX_VP[3] - UNITY_NEAR_CLIP_VALUE * UNITY_MATRIX_VP[2];
+                    output.mirror_plane = plane / length(plane.xyz);
+                    return;
+                }
 
                 // The mesh is a proxy volume, not the effect: every vertex is pushed out onto a sphere of
                 // the zero-strength radius, so ANY closed mesh works and its own radius never enters the
@@ -233,18 +303,7 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
                 // Early exit: every effect neutral. The material inspector warns about this state, because
                 // on screen it is indistinguishable from a broken install.
-                bool has_gamma = abs(_Gamma_Adjust_Value) > 0.001;
-                bool has_exposure = false;
-                bool has_scotopic = false;
-
-                #ifdef _EXPOSURE_ENABLED
-                    has_exposure = abs(_Exposure_Value) > 0.001;
-                #endif
-                #ifdef _SCOTOPIC_ENABLED
-                    has_scotopic = _Scotopic_Strength > 0.001;
-                #endif
-
-                if (!has_gamma && !has_exposure && !has_scotopic)
+                if (!grade_is_active())
                 {
                     return scene_color;
                 }
@@ -255,7 +314,7 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 float aoe_min = _AoE_MinDistance * input.aoe_scale;
                 float aoe_max = max(_AoE_MaxDistance * input.aoe_scale, aoe_min + 0.001);
                 // Floored: _Core_Radius is a bare Float, so a negative is authorable, and it would put
-                // smoothstep's edge1 below edge0 at :298 -- inverting the ramp so the core reads as 1 across
+                // smoothstep's edge1 below edge0 in the core term below -- inverting the ramp so the core reads as 1 across
                 // the whole bubble rather than vanishing. The sibling bands are clamped the same way.
                 float core_radius = max(_Core_Radius * input.aoe_scale, 1e-4);
 
@@ -269,6 +328,34 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 // discontinuity at the boundary.
                 // ─────────────────────────────────────────────────────────────────────────────────────
                 float closest_dist = 1e6;
+                if (_VRChatMirrorMode != 0)
+                {
+                    // Only the avatars-only personal mirror reaches here (vertex stage). The light's real
+                    // path is broken at the mirror: real eye -> mirror point, then on from the mirror point
+                    // along this camera's ray. Closest approach over both legs. No depth here (a mirror
+                    // camera has no usable depth texture), so the second leg is unbounded, as the sky
+                    // branch below is: anything between the mirror and the bubble grades as if behind it.
+                    float4 plane = input.mirror_plane;
+                    float3 ray = input.mirror_ray_ws;
+                    float facing = dot(plane.xyz, ray);
+                    // Texels outside the oblique-clipped image: no mirror point, and nothing shows there.
+                    if (facing <= 1e-5) return scene_color;
+
+                    float eye_side = dot(plane.xyz, eye_camera_ws) + plane.w;
+                    float3 mirror_point = eye_camera_ws + (-eye_side / facing) * ray;
+                    float3 real_eye = eye_camera_ws - 2.0 * eye_side * plane.xyz;
+
+                    float3 leg1 = mirror_point - real_eye;
+                    float t1 = saturate(dot(sphere_ws - real_eye, leg1) / max(dot(leg1, leg1), 1e-8));
+                    float d1 = distance(real_eye + t1 * leg1, sphere_ws);
+
+                    float3 ray_dir = normalize(ray);
+                    float t2 = max(0.0, dot(sphere_ws - mirror_point, ray_dir));
+                    float d2 = distance(mirror_point + t2 * ray_dir, sphere_ws);
+
+                    closest_dist = min(d1, d2);
+                }
+                else
                 {
                     DepthReconstruction dr = DepthReconstruction::init(input.position);
                     float4 vs_result = dr.position_vs_checked();
@@ -344,7 +431,9 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 float core_factor = 1.0 - sign(effect_dir) * core_amount;
                 final_rgb *= core_factor;
 
-                return half4(final_rgb, 1);
+                // A mirror keeps the grabbed alpha: the avatars-only personal mirror composites by it, and
+                // alpha 1 would stamp the bubble's whole footprint over the world behind the mirror.
+                return half4(final_rgb, _VRChatMirrorMode != 0 ? scene_color.a : 1);
             }
             ENDCG
         }
