@@ -224,7 +224,9 @@ Rules the emitted document keeps, each bought by a measurement or a doc line:
   the buffer particle's force-on, zeros included: an AAP holds its last
   clip-written value and a scene binding holds whatever last wrote it
   (docs/runtime.md §Animator evaluation). One function, `cfg()`, is where that
-  rule is enforced — every slot configuration clip goes through it.
+  rule is enforced — every slot configuration clip goes through it, except
+  the two clone states, which write the payload toggle and the buffer force-on
+  only: on a mirror clone every transform is the wearer's.
 - Every binding a tree state writes is also in that state's weight-One clip, so
   each binding's weight sum is at least one and the tree's sum is exact (no
   rest fill; docs/animator-schema.md §motions); a register binding is exact
@@ -297,6 +299,22 @@ The front, which always runs:
   and buys only that an edge reader stays quiet for senders already inside.
 - Boot is the default state and is entered only by a fresh animator (load,
   manual hide/show, mirror clones); Disabled is entered only by the toggle.
+- A mirror clone runs none of this. The client's mirror and camera clones take
+  every transform from the wearer's copy, replay its parameter values, run no
+  parameter drivers and traverse the state machine from Entry
+  (docs/runtime.md §Parameters). A clone's slot that ran the rig would read
+  the wearer's receiver floats as its own admissions and latch phantoms: its
+  rider copy, one frame behind the wearer, decodes the wearer's Recycle row
+  and fires the payload once per pass at the wearer's own body. The `Gate`
+  layer is mirror-detect's driver race (`<prefix>/Gate`: 0 unresolved, 1 the
+  wearer's own copy and every remote, 2 a mirror clone); Boot, Disabled and
+  Paused wait on it and send a clone to `MirrorOff`/`MirrorOn`, two states
+  that write only the payload toggle and the buffer force-on, switched by
+  `Slot<k>/Shown`, a float a localOnly driver sets on the wearer's copy (1 on
+  entering TrackIn, 0 on entering TrackBand, Recycle, Paused or Disabled) and
+  the clone replays. Positions in the mirror are the wearer's; only the
+  enables are the clone's. The Sweep layer's clone states write the boundary's
+  renderer enable alone.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
   one-frame pre-halt signal for a distance-hide (docs/runtime.md §Parameters
   carries the citation; view cull gives no signal, so the README asks the
@@ -818,24 +836,40 @@ def emit_layer(o, c, k, ks, lengths):
 
     o(f"  - name: Slot{k}")
     o("    states:")
-    o("      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone")
+    # The Gate layer's verdict: every park state waits on it, and a mirror clone goes to the two enable-only states.
+    mirror = f"          - {{ to: MirrorOff, when: [ {P}/Gate greater 1.5 ] }}   # a mirror clone: no slot logic; the payload follows the wearer's Shown"
+    run = f"{P}/Gate greater 0.5, {P}/Gate less 1.5"
+    o("      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone; leaves only on the Gate layer's verdict")
     o(f"        motion: {{ clip: slot{k}_boot }}")
     o("        transitions:")
+    o(mirror)
     o(paused)
     o(f"          - {{ to: Disabled, when: [ {en} is false ] }}")
-    o(f"          - {{ to: Armed, when: [ {en} is true ], exitTime: 1.0 }}")
+    o(f"          - {{ to: Armed, when: [ {en} is true, {run} ], exitTime: 1.0 }}")
     o("      Disabled:                    # Enable off — boxes stowed, flags shut, readings zeroed on every client")
     o("        behaviours:")
-    o(f"          - driver: {{ localOnly: false, set: {{ {', '.join(f'{me}/{ax}: 0' for ax in ax4)} }} }}")
+    o(f"          - driver: {{ localOnly: false, set: {{ {', '.join(f'{me}/{ax}: 0' for ax in ax4)}, {me}/Shown: 0 }} }}")
     o(f"        motion: {{ clip: slot{k}_off }}")
     o("        transitions:")
+    o(mirror)
     o(paused)
-    o(f"          - {{ to: Armed, when: [ {en} is true ], exitTime: 1.0 }}   # quantized: an Enable cycle spans a step")
+    o(f"          - {{ to: Armed, when: [ {en} is true, {run} ], exitTime: 1.0 }}   # quantized: an Enable cycle spans a step")
     o("      Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: true, set: {{ {me}/Shown: 0 }} }}")
     o(f"        motion: {{ clip: slot{k}_paused }}")
     o("        transitions:")
+    o(mirror)
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
-    o(f"          - {{ to: Armed, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
+    o(f"          - {{ to: Armed, when: [ IsAnimatorEnabled is true, {en} is true, {run} ] }}")
+    o("      MirrorOff:                   # a mirror clone, this slot's payload off. Every transform here is the wearer's; nothing else is written")
+    o(f"        motion: {{ clip: slot{k}_mirror_off }}")
+    o("        transitions:")
+    o(f"          - {{ to: MirrorOn, when: [ {me}/Shown greater 0.5 ] }}")
+    o("      MirrorOn:                    # a mirror clone, this slot's payload on: the burst fires on this edge, where the wearer's Output sits")
+    o(f"        motion: {{ clip: slot{k}_mirror_on }}")
+    o("        transitions:")
+    o(f"          - {{ to: MirrorOff, when: [ {me}/Shown less 0.5 ] }}")
     o("      Armed:                       # flags shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front")
     o(f"        motion: {{ clip: slot{k}_armed }}")
     o("        transitions:")
@@ -951,6 +985,8 @@ def emit_layer(o, c, k, ks, lengths):
     o(dwell(to, f"          - {{ to: TrackBand, when: [ {me}/r2 less {fmt(park_r2(c) - 1e-4)}{gate} ], exitTime: 1.0 }}") + "; the fresh window, reacquire-gated")
     ti = track_children(c, k, f"slot{k}_hold_burst")
     o("      TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: true, set: {{ {me}/Shown: 1 }} }}   # the mirror clone's enable: replayed, never clip-bound")
     emit_motion(o, f"Slot{k} follow", ti)
     o("        transitions:")
     rungs()
@@ -963,6 +999,8 @@ def emit_layer(o, c, k, ks, lengths):
     bound_rungs()
     tb = track_children(c, k, f"slot{k}_hold_band")
     o("      TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window; a floor takes the reacquire" + ("; the far release lives here" if c["farRadius"] is not None else ""))
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: true, set: {{ {me}/Shown: 0 }} }}")
     emit_motion(o, f"Slot{k} follow", tb)
     o("        transitions:")
     rungs()
@@ -979,6 +1017,8 @@ def emit_layer(o, c, k, ks, lengths):
     for suffix, back in (("In", "TrackIn"), ("Band", "TrackBand")):
         emit_reacquire(o, c, k, suffix, back, rungs, floor, dwell, all_pos)
     o("      Recycle:                     # collapsed at the cage centre for a step, flags shut: every overlap this slot held ends; then straight onto the front, or Armed")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: true, set: {{ {me}/Shown: 0 }} }}")
     o(f"        motion: {{ clip: slot{k}_recycle }}")
     o("        transitions:")
     rungs()
@@ -995,7 +1035,7 @@ def emit_layer(o, c, k, ks, lengths):
     o("          - { to: Armed, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], "
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], "
       "Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], "
       "ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }")
     o("      entry: [50, 120]")
@@ -1031,6 +1071,52 @@ def emit_reacquire(o, c, k, suffix, back, rungs, floor, dwell, all_pos):
     o(dwell(sh, f"          - {{ to: {back}, when: [ {all_pos} ], exitTime: 1.0 }}"))
     floor("Recycle", ax4, "a second cut inside the dwell: give the slot back, one reacquire per cut")
     o("          - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback")
+
+
+def emit_gate_layer(o, c):
+    """mirror-detect's driver race (the standard VRLabs-lineage technique), lifted whole and given a third verdict: the
+    wearer's own copy evaluates first, DetectMirror still false, and its Real state's localOnly driver sets it true; a
+    mirror clone instantiates later with the wearer's values and runs no driver, so it forks to Mirror; a remote never
+    takes the local branch. Gate carries the verdict as an AAP every park state waits on."""
+    P = c["prefix"]
+    o("  - name: Gate")
+    o("    # Which copy of the avatar this animator is: 1 runs the rig (the wearer's own copy, every remote), 2 is a mirror")
+    o("    # clone (docs/runtime.md §Parameters: a clone replays the wearer's parameter values, runs no driver and starts")
+    o("    # from Entry). First in the layer order. A clone that read Gate 1 would run the rig on the wearer's receiver")
+    o("    # floats and fire phantom bursts in the mirror; README §What is not proven names the one client fact this rests on.")
+    o("    states:")
+    o("      Init:")
+    o("        motion: { clip: gate_wait }")
+    o("        transitions:")
+    o("          - { to: Fork,   when: [ IsLocal is true ] }")
+    o("          - { to: Remote, when: [ IsLocal is false ] }")
+    o("      Fork:")
+    o("        motion: { clip: gate_wait }")
+    o("        transitions:")
+    o(f"          - {{ to: Real,   when: [ {P}/DetectMirror is false ] }}   # the wearer's own copy: it evaluates before its own driver fires")
+    o(f"          - {{ to: Mirror, when: [ {P}/DetectMirror is true ] }}    # a mirror clone: it enters with the driver-set value")
+    o("      Real:")
+    o("        motion: { clip: gate_run }")
+    o("        behaviours:")
+    o(f"          - driver: {{ localOnly: true, set: {{ {P}/DetectMirror: 1 }} }}")
+    o("      Mirror:")
+    o("        motion: { clip: gate_mirror }")
+    o("      Remote:")
+    o("        motion: { clip: gate_run }")
+    o("    default: Init")
+    o("    layout:")
+    o("      nodes: { Init: [30, 180], Fork: [-60, 260], Remote: [150, 260], Real: [-160, 340], Mirror: [50, 340] }")
+    o("      entry: [50, 120]")
+    o("      any:   [50, 40]")
+    o("      exit:  [50, 80]")
+
+
+def emit_gate_clips(o, c):
+    P = c["prefix"]
+    o("  # Gate layer: the verdict, held by the state that reached it; Init and Fork leave Gate at its default 0.")
+    o("  gate_wait: { seconds: 0.0167 }   # unresolved")
+    emit_clip(o, "gate_run", {f"{P}/Gate": 1}, None, "the wearer's own copy and every remote: run the rig")
+    emit_clip(o, "gate_mirror", {f"{P}/Gate": 2}, None, "a mirror clone: the enable-only states")
 
 
 def emit_sweep_layer(o, c, ks):
@@ -1069,22 +1155,35 @@ def emit_sweep_layer(o, c, ks):
     o("    # is offered to exactly one flag-up cube once per pass.")
     o("    # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).")
     o("    states:")
-    o("      Boot:                        # a fresh animator: the first pass runs from 0")
+    mirror = f"          - {{ to: MirrorOff, when: [ {P}/Gate greater 1.5 ] }}   # a mirror clone: the boundary's enable only; the front is the wearer's"
+    run = f"{P}/Gate greater 0.5, {P}/Gate less 1.5"
+    o("      Boot:                        # a fresh animator: the first pass runs from 0; leaves only on the Gate layer's verdict")
     o("        motion: { clip: sw_boot }")
     o("        transitions:")
+    o(mirror)
     o(paused)
     o(off)
-    o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
+    o(f"          - {{ to: Wait, when: [ {en} is true, {run} ] }}")
     o("      Disabled:                    # the toggle is off: the next pass runs from 0")
     o("        motion: { clip: sw_off }")
     o("        transitions:")
+    o(mirror)
     o(paused)
-    o(f"          - {{ to: Wait, when: [ {en} is true ] }}")
+    o(f"          - {{ to: Wait, when: [ {en} is true, {run} ] }}")
     o("      Paused:                      # a distance-hide: the resume pass runs from 0")
     o("        motion: { clip: sw_paused }")
     o("        transitions:")
+    o(mirror)
     o(f"          - {{ to: Disabled, when: [ IsAnimatorEnabled is true, {en} is false ] }}")
-    o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true ] }}")
+    o(f"          - {{ to: Wait, when: [ IsAnimatorEnabled is true, {en} is true, {run} ] }}")
+    o("      MirrorOff:                   # a mirror clone, toggle off: the boundary hidden")
+    o("        motion: { clip: sw_mirror_off }")
+    o("        transitions:")
+    o(f"          - {{ to: MirrorOn, when: [ {en} is true ] }}")
+    o("      MirrorOn:                    # a mirror clone, toggle on: the boundary drawn at the wearer's scale")
+    o("        motion: { clip: sw_mirror_on }")
+    o("        transitions:")
+    o(f"          - {{ to: MirrorOff, when: [ {en} is false ] }}")
     o("      Wait:                        # nothing rides the front: it holds, SweepBase latches it, SweepPrev holds")
     hold_tree("Sweep wait", [("sw_shown", f"{P}/One"), ("sw_hold_sweep", f"{P}/Sweep"), ("sw_latch_base", f"{P}/Sweep"), ("sw_hold_prev", f"{P}/SweepPrev")])
     o("        transitions:")
@@ -1119,7 +1218,7 @@ def emit_sweep_layer(o, c, ks):
     o("          - { to: Wait, when: [], exitTime: 1.0 }")
     o("    default: Boot")
     o("    layout:")
-    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Restart: [30, 450] }")
+    o("      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Wait: [30, 360], Ramp: [270, 360], Restart: [30, 450] }")
     o("      entry: [50, 120]")
     o("      any:   [50, 40]")
     o("      exit:  [50, 80]")
@@ -1147,6 +1246,8 @@ def emit_sweep_clips(o, c):
     clip("sw_boot", full(0, 0, 0), None, "a fresh animator: front at 0")
     clip("sw_off", full(0, 0, 0), None, "the toggle off: front at 0")
     clip("sw_paused", full(0, 0, 0), None, "a distance-hide: front at 0")
+    clip("sw_mirror_off", boundary_bindings(c, 0), None, "a mirror clone, toggle off: the boundary's enable (its scale, written too, is the wearer's on a clone)")
+    clip("sw_mirror_on", boundary_bindings(c, 1), None, "a mirror clone, toggle on")
     clip("sw_restart", full(0, 0, 1), step, "the pass boundary: front, base and previous front at 0 for a sampled step")
     clip("sw_shown", boundary_bindings(c, 1), None, "the constant part of Wait and Ramp: the boundary drawn")
     clip("sw_hold_sweep", {f"{P}/Sweep": 1}, None, "× Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)")
@@ -1398,6 +1499,8 @@ def build_clips(c, k):
     clip(f"slot{k}_boot", cfg(0, 0, acq, 0, 0, 0), step, "stowed (a fresh animator)")
     clip(f"slot{k}_off", cfg(0, 0, acq, 0, 0, 0), step, "stowed; a stow shorter than a step comes back deaf")
     clip(f"slot{k}_paused", cfg(1, 0, collapsed, 0, 0, 0), step, "collapsed through the pause")
+    clip(f"slot{k}_mirror_off", {payload: 0, buffer: 1}, None, "a mirror clone, Shown 0: the payload off; every transform is the wearer's, the rest holds its rest value")
+    clip(f"slot{k}_mirror_on", {payload: 1, buffer: 1}, None, "a mirror clone, Shown 1: the payload on, the burst fired on the edge")
     clip(f"slot{k}_armed", cfg(1, 0, collapsed, 0, 1, 0), step, "Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late")
     clip(f"slot{k}_sweepshut", cfg(1, 0, collapsed, 1, 0, 0, xn_scale=collapsed), step, "Open 1, flags shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)")
     clip(f"slot{k}_sweep_cfg", cfg(1, 1, collapsed, 1, 0, 0, front=1, xn_flag=0, xn_scale=collapsed), None,
@@ -1604,6 +1707,9 @@ def document(overrides=None):
     o("parameters:")
     o(f"  {c['enable']}: {{ type: bool, default: {'true' if c['enableDefault'] else 'false'}, vrc: {{ synced: true, saved: false }} }}  # the Toggle; off is the reset")
     o("  IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator")
+    o("  IsLocal: bool   # VRC built-in: true on the wearer's own copy and on its mirror clone, false on every remote")
+    o(f"  {P}/DetectMirror: {{ type: bool, scratch: true }}   # mirror-detect's race residue: a localOnly driver sets it on the wearer's copy; a mirror clone enters with it already true. Never saved")
+    o(f"  {P}/Gate: {{ type: float, aap: true, scratch: true }}   # the Gate layer's verdict: 0 unresolved, 1 this copy runs the rig (the wearer's own and every remote), 2 a mirror clone")
     o(f"  {P}/One: {{ type: float, default: 1, scratch: true }}   # constant direct weight, never driven")
     o("  # The front (written only by the Sweep layer): Sweep is the front half-extent (m), SweepBase the front the current")
     o("  # sweeper's ramp started from, SweepPrev last frame's Sweep — the size the next slot's shut cube appears at, so the")
@@ -1617,6 +1723,7 @@ def document(overrides=None):
         o("  # each stored as (point + A)/S with default 0 (the rest fill a register weight leaves is then zero).")
         for ax in axes(c):
             o(f"  {me}/{ax}: float")
+        o(f"  {me}/Shown: float   # driver-written, never a clip: 1 while this slot's payload is on. Unsynced and in the params asset, so a mirror clone replays the wearer's value")
         for ax in ("x", "y", "z", "r2"):
             o(f"  {me}/{ax}: {{ type: float, aap: true, scratch: true }}")
         o(f"  {me}/yw: {{ type: float, aap: true, scratch: true }}   # the sender's height above the cage centre, m: (x + y + z)/sqrt3 undoes the tilt on that axis")
@@ -1645,18 +1752,20 @@ def document(overrides=None):
                 o(f"  {P}/D/{j}_{k}/{a}: {{ type: float, aap: true, scratch: true }}")
     o("")
     o("layers:")
+    emit_gate_layer(o, c)
     for k in ks:
         emit_layer(o, c, k, ks, clip_lengths(rows[k]))
     emit_sweep_layer(o, c, ks)
     emit_dedup_layer(o, c, ks)
     o("")
     o("clips:")
+    emit_gate_clips(o, c)
     for k in ks:
         emit_clips(o, rows[k])
     emit_sweep_clips(o, c)
     emit_dedup_clips(o, c, ks)
     facts = {"K": K, "fourBox": c["fourBox"], "farRadius": c["farRadius"],
-             "receivers": len(axes(c)) * K, "syncedBits": 1,
+             "receivers": len(axes(c)) * K, "syncedBits": 1, "layers": K + 3,
              "bandHalfHeight": band_half_height(c, c["burstRadius"]), "bound": B,
              "acqScale": 2 * c["acqHalf"] / c["boxSize"], "followScale": 2 * c["followHalf"] / c["boxSize"],
              "placeScale": 2 * c["placeHalf"] / c["boxSize"]}
