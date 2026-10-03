@@ -310,11 +310,17 @@ The front, which always runs:
   wearer's own copy and every remote, 2 a mirror clone); Boot, Disabled and
   Paused wait on it and send a clone to `MirrorOff`/`MirrorOn`, two states
   that write only the payload toggle and the buffer force-on, switched by
-  `Slot<k>/Shown`, a float a localOnly driver sets on the wearer's copy (1 on
-  entering TrackIn, 0 on entering TrackBand, Recycle, Paused or Disabled) and
-  the clone replays. Positions in the mirror are the wearer's; only the
-  enables are the clone's. The Sweep layer's clone states write the boundary's
-  renderer enable alone.
+  `Slot<k>/Shown`, a float an entry driver sets on the wearer's copy (1 on
+  entering TrackIn, 0 on entering TrackBand, Recycle, Paused or Disabled;
+  localOnly except Disabled's, which every client runs) and the clone replays.
+  Positions in the mirror are the wearer's; only the enables are the clone's.
+  The Sweep layer's clone states write the boundary's scale and renderer
+  enable and nothing of the front. The race is run once per animator: Boot is
+  re-entered only by a rebuild (docs/runtime.md §Parameters: manual hide/show
+  rebuilds, a distance-hide resumes with prior state and never leaves Paused
+  for Boot), and a rebuilt animator starts `DetectMirror`, a scratch bool in no
+  asset, at false. A saved declaration is the one way it could persist, and the
+  README refuses it.
 - Paused is entered from every state on `IsAnimatorEnabled` false, VRChat's
   one-frame pre-halt signal for a distance-hide (docs/runtime.md §Parameters
   carries the citation; view cull gives no signal, so the README asks the
