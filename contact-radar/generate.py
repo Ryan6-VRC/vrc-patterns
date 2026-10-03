@@ -293,8 +293,8 @@ The front, which always runs:
   path. A held sender keeps tracking throughout, since its holder never moves.
 - A sender the front finds with no slot holding it fires the payload exactly as
   one crossing in does, whether it is a newcomer, a resident at enable, or every
-  resident after a fresh animator (load, a late joiner, a mirror clone) or a
-  distance-hide resume. There is deliberately no quiet endpoint for the last
+  resident after a fresh animator (load, a late joiner) or a distance-hide
+  resume; a mirror clone runs no acquisition and re-fires nothing (below). There is deliberately no quiet endpoint for the last
   two: it costs a state copy per slot, a further sweep AAP and an exhaustion cap,
   and buys only that an edge reader stays quiet for senders already inside.
 - Boot is the default state and is entered only by a fresh animator (load,
