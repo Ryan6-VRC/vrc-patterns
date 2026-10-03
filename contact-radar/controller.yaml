@@ -27,6 +27,9 @@ defaults:
 parameters:
   ContactRadar/Enable: { type: bool, default: true, vrc: { synced: true, saved: false } }  # the Toggle; off is the reset
   IsAnimatorEnabled: { type: bool, default: true }   # VRC built-in: false one frame before a distance-hide halts the animator
+  IsLocal: bool   # VRC built-in: true on the wearer's own copy and on its mirror clone, false on every remote
+  CR/DetectMirror: { type: bool, scratch: true }   # mirror-detect's race residue: a localOnly driver sets it on the wearer's copy; a mirror clone enters with it already true. Never saved
+  CR/Gate: { type: float, aap: true, scratch: true }   # the Gate layer's verdict: 0 unresolved, 1 this copy runs the rig (the wearer's own and every remote), 2 a mirror clone
   CR/One: { type: float, default: 1, scratch: true }   # constant direct weight, never driven
   # The front (written only by the Sweep layer): Sweep is the front half-extent (m), SweepBase the front the current
   # sweeper's ramp started from, SweepPrev last frame's Sweep — the size the next slot's shut cube appears at, so the
@@ -39,6 +42,7 @@ parameters:
   CR/Slot1/X+: float
   CR/Slot1/Y+: float
   CR/Slot1/Z+: float
+  CR/Slot1/Shown: float   # driver-written, never a clip: 1 while this slot's payload is on. Unsynced and in the params asset, so a mirror clone replays the wearer's value
   CR/Slot1/x: { type: float, aap: true, scratch: true }
   CR/Slot1/y: { type: float, aap: true, scratch: true }
   CR/Slot1/z: { type: float, aap: true, scratch: true }
@@ -63,6 +67,7 @@ parameters:
   CR/Slot2/X+: float
   CR/Slot2/Y+: float
   CR/Slot2/Z+: float
+  CR/Slot2/Shown: float   # driver-written, never a clip: 1 while this slot's payload is on. Unsynced and in the params asset, so a mirror clone replays the wearer's value
   CR/Slot2/x: { type: float, aap: true, scratch: true }
   CR/Slot2/y: { type: float, aap: true, scratch: true }
   CR/Slot2/z: { type: float, aap: true, scratch: true }
@@ -87,6 +92,7 @@ parameters:
   CR/Slot3/X+: float
   CR/Slot3/Y+: float
   CR/Slot3/Z+: float
+  CR/Slot3/Shown: float   # driver-written, never a clip: 1 while this slot's payload is on. Unsynced and in the params asset, so a mirror clone replays the wearer's value
   CR/Slot3/x: { type: float, aap: true, scratch: true }
   CR/Slot3/y: { type: float, aap: true, scratch: true }
   CR/Slot3/z: { type: float, aap: true, scratch: true }
@@ -111,6 +117,7 @@ parameters:
   CR/Slot4/X+: float
   CR/Slot4/Y+: float
   CR/Slot4/Z+: float
+  CR/Slot4/Shown: float   # driver-written, never a clip: 1 while this slot's payload is on. Unsynced and in the params asset, so a mirror clone replays the wearer's value
   CR/Slot4/x: { type: float, aap: true, scratch: true }
   CR/Slot4/y: { type: float, aap: true, scratch: true }
   CR/Slot4/z: { type: float, aap: true, scratch: true }
@@ -152,26 +159,69 @@ parameters:
   CR/D/3_4/z: { type: float, aap: true, scratch: true }
 
 layers:
+  - name: Gate
+    # Which copy of the avatar this animator is: 1 runs the rig (the wearer's own copy, every remote), 2 is a mirror
+    # clone (docs/runtime.md §Parameters: a clone replays the wearer's parameter values, runs no driver and starts
+    # from Entry). First in the layer order. A clone that read Gate 1 would run the rig on the wearer's receiver
+    # floats and fire phantom bursts in the mirror; README §What is not proven names the one client fact this rests on.
+    states:
+      Init:
+        motion: { clip: gate_wait }
+        transitions:
+          - { to: Fork,   when: [ IsLocal is true ] }
+          - { to: Remote, when: [ IsLocal is false ] }
+      Fork:
+        motion: { clip: gate_wait }
+        transitions:
+          - { to: Real,   when: [ CR/DetectMirror is false ] }   # the wearer's own copy: it evaluates before its own driver fires
+          - { to: Mirror, when: [ CR/DetectMirror is true ] }    # a mirror clone: it enters with the driver-set value
+      Real:
+        motion: { clip: gate_run }
+        behaviours:
+          - driver: { localOnly: true, set: { CR/DetectMirror: 1 } }
+      Mirror:
+        motion: { clip: gate_mirror }
+      Remote:
+        motion: { clip: gate_run }
+    default: Init
+    layout:
+      nodes: { Init: [30, 180], Fork: [-60, 260], Remote: [150, 260], Real: [-160, 340], Mirror: [50, 340] }
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
   - name: Slot1
     states:
-      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone; leaves only on the Gate layer's verdict
         motion: { clip: slot1_boot }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }
       Disabled:                    # Enable off — boxes stowed, flags shut, readings zeroed on every client
         behaviours:
-          - driver: { localOnly: false, set: { CR/Slot1/X+: 0, CR/Slot1/Y+: 0, CR/Slot1/Z+: 0 } }
+          - driver: { localOnly: false, set: { CR/Slot1/X+: 0, CR/Slot1/Y+: 0, CR/Slot1/Z+: 0, CR/Slot1/Shown: 0 } }
         motion: { clip: slot1_off }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
       Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot1/Shown: 0 } }
         motion: { clip: slot1_paused }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
+      MirrorOff:                   # a mirror clone, this slot's payload off. Every transform here is the wearer's; nothing else is written
+        motion: { clip: slot1_mirror_off }
+        transitions:
+          - { to: MirrorOn, when: [ CR/Slot1/Shown greater 0.5 ] }
+      MirrorOn:                    # a mirror clone, this slot's payload on: the burst fires on this edge, where the wearer's Output sits
+        motion: { clip: slot1_mirror_on }
+        transitions:
+          - { to: MirrorOff, when: [ CR/Slot1/Shown less 0.5 ] }
       Armed:                       # flags shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front
         motion: { clip: slot1_armed }
         transitions:
@@ -486,6 +536,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/z less -1.7 ] }
           - { to: TrackBand, when: [ CR/Slot1/r2 less 8.6699, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot1/Shown: 1 } }   # the mirror clone's enable: replayed, never clip-bound
         motion:
           tree: direct
           name: Slot1 follow
@@ -660,6 +712,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot1/z less -1.7 ] }
       TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot1/Shown: 0 } }
         motion:
           tree: direct
           name: Slot1 follow
@@ -928,6 +982,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot1/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
       Recycle:                     # collapsed at the cage centre for a step, flags shut: every overlap this slot held ends; then straight onto the front, or Armed
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot1/Shown: 0 } }
         motion: { clip: slot1_recycle }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
@@ -936,30 +992,43 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
   - name: Slot2
     states:
-      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone; leaves only on the Gate layer's verdict
         motion: { clip: slot2_boot }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }
       Disabled:                    # Enable off — boxes stowed, flags shut, readings zeroed on every client
         behaviours:
-          - driver: { localOnly: false, set: { CR/Slot2/X+: 0, CR/Slot2/Y+: 0, CR/Slot2/Z+: 0 } }
+          - driver: { localOnly: false, set: { CR/Slot2/X+: 0, CR/Slot2/Y+: 0, CR/Slot2/Z+: 0, CR/Slot2/Shown: 0 } }
         motion: { clip: slot2_off }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
       Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot2/Shown: 0 } }
         motion: { clip: slot2_paused }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
+      MirrorOff:                   # a mirror clone, this slot's payload off. Every transform here is the wearer's; nothing else is written
+        motion: { clip: slot2_mirror_off }
+        transitions:
+          - { to: MirrorOn, when: [ CR/Slot2/Shown greater 0.5 ] }
+      MirrorOn:                    # a mirror clone, this slot's payload on: the burst fires on this edge, where the wearer's Output sits
+        motion: { clip: slot2_mirror_on }
+        transitions:
+          - { to: MirrorOff, when: [ CR/Slot2/Shown less 0.5 ] }
       Armed:                       # flags shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front
         motion: { clip: slot2_armed }
         transitions:
@@ -1274,6 +1343,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/z less -1.7 ] }
           - { to: TrackBand, when: [ CR/Slot2/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot3/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot2/Shown: 1 } }   # the mirror clone's enable: replayed, never clip-bound
         motion:
           tree: direct
           name: Slot2 follow
@@ -1449,6 +1520,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot2/z less -1.7 ] }
       TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot2/Shown: 0 } }
         motion:
           tree: direct
           name: Slot2 follow
@@ -1718,6 +1791,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot2/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
       Recycle:                     # collapsed at the cage centre for a step, flags shut: every overlap this slot held ends; then straight onto the front, or Armed
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot2/Shown: 0 } }
         motion: { clip: slot2_recycle }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
@@ -1726,30 +1801,43 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
   - name: Slot3
     states:
-      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone; leaves only on the Gate layer's verdict
         motion: { clip: slot3_boot }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }
       Disabled:                    # Enable off — boxes stowed, flags shut, readings zeroed on every client
         behaviours:
-          - driver: { localOnly: false, set: { CR/Slot3/X+: 0, CR/Slot3/Y+: 0, CR/Slot3/Z+: 0 } }
+          - driver: { localOnly: false, set: { CR/Slot3/X+: 0, CR/Slot3/Y+: 0, CR/Slot3/Z+: 0, CR/Slot3/Shown: 0 } }
         motion: { clip: slot3_off }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
       Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot3/Shown: 0 } }
         motion: { clip: slot3_paused }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
+      MirrorOff:                   # a mirror clone, this slot's payload off. Every transform here is the wearer's; nothing else is written
+        motion: { clip: slot3_mirror_off }
+        transitions:
+          - { to: MirrorOn, when: [ CR/Slot3/Shown greater 0.5 ] }
+      MirrorOn:                    # a mirror clone, this slot's payload on: the burst fires on this edge, where the wearer's Output sits
+        motion: { clip: slot3_mirror_on }
+        transitions:
+          - { to: MirrorOff, when: [ CR/Slot3/Shown less 0.5 ] }
       Armed:                       # flags shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front
         motion: { clip: slot3_armed }
         transitions:
@@ -2064,6 +2152,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/z less -1.7 ] }
           - { to: TrackBand, when: [ CR/Slot3/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot4/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot3/Shown: 1 } }   # the mirror clone's enable: replayed, never clip-bound
         motion:
           tree: direct
           name: Slot3 follow
@@ -2240,6 +2330,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot3/z less -1.7 ] }
       TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot3/Shown: 0 } }
         motion:
           tree: direct
           name: Slot3 follow
@@ -2510,6 +2602,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot3/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
       Recycle:                     # collapsed at the cage centre for a step, flags shut: every overlap this slot held ends; then straight onto the front, or Armed
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot3/Shown: 0 } }
         motion: { clip: slot3_recycle }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
@@ -2518,30 +2612,43 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
   - name: Slot4
     states:
-      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone
+      Boot:                        # a fresh animator: load, manual hide/show, a mirror clone; leaves only on the Gate layer's verdict
         motion: { clip: slot4_boot }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }
       Disabled:                    # Enable off — boxes stowed, flags shut, readings zeroed on every client
         behaviours:
-          - driver: { localOnly: false, set: { CR/Slot4/X+: 0, CR/Slot4/Y+: 0, CR/Slot4/Z+: 0 } }
+          - driver: { localOnly: false, set: { CR/Slot4/X+: 0, CR/Slot4/Y+: 0, CR/Slot4/Z+: 0, CR/Slot4/Shown: 0 } }
         motion: { clip: slot4_off }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
-          - { to: Armed, when: [ ContactRadar/Enable is true ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
+          - { to: Armed, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ], exitTime: 1.0 }   # quantized: an Enable cycle spans a step
       Paused:                      # boxes collapsed through the pause; resume re-acquires from scratch
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot4/Shown: 0 } }
         motion: { clip: slot4_paused }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: no slot logic; the payload follows the wearer's Shown
           - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
-          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+          - { to: Armed, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
+      MirrorOff:                   # a mirror clone, this slot's payload off. Every transform here is the wearer's; nothing else is written
+        motion: { clip: slot4_mirror_off }
+        transitions:
+          - { to: MirrorOn, when: [ CR/Slot4/Shown greater 0.5 ] }
+      MirrorOn:                    # a mirror clone, this slot's payload on: the burst fires on this edge, where the wearer's Output sits
+        motion: { clip: slot4_mirror_on }
+        transitions:
+          - { to: MirrorOff, when: [ CR/Slot4/Shown less 0.5 ] }
       Armed:                       # flags shut and collapsed: holds no rejections; waits for the ring, or self-opens onto the front
         motion: { clip: slot4_armed }
         transitions:
@@ -2856,6 +2963,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/z less -1.7 ] }
           - { to: TrackBand, when: [ CR/Slot4/r2 less 8.6699, CR/Slot1/Re less 0.5, CR/Slot2/Re less 0.5, CR/Slot3/Re less 0.5 ], exitTime: 1.0 }   # dwell: the tree's length, at most 0.1471 s (Σ weight max × child length); the fresh window, reacquire-gated
       TrackIn:                     # inside the burst radius in-plane (p2); the payload is on (one burst per entry, a marker visible throughout); settled dedup runs here; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot4/Shown: 1 } }   # the mirror clone's enable: replayed, never clip-bound
         motion:
           tree: direct
           name: Slot4 follow
@@ -3033,6 +3142,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/z greater 1.7 ] }   # past the bound on z
           - { to: Recycle, when: [ CR/Slot4/z less -1.7 ] }
       TrackBand:                   # settled outside the zone, by retreating past the re-arm radius in-plane or by holding outside it past the fresh window; a floor takes the reacquire
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot4/Shown: 0 } }
         motion:
           tree: direct
           name: Slot4 follow
@@ -3304,6 +3415,8 @@ layers:
           - { to: Recycle, when: [ CR/Slot4/Z+ less 1e-05 ] }   # a second cut inside the dwell: give the slot back, one reacquire per cut
           - { to: Recycle, when: [], exitTime: 1.0 }   # the terminal fallback
       Recycle:                     # collapsed at the cage centre for a step, flags shut: every overlap this slot held ends; then straight onto the front, or Armed
+        behaviours:
+          - driver: { localOnly: true, set: { CR/Slot4/Shown: 0 } }
         motion: { clip: slot4_recycle }
         transitions:
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }   # the pre-halt frame: park before the animator stops
@@ -3312,7 +3425,7 @@ layers:
           - { to: Armed, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Armed: [30, 360], SweepShut: [-210, 360], Sweep: [-210, 450], Partial: [270, 450], Latch: [30, 450], LatchWait: [30, 540], LatchGrow: [30, 630], TrackOut: [-210, 720], TrackBand: [30, 720], TrackIn: [270, 720], Recycle: [30, 810], ReCollapseIn: [510, 720], ReOpenIn: [510, 630], ReShutIn: [510, 540], ReCollapseBand: [-450, 720], ReOpenBand: [-450, 630], ReShutBand: [-450, 540] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -3324,22 +3437,33 @@ layers:
     # is offered to exactly one flag-up cube once per pass.
     # Its second job: every state writes the Boundary meshes' scale and renderer enable (one state is always live here).
     states:
-      Boot:                        # a fresh animator: the first pass runs from 0
+      Boot:                        # a fresh animator: the first pass runs from 0; leaves only on the Gate layer's verdict
         motion: { clip: sw_boot }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: the boundary's enable only; the front is the wearer's
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }
           - { to: Disabled, when: [ ContactRadar/Enable is false ] }
-          - { to: Wait, when: [ ContactRadar/Enable is true ] }
+          - { to: Wait, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
       Disabled:                    # the toggle is off: the next pass runs from 0
         motion: { clip: sw_off }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: the boundary's enable only; the front is the wearer's
           - { to: Paused, when: [ IsAnimatorEnabled is false ] }
-          - { to: Wait, when: [ ContactRadar/Enable is true ] }
+          - { to: Wait, when: [ ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
       Paused:                      # a distance-hide: the resume pass runs from 0
         motion: { clip: sw_paused }
         transitions:
+          - { to: MirrorOff, when: [ CR/Gate greater 1.5 ] }   # a mirror clone: the boundary's enable only; the front is the wearer's
           - { to: Disabled, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is false ] }
-          - { to: Wait, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true ] }
+          - { to: Wait, when: [ IsAnimatorEnabled is true, ContactRadar/Enable is true, CR/Gate greater 0.5, CR/Gate less 1.5 ] }
+      MirrorOff:                   # a mirror clone, toggle off: the boundary hidden
+        motion: { clip: sw_mirror_off }
+        transitions:
+          - { to: MirrorOn, when: [ ContactRadar/Enable is true ] }
+      MirrorOn:                    # a mirror clone, toggle on: the boundary drawn at the wearer's scale
+        motion: { clip: sw_mirror_on }
+        transitions:
+          - { to: MirrorOff, when: [ ContactRadar/Enable is false ] }
       Wait:                        # nothing rides the front: it holds, SweepBase latches it, SweepPrev holds
         motion:
           tree: direct
@@ -3384,7 +3508,7 @@ layers:
           - { to: Wait, when: [], exitTime: 1.0 }
     default: Boot
     layout:
-      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], Wait: [30, 360], Ramp: [270, 360], Restart: [30, 450] }
+      nodes: { Boot: [30, 180], Disabled: [30, 270], Paused: [270, 270], MirrorOff: [510, 180], MirrorOn: [510, 270], Wait: [30, 360], Ramp: [270, 360], Restart: [30, 450] }
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
@@ -3423,10 +3547,16 @@ layers:
       exit:  [50, 80]
 
 clips:
+  # Gate layer: the verdict, held by the state that reached it; Init and Fork leave Gate at its default 0.
+  gate_wait: { seconds: 0.0167 }   # unresolved
+  gate_run: { set: { CR/Gate: 1 } }   # the wearer's own copy and every remote: run the rig
+  gate_mirror: { set: { CR/Gate: 2 } }   # a mirror clone: the enable-only states
   # Slot 1 configurations — every one writes the box stow, the flag on every receiver, Boxes' scale and localPosition, the six protocol flags, the payload toggle and the buffer particle's force-on.
   slot1_boot: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot1_off: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot1_paused: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot1_mirror_off: { set: { Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 0: the payload off; every transform is the wearer's, the rest holds its rest value
+  slot1_mirror_on: { set: { Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 1: the payload on, the burst fired on the edge
   slot1_armed: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 0, CR/Slot1/Armed: 1, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late
   slot1_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 0, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flags shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)
   slot1_sweep_cfg: { set: { Cage/Size/Slot1/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot1/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot1/Output/Transform.m_LocalPosition.z: 0, CR/Slot1/Open: 1, CR/Slot1/Armed: 0, CR/Slot1/Front: 1, CR/Slot1/Held: 0, CR/Slot1/Settled: 0, CR/Slot1/Re: 0, Cage/Size/Slot1/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot1/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, riding flags up, base scale: the growing cube's constant part
@@ -3549,6 +3679,8 @@ clips:
   slot2_boot: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot2_off: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot2_paused: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot2_mirror_off: { set: { Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 0: the payload off; every transform is the wearer's, the rest holds its rest value
+  slot2_mirror_on: { set: { Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 1: the payload on, the burst fired on the edge
   slot2_armed: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 0, CR/Slot2/Armed: 1, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late
   slot2_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 0, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flags shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)
   slot2_sweep_cfg: { set: { Cage/Size/Slot2/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot2/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot2/Output/Transform.m_LocalPosition.z: 0, CR/Slot2/Open: 1, CR/Slot2/Armed: 0, CR/Slot2/Front: 1, CR/Slot2/Held: 0, CR/Slot2/Settled: 0, CR/Slot2/Re: 0, Cage/Size/Slot2/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot2/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, riding flags up, base scale: the growing cube's constant part
@@ -3671,6 +3803,8 @@ clips:
   slot3_boot: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot3_off: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot3_paused: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot3_mirror_off: { set: { Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 0: the payload off; every transform is the wearer's, the rest holds its rest value
+  slot3_mirror_on: { set: { Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 1: the payload on, the burst fired on the edge
   slot3_armed: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 0, CR/Slot3/Armed: 1, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late
   slot3_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 0, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flags shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)
   slot3_sweep_cfg: { set: { Cage/Size/Slot3/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot3/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot3/Output/Transform.m_LocalPosition.z: 0, CR/Slot3/Open: 1, CR/Slot3/Armed: 0, CR/Slot3/Front: 1, CR/Slot3/Held: 0, CR/Slot3/Settled: 0, CR/Slot3/Re: 0, Cage/Size/Slot3/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot3/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, riding flags up, base scale: the growing cube's constant part
@@ -3793,6 +3927,8 @@ clips:
   slot4_boot: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed (a fresh animator)
   slot4_off: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 0, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 2.4, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # stowed; a stow shorter than a step comes back deaf
   slot4_paused: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # collapsed through the pause
+  slot4_mirror_off: { set: { Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 0: the payload off; every transform is the wearer's, the rest holds its rest value
+  slot4_mirror_on: { set: { Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 1, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # a mirror clone, Shown 1: the payload on, the burst fired on the edge
   slot4_armed: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 0, CR/Slot4/Armed: 1, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Armed 1, collapsed: holds no rejections; the ring rule reads Armed one frame late
   slot4_sweepshut: { seconds: 0.035, set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 0, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, flags shut, base scale: the front's own re-rejection step (the tree adds × SweepPrev)
   slot4_sweep_cfg: { set: { Cage/Size/Slot4/Boxes/GameObject.m_IsActive: 1, Cage/Size/Slot4/Boxes/X+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Y+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Z+/VRCContactReceiver.allowOthers: 1, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.x: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.y: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalScale.z: 0.001, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Boxes/Transform.m_LocalPosition.z: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.x: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.y: 0, Cage/Size/Slot4/Output/Transform.m_LocalPosition.z: 0, CR/Slot4/Open: 1, CR/Slot4/Armed: 0, CR/Slot4/Front: 1, CR/Slot4/Held: 0, CR/Slot4/Settled: 0, CR/Slot4/Re: 0, Cage/Size/Slot4/Output/Payload/GameObject.m_IsActive: 0, Cage/Size/Slot4/Output/Payload/Burst/GameObject.m_IsActive: 1 } }   # Open 1, Front 1, riding flags up, base scale: the growing cube's constant part
@@ -3916,6 +4052,8 @@ clips:
   sw_boot: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a fresh animator: front at 0
   sw_off: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # the toggle off: front at 0
   sw_paused: { set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a distance-hide: front at 0
+  sw_mirror_off: { set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 0 } }   # a mirror clone, toggle off: the boundary's enable (its scale, written too, is the wearer's on a clone)
+  sw_mirror_on: { set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # a mirror clone, toggle on
   sw_restart: { seconds: 0.035, set: { CR/Sweep: 0, CR/SweepBase: 0, CR/SweepPrev: 0, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the pass boundary: front, base and previous front at 0 for a sampled step
   sw_shown: { set: { Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.x: 1, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.y: 0.577644866, Cage/Size/Boundary/Cylinder/Transform.m_LocalScale.z: 1, Cage/Size/Boundary/Cylinder/MeshRenderer.m_Enabled: 1 } }   # the constant part of Wait and Ramp: the boundary drawn
   sw_hold_sweep: { set: { CR/Sweep: 1 } }   # × Sweep (Wait: hold) or × SweepBase (Ramp: the ramp's origin)
