@@ -25,7 +25,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 
 - The menu gains **GrabSync**, the on/off toggle for the whole gimmick (as in `grab-sync`), and **GrabSync Place**.
 - **GrabSync Place** sets the prop down where it stands, as if you had grabbed and released it there. It works while the prop is at home. Over OSC, send a bool `true` to `/avatar/parameters/GrabSyncPersist/Place`; the avatar clears it, and a write made while the prop is away is dropped.
-- Set the prop down, then change avatar. On the new avatar the prop stays hidden for a moment, then appears where you left it. It stays there, with measurement off, for a moment more, the hold (§Design notes), and other players see it when that ends; a grab in that window takes effect when it ends.
+- Set the prop down, then change avatar. On the new avatar the prop stays hidden for a moment, then appears where you left it. It stays there, with measurement off, for a moment more, the hold (§Design notes), and other players see it when that ends; a grab in that window takes effect when it ends. After an FBT calibration that moment lasts until you accept the calibration, then the hold runs once more; switching the gimmick on from the menu before you accept freezes the prop at its prefab default spot, not where you left it.
 - The on/off state travels too: an avatar left switched off comes up switched off. Switching off always sends the prop home, so there is never a placed prop to restore from a switched-off avatar.
 - With no bridge running, the prop is hidden through the layer's window after the avatar loads, then everything works as in `GrabSync`.
 
@@ -33,7 +33,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 
 - **Both avatars need the same prefab.** The bridge restores only onto an avatar announcing the same `Id` under the same prefix. A different prop built on this prefab needs its own `Id` (§Changing it), or the two restore onto each other.
 - **Each swap moves the prop by one quantization step.** A restore lands the prop exactly on the saved words, which already sit within one fine step of where it rested, and the resumed measurement rounds down once more. So every swap shifts it by one fine step per axis; it does not drift while it rests.
-- **What restores.** A swap between avatars wearing the prefab restores; `../../bridge-persist/README.md` §How to use lists what does not.
+- **What restores.** A swap between avatars wearing the prefab restores, and so does an FBT calibration; `../../bridge-persist/README.md` §How to use lists what does not.
 - **One persistent prefab per avatar**, and no persistent `MultiGrabSync` (§Design notes).
 
 ## Performance stats
