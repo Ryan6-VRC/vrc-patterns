@@ -28,9 +28,9 @@ Wearer only, and only with `<namespace>/Id` non-zero; a remote, and a wearer at 
             write: a transition hands the rest of a frame's time to the state it enters, and a
             load hitch on the writing frame would otherwise be spent out of the window before the
             bridge's clock has started. `Restore` above 0 inside it (the bridge's 1, or a later
-            value that overwrote it in the same frame) goes to Hold if any placed name reads
-            true, else straight to Finish; the window running out goes to Finish. An int or
-            float placed name, given as (name, above), reads placed while it is greater than above.
+            value that overwrote it in the same frame) goes to Hold if any placed entry reads
+            placed, else straight to Finish; the window running out goes to Finish. A bool name
+            reads placed while true; an int or float, given as (name, above), while greater than above.
   Hold      raises the flag and keeps it up for the hold, CONFIG's `hold`: the consumer's glue
             rides its prop onto the restored payload while measurement is still off. At the
             hold's end, `Restore` above 1 (the bridge's 3) goes to Await, anything else to Finish.
@@ -87,6 +87,7 @@ Every key but `id` is required; `validate()` refuses a config missing any, namin
 """
 
 import hashlib
+import math
 import os
 import re
 import sys
@@ -196,8 +197,8 @@ def validate(c):
             refuse(f"placed entry {p!r}: a bool payload name, or (name, above) for an int or float one.")
         if p[0] not in types or types[p[0]][0] not in ("int", "float"):
             refuse(f"placed entry {p!r}: {p[0]!r} is not an int or float payload name.")
-        if not isinstance(p[1], (int, float)) or isinstance(p[1], bool):
-            refuse(f"placed entry {p!r}: above {p[1]!r} is not a number.")
+        if not isinstance(p[1], (int, float)) or isinstance(p[1], bool) or not math.isfinite(p[1]):
+            refuse(f"placed entry {p!r}: above {p[1]!r} is not a finite number.")
     placed = [p if isinstance(p, str) else p[0] for p in c["placed"]]
     if len(set(placed)) != len(placed):
         refuse(f"placed names repeat: {sorted({n for n in placed if placed.count(n) > 1})}.")
