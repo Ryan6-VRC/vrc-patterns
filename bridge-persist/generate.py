@@ -28,8 +28,9 @@ Wearer only, and only with `<namespace>/Id` non-zero; a remote, and a wearer at 
             write: a transition hands the rest of a frame's time to the state it enters, and a
             load hitch on the writing frame would otherwise be spent out of the window before the
             bridge's clock has started. `Restore` above 0 inside it (the bridge's 1, or a later
-            value that overwrote it in the same frame) goes to Hold if any placed name reads
-            true, else straight to Finish; the window running out goes to Finish.
+            value that overwrote it in the same frame) goes to Hold if any placed entry reads
+            placed, else straight to Finish; the window running out goes to Finish. A bool name
+            reads placed while true; an int or float, given as (name, above), while greater than above.
   Hold      raises the flag and keeps it up for the hold, CONFIG's `hold`: the consumer's glue
             rides its prop onto the restored payload while measurement is still off. At the
             hold's end, `Restore` above 1 (the bridge's 3) goes to Await, anything else to Finish.
@@ -81,10 +82,12 @@ Every key but `id` is required; `validate()` refuses a config missing any, namin
   payload    [(name, spec)]: every payload name the reset writes, each with its declaration
              verbatim, in the order to declare them. Each must sit under the namespace.
   placed     the payload names (bools) whose truth means a prop is placed and worth holding for.
+             An entry may instead be (name, above) for an int or float payload name, placed above it.
   hold       seconds the flag stays up.
 """
 
 import hashlib
+import math
 import os
 import re
 import sys
@@ -185,9 +188,20 @@ def validate(c):
     types = {n: spec_type_default(n, s) for n, s in c["payload"]}
     if not c["placed"]:
         refuse("`placed` names no payload name; the layer would never hold and the glue never place.")
-    for n in c["placed"]:
-        if n not in types or types[n][0] != "bool":
-            refuse(f"placed name {n!r} is not a bool payload name.")
+    for p in c["placed"]:
+        if isinstance(p, str):
+            if p not in types or types[p][0] != "bool":
+                refuse(f"placed name {p!r} is not a bool payload name; an int or float takes (name, above).")
+            continue
+        if not (isinstance(p, (tuple, list)) and len(p) == 2 and isinstance(p[0], str)):
+            refuse(f"placed entry {p!r}: a bool payload name, or (name, above) for an int or float one.")
+        if p[0] not in types or types[p[0]][0] not in ("int", "float"):
+            refuse(f"placed entry {p!r}: {p[0]!r} is not an int or float payload name.")
+        if not isinstance(p[1], (int, float)) or isinstance(p[1], bool) or not math.isfinite(p[1]):
+            refuse(f"placed entry {p!r}: above {p[1]!r} is not a finite number.")
+    placed = [p if isinstance(p, str) else p[0] for p in c["placed"]]
+    if len(set(placed)) != len(placed):
+        refuse(f"placed names repeat: {sorted({n for n in placed if placed.count(n) > 1})}.")
     # bool is an int subclass, and a True here would emit as 1.
     if not (isinstance(c["hold"], (int, float)) and not isinstance(c["hold"], bool) and c["hold"] > 0):
         refuse(f"hold {c['hold']!r}: a positive number of seconds.")
@@ -274,7 +288,8 @@ def document(c):
     o("        motion: { clip: window }")
     o("        transitions:")
     for p in c["placed"]:
-        o(f"          - {{ to: Hold,   when: [ {RESTORE} greater 0, {p} is true ] }}")
+        cond = f"{p} is true" if isinstance(p, str) else f"{p[0]} greater {fmt(p[1])}"
+        o(f"          - {{ to: Hold,   when: [ {RESTORE} greater 0, {cond} ] }}")
     o(f"          - {{ to: Finish, when: [ {RESTORE} greater 0 ] }}   # restored, nothing placed: no hold")
     o("          - { to: Finish, when: [ ], exitTime: 1.0 }   # no bridge, or nothing to restore")
     o("      Hold:")
