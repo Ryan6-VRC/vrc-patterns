@@ -177,13 +177,14 @@ layers:
       - { to: Hand,    when: [] }
     states:
       # The cube rides the hand anchor rigidly — source0 (self) at 0, so no damping lag here.
-      # The last rung is the re-stamp: a rung to the state itself never fires, so it leaves through
-      # Exit and the ladder's catch-all re-enters Hand, which re-runs the driver. It is what makes
-      # Mode 0 unreachable on the wearer for longer than a frame, and so what lets the Hand toggle
-      # exist at all (§menu). It is ordered last so a real mode change always wins. IsLocal gates it
-      # because Mode 0 IS reachable on a remote — the window between spawn and the wearer's first
-      # stamp arriving — where an ungated rung would cycle through Exit every frame forever against
-      # a driver that, being localOnly, can never clear the condition.
+      # The last rung is the re-stamp: it leaves through Exit and the ladder's catch-all re-enters
+      # Hand, which re-runs the driver, so the park rule above decides where Mode 0 goes for the
+      # wearer's re-stamp and a remote's dispatch alike. It is what makes Mode 0 unreachable on the
+      # wearer for longer than a frame, and so what lets the Hand toggle exist at all (§menu). It is
+      # ordered last so a real mode change always wins. IsLocal gates it because Mode 0 IS reachable
+      # on a remote — the window between spawn and the wearer's first stamp arriving — where an
+      # ungated rung would cycle through Exit every frame forever against a driver that, being
+      # localOnly, can never clear the condition.
       Hand:
         behaviours:
           - driver: { localOnly: true, set: { Placement/Mode: 1 } }
