@@ -4,12 +4,13 @@ A generated animator layer, with no prefab of its own, that lets a gimmick you b
 
 ## How it works
 
-- The parameters to carry live under one name prefix, `BridgePersist/<Name>/`, the **namespace**. VRCFury normally prefixes a module's parameter names per instance; every name under the namespace is kept exact instead, so the bridge can read and write it by name over OSC. Four names under it are reserved for the exchange: `Id`, `Announce`, `Boot` and `Restore`. Every other name under it is **payload**, which the bridge saves and restores.
+- The parameters to carry live under one name prefix, `BridgePersist/<Name>/`, the **namespace**. VRCFury normally prefixes a module's parameter names per instance; every name under the namespace is kept exact instead, so the bridge can read and write it by name over OSC. Five names under it are reserved for the exchange: `Id`, `Announce`, `Boot`, `Restore` and `Scope`. Every other name under it is **payload**, which the bridge saves and restores.
 - `Id` is the gimmick's identity, carried as the parameter's declared default. The bridge restores only onto an avatar announcing the same `Id` under the same namespace. `Id` 0 switches the layer off.
-- On load, on the wearer only, the layer switches the gimmick off through its enable parameter and resets every payload name to its declared default. It then writes `Announce` (a copy of `Id`) and `Boot` (a random number) and waits a fixed window, `WINDOW_SECS`.
+- On load, on the wearer only, the layer switches the gimmick off through its enable parameter and resets every payload name to its declared default. It then writes `Announce` (a copy of `Id`), `Scope` (how long the bridge keeps this namespace's state, below) and `Boot` (a random number) and waits a fixed window, `WINDOW_SECS`.
 - The bridge answers inside the window by writing the saved payload and then `Restore` 1. If the payload shows something placed, the layer raises a local **flag** for the **hold**, the time the consumer needs to put it back. It then sets the enable from the mirror (below) and writes `Restore` 0.
 - An FBT calibration reloads the avatar on entering calibration mode, and until the user accepts, the client runs the animator but solves no constraint, so a placement the consumer freezes when the flag falls freezes at its serialized pose. For a calibration restore the bridge follows its 1 with `Restore` 3, hold until released. At the hold's end a 3 sends the layer to `Await`, which keeps the flag up and the enable off until the bridge writes `Restore` 2, the **release**, once the user has accepted. `Settle` then runs the hold again so the placement settles on solving constraints, and the layer finishes as after a swap. `Await` gives up after `RELEASE_TIMEOUT_SECS`, and ends at once if the gimmick is switched on from the menu.
 - If the window runs out, the layer sets the enable from the mirror, which the reset left at the enable's declared default, so the gimmick boots as it would with no bridge. The payload stays at its defaults.
+- `Scope` is a constant the layer sets from the config's `scope`, 0 (`swap`) unless you choose otherwise. It is not payload: the bridge never restores it. §Scope has the three values.
 - Whether the gimmick was switched on is payload too: the layer mirrors the enable parameter into `<namespace>/Enabled` while it idles, so the new avatar comes up on or off as the old one was.
 - It adds no synced parameter.
 
@@ -29,27 +30,43 @@ Depends on the VRC SDK and VRCFury.
 ## How to use
 
 - Nothing to operate. Swap between avatars wearing the same gimmick and the state follows. An FBT calibration restores too; after one, a placed thing appears once you accept the calibration.
-- A world join, a rejoin, Reset Avatar, or a swap through an avatar without the gimmick restores nothing. Those are the bridge's rules.
+- At the default `scope`, a world join, a rejoin, Reset Avatar, or a swap through an avatar without the gimmick restores nothing, and a second swap restores nothing from the first. Those are the bridge's rules; §Scope shows what `instance` and `instance-keep-reset` change.
 
 ## Additional notes
 
 - **The gimmick is off for a moment at every load** wherever `Id` is not 0, bridge or no bridge: from the layer's first evaluation until the window closes, or until the hold ends after a restore. After a calibration restore that is until the user accepts, plus the hold once more, and `RELEASE_TIMEOUT_SECS` at most.
 - **One layer per namespace.** The bridge restores several namespaces on one avatar independently, and the avatar keeps them independent only when each layer has an enable of its own. Two gimmicks built on `object-sync` share `ObjectSync/Enable`, so the first layer to finish switches it back on while the other is still holding it off.
 - **The bridge restores the whole payload or none of it.** A payload name the old avatar never changed from its default stays at the default the reset wrote.
-- **Wire contract version 3.** This layer speaks version 3, which adds the 3 and the release. Under a version 2 bridge no 3 is written, so swaps run as before and a calibration restores nothing. A layer generated before version 3, under a version 3 bridge, still restores across a swap, and across a calibration holds for its hold alone, so an accept after the hold ends freezes the placement at the serialized pose. Regenerate to get calibration persistence; no config changes.
+- **Wire contract version 4.** This layer speaks version 4, which adds the reserved `Scope` on top of version 3's 3 and release. A version 3 layer runs as `swap` under a version 4 bridge, unchanged. A version 4 layer under an older bridge, one without Scope support, treats `Scope` as payload and silently runs `swap`'s lifetime, whatever its `scope`; the bridge must be `vrc-bridge` main from the `persist-log-signature` change onward (the bridge has no version numbers); a bridge with Scope support logs the scope it applied at every decision, so a log that never names one is the older bridge. Regenerate every avatar carrying the prefab to move it to version 4. Under a version 2 bridge no 3 is written, so swaps run as before and a calibration restores nothing. A layer generated before version 3, under a later bridge, still restores across a swap, and across a calibration holds for its hold alone, so an accept after the hold ends freezes the placement at the serialized pose; regenerate for calibration persistence.
+
+## Scope
+
+`scope` chooses how long the bridge keeps this namespace's state. It is a per-namespace choice made when you generate the layer; the avatar declares it to the bridge in `<namespace>/Scope`. The operator's own words on the cut: "default (switches through avatars without the persist lose it); instance (reset clears; and instance (reset survives)."
+
+| `scope` | `Scope` | A to B to A' | FBT calibration | Reset Avatar | Cleared by |
+|---|---|---|---|---|---|
+| `swap` (default) | 0 | forgets: one swap restores | restores | clears | any join |
+| `instance` | 1 | restores across any chain | restores | clears | an instance change, or Reset Avatar |
+| `instance-keep-reset` | 2 | restores across any chain | restores | restores | an instance change |
+
+An instance change includes a new instance of the same world. A newly selected send target clears every namespace at every scope.
+
+- **At `instance-keep-reset`, Reset Avatar is no longer the escape from a bad persisted state for that namespace; leaving the instance is.** That is the consumer's trade. The operator on why it matters: "being completely incapable of resetting your avatar state on a persisted gimmick that could glitch into a bad state is potentially beyond mild inconvenience." Choose it for state a user would never want to lose and could not wedge; `instance` is the middle.
+- **Scopes 1 and 2 need the bridge to have the client's log bound to the client by its OSCQuery service name, and to see this change's avatar switch in it.** When it cannot, the bridge uses `swap`'s rule for that decision, which forgets: the failure direction is losing state, never keeping it past its scope.
+- **A to B to A' keeps the namespace only while B does too.** If B carries the same namespace with a different `Announce`, B's boot forgets and A's state is lost.
 
 ## Performance stats
 
 ```c++
 Synced parameters:     0 bits added (no rank-gated component: no physbone, contact, constraint or renderer)
-Unsynced parameters:   4 reserved + the enable mirror (namespaced, OSC-visible), 1 flag (local); the payload is yours
+Unsynced parameters:   5 reserved + the enable mirror (namespaced, OSC-visible), 1 flag (local); the payload is yours
 FX Animator Layers:    1
 States:                10
 ```
 
 ## Knobs
 
-`CONFIG` in `generate.py` is this entry's own example build; a consumer passes its own config to `document()`. Every key is required except `id`.
+`CONFIG` in `generate.py` is this entry's own example build; a consumer passes its own config to `document()`. Every key is required except `id` and `scope`.
 
 | Knob | What it does |
 |---|---|
@@ -60,6 +77,7 @@ States:                10
 | `enable` | The gimmick's enable parameter and its declaration, verbatim. The layer declares it identically; a bool or float, never an int. |
 | `payload` | Every payload name with its declaration, verbatim. All of them are reset at load; each must sit under the namespace. |
 | `placed` | The payload names that mean something is placed. A bool reads placed while true; an int or float takes the form `(name, above)` instead, and reads placed while it is greater than `above`. With none of them placed after a restore, the layer skips the hold. |
+| `scope` | `swap` (the default when the key is absent), `instance` or `instance-keep-reset`: how long the bridge keeps this namespace's state, per §Scope. Mapped to 0, 1 and 2 and set into `<namespace>/Scope` at boot, at every value including `swap`. Any other value is refused. |
 | `hold` | How long the flag stays up after a restore that has something placed, nothing the bridge waits on: at least the consumer's own settle time and, for a consumer whose state reaches remotes through a synced wire, at least one full cycle of that wire, so a remote engages on a table refreshed since the restore rather than one carrying the load's zeroed values. `grab-sync-persist` derives it that way. `Settle` runs it once more after a calibration's release. The layer reads the bridge's 3 only when the hold ends, and the 3 follows the 1 by `MARK_FLOOR_SECS` (0.2 s), so a hold that ends before the 3 lands finishes a calibration restore as a swap, and the placement freezes before accept. |
 
 `validate()` refuses a config that breaks any rule above, and a few more (a missing key, a repeated or reserved payload name, the mirror listed in `payload`, an enable under the namespace), naming the offender.
@@ -99,6 +117,6 @@ Edit `generate.py`, run `python generate.py`, and recompile `controller.yaml` in
 ## Verifying the install
 
 - **Bake:** every name under the namespace keeps its exact name, and `Id` carries your value. A `VF##_` prefix on any of them means `BridgePersist/<Name>/*` is missing from `globalParams`: the build succeeds and the bridge reads nothing. The flag should carry a `VF##_` prefix.
-- **Nothing restores:** both avatars need the same namespace and `Id`, and `Id` must not be 0. The bridge has to have been running before the outgoing avatar loaded, and the swap has to go straight from one avatar to the other. The bridge's log says why it skipped a restore.
+- **Nothing restores:** both avatars need the same namespace and `Id`, and `Id` must not be 0. The bridge has to have been running before the outgoing avatar loaded, and at the default `scope` the swap has to go straight from one avatar to the other (`instance` and `instance-keep-reset` survive a chain). A non-default `scope` that behaves like `swap` points at the bridge: an older one, or one that could not bind the client's log. The bridge's log says why it skipped a restore.
 - **Restores, but nothing is put back:** the consumer's state never fired. Check that it reads the flag by the exact name the layer declares, and that both controllers sit in one FullController.
 - **Emulator:** spawn the avatar away from where the thing was placed, or a restore that did nothing looks like one that worked. The emulator announces the same avatar on every play entry, so the bridge needs its test-only reload-as-swap switch.
