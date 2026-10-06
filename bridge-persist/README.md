@@ -52,7 +52,7 @@ Depends on the VRC SDK and VRCFury.
 An instance change includes a new instance of the same world. A newly selected send target clears every namespace at every scope.
 
 - **At `instance-keep-reset`, Reset Avatar is no longer the escape from a bad persisted state for that namespace; leaving the instance is.** That is the consumer's trade. The operator on why it matters: "being completely incapable of resetting your avatar state on a persisted gimmick that could glitch into a bad state is potentially beyond mild inconvenience." Choose it for state a user would never want to lose and could not wedge; `instance` is the middle.
-- **Scopes 1 and 2 need the bridge to have the client's log bound to the client by its OSCQuery service name, and to see this change's avatar switch in it.** When it cannot, the bridge uses `swap`'s rule for that decision, which forgets: the failure direction is losing state, never keeping it past its scope.
+- **Scopes 1 and 2 need the bridge to have the client's log bound to the client by its OSCQuery service name, and to see this change's avatar switch in it.** When it cannot, or does not know the instance, the bridge uses `swap`'s rule for that decision: a single swap to the same prefab still restores, and every reload, chain and join forgets. An instance change the log shows always forgets, at every scope.
 - **A to B to A' keeps the namespace only while B does too.** If B carries the same namespace with a different `Announce`, B's boot forgets and A's state is lost.
 
 ## Performance stats

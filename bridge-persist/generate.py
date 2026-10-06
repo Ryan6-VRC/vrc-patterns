@@ -168,7 +168,7 @@ def fmt(v):
 def validate(c):
     missing = [k for k in REQUIRED if k not in c]
     if missing:
-        refuse(f"{', '.join(f'`{k}`' for k in missing)} missing: every key but `id` is required.")
+        refuse(f"{', '.join(f'`{k}`' for k in missing)} missing: every key but `id` and `scope` is required.")
     ns = c.get("namespace")
     for k in ("namespace", "internal"):
         if not isinstance(c.get(k), str) or not c[k]:
