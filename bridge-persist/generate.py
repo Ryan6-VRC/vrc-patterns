@@ -129,6 +129,7 @@ CONFIG = {
     ],
     "placed": ["BridgePersist/Example/Placed"],
     "hold": 0.5,
+    "scope": "swap",
 }
 REQUIRED = ("namespace", "internal", "controller", "enable", "payload", "placed", "hold")
 
