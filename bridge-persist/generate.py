@@ -19,7 +19,8 @@ Wearer only, and only with `<namespace>/Id` non-zero; a remote, and a wearer at 
             that reads IsLocal (entry rungs evaluate before it lands, so this is a level rung on
             a state, never an entry rung).
   Quiesce   drives Enable off and resets every payload name to its declared default.
-  Boot      writes Announce (a copy of Id) and Boot (a random in (0, 1]) together, and drives
+  Boot      writes Announce (a copy of Id), Scope (the config's `scope`, as its constant; see
+            CONFIG) and Boot (a random in (0, 1]) together, and drives
             Enable off and resets the payload AGAIN. A driver write made in the first state a
             layer writes from after a load does not reach the client's parameter (the emulator
             lands it, so no emulator run can show this), so nothing the exchange depends on rests
@@ -67,10 +68,10 @@ through the SAME FullController component as its glue, so the flag's instance pr
 
 CONFIG
 ------
-Every key but `id` is required; `validate()` refuses a config missing any, naming each.
+Every key but `id` and `scope` is required; `validate()` refuses a config missing any, naming each.
 
-  namespace  `BridgePersist/<Name>`, the root the bridge watches; the four reserved leaves (Id,
-             Announce, Boot, Restore) and the mirror, `<namespace>/Enabled` (the enable state,
+  namespace  `BridgePersist/<Name>`, the root the bridge watches; the five reserved leaves (Id,
+             Announce, Boot, Restore, Scope) and the mirror, `<namespace>/Enabled` (the enable state,
              declared with Enable's default), are declared here and nowhere else.
   internal   the prefix for the layer's own local names (the flag). Required rather than
              defaulted so the collapsed shape, local names inside a published root, is not
@@ -84,6 +85,17 @@ Every key but `id` is required; `validate()` refuses a config missing any, namin
   placed     the payload names (bools) whose truth means a prop is placed and worth holding for.
              An entry may instead be (name, above) for an int or float payload name, placed above it.
   hold       seconds the flag stays up.
+  scope      optional, default `swap`: how long the bridge keeps this namespace's saved state, which
+             the avatar declares to the bridge in `<namespace>/Scope` (an int the Boot state sets;
+             a 0 onto a default of 0 sends nothing, which is how the default stays silent).
+               swap                 0  a swap restores once; A to B to A' forgets; an FBT calibration
+                                       restores; Reset Avatar and any join clear.
+               instance             1  restores across any chain of swaps and calibrations within one
+                                       instance; Reset Avatar clears; leaving the instance clears.
+               instance-keep-reset  2  as `instance`, and Reset Avatar restores too.
+             The bridge needs the client's log for 1 and 2, and falls back to 0's rule for any
+             decision it cannot read there. A bridge without Scope support treats the name as payload
+             and runs 0.
 """
 
 import hashlib
@@ -94,14 +106,15 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# The wire contract's avatar-side constants (protocol version 3). The bridge's own waits, from
+# The wire contract's avatar-side constants (protocol version 4). The bridge's own waits, from
 # Boot to its validity decision and from its last payload write to Restore 1, are the bridge's;
 # they fit inside this window, which is why it is a contract value and not a consumer knob.
 WINDOW_SECS = 1.0
 # The longest Await waits for the bridge's release (Restore 2). Above the bridge's own limit on
 # that wait, so a bridge that gives up never leaves the avatar holding on a release it will not send.
 RELEASE_TIMEOUT_SECS = 120.0
-RESERVED = ("Id", "Announce", "Boot", "Restore")
+RESERVED = ("Id", "Announce", "Boot", "Restore", "Scope")
+SCOPES = {"swap": 0, "instance": 1, "instance-keep-reset": 2}
 STEP_SECS = 0.02   # a carrier just long enough that exitTime 1.0 leaves on the next evaluation
 
 CONFIG = {
@@ -116,6 +129,7 @@ CONFIG = {
     ],
     "placed": ["BridgePersist/Example/Placed"],
     "hold": 0.5,
+    "scope": "swap",
 }
 REQUIRED = ("namespace", "internal", "controller", "enable", "payload", "placed", "hold")
 
@@ -154,7 +168,7 @@ def fmt(v):
 def validate(c):
     missing = [k for k in REQUIRED if k not in c]
     if missing:
-        refuse(f"{', '.join(f'`{k}`' for k in missing)} missing: every key but `id` is required.")
+        refuse(f"{', '.join(f'`{k}`' for k in missing)} missing: every key but `id` and `scope` is required.")
     ns = c.get("namespace")
     for k in ("namespace", "internal"):
         if not isinstance(c.get(k), str) or not c[k]:
@@ -205,13 +219,16 @@ def validate(c):
     # bool is an int subclass, and a True here would emit as 1.
     if not (isinstance(c["hold"], (int, float)) and not isinstance(c["hold"], bool) and c["hold"] > 0):
         refuse(f"hold {c['hold']!r}: a positive number of seconds.")
+    scope = c.get("scope", "swap")
+    if not isinstance(scope, str) or scope not in SCOPES:
+        refuse(f"scope {scope!r}: one of {', '.join(f'`{k}`' for k in SCOPES)}, or leave it out for `swap`.")
     ident = minted_id(ns) if c.get("id") is None else c["id"]
     if not (isinstance(ident, int) and not isinstance(ident, bool) and 0 <= ident <= 255):
         refuse(f"id {ident!r}: an int in 0..255, 0 meaning off.")
     en_type = spec_type_default(en, en_spec)
     if en_type[0] == "int":
         refuse(f"enable {en!r} is declared int; the layer reads it as a bool or a float.")
-    return ident, mirror, types, en_type
+    return ident, mirror, types, en_type, SCOPES[scope]
 
 
 def flag_name(c):
@@ -220,9 +237,9 @@ def flag_name(c):
 
 def document(c):
     """(controller.yaml text, facts). Pure: a function of the config alone."""
-    ident, mirror, types, (en_type, en_default) = validate(c)
+    ident, mirror, types, (en_type, en_default), scope = validate(c)
     ns, en, en_spec = c["namespace"], c["enable"][0], c["enable"][1]
-    ID, ANNOUNCE, BOOT, RESTORE = (f"{ns}/{r}" for r in RESERVED)
+    ID, ANNOUNCE, BOOT, RESTORE, SCOPE = (f"{ns}/{r}" for r in RESERVED)
     FLAG = flag_name(c)
     mirror_default = "true" if en_default >= 0.5 else "false"
     en_on, en_off = ((f"{en} greater 0.5", f"{en} less 0.5") if en_type == "float"
@@ -233,9 +250,9 @@ def document(c):
     L = []
     o = L.append
     o(f"# {c['controller']} — GENERATED by bridge-persist/generate.py; never hand-edit it, re-run the generator.")
-    o("# The avatar side of the bridge's persistence exchange (wire contract version 3), as one layer merged through the consumer's")
+    o("# The avatar side of the bridge's persistence exchange (wire contract version 4), as one layer merged through the consumer's")
     o("# FullController beside its glue. generate.py's docstring is the state-by-state design record.")
-    o(f"# Namespace {ns}: Id, Announce, Boot, Restore reserved; every other name under it is payload and is reset here.")
+    o(f"# Namespace {ns}: Id, Announce, Boot, Restore, Scope reserved; every other name under it is payload and is reset here.")
     o(f"# Flag {FLAG}: local, outside the namespace, raised for the hold; the consumer's glue places from the payload while it is up.")
     o(f"# Id default {ident}: a variant declares its own in a controller listed first in both FullController lists; 0 switches this layer off.")
     o("")
@@ -252,6 +269,7 @@ def document(c):
     o(f"  {ID}: {{ type: int, default: {ident}, vrc: {{ synced: false, saved: false }} }}   # the prefab's identity, carried as the default")
     o(f"  {ANNOUNCE}: {{ type: int, default: 0, vrc: {{ synced: false, saved: false }} }}   # a copy of Id, written with Boot")
     o(f"  {BOOT}: {{ type: float, default: 0, vrc: {{ synced: false, saved: false }} }}   # a random in (0, 1], once per load")
+    o(f"  {SCOPE}: {{ type: int, default: 0, vrc: {{ synced: false, saved: false }} }}   # how long the bridge keeps this state: 0 swap, 1 instance, 2 instance-keep-reset; the Boot state sets it")
     o(f"  {RESTORE}: {{ type: int, default: 0, vrc: {{ synced: false, saved: false }} }}   # the bridge writes 1 after the payload, 3 to hold a calibration restore, 2 to release it; rests at 0")
     o(f"  {mirror}: {{ type: bool, default: {mirror_default}, vrc: {{ synced: false, saved: false }} }}   # payload: the enable state; default Enable's")
     for n, s in c["payload"]:
@@ -278,6 +296,7 @@ def document(c):
     o("      Boot:")
     o("        behaviours:")
     o(f"          - driver: {{ localOnly: true, copy: {{ {ANNOUNCE}: {ID} }} }}")
+    o(f"          - driver: {{ localOnly: true, set: {{ {SCOPE}: {scope} }} }}")
     o(f"          - driver: {{ localOnly: true, random: {{ {BOOT}: {{ min: 0.001, max: 1 }} }} }}")
     o(f"          - driver: {{ localOnly: true, set: {{ {en}: 0, {reset_s} }} }}")
     o("        motion: { clip: step }")
