@@ -1,0 +1,83 @@
+// head-proxy/voice — wire the base's empty Head_Proxy slot to this consumer's VoiceTarget socket, and
+// check it. An execute_code method body (MCP for Unity), or the body of any static editor method that
+// returns a string. Idempotent: run it after every compose, re-parent or prefab rebuild of a row.
+//
+// Reports exactly one line:
+//   already wired       source1 already names the row's VoiceTarget; nothing written
+//   wired               source1 was empty and now names the socket (WRITE = true only)
+//   FAIL: <why>         nothing written; the reason names the offender
+//
+// Set WRITE = false to make it a pure check: an empty slot then reports FAIL instead of being written.
+// ROW is a prefab asset path (a configuration prefab or variant: the slot becomes a property override in
+// that prefab) or the hierarchy path of an avatar root in the open scene (a scene-level prefab-instance
+// override; the scene is saved).
+//
+// Why this step exists: a constraint source is an object reference with no path form, so a slot pointing
+// across a prefab boundary lives only as an override on the row, and a weighted null source is skipped by
+// the solve with no error. An unwired row looks correct and the voice simply never moves.
+
+const string ROW = "Packages/com.ryan6vrc.patterns/head-proxy/voice/HeadProxyVoiceRig.prefab";
+const bool WRITE = true;
+const string PROXY = "Head_Proxy";       // the base's humanoid head, carrying the VRCPositionConstraint
+const string SOCKET = "VoiceTarget";     // the consumer's socket object
+const int SLOT = 1;                      // the base's empty second source
+
+bool isAsset = ROW.EndsWith(".prefab");
+UnityEngine.GameObject root;
+if (isAsset) {
+    if (UnityEditor.AssetDatabase.LoadMainAssetAtPath(ROW) == null) return "FAIL: no prefab at " + ROW;
+    root = UnityEditor.PrefabUtility.LoadPrefabContents(ROW);
+} else {
+    root = UnityEngine.GameObject.Find(ROW);
+    if (root == null) return "FAIL: no scene object at " + ROW;
+}
+
+string Path(UnityEngine.Transform t) {
+    string p = t.name;
+    while (t.parent != null && t != root.transform) { t = t.parent; if (t != root.transform) p = t.name + "/" + p; }
+    return p;
+}
+UnityEngine.Transform FindOne(string name, System.Func<UnityEngine.Transform, bool> ok, out string err) {
+    UnityEngine.Transform hit = null; int n = 0;
+    foreach (var t in root.GetComponentsInChildren<UnityEngine.Transform>(true))
+        if (t.name == name && ok(t)) { hit = t; n++; }
+    err = n == 1 ? null : n + " objects named " + name + " under " + root.name;
+    return n == 1 ? hit : null;
+}
+UnityEngine.Component Constraint(UnityEngine.Transform t) {
+    foreach (var c in t.GetComponents<UnityEngine.Component>())
+        if (c != null && c.GetType().Name == "VRCPositionConstraint") return c;
+    return null;
+}
+
+string result;
+try {
+    var proxy = FindOne(PROXY, t => Constraint(t) != null, out var e1);
+    var socket = FindOne(SOCKET, t => true, out var e2);
+    if (proxy == null) result = "FAIL: " + e1 + " carrying a VRCPositionConstraint";
+    else if (socket == null) result = "FAIL: " + e2 + " (compose the consumer prefab onto this row)";
+    else {
+        var so = new UnityEditor.SerializedObject(Constraint(proxy));
+        int len = so.FindProperty("Sources.totalLength").intValue;
+        var slot = so.FindProperty("Sources.source" + SLOT + ".SourceTransform");
+        var current = slot.objectReferenceValue as UnityEngine.Transform;
+        if (len <= SLOT) result = "FAIL: " + Path(proxy) + " has " + len + " source(s); the base must serialize slot " + SLOT;
+        else if (current == socket) result = "already wired";
+        else if (current != null) result = "FAIL: slot " + SLOT + " names " + Path(current) + ", not " + Path(socket) + "; clear it by hand if that is stale";
+        else if (!WRITE) result = "FAIL: slot " + SLOT + " on " + Path(proxy) + " is empty (WRITE = false)";
+        else {
+            slot.objectReferenceValue = socket;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            if (isAsset) UnityEditor.PrefabUtility.SaveAsPrefabAsset(root, ROW);
+            else {
+                UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(Constraint(proxy));
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(root.scene);
+                UnityEditor.SceneManagement.EditorSceneManager.SaveScene(root.scene);
+            }
+            result = "wired";
+        }
+    }
+} finally {
+    if (isAsset) UnityEditor.PrefabUtility.UnloadPrefabContents(root);
+}
+return result;

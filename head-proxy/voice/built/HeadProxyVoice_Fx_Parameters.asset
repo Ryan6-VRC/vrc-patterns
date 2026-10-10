@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1506855854, guid: 67cc4cb7839cd3741b63733d5adf0442, type: 3}
-  m_Name: HeadProxy_Fx_Parameters
+  m_Name: HeadProxyVoice_Fx_Parameters
   m_EditorClassIdentifier: 
   isEmpty: 0
   parameters:
-  - name: MirrorDetection/IsMirror
-    valueType: 1
+  - name: HeadProxy/MoveHead
+    valueType: 2
     saved: 0
     defaultValue: 0
-    networkSynced: 0
+    networkSynced: 1
