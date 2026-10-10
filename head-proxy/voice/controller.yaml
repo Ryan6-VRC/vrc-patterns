@@ -1,27 +1,12 @@
-# head-proxy/voice — the consumer half of head-proxy: throw the voice to a socket the consumer owns
-# (nested Module; HeadProxyVoice.prefab is the drop-in, HeadProxyVoiceRig.prefab the worked row).
+# head-proxy/voice — the consumer half of head-proxy (../README.md): swaps the base's Head_Proxy
+# position-constraint source weights between the deform Head and this consumer's VoiceTarget.
 #
-# One layer, merged by a FullController on the consumer's own root, never on the base's:
-#   VoiceProjection — swaps the two source weights of the base's Head_Proxy position constraint,
-#     moving the humanoid head (voice origin, IK target — NOT the viewpoint, which is headset-locked)
-#     between the deform Head (source0, home) and this consumer's VoiceTarget socket (source1)
-#     without moving the deform head's geometry. The base serializes source1 empty; the row's one
-#     wiring step (WireVoiceTarget.cs.txt) points it at the socket.
-#
-# Every binding starts with `/`: VRCFury resolves a merged clip path by walking up from the
-# FullController's object to the avatar root, first valid prefix wins, and a leading `/` skips the
-# walk and resolves from the avatar root directly. The consumer sits below the avatar root, so the
-# absolute form is what keeps a future child named like an armature node from capturing the path.
-# `basis: avatar-root` records that frame.
-#
-# HeadProxy/MoveHead is the rig's seam bit, declared here synced (remotes must hear the voice move)
-# and unsaved (a fresh load starts home). The base declares it scratch, so this is the only
-# expression-parameter declaration; the FullController keeps it bare via globalParams, and the
-# prefab's VRCFury Toggle fronts it.
+# Every binding is absolute (leading `/`, nondestructive.md §Reference hardening). Invariant: the
+# base rig stays the avatar root's child named HeadProxyRig, or these paths resolve to nothing.
 
 schema: 1
 controller: HeadProxyVoice_Fx
-basis: avatar-root         # every path is absolute (leading `/`), resolved from the avatar root
+basis: avatar-root
 role: fx
 
 defaults:
@@ -34,23 +19,17 @@ parameters:
 layers:
   - name: VoiceProjection
     states:
-      Anchored:                  # humanoid head rides the deform Head — normal
+      Anchored:
         motion: { clip: voice_at_head }
         transitions:
           - { to: Projected, when: [ HeadProxy/MoveHead is true ] }
-      Projected:                 # humanoid head rides the VoiceTarget socket — ventriloquism
+      Projected:
         motion: { clip: voice_at_target }
         transitions:
           - { to: Anchored, when: [ HeadProxy/MoveHead is false ] }
     default: Anchored
-    layout:
-      nodes: { Anchored: [30, 180], Projected: [30, 250] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
 
 clips:
-  # Both states key both weights, so the swap holds under either Write Defaults mode.
   voice_at_head:
     set:
       "/HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 1

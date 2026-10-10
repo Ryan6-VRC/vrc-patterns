@@ -12,10 +12,6 @@
 #     mirror and photo; delete the condition to demonstrate the failure). While the head is home
 #     the layer holds zero bindings and the real chop owns the bone. Near-socket redundancy
 #     (real chop still engaged + fake chop) is harmless: exemptions multiply.
-#   The move itself is NOT here. The consumer (voice/ is the worked one) owns the socket, the layer
-#     that swaps Head_Proxy's two source weights, and the bit's sync: this document declares
-#     HeadProxy/MoveHead scratch, so the base alone costs no synced bit and makes no claim a
-#     consumer's synced declaration would lose to (a declaration is first-wins across FullControllers).
 #   Mirror detection is NOT embedded here — the prefab merges mirror-detect's built controller
 #     as a second FullController row. With that row omitted, IsMirror parks at the declared 0,
 #     which is not < 0: the fake chop then never engages — the fail-safe direction (a possible
@@ -43,9 +39,9 @@ defaults:
 
 parameters:
   IsLocal: bool            # VRC builtin
-  # The rig's seam bit: FakeChop reads it, the consumer that moves the head drives it. Declared
-  # scratch so the base makes no expression-parameter claim; the consumer's params asset declares
-  # it synced, and a declaration is first-wins across FullControllers (see header).
+  # The rig's seam bit: FakeChop reads it; the consumer (voice/) moves the head on it and owns its
+  # sync. Scratch, so the base makes no expression-parameter claim: a declaration is first-wins
+  # across FullControllers, and this root one declares first.
   HeadProxy/MoveHead: { type: bool, default: false, scratch: true }
   # Consumed from the mirror-detect row; declared default 0 = the fail-safe park (see header).
   MirrorDetection/IsMirror: { type: float, default: 0 }
