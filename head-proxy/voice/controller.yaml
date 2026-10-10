@@ -1,0 +1,40 @@
+# head-proxy/voice — the consumer half of head-proxy (../README.md): swaps the base's Head_Proxy
+# position-constraint source weights between the deform Head and this consumer's VoiceTarget.
+#
+# Every binding is absolute (leading `/`, nondestructive.md §Reference hardening). Invariant: the
+# base rig stays the avatar root's child named HeadProxyRig, or these paths resolve to nothing.
+
+schema: 1
+controller: HeadProxyVoice_Fx
+basis: avatar-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  HeadProxy/MoveHead: { type: bool, default: false, vrc: { synced: true, saved: false } }
+
+layers:
+  - name: VoiceProjection
+    states:
+      Anchored:
+        motion: { clip: voice_at_head }
+        transitions:
+          - { to: Projected, when: [ HeadProxy/MoveHead is true ] }
+      Projected:
+        motion: { clip: voice_at_target }
+        transitions:
+          - { to: Anchored, when: [ HeadProxy/MoveHead is false ] }
+    default: Anchored
+
+clips:
+  voice_at_head:
+    set:
+      "/HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 1
+      "/HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 0
+  voice_at_target:
+    set:
+      "/HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 0
+      "/HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 1

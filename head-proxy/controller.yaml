@@ -1,15 +1,13 @@
-# head-proxy — the proxy-head rig's FX: ventriloquism with the vision fix built in (Module,
-# study; the prefab is a complete minimal avatar).
+# head-proxy — the proxy-head rig's FX: the vision fix for a moved humanoid head (Module, study;
+# the prefab is a complete minimal avatar).
 #
-# Two layers over a rig whose humanoid Head is the non-deforming, chop-exempt Head_Proxy:
-#   VoiceProjection — ventriloquism: swaps the Head_Proxy position-constraint source between the
-#     deform Head (home) and the VoiceTarget socket, moving the humanoid head (voice origin, IK
-#     target — NOT the viewpoint, which is headset-locked) without moving the deform head's geometry.
-#   FakeChop — the vision fix, AUTO-ENGAGED with MoveHead: relocating the humanoid head moves the
-#     whole chop-listed bone set away from the avatar root, and past the client's ~0.5-1 m
-#     release gate the real chop lets go — your own deform head reappears at full scale exactly
-#     where your camera is. So whenever the head is moved, this layer reproduces the chop with
-#     avatar animation, gated IsLocal && IsMirror < 0 (the mirror clone runs this same animator
+# One layer over a rig whose humanoid Head is the non-deforming, chop-exempt Head_Proxy, whose
+# position constraint carries an empty second source slot for a consumer to wire:
+#   FakeChop — the vision fix, AUTO-ENGAGED with HeadProxy/MoveHead: a consumer moving the humanoid
+#     head moves the whole chop-listed bone set away from the avatar root, and past the client's
+#     ~0.5-1 m release gate the real chop lets go — your own deform head reappears at full scale
+#     exactly where your camera is. So whenever the head is moved, this layer reproduces the chop
+#     with avatar animation, gated IsLocal && IsMirror < 0 (the mirror clone runs this same animator
 #     with IsLocal still true — without the mirror gate the fake chop shrinks your head in every
 #     mirror and photo; delete the condition to demonstrate the failure). While the head is home
 #     the layer holds zero bindings and the real chop owns the bone. Near-socket redundancy
@@ -28,7 +26,7 @@
 # disengaging doesn't leave the bone stuck at ~0 for photos.
 #
 # Provenance: generalized from a private production avatar's head-chop architecture; the
-# release-gate account is in-game measured on that rig (runtime.md §VRCHeadChop).
+# release-gate account is in-game measured on that rig (runtime.md §Other load-bearing components, VRCHeadChop).
 
 schema: 1
 controller: HeadProxy_Fx
@@ -41,28 +39,14 @@ defaults:
 
 parameters:
   IsLocal: bool            # VRC builtin
-  HeadProxy/MoveHead: { type: bool, default: false, vrc: { synced: true, saved: false } }  # remotely visible
+  # The rig's seam bit: FakeChop reads it; the consumer (voice/) moves the head on it and owns its
+  # sync. Scratch, so the base makes no expression-parameter claim: a declaration is first-wins
+  # across FullControllers, and this root one declares first.
+  HeadProxy/MoveHead: { type: bool, default: false, scratch: true }
   # Consumed from the mirror-detect row; declared default 0 = the fail-safe park (see header).
   MirrorDetection/IsMirror: { type: float, default: 0 }
 
 layers:
-  - name: VoiceProjection
-    states:
-      Anchored:                  # humanoid head rides the deform Head — normal
-        motion: { clip: voice_at_head }
-        transitions:
-          - { to: Projected, when: [ HeadProxy/MoveHead is true ] }
-      Projected:                 # humanoid head rides the VoiceTarget socket — ventriloquism
-        motion: { clip: voice_at_target }
-        transitions:
-          - { to: Anchored, when: [ HeadProxy/MoveHead is false ] }
-    default: Anchored
-    layout:
-      nodes: { Anchored: [30, 180], Projected: [30, 250] }
-      entry: [50, 120]
-      any:   [50, 40]
-      exit:  [50, 80]
-
   - name: FakeChop
     states:
       Idle:
@@ -87,15 +71,6 @@ layers:
       exit:  [50, 80]
 
 clips:
-  # Constraint source-weight swap on the humanoid head's position constraint.
-  voice_at_head:
-    set:
-      "HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 1
-      "HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 0
-  voice_at_target:
-    set:
-      "HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source0.Weight": 0
-      "HeadProxyRig/Hips/Spine/Chest/Neck/Head_Proxy/VRCPositionConstraint.Sources.source1.Weight": 1
   # Engage: constraint live on its 0.0001 source. Restore: swap to the scale-1 source for the
   # pulse length, then Idle's WD revert deactivates the constraint with the bone back at 1.
   chop_constraint_on:
