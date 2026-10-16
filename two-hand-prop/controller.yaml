@@ -109,19 +109,21 @@ layers:
         behaviours:
           - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 0 } }
         transitions:
-          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
-          - { to: Dropped,  when: [ HandleA_IsGrabbed is false ] }
-          - { to: BothA,    when: [ HandleB_IsGrabbed is true ] }
-          - { to: HeldA,    when: [], exitTime: 1.0 }
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: HandoffToB, when: [ HandleA_IsGrabbed is false, HandleB_IsGrabbed is true ] }
+          - { to: Dropped,    when: [ HandleA_IsGrabbed is false ] }
+          - { to: BothA,      when: [ HandleB_IsGrabbed is true ] }
+          - { to: HeldA,      when: [], exitTime: 1.0 }
       HandoffToB:
         motion: { clip: handoffToB }
         behaviours:
           - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 1 } }
         transitions:
-          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
-          - { to: Dropped,  when: [ HandleB_IsGrabbed is false ] }
-          - { to: BothB,    when: [ HandleA_IsGrabbed is true ] }
-          - { to: HeldB,    when: [], exitTime: 1.0 }
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: HandoffToA, when: [ HandleB_IsGrabbed is false, HandleA_IsGrabbed is true ] }
+          - { to: Dropped,    when: [ HandleB_IsGrabbed is false ] }
+          - { to: BothB,      when: [ HandleA_IsGrabbed is true ] }
+          - { to: HeldB,      when: [], exitTime: 1.0 }
       # Both channels hold. The holders ride Body again, so each tip settles back onto its handle and a
       # re-grab picks up in place with no sample cell.
       Dropped:
