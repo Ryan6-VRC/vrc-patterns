@@ -57,7 +57,10 @@ THE MACHINE (layer `<prefix>`)
             _IsPosed is read as a level when _IsGrabbed falls, never as an edge.
   Plant     `cycle` seconds: Stake freezes, Holder onto Stake, the handle component off; resetWhenDisabled
             then rests the handle at the stake with its pose cleared.
-  Planted   Stake frozen, Holder on Stake, the handle live and grabbable at the stake.
+  Planted   Stake frozen, Holder on Stake, the handle live and grabbable at the stake. `<prefix>/Unplant`
+            (the wearer's button, unsynced) fades it Free. A remote that saw the plant goes Free if
+            <internal>/Announce is still false `announce` + REMOTE_WAIT seconds in: the wearer unplanted
+            before the flag rose. A flag that arrives later still engages SyncPlanted from Free.
   PHeld     a pick-up: Stake unfrozen and on the hand, Holder frozen where the stake stood.
   SyncPlanted  a remote's plant: Stake unfrozen and on object-sync's reconstruction. Engaged from Free
             (a late joiner, with the fade) or Planted (a client that saw the plant), on
@@ -65,6 +68,9 @@ THE MACHINE (layer `<prefix>`)
             pick-up (PHeld); the flag falling with no grab seen goes Free.
 Every state keys every binding the layer owns (work under either Write Defaults mode).
 Held is 1 in Held and PHeld; Planted is 1 in Plant, Planted and SyncPlanted; both 0 elsewhere.
+
+`SelfGrab` (layer `SelfGrab`): `<prefix>/SelfGrab`, unsynced, writes the handle's grabFilter.allowSelf and
+poseFilter.allowSelf. Only the wearer's own client tests the self case, so no bit rides the wire.
 
 `Announce` (wearer only): `<internal>/Announce`, the one synced bool this entry adds besides the enables,
 rises `announce` seconds after `<prefix>/Planted` does and falls with it, so a pick-up drops it. The dwell outlasts a plant-to-remote object-sync refresh, so a
@@ -76,7 +82,10 @@ CONFIG
   internal      the internal prefix (required): no published wildcard may reach it.
   controller    the emitted controller's name.
   tag, boxSize, senderRadius, ratio   the sensing geometry; the bridge's span, sender_radius, ratio.
-  slack         `<prefix>/Slack`'s default: metres of free travel before the bridge pulls.
+  slackRange    the bridge's `LeashSettings.slack_min`/`slack_max`, metres: a slack radial's 0..1 spans it.
+  slack, slackPlanted   metres of free travel before the bridge pulls, held and planted: the defaults of
+                `<prefix>/Slack` and `<prefix>/SlackPlanted`, emitted as fractions of slackRange.
+  selfGrabDefault   `<prefix>/SelfGrab`'s default: the wearer may grab and pose their own handle.
   mount         the humanoid bone Mount's BoneProxy targets on the demo.
   mountRot      Mount's rest rotation against the avatar root (Unity Euler degrees); frames world up.
   chain         the strand's bones, root first: each one's binding path (from the prefab root, or
@@ -115,7 +124,10 @@ CONFIG = {
     "boxSize": 6.0,
     "senderRadius": 0.05,
     "ratio": 10,
-    "slack": 0.8,
+    "slackRange": (0.5, 4.0),
+    "slack": 1.5,
+    "slackPlanted": 2.5,
+    "selfGrabDefault": True,
     "mount": "Neck",
     "mountRot": (0, 0, 0),
     # The demo's rope (assets/Leash.fbx, unpacked under Mount at local zero): its Collar bone's frame is Mount's.
@@ -141,8 +153,9 @@ CONFIG = {
     "enableDefault": True,
 }
 
-# What makes the handle a handle, whatever its feel.
-FIXED_HANDLE = {"gravity": 0.0, "grabMovement": 1.0, "allowGrabbing": "True", "allowPosing": "True",
+# What makes the handle a handle, whatever its feel. Grabbing and posing are Other so the filters are read;
+# both filters bake allowSelf and allowOthers on, and the SelfGrab layer animates allowSelf.
+FIXED_HANDLE = {"gravity": 0.0, "grabMovement": 1.0, "allowGrabbing": "Other", "allowPosing": "Other",
                 "allowCollision": "False", "resetWhenDisabled": True, "isAnimated": False,
                 "integrationType": "Simplified", "limitType": "None"}
 # Unity HumanBodyBones values the demo Mount's BoneProxy may target.
@@ -150,6 +163,8 @@ HUMAN = {"Hips": 0, "Spine": 7, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest":
 # Box shape rotations putting each face-proximity box's +Z face on the carrier's named axis.
 AXES = (("Right", (0, 90, 0)), ("Forward", (0, 0, 0)))
 SYNC_MOUNT = "ObjectSync"
+# Seconds past `announce` a remote's Planted waits for the flag before taking an unplant as read.
+REMOTE_WAIT = 1.0
 
 
 def refuse(msg):
@@ -292,6 +307,12 @@ def validate(c):
         refuse("endpoint is the last bone's visible end; a zero endpoint leaves the last bone no length to place.")
     if len({b["bone"] for b in c["chain"]}) != n:
         refuse("chain bone paths repeat.")
+    lo, hi = c["slackRange"]
+    if not 0 <= lo < hi:
+        refuse("slackRange is (min, max) metres, 0 <= min < max.")
+    for k in ("slack", "slackPlanted"):
+        if not lo <= c[k] <= hi:
+            refuse(f"{k} lies in slackRange {c['slackRange']}: a radial cannot reach a default outside it.")
 
 
 def geometry(c):
@@ -424,11 +445,15 @@ def secs(frames):
 def document(c, og):
     r = rig(c, og)
     p, I = c["prefix"], c["internal"]
-    EN, HELD, PL, SLACK = f"{p}/Enable", f"{p}/Held", f"{p}/Planted", f"{p}/Slack"
+    EN, HELD, PL, SLACK, SLACKP = f"{p}/Enable", f"{p}/Held", f"{p}/Planted", f"{p}/Slack", f"{p}/SlackPlanted"
+    SELF, UNPLANT = f"{p}/SelfGrab", f"{p}/Unplant"
+    lo, hi = c["slackRange"]
+    frac = {k: round((c[k] - lo) / (hi - lo), 6) for k in ("slack", "slackPlanted")}
     IG, IP, FLAG = f"{p}/Handle_IsGrabbed", f"{p}/Handle_IsPosed", f"{I}/Announce"
     HOLD = "Holder/VRCParentConstraint"
     STK = "Stake/VRCPositionConstraint"
     PB = "Holder/HB0/VRCPhysBone.m_Enabled"
+    FILTERS = [f"Holder/HB0/VRCPhysBone.{f}.allowSelf" for f in ("grabFilter", "poseFilter")]
     SENSE = "Sense/GameObject.m_IsActive"
     STRAND = [f"{s['path']}/VRCParentConstraint.Sources.source" for s in r["strand"]]
 
@@ -449,6 +474,8 @@ def document(c, og):
         "planted": (None, clip(0, 0, 1, 1, 0, 1, 1)),
         "pheld": (None, clip(0, 1, 1, 0, 0, 1, 1)),
         "sync_planted": (None, clip(0, 0, 1, 0, 1, 1, 1)),
+        "self_on": (None, {f: 1 for f in FILTERS}),
+        "self_off": (None, {f: 0 for f in FILTERS}),
     }
     fade = secs(c["fade"])
 
@@ -457,7 +484,7 @@ def document(c, og):
     o(f"# {c['controller']} — GENERATED by leash-stake/generate.py; edit its CONFIG and rerun, never hand-edit this file.")
     o("# The leash's machine and the wearer's announce. generate.py's docstring is the state-by-state record; rig.json the prefab's numbers.")
     o(f"# Published, bare (globalParams): {', '.join(r['globalParams'])}. {HELD} is 1 in Held and PHeld, {PL} in Plant,")
-    o(f"# Planted and SyncPlanted, both latching. {EN} is the one menu intent; {FLAG} the synced announce.")
+    o(f"# Planted and SyncPlanted, both latching. {EN} is the one synced menu intent; {FLAG} the synced announce.")
     o(f"# Fade {c['fade']} frames, plant cycle {c['cycle']} s, announce {c['announce']} s. Strand rest length {r['length']} m.")
     o("")
     o("schema: 1")
@@ -475,7 +502,10 @@ def document(c, og):
         o(f"  {p}/{a}: {{ type: float, vrc: {{ synced: false, saved: false, osc: true }} }}   # face-proximity box, sensing")
     o(f"  {HELD}: {{ type: bool, vrc: {{ synced: false, saved: false, osc: true }} }}   # latching, driven here")
     o(f"  {PL}: {{ type: bool, vrc: {{ synced: false, saved: false, osc: true }} }}   # latching, driven here")
-    o(f"  {SLACK}: {{ type: float, default: {c['slack']}, vrc: {{ synced: false, saved: false, osc: true }} }}   # the bridge's slack, metres")
+    o(f"  {SLACK}: {{ type: float, default: {frac['slack']}, vrc: {{ synced: false, saved: true, osc: true }} }}   # held slack, 0..1 over the bridge's {lo}-{hi} m")
+    o(f"  {SLACKP}: {{ type: float, default: {frac['slackPlanted']}, vrc: {{ synced: false, saved: true, osc: true }} }}   # planted slack, the same range")
+    o(f"  {SELF}: {{ type: bool, default: {'true' if c['selfGrabDefault'] else 'false'}, vrc: {{ synced: false, saved: true }} }}   # the wearer may grab their own handle")
+    o(f"  {UNPLANT}: {{ type: bool, vrc: {{ synced: false, saved: false }} }}   # the wearer's button")
     o(f"  {IG}: {{ type: bool, vrc: {{ synced: false, saved: false }} }}   # the handle physbone")
     o(f"  {IP}: {{ type: bool, vrc: {{ synced: false, saved: false }} }}   # the handle physbone")
     o(f"  {FLAG}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the stake is on the wire")
@@ -515,8 +545,13 @@ def document(c, og):
           note="_IsPosed is a level read when _IsGrabbed falls: posed plants, plain goes home.")
     state("Plant", "plant", 0, 1, ["{ to: Planted, when: [], exitTime: 1.0 }"],
           note="Freeze the stake, Holder onto it, the handle off for the cycle so it rests there unposed.")
+    # The planted clip is one frame long, so the wait is in frames; above 1 the rung is tested once.
+    wait = round((c["announce"] + REMOTE_WAIT) / FRAME, 3)
     state("Planted", "planted", 0, 1, [off, f"{{ to: PHeld, when: [ {IG} is true ] }}",
-                                       f"{{ to: SyncPlanted, when: [ {engage} ] }}"])
+                                       f"{{ to: SyncPlanted, when: [ {engage} ] }}",
+                                       f"{{ to: Free, when: [ {UNPLANT} is true ], duration: {fade} }}",
+                                       f"{{ to: Free, when: [ IsLocal is false, {FLAG} is false ], exitTime: {wait}, duration: {fade} }}"],
+          note="Unplant is the wearer's; the exit-time rung is a remote whose flag never rose.")
     state("PHeld", "pheld", 1, 0, [off, f"{{ to: Plant, when: [ {posed} ] }}",
                                    f"{{ to: Free, when: [ {plain} ], duration: {fade} }}"],
           note="A pick-up: Holder frozen where the stake stood, so no root moves under the live grab.")
@@ -527,6 +562,21 @@ def document(c, og):
     o("    layout:")
     o("      nodes: { Load: [30, 180], Disabled: [-210, 260], Free: [30, 260], Held: [30, 340], Plant: [30, 420], "
       "Planted: [30, 500], PHeld: [270, 420], SyncPlanted: [270, 580] }")
+    o("      entry: [50, 120]")
+    o("      any: [50, 40]")
+    o("      exit: [50, 80]")
+    o("")
+    o(f"  # Whether the wearer's own hand may grab or pose the handle; the filters are read at each grab.")
+    o("  - name: SelfGrab")
+    o("    states:")
+    for name, cl, cond in (("Anyone", "self_on", f"{SELF} is false"), ("OthersOnly", "self_off", f"{SELF} is true")):
+        o(f"      {name}:")
+        o(f"        motion: {{ clip: {cl} }}")
+        o("        transitions:")
+        o(f"          - {{ to: {'OthersOnly' if name == 'Anyone' else 'Anyone'}, when: [ {cond} ] }}")
+    o("    default: Anyone")
+    o("    layout:")
+    o("      nodes: { Anyone: [30, 180], OthersOnly: [270, 180] }")
     o("      entry: [50, 120]")
     o("      any: [50, 40]")
     o("      exit: [50, 80]")
@@ -566,8 +616,13 @@ def document(c, og):
             o(f'      "{k}": {v}')
     o("")
     o("menu:")
-    o(f"  - toggle: {p}")
-    o(f"    param: {EN}")
+    o(f"  - submenu: {p}")
+    o("    controls:")
+    o(f"      - {{ toggle: Enable, param: {EN} }}")
+    o(f"      - {{ toggle: Self-grab, param: {SELF} }}")
+    o(f"      - {{ radial: Slack (held), param: {SLACK} }}")
+    o(f"      - {{ radial: Slack (planted), param: {SLACKP} }}")
+    o(f"      - {{ button: Unplant, param: {UNPLANT} }}")
     return "\n".join(L) + "\n", r
 
 
@@ -756,7 +811,7 @@ def close(a, b, eps=1e-4):
 
 ZERO3 = (0.0, 0.0, 0.0)
 ZERO_Q = (0.0, 0.0, 0.0, 1.0)
-ENUM = {"True": "1", "False": "0", True: "1", False: "0", "Simplified": "0", "Advanced": "1", "None": "0"}
+ENUM = {"True": "1", "False": "0", "Other": "2", True: "1", False: "0", "Simplified": "0", "Advanced": "1", "None": "0"}
 
 
 def source_faults(src, want):
@@ -904,6 +959,10 @@ def check(c, prefab_path, entry=True):
                                                         got is not None and abs(float(got) - v) < 1e-6)
             A(good, f"handle physbone {fld} == {v} (got {got})")
         A(fid(pbs[0], "rootTransform") in (0, None), "handle physbone roots on HB0 itself")
+        for flt in ("grabFilter", "poseFilter"):
+            m = re.search(rf"^  {flt}:\n    allowSelf: (\d+)\n    allowOthers: (\d+)", pbs[0], re.M)
+            A(m is not None and m.groups() == ("1", "1"),
+              f"handle {flt} bakes allowSelf and allowOthers on (SelfGrab animates allowSelf) (got {m and m.groups()})")
 
     # Start and Home: the socket, and the static tip the handle homes at.
     for key in ("start", "home"):
@@ -1024,7 +1083,7 @@ def check_sync(c, og, P, A):
     A(reached and not [n for n in reached if n not in declared], f"every object-sync name the controller reads is declared by its build ({reached})")
 
 
-CONSUMER_KEYS = {"prefix", "internal", "controller", "tag", "boxSize", "senderRadius", "ratio", "slack", "mount", "mountRot",
+CONSUMER_KEYS = {"prefix", "internal", "controller", "tag", "boxSize", "senderRadius", "ratio", "slackRange", "slack", "slackPlanted", "selfGrabDefault", "mount", "mountRot",
                  "chain", "endpoint", "homeAt", "home", "handle", "fade", "cycle", "announce", "enableDefault"}
 
 

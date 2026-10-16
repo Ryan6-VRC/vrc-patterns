@@ -16,9 +16,75 @@ MonoBehaviour:
   controls:
   - name: Leash
     icon: {fileID: 0}
+    type: 103
+    parameter:
+      name: 
+    value: 1
+    style: 0
+    subMenu: {fileID: 5549940109072840958}
+    subParameters: []
+    labels: []
+--- !u!114 &5549940109072840958
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -340790334, guid: 67cc4cb7839cd3741b63733d5adf0442, type: 3}
+  m_Name: LeashStake_Fx_Menu_Leash
+  m_EditorClassIdentifier: 
+  Parameters: {fileID: 0}
+  controls:
+  - name: Enable
+    icon: {fileID: 0}
     type: 102
     parameter:
       name: Leash/Enable
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
+  - name: Self-grab
+    icon: {fileID: 0}
+    type: 102
+    parameter:
+      name: Leash/SelfGrab
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters: []
+    labels: []
+  - name: Slack (held)
+    icon: {fileID: 0}
+    type: 203
+    parameter:
+      name: 
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters:
+    - name: Leash/Slack
+    labels: []
+  - name: Slack (planted)
+    icon: {fileID: 0}
+    type: 203
+    parameter:
+      name: 
+    value: 1
+    style: 0
+    subMenu: {fileID: 0}
+    subParameters:
+    - name: Leash/SlackPlanted
+    labels: []
+  - name: Unplant
+    icon: {fileID: 0}
+    type: 101
+    parameter:
+      name: Leash/Unplant
     value: 1
     style: 0
     subMenu: {fileID: 0}

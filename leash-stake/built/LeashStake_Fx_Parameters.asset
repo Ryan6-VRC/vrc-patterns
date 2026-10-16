@@ -41,8 +41,23 @@ MonoBehaviour:
     networkSynced: 0
   - name: Leash/Slack
     valueType: 1
+    saved: 1
+    defaultValue: 0.285714
+    networkSynced: 0
+  - name: Leash/SlackPlanted
+    valueType: 1
+    saved: 1
+    defaultValue: 0.571429
+    networkSynced: 0
+  - name: Leash/SelfGrab
+    valueType: 2
+    saved: 1
+    defaultValue: 1
+    networkSynced: 0
+  - name: Leash/Unplant
+    valueType: 2
     saved: 0
-    defaultValue: 0.8
+    defaultValue: 0
     networkSynced: 0
   - name: Leash/Handle_IsGrabbed
     valueType: 2

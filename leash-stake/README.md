@@ -21,7 +21,7 @@ For the demo collar:
 
 1. Drop `LeashStake.prefab` at the avatar root, unrotated. Edit the instance or an owned copy, never the package asset. The prefab's `Mount` node snaps itself to your Neck bone, and the demo adds a visible collar and rope there.
 2. Add `anti-cull` to the avatar (`../anti-cull/README.md`). Without it, another player who looks away stops running your animator and loses the planted position.
-3. Build. The expression menu gains a `Leash` toggle.
+3. Build. The expression menu gains a `Leash` submenu.
 4. For the pull, run `vrc-bridge` with `[leash]` enabled in its config. Both sides ship matching defaults; a changed sensing knob must change on both (§Knobs).
 
 Depends on the VRC SDK, VRCFury and Modular Avatar.
@@ -32,7 +32,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - Release it with a pose and it stays planted where your hand was, drawn as a line from your neck, while you walk around it.
 - Grab the planted end to pick it up; a plain release lets it fall back onto its own physics, a pose release plants it again.
 - With the bridge running, a held or planted leash pulls you toward its end.
-- The `Leash` toggle drives `Leash/Enable`. Off is the reset: it drops a planted leash, frees the strand, and switches the grab bone and the sensing off.
+- The `Leash` submenu holds five controls. `Enable` drives `Leash/Enable`; off is the reset: it drops a planted leash, frees the strand, and switches the grab bone and the sensing off. `Self-grab` off stops your own hands grabbing or posing the leash, while everyone else still can. `Slack (held)` and `Slack (planted)` set how far you can move before the bridge pulls, held and planted, across the bridge's `slack_min`..`slack_max` (0.5 m to 4 m by default). `Unplant` drops a planted leash back onto its strand from wherever you stand.
 
 ## Additional notes
 
@@ -40,10 +40,10 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **Another `object-sync` build can share the avatar.** This one parks and tags its contacts from its own `rigSeed`, so they do not collide with another build's.
 - **A late joiner sees the leash free for a moment**, until its copy of the sync rig has a whole position and the synced bool, then plants it there. A leash held at the moment someone joins reads as free to them, since a live grab does not reach a late joiner (`../../docs/runtime.md` §PhysBones).
 - **Only you sense the leash.** The boxes and their sender are local-only on a private tag, so no other avatar can feed your bridge.
-- **Who may grab it is the grab bone's own filter.** Anyone can by default; the emulator cannot test the grab filter (`../../docs/emulator.md` §Induce a physbone grab/pose).
-- **The bridge reads five parameters**, published without VRCFury's prefix and none of them synced. `Leash/Right` and `Leash/Forward` are momentary readings, so sample them; `rig.json`'s `sensing.decode` turns one into metres, and a reading of exactly 0 means `Stake` is outside the boxes. `Leash/Held` and `Leash/Planted` latch until the leash changes state. `Leash/Slack` is a default the bridge reads once: metres of free travel before it pulls.
+- **`Self-grab` writes the grab bone's filters.** The bone's `allowGrabbing` and `allowPosing` are `Other`, so a grab reads its filters, and the `SelfGrab` layer animates both filters' `allowSelf`. Only your own client tests the self case, so `Leash/SelfGrab` is unsynced. With it off, a grab of yours lands on the next nearest grabbable chain, if one is in reach.
+- **The bridge reads six parameters**, published without VRCFury's prefix and none of them synced. `Leash/Right` and `Leash/Forward` are momentary readings, so sample them; `rig.json`'s `sensing.decode` turns one into metres, and a reading of exactly 0 means `Stake` is outside the boxes. `Leash/Held` and `Leash/Planted` latch until the leash changes state. `Leash/Slack` and `Leash/SlackPlanted` are radial fractions 0..1 the bridge maps onto its `slack_min`..`slack_max` metres: free travel before it pulls, held and planted. A bridge that has not heard one change reads it once over OSCQuery.
 - **Do not rename anything under the prefab.** The animation clips find their targets by hierarchy path, so a rename silently breaks them.
-- **The only menu is the `Leash` toggle.** `object-sync/built/ObjectSync_Fx_Menu.asset` is generated with the sync build and stays unwired.
+- **The only menu is the `Leash` submenu.** `object-sync/built/ObjectSync_Fx_Menu.asset` is generated with the sync build and stays unwired.
 
 ## Performance stats
 
@@ -70,7 +70,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 | `prefix` | The published names' prefix and the grab bone's `<prefix>/Handle`. The bridge's `prefix` must match |
 | `internal` | The announce bool's prefix. Required, and never under `prefix`, so the published wildcard cannot reach it |
 | `ratio`, `boxSize`, `senderRadius` | The sensing geometry: the bridge's `ratio`, `span` and `sender_radius`, so a mismatch mis-decodes every reading. Raising `ratio` reaches further and resolves coarser |
-| `slack` | `Leash/Slack`'s default: free travel before the bridge pulls |
+| `slackRange`, `slack`, `slackPlanted` | The bridge's `slack_min` and `slack_max`, and the held and planted free travel in metres inside them, emitted as `Leash/Slack`'s and `Leash/SlackPlanted`'s defaults as fractions of that range. `slackRange` must match the bridge |
 | `chain`, `endpoint` | The strand's bones, root first, and the last bone's visible end. They set `Start`'s pose, the line's points and one strand constraint per bone. `endpoint` must equal the strand physbone's `endpointPosition` |
 | `homeAt`, `home` | Where the grab bone rests: `homeAt` of the way along the strand from its root (1 is the tip), or `home`, a pose measured where your strand settles. The grab volume is a sphere around this point |
 | `handle` | `radius` is that sphere's size; it must cover the strand's swing. `length` × (1 + `maxStretch`) is the reach. `pull` and `spring` are the release's feel: how fast the line retracts after a plain release |
@@ -79,7 +79,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 | `cycle` | Seconds a plant holds the grab bone off; a grab then misses. `validate()` refuses under three frames |
 | `announce` | Seconds from a plant to the synced bool. It must outlast an `object-sync` measure cycle and a wire refresh (`../object-sync/README.md` §How it works), or a remote plants at the position from before the plant |
 | `rigSeed` | The sync rig's contact tags and park, which move together. Unique among the avatar's `object-sync` builds |
-| `tag`, `controller`, `enableDefault` | The sensing contacts' private tag, the emitted controller's name, `Leash/Enable`'s default |
+| `tag`, `controller`, `enableDefault`, `selfGrabDefault` | The sensing contacts' private tag, the emitted controller's name, `Leash/Enable`'s and `Leash/SelfGrab`'s defaults |
 
 **Provenance:** the idea's ancestor is OSCLeash (MIT, ZenithVal), which the bridge half re-derives; nothing here is ported from it. The planted position rides `object-sync`, merged through one component the way `compositions/grab-sync` merges it. The worked example's strand is the necklace on PINKPUDDING's Peridot costume. The grab bone on the strand, the self-sourced fade and the plant are this entry's own.
 
@@ -99,7 +99,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 
 **`Holder` is frozen through a pick-up**, because it follows `Stake`, which rides the grab bone's own tip.
 
-**A remote has one planted state**, reached from free (a late joiner) or from planted (a client that saw the plant). A remote's pick-up is the wearer's own pick-up state, since the wearer unfreezes `Stake` the moment a pick-up starts.
+**A remote has one planted state**, reached from free (a late joiner) or from planted (a client that saw the plant). A remote's pick-up is the wearer's own pick-up state, since the wearer unfreezes `Stake` the moment a pick-up starts. A remote that saw the plant goes free if the synced bool is still down `announce` + 1 s in, which is a wearer who pressed `Unplant` before announcing; a bool that arrives later still reaches the planted state from free. The planted clip is one frame long, so that rung's exit time counts frames.
 
 **`ObjectSync/Enable` defaults on here** although `object-sync`'s own build declares it off: the leash's controller and parameters sit first in the one `FullController`, so its declaration wins that merge, and `--check` pins the order. A second `object-sync` build on another component can win instead (`../object-sync/README.md` §How it works, its Seam bullet).
 
@@ -115,7 +115,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 
 ## What is not proven here
 
-Needs the client: another player's grab and the grab filter; a remote that saw the plant moving onto the shared position (an emulator clone never sees a grab); the network timing of the synced bool against the position; the release's feel; the pull itself, which is the bridge's. Unverified anywhere: a stretched skinned strand near the client's 10 m bounds cap, and avatar scale.
+Needs the client: another player's grab, and the grab filter written by `Self-grab`; a remote that saw the plant moving onto the shared position (an emulator clone never sees a grab); the network timing of the synced bool against the position; the release's feel; the pull itself, which is the bridge's. Unverified anywhere: a stretched skinned strand near the client's 10 m bounds cap, and avatar scale.
 
 ## Using your own strand
 
@@ -144,10 +144,11 @@ The seams are three: the bone the strand hangs from (`Mount`), the strand's bone
 
 Run `--check` (or `--check-prefab`) first. In the editor the sync rig's contacts sit parked far from the avatar; that is correct, and a build moves them. Then in play:
 
-- **No `Leash` toggle in the menu:** the `FullController` lost its menu row.
+- **No `Leash` submenu in the menu:** the `FullController` lost its menu row.
 - **Grab at `Home`.** `Leash/Held` rises and the strand runs from your neck to the hand. `Leash/Held` never rising while the strand follows means the grab bone's parameter came out prefixed: `globalParams` lost `Leash/*`. A strand twitching or leaving its line means its own physbone still takes grabs. `Start` and `Home` at their authored place instead of on your neck means the BoneProxy never resolved.
 - **Drag it.** The two readings decode to `Stake`'s offset from `Start`. Off by a fixed amount means the bridge's `sender_radius` differs; off by a factor, its `ratio` or `span`. `Leash/Held` rising with no pull means the bridge's `[leash]` is off or its `prefix` differs.
 - **Pose-release it.** `Leash/Planted` rises and the strand runs from your neck to where you let go, holding while you walk.
+- **Press `Unplant` while planted.** `Leash/Planted` falls and the strand fades back onto its own physics.
 - **Spawn a remote clone after the plant** (`../../docs/emulator.md` §Remote clone, its animator set to always animate) and wait for its sync rig's ready flag and `announce`: the clone's `Stake` and strand end sit on your planted spot within `object-sync`'s precision. Ready never rising means the position is not arriving, or the clone's animator stopped. The clone's strand staying free with ready up means the synced bool never rose, or `ObjectSync/Enable` is off.
 
 ## Rig
