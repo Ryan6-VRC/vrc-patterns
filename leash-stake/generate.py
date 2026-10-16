@@ -18,7 +18,7 @@ here writes Unity assets: `--check` holds the prefab to CONFIG afterwards.
 WHAT THE RIG IS
 ---------------
 An existing strand (a collar chain, the demo's rope) becomes a leash. The strand keeps its own physbone,
-grabbing off; nothing of ours sits under it. A hand grabs our handle instead, homed at the strand's tip.
+grabbing off; nothing of ours sits under it. A hand grabs our handle instead, homed at a point on the strand.
 
   Mount     MA BoneProxy onto the bone the strand hangs from (the demo: the Neck).
   Start     a child of Mount at the strand's first bone's rest pose: the socket.
@@ -48,8 +48,8 @@ grabbing off; nothing of ours sits under it. A hand grabs our handle instead, ho
 
 THE MACHINE (layer `<prefix>`)
 -----------------------------
-  Load      the default; clears Held and Planted and hands on, so neither clear rests on the first state
-            after a load (docs/runtime.md §Parameters).
+  Load      the default, on the Disabled clip; clears Held and Planted and hands on to Free or Disabled, so
+            neither clear rests on the first state after a load (docs/runtime.md §Parameters).
   Disabled  enable off: the handle off, the sensing stowed, the strand free; clears the handle's stale
             grab flags (a disabled physbone holds them).
   Free      Holder on Home, the strand free.
@@ -66,14 +66,15 @@ THE MACHINE (layer `<prefix>`)
 Every state keys every binding the layer owns (work under either Write Defaults mode).
 Held is 1 in Held and PHeld; Planted is 1 in Plant, Planted and SyncPlanted; both 0 elsewhere.
 
-`Announce` (wearer only): `<internal>/Announce`, the one synced bool this entry adds, rises `announce`
-seconds after Planted and falls with it. The dwell outlasts a plant-to-remote object-sync refresh, so a
+`Announce` (wearer only): `<internal>/Announce`, the one synced bool this entry adds besides the enables,
+rises `announce` seconds after `<prefix>/Planted` does and falls with it, so a pick-up drops it. The dwell outlasts a plant-to-remote object-sync refresh, so a
 remote reading it true with OS/Ready holds a word table that already carries the stake.
 
 CONFIG
 ------
   prefix        the published prefix; the bridge's `LeashSettings.prefix`.
   internal      the internal prefix (required): no published wildcard may reach it.
+  controller    the emitted controller's name.
   tag, boxSize, senderRadius, ratio   the sensing geometry; the bridge's span, sender_radius, ratio.
   slack         `<prefix>/Slack`'s default: metres of free travel before the bridge pulls.
   mount         the humanoid bone Mount's BoneProxy targets on the demo.
@@ -144,6 +145,8 @@ CONFIG = {
 FIXED_HANDLE = {"gravity": 0.0, "grabMovement": 1.0, "allowGrabbing": "True", "allowPosing": "True",
                 "allowCollision": "False", "resetWhenDisabled": True, "isAnimated": False,
                 "integrationType": "Simplified", "limitType": "None"}
+# Unity HumanBodyBones values the demo Mount's BoneProxy may target.
+HUMAN = {"Hips": 0, "Spine": 7, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest": 54}
 # Box shape rotations putting each face-proximity box's +Z face on the carrier's named axis.
 AXES = (("Right", (0, 90, 0)), ("Forward", (0, 0, 0)))
 SYNC_MOUNT = "ObjectSync"
@@ -274,7 +277,9 @@ def validate(c):
         refuse("ratio must be 1 or more (1 senses Stake itself).")
     if not (isinstance(c["fade"], int) and c["fade"] >= 1):
         refuse("fade is a whole number of frames, at least 1.")
-    if c["cycle"] < 3 * FRAME:
+    if c["mount"] not in HUMAN:
+        refuse(f"mount is one of {sorted(HUMAN)}: the demo's BoneProxy targets a humanoid bone; a consumer retargets it by hand.")
+    if c["cycle"] < 3 * FRAME - 1e-9:
         refuse("cycle under 3 frames: the handle must stay off across at least one physbone step at any frame rate.")
     if not 0 < c["homeAt"] <= 1:
         refuse("homeAt is a fraction of the strand's length from the socket, above 0 and at most 1.")
@@ -596,17 +601,21 @@ class Prefab:
 
     MASK = (1 << 63) - 1
 
-    def __init__(self, path, index=None, nested=False):
+    def __init__(self, path, index=None, nested=False, published=None):
         self.path, self.docs, self.index, self._sub = path, docs_of(path), index or {}, {}
         self.body = open(path, encoding="utf-8").read()
         self.go_of = {i: fid(d, "m_GameObject") for i, (cls, d) in self.docs.items() if cls != 1}
         if nested:
             return
-        fcs = [self.go_of[i] for i, (cls, d) in self.docs.items() if cls == 114 and "class: FullController" in d]
+        # The leash's own FullController: the only one on the entry; on a flattened avatar, the one publishing
+        # `published` (the `<prefix>/*` wildcard).
+        fcs = [(i, d) for i, (cls, d) in self.docs.items() if cls == 114 and "class: FullController" in d
+               and (published is None or re.search(rf"^\s+- '?{re.escape(published)}'?$", d, re.M))]
         if len(fcs) != 1:
-            refuse(f"{path}: expected exactly one FullController, found {len(fcs)}")
-        self.fc = next(d for cls, d in self.docs.values() if cls == 114 and "class: FullController" in d)
-        self.mount = next((i for i, (cls, d) in self.docs.items() if cls == 4 and self.go_of[i] == fcs[0]), None)
+            refuse(f"{path}: expected exactly one FullController" + (f" publishing {published}" if published else "")
+                   + f", found {len(fcs)}")
+        self.fc = fcs[0][1]
+        self.mount = next((i for i, (cls, d) in self.docs.items() if cls == 4 and self.go_of[i] == self.go_of[fcs[0][0]]), None)
 
     def sub(self, guid):
         if guid not in self._sub:
@@ -685,13 +694,17 @@ class Prefab:
             tp = re.search(r"m_TransformParent: \{fileID: (-?\d+)\}", self.docs[inst][1])
             t = int(tp.group(1)) if tp else None
 
+    def root_path(self, t):
+        """A plain transform's path from the file's root, '/'-rooted: an avatar path on a flattened consumer."""
+        return "/" + self.local_path(t) if t in self.docs and self.source_of(self.docs[t][1]) is None else None
+
     def by_path(self):
+        """Paths from the mount, and '/'-rooted paths from the file's root for everything outside it."""
         out = {}
         for i, (cls, d) in self.docs.items():
             if cls == 4 and self.source_of(d) is None:
                 p = self.path_of(i)
-                if p is not None:
-                    out[p] = i
+                out[p if p is not None else self.root_path(i)] = i
         return out
 
     def transform(self, path):
@@ -718,7 +731,7 @@ class Prefab:
             w = re.search(r"Weight: (\S+)", blk)
             po = re.search(r"ParentPositionOffset: \{x: (\S+), y: (\S+), z: (\S+)\}", blk)
             ro = re.search(r"ParentRotationOffset: \{x: (\S+), y: (\S+), z: (\S+)\}", blk)
-            tgt = (m.group(2) or self.path_of(int(m.group(1)))) if m else None
+            tgt = (m.group(2) or self.path_of(int(m.group(1))) or self.root_path(int(m.group(1)))) if m else None
             out.append((tgt, float(w.group(1)) if w else None,
                         tuple(float(x) for x in po.groups()) if po else None,
                         euler(tuple(float(x) for x in ro.groups())) if ro else None))
@@ -789,7 +802,8 @@ def check(c, prefab_path, entry=True):
     if not os.path.exists(prefab_path):
         print("  FAIL " + prefab_path + " is missing")
         return False
-    P = Prefab(prefab_path, index_of(os.path.join(ROOT, "object-sync")) if entry else None)
+    P = Prefab(prefab_path, index_of(os.path.join(ROOT, "object-sync")) if entry else None,
+               published=None if entry else f"{c['prefix']}/*")
     s = r["sensing"]
 
     # The FullController seam: globalParams exactly the published wildcards; on the entry, this entry's built/
@@ -837,6 +851,7 @@ def check(c, prefab_path, entry=True):
             return cs[0]
 
     one("Sense", r"^  PositionAtRest:", [("Mount/Start", 1, None, None)], "position constraint")
+    A(not P.components("Sense", r"^  RotationAtRest:"), "Sense carries no rotation constraint: it takes the avatar root's yaw by riding the root")
     one("SenseProxy", r"^  PositionAtRest:", [("Sense", s["proxyWeights"][0], None, None), ("Stake", s["proxyWeights"][1], None, None)],
         "position constraint")
     one("Holder", r"^  RotationAtRest:", [("Mount/Start/Home", 1, ZERO3, ZERO_Q), ("Stake", 0, ZERO3, ZERO_Q)], "parent constraint")
@@ -890,7 +905,6 @@ def check(c, prefab_path, entry=True):
             A(same_rotation(vec(d, "m_LocalRotation"), tuple(e["localRotation"])), f"{e['path']}: local rotation")
             A(not P.components(e["path"]), f"{e['path']}: no components (a static node)")
     if entry:
-        HUMAN = {"Hips": 0, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest": 54}
         bp = P.components("Mount", r"^  boneReference:")
         if A(len(bp) == 1, "Mount carries one MA BoneProxy"):
             A(field(bp[0], "boneReference") == str(HUMAN[r["mount"]]), f"Mount BoneProxy targets {r['mount']}")
@@ -898,14 +912,17 @@ def check(c, prefab_path, entry=True):
             # vendor's bone roll never tilts the demo strand.
             A(field(bp[0], "attachmentMode") == "3", f"Mount BoneProxy keeps its rotation (got {field(bp[0], 'attachmentMode')})")
 
+    # The strand's own physbone: its endpoint is CONFIG's, the last bone's visible end the line lands on Stake.
+    first = r["strand"][0]["path"]
+    spb = P.components(first, r"^  endpointPosition:") or P.components(first.rsplit("/", 1)[0], r"^  endpointPosition:")
+    if A(len(spb) == 1, f"the strand's physbone sits on {first} or its parent"):
+        A(close(vec(spb[0], "endpointPosition"), tuple(c["endpoint"])),
+          f"strand physbone endpointPosition == endpoint {tuple(c['endpoint'])} (got {vec(spb[0], 'endpointPosition')})")
     # The strand: one parent constraint per bone, sources [itself, its joint], rest weights (1, 0).
     for st in r["strand"]:
-        if st["path"].startswith("/"):
-            if entry:
-                continue
-            st_path = st["path"][1:]
-        else:
-            st_path = st["path"]
+        if st["path"].startswith("/") and entry:
+            continue
+        st_path = st["path"]
         cs = P.components(st_path, r"^  RotationAtRest:")
         if A(len(cs) == 1, f"strand {st_path} carries one parent constraint"):
             want = [(st_path, 1, ZERO3, ZERO_Q), (st["joint"], 0, ZERO3, tuple(st["jointRotationOffsetQ"]))]
