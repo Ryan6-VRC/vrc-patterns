@@ -1,0 +1,333 @@
+# two-hand-prop — a prop with two grab handles (README §Design notes).
+# One handle held: the prop carries on that hand with its rotation frozen. Both held: it turns along the
+# line between the hands, world up. The first-grabbed handle (the primary) owns position; the second
+# feeds rotation only, and authority passes only when the primary lets go.
+# 2 synced bits: TwoHandProp/Enable and TwoHandProp/PrimaryB.
+#
+# Constraint cells (paths are prefab-root relative; the VRCFury FullController sits on that root):
+#   Body           — the prop. Position sources [s0 HomeAnchor/Offset, s1 Body/CarryA/OffA,
+#                    s2 Body/CarryB/OffB, s3 Body (self)]; rotation sources [s0 HomeAnchor/Offset,
+#                    s1 Body/AimNode]. IsActive 0 on either constraint is that channel's hold.
+#   Body/CarryX    — rides handle X's tip (position only; takes Body's rotation as a child), and OffX
+#                    under it is where Body sits when X is the primary.
+#   Body/AimNode   — sits on tip A and aims at tip B, world up.
+#   HolderX        — handle X's chain root holder, parent-constrained to Body/RestX. IsActive 0 while X
+#                    is held: moving a held chain's root moves its grabbed tip by a frame of root travel,
+#                    and that term rings any loop it feeds.
+# CarryA, CarryB and AimNode are children of Body, so Body's constraints solve first and read them one
+# frame stale. That frame is the release frame: a released tip snaps to its frozen holder before the
+# animator can react, and Body has already read the frame before it. Never move them out from under Body.
+#
+# PrimaryB is stamped by the wearer's copy (localOnly) on each first grab and each handoff. Every copy
+# routes the Both states on the bit, so a remote that saw two near-simultaneous grabs in the other
+# order, or rebuilt its animator mid-hold, settles on the wearer's primary.
+#
+# The tuned constants are the README's §Knobs table; values live at the clips marked
+# [EMPIRICAL] only. runtime.md's 90% rule governs changing any of them.
+
+schema: 1
+controller: TwoHandProp_Fx
+basis: mount-root
+role: fx
+
+defaults:
+  writeDefaults: on
+  transition: { duration: 0, exitTime: none, interruption: none }
+
+parameters:
+  TwoHandProp/Enable:   { type: bool, default: false, vrc: { synced: true, saved: false } }
+  TwoHandProp/PrimaryB: { type: bool, default: false, vrc: { synced: true, saved: false } }
+  HandleA_IsGrabbed: bool     # sensing — minted by handle A's physbone (parameter: HandleA); never synced
+  HandleB_IsGrabbed: bool     # sensing — minted by handle B's physbone (parameter: HandleB); never synced
+  IsLocal:           bool     # VRC built-in
+
+layers:
+  - name: TwoHandProp/Control
+    states:
+      # Remote settle dwell, as grab-prop: remotes wait for synced params to land before routing.
+      Timer:
+        motion: { clip: timer }
+        transitions:
+          - { to: Disabled, when: [ IsLocal is true ] }
+          - { to: Waiting,  when: [ IsLocal is false ], exitTime: 1.0 }
+      # Off-state hygiene: the handle GOs die, and a disabled physbone holds its _IsGrabbed, so a grab
+      # cut off mid-hold would re-enter a Held state on the next enable and anchor the prop to a stale
+      # tip. The clear sticks because the bone GOs are inactive; localOnly false — every copy clears its own.
+      Disabled:
+        motion: { clip: disabled }
+        behaviours:
+          - driver: { localOnly: false, set: { HandleA_IsGrabbed: 0, HandleB_IsGrabbed: 0 } }
+        transitions:
+          - { to: Home, when: [ TwoHandProp/Enable is true ] }
+      Home:
+        motion: { clip: home }
+        transitions:
+          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
+          - { to: HeldA,    when: [ HandleA_IsGrabbed is true ] }
+          - { to: HeldB,    when: [ HandleB_IsGrabbed is true ] }
+      HeldA:
+        motion: { clip: heldA }
+        behaviours:
+          - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 0 } }
+        transitions:
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: HandoffToB, when: [ HandleA_IsGrabbed is false, HandleB_IsGrabbed is true ] }
+          - { to: Dropped,    when: [ HandleA_IsGrabbed is false ] }
+          - { to: BothB,      when: [ HandleB_IsGrabbed is true, TwoHandProp/PrimaryB is true ] }
+          - { to: BothA,      when: [ HandleB_IsGrabbed is true ] }
+      HeldB:
+        motion: { clip: heldB }
+        behaviours:
+          - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 1 } }
+        transitions:
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: HandoffToA, when: [ HandleB_IsGrabbed is false, HandleA_IsGrabbed is true ] }
+          - { to: Dropped,    when: [ HandleB_IsGrabbed is false ] }
+          - { to: BothA,      when: [ HandleA_IsGrabbed is true, TwoHandProp/PrimaryB is false ] }
+          - { to: BothB,      when: [ HandleA_IsGrabbed is true ] }
+      BothA:
+        motion: { clip: bothA }
+        transitions:
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: Dropped,    when: [ HandleA_IsGrabbed is false, HandleB_IsGrabbed is false ] }
+          - { to: HandoffToB, when: [ HandleA_IsGrabbed is false ] }
+          - { to: HeldA,      when: [ HandleB_IsGrabbed is false ] }
+          - { to: BothB,      when: [ TwoHandProp/PrimaryB is true ] }
+      BothB:
+        motion: { clip: bothB }
+        transitions:
+          - { to: Disabled,   when: [ TwoHandProp/Enable is false ] }
+          - { to: Dropped,    when: [ HandleA_IsGrabbed is false, HandleB_IsGrabbed is false ] }
+          - { to: HandoffToA, when: [ HandleB_IsGrabbed is false ] }
+          - { to: HeldB,      when: [ HandleA_IsGrabbed is false ] }
+          - { to: BothA,      when: [ TwoHandProp/PrimaryB is false ] }
+      # Handoff: the primary let go, so the prop slides from the old primary's anchor to the new one's
+      # (geometric — the hands are rarely exactly a handle-spacing apart). Body damps toward the new
+      # anchor through its self source for the dwell, then the Held state snaps the residual.
+      HandoffToA:
+        motion: { clip: handoffToA }
+        behaviours:
+          - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 0 } }
+        transitions:
+          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
+          - { to: Dropped,  when: [ HandleA_IsGrabbed is false ] }
+          - { to: BothA,    when: [ HandleB_IsGrabbed is true ] }
+          - { to: HeldA,    when: [], exitTime: 1.0 }
+      HandoffToB:
+        motion: { clip: handoffToB }
+        behaviours:
+          - driver: { localOnly: true, set: { TwoHandProp/PrimaryB: 1 } }
+        transitions:
+          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
+          - { to: Dropped,  when: [ HandleB_IsGrabbed is false ] }
+          - { to: BothB,    when: [ HandleA_IsGrabbed is true ] }
+          - { to: HeldB,    when: [], exitTime: 1.0 }
+      # Both channels hold. The holders ride Body again, so each tip settles back onto its handle and a
+      # re-grab picks up in place with no sample cell.
+      Dropped:
+        motion: { clip: dropped }
+        transitions:
+          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
+          - { to: HeldA,    when: [ HandleA_IsGrabbed is true ] }
+          - { to: HeldB,    when: [ HandleB_IsGrabbed is true ] }
+      # Late-join park, as grab-prop: hidden until a grab is witnessed. The handle chains live outside
+      # the hidden Display branch, so a grab always re-establishes the prop.
+      Waiting:
+        motion: { clip: waiting }
+        transitions:
+          - { to: Disabled, when: [ TwoHandProp/Enable is false ] }
+          - { to: HeldA,    when: [ HandleA_IsGrabbed is true ] }
+          - { to: HeldB,    when: [ HandleB_IsGrabbed is true ] }
+    default: Timer
+    # Boot spine descends Timer -> Disabled -> Home; the remote park (Waiting) left of Disabled; the A
+    # family left and the B family right, Held above Both, the handoffs outboard; Dropped between the
+    # two Held states in the centre.
+    layout:
+      nodes:
+        Timer:      [30, 180]
+        Waiting:    [-210, 250]
+        Disabled:   [30, 250]
+        Home:       [30, 330]
+        Dropped:    [30, 420]
+        HeldA:      [-210, 420]
+        HeldB:      [270, 420]
+        BothA:      [-210, 510]
+        BothB:      [270, 510]
+        HandoffToA: [-450, 470]
+        HandoffToB: [510, 470]
+      entry: [50, 120]
+      any:   [50, 40]
+      exit:  [50, 80]
+
+# Every clip writes the same thirteen bindings (WD-mode-proof). Body position weights:
+# s0 HomeAnchor/Offset, s1 OffA, s2 OffB, s3 self; rotation weights: s0 HomeAnchor/Offset, s1 AimNode.
+# Weights on an inactive constraint are inert; they are written so every clip keys every binding.
+clips:
+  disabled:
+    set:
+      "Body/Display/GameObject.m_IsActive": 0
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 0
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 0
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 0
+  timer:        # disabled pose with the handles live, held for the remote settle dwell = this clip's length  [EMPIRICAL]
+    seconds: 1.0
+    set:
+      "Body/Display/GameObject.m_IsActive": 0
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 0
+  waiting:
+    set:
+      "Body/Display/GameObject.m_IsActive": 0
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 0
+  home:
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 1
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 0
+  heldA:        # carry on A, rotation frozen — a live one-hand aim steers off the one-frame lags
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 0
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 0
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  heldB:
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 0
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 0
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  bothA:        # position on A, rotation along A->B; both holders frozen
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 0
+      "HolderB/VRCParentConstraint.IsActive": 0
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  bothB:
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 0
+      "HolderB/VRCParentConstraint.IsActive": 0
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 1
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  handoffToA:   # [EMPIRICAL: the dwell = this clip's length; the anchor weight against self 1 is the damper]
+    seconds: 0.4
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 0
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0.2
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 1
+      "Body/VRCRotationConstraint.IsActive": 0
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  handoffToB:   # [EMPIRICAL: mirror of handoffToA — keep the two equal]
+    seconds: 0.4
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 0
+      "Body/VRCPositionConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0.2
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 1
+      "Body/VRCRotationConstraint.IsActive": 0
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
+  dropped:      # both channels hold; a disabled constraint keeps its local pose under the world-frozen root
+    set:
+      "Body/Display/GameObject.m_IsActive": 1
+      "HolderA/HandleA_Root/GameObject.m_IsActive": 1
+      "HolderB/HandleB_Root/GameObject.m_IsActive": 1
+      "HolderA/VRCParentConstraint.IsActive": 1
+      "HolderB/VRCParentConstraint.IsActive": 1
+      "Body/VRCPositionConstraint.IsActive": 0
+      "Body/VRCPositionConstraint.Sources.source0.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source1.Weight": 1
+      "Body/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Body/VRCPositionConstraint.Sources.source3.Weight": 0
+      "Body/VRCRotationConstraint.IsActive": 0
+      "Body/VRCRotationConstraint.Sources.source0.Weight": 0
+      "Body/VRCRotationConstraint.Sources.source1.Weight": 1
