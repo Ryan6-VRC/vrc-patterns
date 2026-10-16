@@ -50,7 +50,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 ```c++
 Constraints:        6 + 2 per strand bone, plus 9 for the sync rig (29 on the demo; an optimizer may drop the sync rig's unused ones)
 Constraint Depth:   12       (on the demo avatar, built; within the Excellent rank limit)
-PhysBones:          1        (the grab bone, 2 transforms; no colliders, no collision checks)
+PhysBones:          1        (the grab bone, 2 transforms; no colliders, no collision checks; the demo adds its rope's own)
 Contact Receivers:  8        (2 sensing boxes, 6 in the sync rig; all local-only, none count toward rank)
 Contact Senders:    3        (local-only)
 FX Animator Layers: 10       (not a rank stat: the leash, its announce, and object-sync's 8)
@@ -63,7 +63,7 @@ The demo collar adds a skinned mesh, so an avatar already at the Good rank's ski
 
 ## Knobs
 
-Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your own strand). `validate()` refuses the values that break a relation below; §Changing it says what to rebuild.
+Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your own strand). `validate()` refuses the values it can check against a relation below; §Changing it says what to rebuild.
 
 | Knob | What it does |
 |---|---|
@@ -125,8 +125,8 @@ The seams are three: the bone the strand hangs from (`Mount`), the strand's bone
 2. **Generate and compile.** `python generate.py --config <json> --out <folder>` writes `controller.yaml` and `rig.json` there; compile that `controller.yaml` into a built folder with `CompileController`. You share this entry's `object-sync` build, so `rigSeed` is not yours to set.
 3. **Make an owned copy of the rig.** Delete the demo collar, `Mount/Leash`, which takes its strand constraints with it.
 4. **Retarget `Mount`'s BoneProxy** to the bone the strand hangs from, attaching as a child at its root (the demo keeps its rotation instead), so `Start`'s pose is bone 0's local pose there. A dragged costume bone works: Modular Avatar resolves the target before Merge Armature moves it.
-5. **Set the rig's nodes to `rig.json`:** `Start` and `Home` from `start` and `home`, and `Line`'s children from `line.joints`.
-6. **Replace the `FullController`**, removing it and adding one (`../../docs/nondestructive.md` §A VRCFury component on a prefab variant): your controller then this entry's `object-sync/built` controller, your menu, your parameters then `object-sync`'s, and `globalParams` `Leash/*` and `ObjectSync/*`.
+5. **Set the rig's nodes to `rig.json`:** `Start` and `Home` from `start` and `home`, `Line`'s children from `line.joints`, the grab bone's physbone and `HTip` from `handle`, and the sensing contacts and `SenseProxy`'s weights from `sensing`.
+6. **Replace the `FullController`**, removing it and adding one (`../../docs/nondestructive.md` §A VRCFury component on a prefab variant): your controller then this entry's `object-sync/built` controller, your menu, your parameters then `object-sync`'s, and `rig.json`'s `globalParams`.
 7. **On each strand bone**, add a parent constraint with sources itself and its `Line/J<k>`, weights 1 and 0, zero offsets, and the joint source's rotation offset from `rig.json`'s `strand`. Turn the strand's own physbone's grabbing off, as an override on your avatar, never on the vendor prefab.
 8. **Place `Home` where the strand settles.** In play, read the strand's bones once still, take the point `homeAt` along them in `Start`'s frame, write it as `home`, regenerate and set `Home` again. A strand under gravity droops off its authored rest.
 9. **Check it** on a flattened copy of the avatar (instantiated, so every prefab instance is unpacked, and saved as a prefab): `python generate.py --config <json> --check-prefab <flattened prefab>`. It finds the leash by its `FullController` publishing `<prefix>/*`, and the strand's bones by their `/`-rooted paths.

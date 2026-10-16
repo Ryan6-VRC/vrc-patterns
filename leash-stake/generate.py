@@ -279,6 +279,9 @@ def validate(c):
         refuse("fade is a whole number of frames, at least 1.")
     if c["mount"] not in HUMAN:
         refuse(f"mount is one of {sorted(HUMAN)}: the demo's BoneProxy targets a humanoid bone; a consumer retargets it by hand.")
+    if not c["announce"] > 0:
+        refuse("announce is seconds from the plant to the synced bool, positive; it must also outlast an object-sync "
+               "measure cycle and a wire refresh, which this cannot check.")
     if c["cycle"] < 3 * FRAME - 1e-9:
         refuse("cycle under 3 frames: the handle must stay off across at least one physbone step at any frame rate.")
     if not 0 < c["homeAt"] <= 1:
@@ -818,6 +821,16 @@ def check(c, prefab_path, entry=True):
             ia, ib = P.fc.find(g(a)), P.fc.find(g(b))
             A(ia != -1 and ib != -1 and ia < ib, f"FullController {kind}: {a} before {b}")
         A(P.fc.find(g(f"built/{c['controller']}_Menu.asset")) != -1, f"FullController menus: built/{c['controller']}_Menu.asset")
+    else:
+        # A consumer plays its own controller and params ahead of this entry's object-sync build, or the sync build's
+        # ObjectSync/Enable default (off) wins the first-wins merge and the stake never syncs.
+        for kind, rel in (("controllers", "object-sync/built/ObjectSync_Fx.controller"),
+                          ("prms", "object-sync/built/ObjectSync_Fx_Parameters.asset")):
+            block = P.fc.split(f"        {kind}:")[1] if f"        {kind}:" in P.fc else ""
+            block = re.split(r"\n        [a-zA-Z]", block, maxsplit=1)[0]
+            refs = re.findall(r"objRef: \{fileID: \d+, guid: ([0-9a-f]{32})", block)
+            want = meta_guid(os.path.join(HERE, rel))
+            A(want in refs and refs.index(want) > 0, f"FullController {kind}: the consumer's own entry before this entry's {rel} (got {refs})")
 
     # Sensing: two boxes on Sense, one sender on SenseProxy, one private tag, the geometry the decode assumes.
     boxes = P.components("Sense", r"^  receiverType:")
@@ -830,7 +843,7 @@ def check(c, prefab_path, entry=True):
         A(close(vec(d, "size"), (s["boxSize"],) * 3), f"{want['parameter']}: box size {s['boxSize']} on every axis")
         A(same_rotation(vec(d, "rotation"), euler(want["rotation"])), f"{want['parameter']}: box rotation puts its +Z face on its axis")
         for fld, v in (("shapeType", "2"), ("localOnly", "1"), ("allowSelf", "1"), ("allowOthers", "0"),
-                       ("useFaceProximity", "1"), ("receiverType", "2")):
+                       ("useFaceProximity", "1"), ("receiverType", "2"), ("contentTypes", "1")):
             A(field(d, fld) == v, f"{want['parameter']}: {fld} == {v} (got {field(d, fld)})")
         A(close(vec(d, "position"), ZERO3), f"{want['parameter']}: shape offset zero")
     snd = P.components("SenseProxy", r"^  collisionTags:")
@@ -856,12 +869,8 @@ def check(c, prefab_path, entry=True):
         "position constraint")
     one("Holder", r"^  RotationAtRest:", [("Mount/Start/Home", 1, ZERO3, ZERO_Q), ("Stake", 0, ZERO3, ZERO_Q)], "parent constraint")
     one("Far", r"^  PositionAtRest:", [("Holder/HB0/HTip", 1, None, None)], "position constraint")
-    stake_want = [("Far", 1, None, None)] + ([(f"{SYNC_MOUNT}/Rig/Prop/Display", 0, None, None)] if entry else [])
-    if entry:
-        one("Stake", r"^  PositionAtRest:", stake_want, "position constraint")
-    else:
-        cs = P.components("Stake", r"^  PositionAtRest:")
-        A(len(cs) == 1 and P.sources(cs[0])[:1] and P.sources(cs[0])[0][0] == "Far", "Stake's first source is Far")
+    one("Stake", r"^  PositionAtRest:", [("Far", 1, None, None), (f"{SYNC_MOUNT}/Rig/Prop/Display", 0, None, None)],
+        "position constraint")
     ln = r["line"]
     line_cs = P.components("Line", r"^  Sources:")
     lp = [d for d in line_cs if not re.search(r"^  AimAxis:", d, re.M)]
