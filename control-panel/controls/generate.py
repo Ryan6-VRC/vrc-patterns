@@ -86,10 +86,11 @@ CONFIG
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
   slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it),
                 chain radius and `pull` [EMPIRICAL]: the rate the knob glides toward its rest or pose when nothing holds
-                it, a time constant near 1/(60 pull) seconds whatever the frame rate (measured: residual 20 % after
-                0.5 s at 0.05, 4 % at 0.1, 0 at 1). Another player's copy sees the grab end before the pose arrives
-                and glides toward the authored rest in between, so a low pull shortens that dip; too low and the
-                held knob lags the hand (10 mm at 0.02, 0.2 mm at 0.05) and the pose lands late.
+                it, a time constant near 1/(60 pull) seconds whatever the frame rate (measured: residual 79 % after
+                0.5 s at 0.01, 20 % at 0.05, 0 at 1). Another player's copy sees the grab end before the pose arrives
+                and glides toward the authored rest in between, so a low pull shortens that dip; 0 removes it but
+                then nothing moves a copy onto the received pose, so a late joiner never sees it (client-observed).
+                The held knob trails a moving hand (6 mm at 0.27 m/s at 0.01) and settles onto it once the hand stops.
   tag           the sender/receiver collision tag (private).
 """
 
@@ -110,9 +111,9 @@ CONFIG = {
     "armature": "Armature",
     "mesh": "ControlPanel",
     "face": 0.34,
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.045,
+    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.04,
                 "travel": 0.01, "squish": 0.016, "boneLength": 0.03},
-    "press": 0.6,
+    "press": 0.75,
     "release": 0.3,
     "boxMargin": 0.002,
     "boxWidth": 0.02,
@@ -120,7 +121,7 @@ CONFIG = {
     "arm": 0,
     "cooldown": 0.25,
     "hysteresis": 0.02,
-    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0},
+    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0.01},
     "tag": "ControlPanelPress",
 }
 

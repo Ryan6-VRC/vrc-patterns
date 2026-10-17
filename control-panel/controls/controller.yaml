@@ -2,7 +2,7 @@
 # The controls subtree's machine: button stamps, the slider quantizer, the lamps. The generator's docstring is the design record.
 # Published (synced, unsaved, wearer-stamped): ControlPanel/Btn1, ControlPanel/Btn2, ControlPanel/Btn3, ControlPanel/Btn4 (bool on the wire) and ControlPanel/Slot (int on the wire); both
 # float in the animator, because the lamp trees read them as blend parameters.
-# Press accepted at receiver reading 0.230769, held until every reading is under 0.115385 (depth 0.6 / 0.3 of
+# Press accepted at receiver reading 0.288462, held until every reading is under 0.115385 (depth 0.75 / 0.3 of
 # travel over a box 0.026 m deep). Arm 0 s, cooldown 0.25 s. Slot hysteresis 0.02 of the slider's length.
 
 schema: 1
@@ -38,14 +38,14 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Set1, when: [ CP/Press1 greater 0.230769, ControlPanel/Btn1 less 0.5 ] }
-          - { to: Clear1, when: [ CP/Press1 greater 0.230769, ControlPanel/Btn1 greater 0.5 ] }
-          - { to: Set2, when: [ CP/Press2 greater 0.230769, ControlPanel/Btn2 less 0.5 ] }
-          - { to: Clear2, when: [ CP/Press2 greater 0.230769, ControlPanel/Btn2 greater 0.5 ] }
-          - { to: Set3, when: [ CP/Press3 greater 0.230769, ControlPanel/Btn3 less 0.5 ] }
-          - { to: Clear3, when: [ CP/Press3 greater 0.230769, ControlPanel/Btn3 greater 0.5 ] }
-          - { to: Set4, when: [ CP/Press4 greater 0.230769, ControlPanel/Btn4 less 0.5 ] }
-          - { to: Clear4, when: [ CP/Press4 greater 0.230769, ControlPanel/Btn4 greater 0.5 ] }
+          - { to: Set1, when: [ CP/Press1 greater 0.288462, ControlPanel/Btn1 less 0.5 ] }
+          - { to: Clear1, when: [ CP/Press1 greater 0.288462, ControlPanel/Btn1 greater 0.5 ] }
+          - { to: Set2, when: [ CP/Press2 greater 0.288462, ControlPanel/Btn2 less 0.5 ] }
+          - { to: Clear2, when: [ CP/Press2 greater 0.288462, ControlPanel/Btn2 greater 0.5 ] }
+          - { to: Set3, when: [ CP/Press3 greater 0.288462, ControlPanel/Btn3 less 0.5 ] }
+          - { to: Clear3, when: [ CP/Press3 greater 0.288462, ControlPanel/Btn3 greater 0.5 ] }
+          - { to: Set4, when: [ CP/Press4 greater 0.288462, ControlPanel/Btn4 less 0.5 ] }
+          - { to: Clear4, when: [ CP/Press4 greater 0.288462, ControlPanel/Btn4 greater 0.5 ] }
       Set1:
         motion: { clip: tick }
         behaviours: [ { driver: { localOnly: true, set: { ControlPanel/Btn1: 1 } } } ]
