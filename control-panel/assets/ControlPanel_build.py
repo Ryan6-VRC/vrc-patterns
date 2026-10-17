@@ -1,21 +1,34 @@
 """Build the control panel: one skinned, flat-shaded, low-poly mesh `ControlPanel`, its armature, its atlas.
 
-Every interface number (plate extent, grip axis, button and slider positions, lamp parks, shape and bone names)
-is read from `rig.json`, which `../generate.py` emits; the constants below are only the look - bevels, wells,
-rail, facet counts - and nothing outside this file reads them.
+Every interface number (plate extent, grip axis, the four rows, lamp parks, shape and bone names, bone rest
+poses) is read from `rig.json`, which `../generate.py` emits; the constants below are only the look - bevels,
+wells, channels, facet counts - and nothing outside this file reads them.
 
-Frame: authored throughout in the **Unity** panel frame that `rig.json` and the contract state - X along the
-long axis (handle A at -X), +Y the face normal, +Z the far edge, metres - and converted once, per vertex and
-per bone, by `u2b`. The conversion carries the X negation absolute-grip-prop's `Hands_build.py` documents: an
-armature FBX export (`bake_space_transform` off) maps Blender (x, y, z) to Unity (-x, z, -y), so a part authored
-at Unity -X must sit at Blender +X. The panel is chiral (the slider and its root are on one side, the offline
-lamp on the other), so a dropped negation shows as the slider at the wrong end. Verify after any exporter
-change by re-importing the FBX and reading bone heads in the Unity frame, never the Blender ones.
+Frame: authored throughout in the **Unity** panel frame that `rig.json` states - X along the long axis
+(handle A at -X), +Y the face normal, +Z the far edge, metres - and converted once, per vertex and per bone, by
+`u2b`. The conversion carries the X negation absolute-grip-prop's `Hands_build.py` documents: an armature FBX
+export (`bake_space_transform` off) maps Blender (x, y, z) to Unity (-x, z, -y), so a part authored at Unity -X
+must sit at Blender +X. The panel is chiral (the slider chains root at -X, the offline lamp sits at +X), so a
+dropped negation shows as a mirrored panel. Verify after any exporter change by re-importing the FBX and
+reading bone heads in the Unity frame, never the Blender ones.
 
-Shells: the plate is one shell - bezel, rail, necks and ridged grips unioned, cap wells, rail notches and the
-label recess cut - by Boolean modifiers (Manifold solver), so its parts never show interior walls. Each cap,
-the knob and each lamp is its own closed shell, because each moves on its own (a bone or a blendshape). A
-lamp is a thin disc or bar parked under the opaque face and raised through it by its key; nothing else hides it.
+Rows, far edge to near: toggle buttons (domed caps in round wells, a dot lamp beyond each), the selector (four
+caps on the buttons' joint, the end caps rounded on their outer side and the middle ones square, a bar lamp on
+the near side of each), the discrete slider (a knob in a recessed channel, detent ticks, one segment lamp per
+slot), the smooth slider (a knob in a channel, M bar lamps). Bones are placed at `restPoses` exactly; the
+geometry is asserted against them.
+
+Shells: the plate is one shell - bezel, necks and ridged grips unioned; cap wells, selector wells, knob
+channels, detent ticks and the label recess cut - by Boolean modifiers (Manifold solver), so its parts never
+show interior walls. Each cap, each knob and each lamp is its own closed shell, because each moves on its own
+(a bone or a blendshape). A lamp is a thin disc or bar parked under the opaque face and raised through it by its
+key; nothing else hides it. A cap's skirt and a knob's foot reach below their well or channel floor when sunk,
+into the plate's solid, which hides them; the asserts keep them above the plate's underside.
+
+Shapes: every lamp key raises its lamp by `lamps.raised - lamps.parked`. `Lamp_Sel<k>` also sinks cap k by
+`selector.sink`, one key, so the chosen cap rests depressed and lit. `Controls_Retract` sinks every cap by
+`controlsRetract.capDepth` and every knob by `controlsRetract.channelDepth` (flush with the face). Caps and
+knobs ride bones that only translate, so a bind-space key holds at any chain or knob position.
 
 Colour: a palette atlas of flat swatches, one material slot. Every face's UVs sit on one swatch centre, so a
 consumer recolours a part by repainting its square. The emission atlas is black except the two lamp swatches.
@@ -31,16 +44,20 @@ atlas_dir = os.path.abspath(argv[2]) if len(argv) > 2 else os.path.dirname(out_b
 with open(rig_path, encoding="utf-8") as f:
     R = json.load(f)
 
-N = R["N"]
 PX0, PX1 = R["plate"]["x"]; PZ0, PZ1 = R["plate"]["z"]
 TOP, BOTTOM = R["plate"]["top"], R["plate"]["bottom"]
 GX, GR = R["grips"]["x"], R["grips"]["radius"]; GZ0, GZ1 = R["grips"]["z"]
-B = R["buttons"]; BL = R["buttonLamps"]; S = R["slider"]; SG = R["segments"]; OFF = R["offline"]
-NAMES = R["bones"]
-NB = len(B["x"])
-for what, lst in (("bones.buttons", NAMES["buttons"]), ("bones.buttonEnds", NAMES["buttonEnds"]),
-                  ("buttonLamps.shapes", BL["shapes"])):
-    assert len(lst) == NB, f"{what} names {len(lst)} buttons but buttons.x places {NB}"
+B = R["buttons"]; BL = R["buttonLamps"]; SEL = R["selector"]; SL = R["sliders"]; OFF = R["offline"]
+LAMP = R["lamps"]; RET = R["controlsRetract"]; NAMES = R["bones"]; REST = R["restPoses"]
+for what, lst, n in (("bones.buttons", NAMES["buttons"], len(B["x"])), ("bones.buttonEnds", NAMES["buttonEnds"], len(B["x"])),
+                     ("buttonLamps.shapes", BL["shapes"], len(B["x"])), ("bones.selector", NAMES["selector"], len(SEL["x"])),
+                     ("bones.selectorEnds", NAMES["selectorEnds"], len(SEL["x"])), ("selector.shapes", SEL["shapes"], len(SEL["x"])),
+                     ("bones.sliders", NAMES["sliders"], len(SL)), ("bones.knobs", NAMES["knobs"], len(SL))):
+    assert len(lst) == n, f"{what} names {len(lst)} but the rows place {n}"
+for s in SL:
+    lamps = s.get("segments") or s.get("bars")
+    assert lamps, f"slider {s['name']} carries neither segments nor bars"
+    assert s["bone"] in NAMES["sliders"] and s["end"] in NAMES["sliderEnds"] and s["knob"] in NAMES["knobs"], s["name"]
 
 # ---- the look (m); nothing outside this file reads these ----------------------------------------------
 CORNER = 0.014            # plate corner chamfer, leg length
@@ -49,14 +66,19 @@ BEZEL_W = 0.004           # bezel width, outer edge to where it meets the face
 TOP_CHAMFER = 0.0015      # bezel's outer top edge
 BOTTOM_CHAMFER = 0.004
 WELL_CLEAR = 0.003        # well radius beyond the cap
-WELL_FLOOR = 0.004        # well floor height; below the cap's lowest squash
+WELL_FLOOR = 0.004        # button well floor height; below the cap's lowest squash
 WELL_CHAMFER = 0.0015
+WELL_GAP = 0.003          # a selector well's floor under the lowest crown it must hold
+SINK_MARGIN = 0.002       # what a sunk crown keeps above its floor and a sunk skirt or foot above the underside
 CAP_SEG, WELL_SEG, LAMP_SEG, GRIP_SEG = 16, 16, 12, 8
-RAIL_W, RAIL_H = 0.006, 0.0045           # across Z; rise above the face
-RAIL_RUN = 0.008                          # rail past each slot end, kept inside the knob's half-width
-NOTCH_W, NOTCH_D = 0.002, 0.003
-KNOB_H, KNOB_LIFT, KNOB_CHAMFER = 0.014, 0.0005, 0.003
+SEL_ARC = 6               # facets on a selector end cap's rounded side
+SEL_CORNER = 0.002        # a selector cap's square corners
+SEL_CHAMFER = 0.002       # a selector cap's top edge
+CH_CLEAR = 0.002          # channel clearance around the knob, each side
+CH_CORNER, CH_CHAMFER = 0.003, 0.0015
+KNOB_LIFT, KNOB_CHAMFER, KNOB_CORNER = 0.0005, 0.003, 0.002   # foot above the channel floor at rest
 FIN_W, FIN_H, FIN_SPAN = 0.003, 0.0025, 0.8   # the pointer fin across the knob top; span as a fraction of its Z
+TICK_W, TICK_D, TICK_GAP, TICK_LEN = 0.002, 0.0015, 0.003, 0.006   # detent ticks off the channel's lamp side
 LABEL_HALF_Z, LABEL_HALF_X, LABEL_DEPTH = 0.005, 0.13, 0.0008
 LAMP_THICK = 0.002
 GRIP_END_CHAMFER = 0.004
@@ -76,7 +98,7 @@ SWATCHES = {   # name: (index, albedo sRGB, emission sRGB)
     "tick":  (7, (210, 208, 196), None),
     "well":  (8, (24, 27, 31), None),
     "grip":  (9, (30, 32, 36), None),
-    "rail":  (10, (110, 116, 124), None),
+    "rail":  (10, (110, 116, 124), None),   # unused since the channels replaced the rail; kept so the atlas holds
 }
 
 
@@ -116,13 +138,19 @@ def u2b(p):
     return (-p[0], -p[2], p[1])
 
 
-def rect_ring(bm, hx, hz, c, y, cx=0.0, cz=0.0):
+def rect_pts(hx, hz, c):
     if c > 1e-6:
-        pts = ((hx, hz - c), (hx - c, hz), (-hx + c, hz), (-hx, hz - c),
-               (-hx, -hz + c), (-hx + c, -hz), (hx - c, -hz), (hx, -hz + c))
-    else:
-        pts = ((hx, hz), (-hx, hz), (-hx, -hz), (hx, -hz))
+        return ((hx, hz - c), (hx - c, hz), (-hx + c, hz), (-hx, hz - c),
+                (-hx, -hz + c), (-hx + c, -hz), (hx - c, -hz), (hx, -hz + c))
+    return ((hx, hz), (-hx, hz), (-hx, -hz), (hx, -hz))
+
+
+def ring_at(bm, pts, y, cx=0.0, cz=0.0):
     return [bm.verts.new((cx + px, y, cz + pz)) for px, pz in pts]
+
+
+def rect_ring(bm, hx, hz, c, y, cx=0.0, cz=0.0):
+    return ring_at(bm, rect_pts(hx, hz, c), y, cx, cz)
 
 
 def loft(bm, rings):
@@ -154,6 +182,18 @@ def revolve(bm, profile, axis, centre, seg):
                 ring.append(bm.verts.new((centre[0] + u, centre[1] + v, t)))
         rings.append(ring)
     loft(bm, rings)
+
+
+def sel_pts(h, side):
+    """A selector cap's outline, half-size h: side 0 a square (chamfered corners), -1 / +1 rounded on that X side
+    with the inner side square. The point count is the same for every h, so outlines at several sizes loft."""
+    c = SEL_CORNER * h / (B["capDiameter"] / 2)
+    if side == 0:
+        return rect_pts(h, h, c)
+    arc = [(h * math.cos(a), h * math.sin(a))
+           for a in (-math.pi / 2 + math.pi * i / SEL_ARC for i in range(SEL_ARC + 1))]
+    pts = arc + [(-h + c, h), (-h, h - c), (-h, -h + c), (-h + c, -h)]
+    return [(side * u, v) for u, v in pts]
 
 
 def part(name, fill):
@@ -192,23 +232,119 @@ def plain(ob):
     return verts, polys
 
 
-# ---- the parts -------------------------------------------------------------------------------------------
+# ---- the layout, asserted against the rest poses ---------------------------------------------------------
 HX, HZ = (PX1 - PX0) / 2, (PZ1 - PZ0) / 2
 assert abs(PX0 + PX1) < 1e-9 and abs(PZ0 + PZ1) < 1e-9, "plate must be centred on the Panel bone"
 CAP_R = B["capDiameter"] / 2
 WELL_R = CAP_R + WELL_CLEAR
-CAP_BOTTOM = TOP - B["travel"]          # a cap stands `travel` proud of the face, bottoming out flush
-# Past flush the chain lets the cap sink `squish - travel` further into its well before it sits still: the crown
-# must stay above the well floor (or it would clip through it) and the skirt above the plate's underside.
-assert B["capTop"] - B["squish"] > WELL_FLOOR + 0.002, "a fully sunk cap's crown passes the well floor: lower WELL_FLOOR or squish"
-assert CAP_BOTTOM - (B["squish"] - B["travel"]) > BOTTOM + 0.002, "a fully sunk cap's skirt leaves the plate's underside: shorten squish"
-SX0, SX1 = S["x"]; SZ = S["z"]
-PITCH = (SX1 - SX0) / N
-BOUNDS_X = [SX0 + k * PITCH for k in range(1, N)]
-RAIL_HX = (SX1 - SX0) / 2 + RAIL_RUN
-KHX, KHZ = S["knob"][0] / 2, S["knob"][1] / 2
-assert RAIL_RUN < KHX, "the rail's ends must hide inside the knob at either end of the slot"
-LAMP_DY = BL["raised"] - BL["parked"]
+CAP_BOTTOM = TOP - B["travel"]          # a cap stands `travel` proud of the face; its skirt reaches as far below it
+LAMP_DY = LAMP["raised"] - LAMP["parked"]
+assert LAMP["parked"] < TOP < LAMP["raised"], "a lamp parks under the face and its key raises it through"
+
+
+def near(a, b):
+    return all(abs(p - q) < 1e-6 for p, q in zip(a, b))
+
+
+TIP = B["capTop"] - B["chainRadius"]    # each cap chain's tip rests chainRadius under its crown
+for row, bones, ends in ((B, NAMES["buttons"], NAMES["buttonEnds"]), (SEL, NAMES["selector"], NAMES["selectorEnds"])):
+    for x, b, e in zip(row["x"], bones, ends):
+        assert near(REST[f"Buttons/{b}/{e}"], (x, TIP, row["z"])), f"{e} rest pose is not the cap's tip"
+        assert near(REST[f"Buttons/{b}"], (x, TIP - B["boneLength"], row["z"])), f"{b} rest pose is not the tip less boneLength"
+for s in SL:
+    assert near(REST[f"Sliders/{s['bone']}"], (s["rootX"], s["y"], s["z"])), f"{s['bone']} rest pose"
+    assert near(REST[f"Sliders/{s['bone']}/{s['end']}"], (s["tipRestX"], s["y"], s["z"])), f"{s['end']} rest pose"
+    assert abs(s["rootX"] + s["boneLength"] - s["tipRestX"]) < 2e-6, f"{s['bone']}: rootX + boneLength is not tipRestX"
+    assert near(REST[s["knob"]], (s["x"][0], s["knobY"], s["z"])), f"{s['knob']} rest pose is not (x_lo, knobY, z)"
+    assert abs(s["channelDepth"] - RET["channelDepth"]) < 1e-9, "a channel's depth is the knob's retract"
+
+# Every cap: past flush its chain lets it sink `squish - travel` further. The selector's chosen cap also rests
+# sunk `sink` by its lamp key, so a press takes it `sink + squish` down; inert, the retract stacks on the lamp
+# key instead (the chain is off then, so the retract never meets a press). Its crown must stay above its well
+# floor (or the floor would cut through it) and its skirt above the plate's underside.
+BTN_DROP = max(B["squish"], RET["capDepth"])
+SEL_DROP = max(SEL["sink"] + B["squish"], SEL["sink"] + RET["capDepth"])
+SEL_FLOOR = B["capTop"] - SEL_DROP - WELL_GAP
+for what, drop, floor in (("button", BTN_DROP, WELL_FLOOR), ("selector", SEL_DROP, SEL_FLOOR)):
+    assert B["capTop"] - drop > floor + SINK_MARGIN, f"a fully sunk {what} cap's crown passes its well floor"
+    assert CAP_BOTTOM - drop > BOTTOM + SINK_MARGIN, \
+        f"a fully sunk {what} cap's skirt ({CAP_BOTTOM - drop:.4f}) leaves the plate's underside ({BOTTOM}) by the margin"
+    assert floor > BOTTOM + BOTTOM_CHAMFER, f"the {what} well floor passes the plate's underside"
+SEL_SIDE = [-1 if i == 0 else 1 if i == len(SEL["x"]) - 1 else 0 for i in range(len(SEL["x"]))]
+SEL_WELL_H = CAP_R + WELL_CLEAR
+
+
+def slider_layout(s):
+    lo, hi = s["x"]
+    khx, khz = s["knobSize"][0] / 2, s["knobSize"][1] / 2
+    cd = s["channelDepth"]
+    lamps = s.get("segments") or s.get("bars")
+    n = len(lamps["shapes"])
+    return {"lo": lo, "hi": hi, "z": s["z"], "khx": khx, "khz": khz, "cd": cd, "floor": TOP - cd,
+            "chx": (hi - lo) / 2 + khx + CH_CLEAR, "chz": khz + CH_CLEAR, "cx": (lo + hi) / 2,
+            "foot": TOP - cd + KNOB_LIFT, "crown": TOP + cd, "lamps": lamps, "n": n, "pitch": (hi - lo) / n,
+            "ticks": [lo + k * (hi - lo) / n for k in range(1, n)] if s["kind"] == "slider" else []}
+
+
+SLY = [slider_layout(s) for s in SL]
+for s, L in zip(SL, SLY):
+    # Retracted, the knob's crown is flush with the face and its foot sinks into the plate's solid.
+    assert L["foot"] - L["cd"] > BOTTOM + SINK_MARGIN, f"{s['name']}: a retracted knob's foot leaves the underside"
+    assert L["foot"] > L["floor"], f"{s['name']}: the knob's foot passes its channel floor at rest"
+    assert L["chz"] > L["khz"] and L["chx"] - (L["hi"] - L["lo"]) / 2 > L["khx"], f"{s['name']}: the channel fits the knob's travel"
+    lz = L["lamps"]["z"]
+    gap = abs(lz - L["z"]) - L["chz"] - L["lamps"]["depth"] / 2
+    assert gap > TICK_GAP + TICK_LEN + 0.002, f"{s['name']}: its lamps crowd its channel"
+    assert L["foot"] < TOP, f"{s['name']}: the knob sits in its channel"
+
+
+def octagon_inset(x, z):
+    """Distance inside the plate's outer outline (negative outside)."""
+    ax, az = abs(x), abs(z)
+    return min(HX - ax, HZ - az, (HX + HZ - CORNER - ax - az) / math.sqrt(2))
+
+
+def footprints():
+    """(name, x0, x1, z0, z1) of everything set into or lit through the face, to prove nothing collides."""
+    out = [(f"well {x}", x - WELL_R - WELL_CHAMFER, x + WELL_R + WELL_CHAMFER, B["z"] - WELL_R - WELL_CHAMFER,
+            B["z"] + WELL_R + WELL_CHAMFER) for x in B["x"]]
+    h = SEL_WELL_H + WELL_CHAMFER
+    out += [(f"selector well {x}", x - h, x + h, SEL["z"] - h, SEL["z"] + h) for x in SEL["x"]]
+    sl = SEL["lamps"]
+    out += [(f"selector lamp {x}", x - sl["width"] / 2, x + sl["width"] / 2, sl["z"] - sl["depth"] / 2,
+             sl["z"] + sl["depth"] / 2) for x in SEL["x"]]
+    r = BL["diameter"] / 2
+    out += [(f"button lamp {x}", x - r, x + r, BL["z"] - r, BL["z"] + r) for x in B["x"]]
+    r = OFF["diameter"] / 2
+    out.append(("offline lamp", OFF["x"] - r, OFF["x"] + r, OFF["z"] - r, OFF["z"] + r))
+    lz = R["labelStrip"]["z"]
+    out.append(("label", -LABEL_HALF_X, LABEL_HALF_X, lz - LABEL_HALF_Z, lz + LABEL_HALF_Z))
+    for s, L in zip(SL, SLY):
+        e = L["chx"] + CH_CHAMFER
+        out.append((f"{s['name']} channel", L["cx"] - e, L["cx"] + e, L["z"] - L["chz"] - CH_CHAMFER, L["z"] + L["chz"] + CH_CHAMFER))
+        w, lz = L["pitch"] * L["lamps"]["widthFraction"], L["lamps"]["z"]
+        for i in range(L["n"]):
+            cx = L["lo"] + (i + 0.5) * L["pitch"]
+            out.append((f"{s['name']} lamp {i}", cx - w / 2, cx + w / 2, lz - L["lamps"]["depth"] / 2, lz + L["lamps"]["depth"] / 2))
+        for i, tx in enumerate(L["ticks"]):
+            z0, z1 = tick_z(L)
+            out.append((f"{s['name']} tick {i}", tx - TICK_W / 2, tx + TICK_W / 2, z0, z1))
+    return out
+
+
+def tick_z(L):
+    sgn = 1 if L["lamps"]["z"] > L["z"] else -1
+    a = L["z"] + sgn * (L["chz"] + TICK_GAP)
+    b = a + sgn * TICK_LEN
+    return min(a, b), max(a, b)
+
+
+FOOT = footprints()
+for i, (na, a0, a1, b0, b1) in enumerate(FOOT):
+    for c in ((a0, b0), (a0, b1), (a1, b0), (a1, b1)):
+        assert octagon_inset(*c) > BEZEL_W + 0.002, f"{na} reaches the bezel"
+    for nb, c0, c1, d0, d1 in FOOT[i + 1:]:
+        assert not (a0 < c1 + 0.001 and c0 < a1 + 0.001 and b0 < d1 + 0.001 and d0 < b1 + 0.001), f"{na} collides with {nb}"
 
 
 def plate_rings(bm):
@@ -231,10 +367,15 @@ def grip_profile():
     return prof
 
 
+def flared_cut(bm, pts_of, h, floor, chamfer, cx, cz):
+    """A well or channel cutter: the outline at h from `floor` to just under the face, flared by `chamfer` at it."""
+    loft(bm, [ring_at(bm, pts_of(h), floor, cx, cz), ring_at(bm, pts_of(h), TOP - chamfer, cx, cz),
+              ring_at(bm, pts_of(h + chamfer), TOP, cx, cz), ring_at(bm, pts_of(h + chamfer + 0.003), TOP + 0.003, cx, cz)])
+
+
 def build_plate():
     base = part("plate", plate_rings)
-    unions = [part("rail", lambda bm: box(bm, -RAIL_HX, RAIL_HX, TOP - 0.002, TOP + RAIL_H,
-                                          SZ - RAIL_W / 2, SZ + RAIL_W / 2, 0.0015))]
+    unions = []
     for sx in (-1, 1):
         unions.append(part(f"grip{sx}", lambda bm, sx=sx: revolve(bm, grip_profile(), "Z", (sx * GX, 0.0), GRIP_SEG)))
         for sz in (-1, 1):
@@ -246,20 +387,20 @@ def build_plate():
         prof = [(WELL_FLOOR, WELL_R), (TOP - WELL_CHAMFER, WELL_R), (TOP, WELL_R + WELL_CHAMFER),
                 (TOP + 0.003, WELL_R + WELL_CHAMFER + 0.003)]
         cuts.append(part(f"well{i}", lambda bm, x=x, prof=prof: revolve(bm, prof, "Y", (x, B["z"]), WELL_SEG)))
-    for k, bx in enumerate(BOUNDS_X):
-        cuts.append(part(f"notch{k}", lambda bm, bx=bx: box(
-            bm, bx - NOTCH_W / 2, bx + NOTCH_W / 2, TOP + RAIL_H - NOTCH_D, TOP + RAIL_H + 0.003,
-            SZ - RAIL_W, SZ + RAIL_W)))
+    for i, (x, side) in enumerate(zip(SEL["x"], SEL_SIDE)):
+        cuts.append(part(f"selwell{i}", lambda bm, x=x, side=side: flared_cut(
+            bm, lambda h: sel_pts(h, side), SEL_WELL_H, SEL_FLOOR, WELL_CHAMFER, x, SEL["z"])))
+    for s, L in zip(SL, SLY):
+        cuts.append(part(f"channel_{s['name']}", lambda bm, L=L: flared_cut(
+            bm, lambda h: rect_pts(L["chx"] - L["chz"] + h, h, CH_CORNER), L["chz"], L["floor"], CH_CHAMFER, L["cx"], L["z"])))
+        z0, z1 = tick_z(L)
+        for k, tx in enumerate(L["ticks"]):
+            cuts.append(part(f"tick_{s['name']}{k}", lambda bm, tx=tx, z0=z0, z1=z1: box(
+                bm, tx - TICK_W / 2, tx + TICK_W / 2, TOP - TICK_D, TOP + 0.003, z0, z1)))
     lz = R["labelStrip"]["z"]
     cuts.append(part("label", lambda bm: box(bm, -LABEL_HALF_X, LABEL_HALF_X, TOP - LABEL_DEPTH, TOP + 0.003,
                                              lz - LABEL_HALF_Z, lz + LABEL_HALF_Z)))
     return combine(base, unions, cuts)
-
-
-def octagon_inset(x, z):
-    """Distance inside the plate's outer outline (negative outside)."""
-    ax, az = abs(x), abs(z)
-    return min(HX - ax, HZ - az, (HX + HZ - CORNER - ax - az) / math.sqrt(2))
 
 
 def plate_swatch(c):
@@ -269,16 +410,15 @@ def plate_swatch(c):
         return "bezel" if math.hypot(ax - GX, y) > GR + 0.0008 else "grip"
     if ax > HX + 1e-4:
         return "bezel"                                   # necks
-    if y < TOP - eps:
-        for bx in B["x"]:
-            if math.hypot(x - bx, z - B["z"]) < WELL_R + WELL_CHAMFER + 0.0006:
-                return "well"
-        if ax <= LABEL_HALF_X + 1e-4 and abs(z - R["labelStrip"]["z"]) <= LABEL_HALF_Z + 1e-4:
-            return "label"
-    if y > TOP + eps and abs(z - SZ) <= RAIL_W / 2 + 1e-4 and ax <= RAIL_HX + 1e-4:
-        if y < TOP + RAIL_H - eps and any(abs(x - bx) <= NOTCH_W / 2 + 1e-4 for bx in BOUNDS_X):
-            return "tick"
-        return "rail"
+    if SEL_FLOOR - 1e-4 < y < TOP - eps:                # set into the face: never the underside
+        for na, x0, x1, z0, z1 in FOOT:
+            if x0 - 1e-4 <= x <= x1 + 1e-4 and z0 - 1e-4 <= z <= z1 + 1e-4:
+                if "well" in na or "channel" in na:
+                    return "well"
+                if "tick" in na:
+                    return "tick"
+                if na == "label":
+                    return "label"
     inset = octagon_inset(x, z)
     if inset < 1e-4:
         return "body"                                    # outer wall
@@ -287,15 +427,16 @@ def plate_swatch(c):
     return "body"
 
 
-def build_knob():
-    kx, ky = SX0, TOP
-    y0, y1 = ky + KNOB_LIFT, ky + KNOB_H
+def build_knob(L):
+    kx, kz, y0, y1 = L["lo"], L["z"], L["foot"], L["crown"]
+    top = y1 - FIN_H                                     # the fin tops out at the crown, so the retract sinks it flush too
     base = part("knob", lambda bm: loft(bm, [
-        rect_ring(bm, KHX, KHZ, 0.002, y0, kx, SZ), rect_ring(bm, KHX, KHZ, 0.002, y1 - KNOB_CHAMFER, kx, SZ),
-        rect_ring(bm, KHX - KNOB_CHAMFER, KHZ - KNOB_CHAMFER, 0.001, y1, kx, SZ)]))
-    fin = part("fin", lambda bm: box(bm, kx - FIN_W / 2, kx + FIN_W / 2, y1 - 0.001, y1 + FIN_H,
-                                     SZ - KHZ * FIN_SPAN, SZ + KHZ * FIN_SPAN, 0.0))
-    return combine(base, [fin], []), (lambda c: "tick" if c[1] > y1 + 1e-5 else "knob")
+        rect_ring(bm, L["khx"], L["khz"], KNOB_CORNER, y0, kx, kz),
+        rect_ring(bm, L["khx"], L["khz"], KNOB_CORNER, top - KNOB_CHAMFER, kx, kz),
+        rect_ring(bm, L["khx"] - KNOB_CHAMFER, L["khz"] - KNOB_CHAMFER, KNOB_CORNER / 2, top, kx, kz)]))
+    fin = part("fin", lambda bm: box(bm, kx - FIN_W / 2, kx + FIN_W / 2, top - 0.001, y1,
+                                     kz - L["khz"] * FIN_SPAN, kz + L["khz"] * FIN_SPAN, 0.0))
+    return combine(base, [fin], []), (lambda c, top=top: "tick" if c[1] > top + 1e-5 else "knob")
 
 
 def build_cap(x):
@@ -304,52 +445,73 @@ def build_cap(x):
     return plain(part("cap", lambda bm: revolve(bm, prof, "Y", (x, B["z"]), CAP_SEG)))
 
 
+def build_sel_cap(x, side):
+    t = B["capTop"]
+    return plain(part("selcap", lambda bm: loft(bm, [
+        ring_at(bm, sel_pts(CAP_R, side), CAP_BOTTOM, x, SEL["z"]),
+        ring_at(bm, sel_pts(CAP_R, side), t - SEL_CHAMFER, x, SEL["z"]),
+        ring_at(bm, sel_pts(CAP_R - SEL_CHAMFER, side), t, x, SEL["z"])])))
+
+
 def build_disc(x, z, d):
-    prof = [(BL["parked"] - LAMP_THICK, d / 2), (BL["parked"], d / 2)]
+    prof = [(LAMP["parked"] - LAMP_THICK, d / 2), (LAMP["parked"], d / 2)]
     return plain(part("lamp", lambda bm: revolve(bm, prof, "Y", (x, z), LAMP_SEG)))
 
 
-def build_bar(cx):
-    w = PITCH * SG["widthFraction"]
-    return plain(part("seg", lambda bm: box(bm, cx - w / 2, cx + w / 2, BL["parked"] - LAMP_THICK, BL["parked"],
-                                            SG["z"] - SG["depth"] / 2, SG["z"] + SG["depth"] / 2)))
+def build_bar(cx, cz, w, depth):
+    return plain(part("bar", lambda bm: box(bm, cx - w / 2, cx + w / 2, LAMP["parked"] - LAMP_THICK, LAMP["parked"],
+                                            cz - depth / 2, cz + depth / 2)))
 
 
 # ---- assemble --------------------------------------------------------------------------------------------
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
-# (verts, polys, swatch fn, bone, shape key)
+# (verts, polys, swatch fn, bone, [(shape key, dy in Unity Y)])
 PARTS = []
 pv, pp = build_plate()
-PARTS.append((pv, pp, plate_swatch, NAMES["root"], None))
-(kv, kp), kfn = build_knob()
-PARTS.append((kv, kp, kfn, NAMES["sliderEnd"], None))   # the knob rides the slider tip rigidly
+PARTS.append((pv, pp, plate_swatch, NAMES["root"], []))
 for x, end in zip(B["x"], NAMES["buttonEnds"]):
     v, p = build_cap(x)
-    PARTS.append((v, p, lambda c: "cap", end, None))
+    PARTS.append((v, p, lambda c: "cap", end, [(RET["shape"], -RET["capDepth"])]))
+for x, side, end, shape in zip(SEL["x"], SEL_SIDE, NAMES["selectorEnds"], SEL["shapes"]):
+    v, p = build_sel_cap(x, side)
+    PARTS.append((v, p, lambda c: "cap", end, [(shape, -SEL["sink"]), (RET["shape"], -RET["capDepth"])]))
+for s, L in zip(SL, SLY):
+    (kv, kp), kfn = build_knob(L)
+    PARTS.append((kv, kp, kfn, s["knob"], [(RET["shape"], -L["cd"])]))
 for x, shape in zip(B["x"], BL["shapes"]):
     v, p = build_disc(x, BL["z"], BL["diameter"])
-    PARTS.append((v, p, lambda c: "amber", NAMES["root"], shape))
-assert len(SG["shapes"]) == N, "segments.shapes must name N keys"
-for i in range(N):
-    v, p = build_bar(SX0 + (i + 0.5) * PITCH)
-    PARTS.append((v, p, lambda c: "amber", NAMES["root"], SG["shapes"][i]))
+    PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
+for x, shape in zip(SEL["x"], SEL["shapes"]):
+    v, p = build_bar(x, SEL["lamps"]["z"], SEL["lamps"]["width"], SEL["lamps"]["depth"])
+    PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
+for s, L in zip(SL, SLY):
+    for i, shape in enumerate(L["lamps"]["shapes"]):
+        v, p = build_bar(L["lo"] + (i + 0.5) * L["pitch"], L["lamps"]["z"], L["pitch"] * L["lamps"]["widthFraction"],
+                         L["lamps"]["depth"])
+        PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
 v, p = build_disc(OFF["x"], OFF["z"], OFF["diameter"])
-PARTS.append((v, p, lambda c: "red", NAMES["root"], OFF["shape"]))
+PARTS.append((v, p, lambda c: "red", NAMES["root"], [(OFF["shape"], LAMP_DY)]))
+
+SHAPES = BL["shapes"] + SEL["shapes"] + [sh for L in SLY for sh in L["lamps"]["shapes"]] + [OFF["shape"], RET["shape"]]
+assert len(set(SHAPES)) == len(SHAPES), "a shape name repeats"
 
 bm = bmesh.new()
-face_swatch, vert_bone, shape_verts = [], [], {}
-for verts, polys, fn, bone, shape in PARTS:
+face_swatch, vert_bone, shape_moves = [], [], {s: [] for s in SHAPES}
+for verts, polys, fn, bone, keys in PARTS:
     bv = [bm.verts.new(u2b(co)) for co in verts]
+    first = len(vert_bone)
     vert_bone += [bone] * len(bv)
-    if shape:
-        shape_verts[shape] = list(range(len(vert_bone) - len(bv), len(vert_bone)))
+    for shape, dy in keys:
+        shape_moves[shape] += [(i, dy) for i in range(first, first + len(bv))]
     for poly in polys:
         bm.faces.new([bv[i] for i in poly])
         c = [sum(verts[i][k] for i in poly) / len(poly) for k in range(3)]
         face_swatch.append(fn(c))
+assert all(shape_moves[s] for s in SHAPES), [s for s in SHAPES if not shape_moves[s]]
 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 non_manifold = sum(1 for e in bm.edges if not e.is_manifold)
+assert non_manifold == 0, f"{non_manifold} non-manifold edges: every shell must be closed"
 bm.verts.index_update()
 parent = list(range(len(bm.verts)))
 def find(i):
@@ -361,6 +523,7 @@ for e in bm.edges:
     if a != b:
         parent[a] = b
 shells = len({find(i) for i in range(len(bm.verts))})
+assert shells == len(PARTS), f"{shells} shells for {len(PARTS)} parts: a part split or two merged"
 
 me = bpy.data.meshes.new(R["mesh"])
 bm.to_mesh(me); bm.free()
@@ -376,23 +539,31 @@ me.materials.append(mat)
 ob = bpy.data.objects.new(R["mesh"], me)
 bpy.context.scene.collection.objects.link(ob)
 
-# ---- armature: the contract's bone table, Unity frame --------------------------------------------------
+# ---- armature: rig.json's restPoses, Unity frame ------------------------------------------------------------
+# A bone built UP with roll ACROSS carries the Panel bone's orientation, so its Unity local rotation is identity
+# and its m_LocalPosition a panel-frame offset: Buttons, Sliders and the knobs (the Lamps tree writes the knobs'
+# positions). The slider chains point ALONG (+X) with roll UP, so each one's local +Y is the track.
 TINY = 0.005
 UP, ACROSS, ALONG = (0, 1, 0), (0, 0, 1), (1, 0, 0)
 def add(p, d, s):
     return tuple(p[k] + d[k] * s for k in range(3))
-bones = [(NAMES["root"], None, (0.0, 0.0, 0.0), UP, 0.02, ACROSS),
-         (NAMES["buttonsRoot"], NAMES["root"], (0.0, TOP, B["z"]), UP, 0.01, ACROSS)]
-for x, btn, end in zip(B["x"], NAMES["buttons"], NAMES["buttonEnds"]):
-    # The tip sits chainRadius inside the dome, so the chain's radius reaches exactly the cap's top.
-    head = (x, B["capTop"] - B["chainRadius"] - B["boneLength"], B["z"])
-    bones.append((btn, NAMES["buttonsRoot"], head, UP, B["boneLength"], ACROSS))
-    bones.append((end, btn, add(head, UP, B["boneLength"]), UP, TINY, ACROSS))
-slider_head = (S["rootX"], TOP, SZ)
-slider_tip = add(slider_head, ALONG, S["boneLength"])
-assert abs(slider_tip[0] - SX0) < 1e-9, "slider rootX + boneLength must land on the slot's start"
-bones += [(NAMES["slider"], NAMES["root"], slider_head, ALONG, S["boneLength"], UP),
-          (NAMES["sliderEnd"], NAMES["slider"], slider_tip, ALONG, TINY, UP)]
+root = NAMES["root"]
+bones = [(root, None, (0.0, 0.0, 0.0), UP, 0.02, ACROSS),
+         (NAMES["buttonsRoot"], root, tuple(REST[NAMES["buttonsRoot"]]), UP, 0.01, ACROSS)]
+for bnames, enames in ((NAMES["buttons"], NAMES["buttonEnds"]), (NAMES["selector"], NAMES["selectorEnds"])):
+    for b, e in zip(bnames, enames):
+        head, tip = REST[f"Buttons/{b}"], REST[f"Buttons/{b}/{e}"]
+        bones.append((b, NAMES["buttonsRoot"], tuple(head), UP, tip[1] - head[1], ACROSS))
+        bones.append((e, b, tuple(tip), UP, TINY, ACROSS))
+bones.append((NAMES["slidersRoot"], root, tuple(REST[NAMES["slidersRoot"]]), UP, 0.01, ACROSS))
+for s in SL:
+    head, tip = REST[f"Sliders/{s['bone']}"], REST[f"Sliders/{s['bone']}/{s['end']}"]
+    bones += [(s["bone"], NAMES["slidersRoot"], tuple(head), ALONG, tip[0] - head[0], UP),
+              (s["end"], s["bone"], tuple(tip), ALONG, TINY, UP)]
+for s in SL:
+    bones.append((s["knob"], root, tuple(REST[s["knob"]]), UP, 0.01, ACROSS))
+want = {root} | {k.split("/")[-1] for k in REST}
+assert {b[0] for b in bones} == want, f"bone table and restPoses disagree: {sorted({b[0] for b in bones} ^ want)}"
 
 arm_data = bpy.data.armatures.new("Armature")
 arm = bpy.data.objects.new("Armature", arm_data)
@@ -418,25 +589,18 @@ for name, par, head, d, length, roll in bones:
 
 ob.parent = arm
 ob.modifiers.new("Armature", "ARMATURE").object = arm
-for name in {b[0] for b in bones}:
+for name in [b[0] for b in bones]:
     g = ob.vertex_groups.new(name=name)
     idx = [i for i, bn in enumerate(vert_bone) if bn == name]
     if idx:
         g.add(idx, 1.0, "REPLACE")
 
 ob.shape_key_add(name="Basis", from_mix=False)
-for shape in BL["shapes"] + SG["shapes"] + [OFF["shape"]]:
+for shape in SHAPES:
     kb = ob.shape_key_add(name=shape, from_mix=False)
-    for i in shape_verts[shape]:
-        kb.data[i].co.z += LAMP_DY        # Unity +Y is Blender +Z
+    for i, dy in shape_moves[shape]:
+        kb.data[i].co.z += dy           # Unity +Y is Blender +Z
     kb.value = 0.0
-# The caps sink flush with the face while the buttons are inert; skinned to the chain tips, so the shape is the
-# offset from the tip's rest and the squish range already proves the sunk cap stays inside its well.
-RET = R["capRetract"]
-kb = ob.shape_key_add(name=RET["shape"], from_mix=False)
-for i in [i for i, bn in enumerate(vert_bone) if bn in NAMES["buttonEnds"]]:
-    kb.data[i].co.z -= RET["depth"]
-kb.value = 0.0
 
 os.makedirs(atlas_dir, exist_ok=True)
 write_atlases()
@@ -447,7 +611,8 @@ lo = [min(c[k] for c in ub) for k in range(3)]; hi = [max(c[k] for c in ub) for 
 print(f"AVATARPREP: build {R['mesh']} verts={len(me.vertices)} faces={len(me.polygons)} tris={len(me.loop_triangles)} "
       f"shells={shells} non_manifold_edges={non_manifold} bones={len(arm_data.bones)} "
       f"shapes={len(me.shape_keys.key_blocks) - 1} unity_bounds x[{lo[0]:.4f},{hi[0]:.4f}] "
-      f"y[{lo[1]:.4f},{hi[1]:.4f}] z[{lo[2]:.4f},{hi[2]:.4f}] N={N}")
+      f"y[{lo[1]:.4f},{hi[1]:.4f}] z[{lo[2]:.4f},{hi[2]:.4f}] selector_floor={SEL_FLOOR:.4f} "
+      f"sunk_skirt button={CAP_BOTTOM - BTN_DROP:.4f} selector={CAP_BOTTOM - SEL_DROP:.4f} underside={BOTTOM}")
 
 os.makedirs(os.path.dirname(out_blend), exist_ok=True)
 if os.path.exists(out_blend):
