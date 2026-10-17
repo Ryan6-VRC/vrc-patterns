@@ -45,7 +45,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **There is no menu path to the buttons or the slider.** `gimmicks.md` §Packaging and interface asks for every touch control to be reachable from the menu too, for desktop players and for testing; this entry ships none. A consumer that needs one adds menu controls to its own build.
 - **In the editor the panel sits where it was authored, not at its home.** The constraints on `TwoHandProp/Body` ship switched off and the animator switches them on in play. Never enable or Activate the two constraints on the prefab root: they ship disabled at zero offsets and a VRCFury `ApplyDuringUpload` turns them on at build.
 - **Do not rename anything inside the prefab.** The animations find their targets by path (§Traps).
-- **A late joiner sees a set-down panel where it was left.** A panel at home shows at home; one carried or set down stays hidden until the joiner's copy has the word, then appears there, never at home.
+- **A late joiner sees a set-down panel where it was left, or glides to it.** A panel at home shows at home. When the "away from home" bit arrives during the joiner's boot dwell, the panel stays hidden until the copy has the word, then appears there. A bit that lands after the dwell shows the panel at home first, then glides from home to the word (`grab-sync`'s accepted shape).
 - **The buttons also work while the panel is carried.** A carried panel lags behind its carrier's hand on other clients, so a press on it lags more; whether to sense only while it is set down is open (§What is not proven here).
 
 ## Performance stats
@@ -74,9 +74,9 @@ Two generators carry the knobs: `controls/generate.py` for the controls, `genera
 | `press`, `release` (controls) | Press depth, as fractions of a full press, at which a press is accepted, and below which every cap must rise before the next. Raising `press` demands a deeper press. Refused unless `release` is below `press` |
 | `arm` (controls) | Seconds a press must stay past `press` before it counts. Longer rejects slower brushes and makes every press feel later. Refused at or above `cooldown` |
 | `cooldown` (controls) | Seconds from a release to the next accepted press: the floor between two toggles of one button. Refused at or under the wire's set-and-clear floor, below which two quick toggles can cancel on the wire (`gimmicks.md` §State machine patterns, the driver-copy edge detector) |
-| `buttons` (controls) | Button positions (one to eight), the cluster root's height, the bones' head height and length, the travel (a full press) and the chain radius. The squish limit is travel over length. A larger chain radius engages the cap further above its top and leaves more room before a hard press pops through (§Traps). Changing positions or count rebuilds the mesh and `Panel.prefab` |
+| `buttons` (controls) | The button layout the frame's mesh and `rig.json` read too: positions, the cap diameter, the cluster root's height, the bones' head height and length, the travel (a full press) and the chain radius. The count is refused outside one to eight and wherever a cap leaves the face or touches its neighbour: the caps are 30 mm across, so on 60 mm centres inside the 340 mm face six fit and a seventh does not. The squish limit is travel over length. A larger chain radius engages the cap further above its top and leaves more room before a hard press pops through (§Traps). Changing positions or count rebuilds the mesh and `Panel.prefab` |
 | `boxSpan`, `boxWidth`, `senderRadius` (controls) | The receiver box's depth in travels, kept above 1 because a face-mode box reads 0 once the sender passes either face; the box's width; the sender's radius. Raising `boxSpan` lowers every reading for the same depth. Refused when neighbouring boxes overlap |
-| `slider` (controls) | The slot's run and position, and the slider bone's root, length and radius. The stretch limit is the run over the bone length, which is what makes the stretch read as the knob's fraction along the slot. Refused when the bone's tip falls short of the slot's start |
+| `slider` (controls) | The slot's run and position, and the slider bone's root, length and radius. The stretch limit is the run over the bone length, which is what makes the stretch read as the knob's fraction along the slot. Refused when the bone's tip is not at the slot's start. The frame's mesh reads the run, position and bone length from here |
 | `mountPath`, `armature`, `mesh` (controls) | `mountPath` is where the `Panel` instance hangs, from the GameObject carrying the FullController; `armature` and `mesh` are the node names inside it. The lamp animations bind through all three. A consumer mounting the controls elsewhere regenerates with its own `mountPath` |
 | `prefix`, `internal`, `tag` (controls) | The published prefix, the internal prefix (never under the published one), and the press contacts' private tag. `Panel.prefab`'s receivers, physbone parameters and tag are set to match by hand; `--check` compares them |
 | `rigSeed` (frame) | The `object-sync` build's contact tags and park position, which move together. Unique among the avatar's `object-sync` builds |
@@ -84,9 +84,9 @@ Two generators carry the knobs: `controls/generate.py` for the controls, `genera
 | `acquire`, `resumeGrab` (frame) | Seconds a late joiner stays hidden while it settles onto the word, and seconds the panel stays hidden while a grab taken during a resume settles. Each covers a slow client's few frames with margin |
 | `syncDamp` (frame) | How fast another player's copy glides from its replayed rest onto the word, per frame. Higher steps visibly; lower glides past one word refresh, so steps stack into a trailing lag. Frame-rate dependent (`spring-damping` README §Framerate dependence) |
 | `handleSpacing` (frame) | The distance between the handles, set on every copy site `two-hand-prop` README §Knobs lists that this prefab keeps; `--check` holds each. Wider lengthens `two-hand-prop`'s handoff slide. The mesh's grips (`grips` in the frame's geometry) must sit at the handles, so a change rebuilds the mesh |
-| Panel geometry (frame: `plate`, `grips`, `buttons`, `buttonLamps`, `slider`, `segments`, `offline`, `labelStrip`) | The mesh's layout, emitted as `rig.json` for the Blender build. The controls CONFIG carries its own copy of the button and slider layout (§Traps) |
+| Panel geometry (frame: `plate`, `grips`, `capTop`, `knob`, `buttonLamps`, `segments`, `offline`, `labelStrip`) | The mesh-only layout, emitted as `rig.json` for the Blender build beside the button and slider layout read from the controls CONFIG (§Traps). `plate`'s width must equal the controls CONFIG's `face`; the frame generator refuses a mismatch |
 | Home rest (`TwoHandProp/HomeAnchor/Offset`, prefab) | Where the panel rests on the avatar when not in use |
-| Enable default (the glue `controller.yaml`'s declaration and the `Toggle`'s default) | Written in both, which must agree; `--check` expects the Toggle on. The frame CONFIG's `enableDefault` key drives neither |
+| Enable default (the glue `controller.yaml`'s declaration and the `Toggle`'s default) | Written in both, which must agree; `--check` compares the Toggle's default to the glue's declaration |
 
 The press thresholds, `arm`, `cooldown`, the cap layout and `syncDamp` are feel constants: the emulator measures what they do, only a headset shows whether they feel right.
 
@@ -100,7 +100,7 @@ The state-by-state walk lives in three places: `generate.py`'s module docstring 
 
 **Another player's copy glides from its own replay onto the word.** Each copy replays the carry from the grabs it saw, through its own view of the grabber's hand, so its release lands near the wearer's but not on it. Snapping onto the word would jump the panel by that error on every release, so the copy holds its replay for `bridge` and Park then glides it onto the word.
 
-**A late joiner sees a set-down panel at the synced spot**, not hidden until a grab is witnessed: a joiner has to see a panel to walk up to it. This is a design lean, not a measured necessity.
+**A late joiner sees a set-down panel at the synced spot**, not hidden until a grab is witnessed: a joiner has to see a panel to walk up to it, by a hidden flush when the bit beats the boot dwell and by a visible glide from home when it does not. This is a design lean, not a measured necessity.
 
 **A re-grab from the synced spot needs no settle state.** The one-hand carry freezes the panel's rotation where it stands, which on a copy at rest is the word's, so the carry starts from the word by construction; `compositions/grab-sync`'s `Reacquire` dwell exists for a sampled cell this frame does not have.
 
@@ -124,7 +124,7 @@ The state-by-state walk lives in three places: `generate.py`'s module docstring 
 - **A hard press can pop through.** When the presser's collider centre drops below a cap's resting tip, the solver pushes the tip the other way, it snaps back to rest, and the reading falls to 0 mid-press. The room before that is about the presser's collider radius plus the chain radius minus the travel, so a small hand collider pops sooner.
 - **A slow sideways brush at face height counts as a press.** `arm` rejects a brush that clears a cap within it; one slow enough to hold the cap down longer stamps.
 - **One cap resting down blocks every button.** The shared hold state waits for every reading to fall below `release`, so a cap held down, or an object resting on it, stops every other button from firing.
-- **Two copies of the panel layout.** The frame's CONFIG (which feeds `rig.json` and the mesh) and the controls' CONFIG (which feeds the contacts, the physbones and `--check`) each carry the button and slider layout. Nothing compares them; change both and rebuild.
+- **The controls CONFIG owns the button and slider layout; the frame CONFIG owns the rest.** `generate.py` reads positions, bone length, travel, chain radius, cap diameter and the slot run from `controls/generate.py` into `rig.json`, so one edit moves the contacts, the physbones and the mesh together. The frame CONFIG holds only mesh geometry (plate, grips, cap height, knob, lamps, segments, offline lamp, label strip). The one shared number kept in both is the face width (`face` there, `plate.x` here), and the frame generator refuses a mismatch.
 - **`Panel.prefab` does not follow the FBX.** The model is unpacked inside it, because an FBX prefab variant serializes no bone names for a binding or `--check` to address, so a re-export that moves a bone or changes a blendshape reaches nothing until the prefab is rebuilt (§Changing it). `controls/generate.py --check` fails on a moved bone's rest pose first.
 
 ## What is not proven here
@@ -153,7 +153,7 @@ Everything below needs the shipping client:
 
 **Changing `N` or the button layout** moves the mesh:
 
-1. Set the controls CONFIG, and the frame's geometry to match for a layout change. Regenerate both.
+1. Set the controls CONFIG (the layout the frame reads from it); touch the frame CONFIG only for mesh-only geometry. Regenerate both.
 2. Rebuild the mesh with `assets/ControlPanel_build.py` from `rig.json` (its docstring has the command) and export it with `assets/ControlPanel_export.py` over `assets/ControlPanel.fbx`, so its `.meta` and material remap hold.
 3. Rebuild `Panel.prefab` over its existing asset, so `ControlPanel.prefab`'s nested reference holds: instantiate the FBX, unpack it completely, rename the root `Panel`, add the two physbones, the receivers and the sender with the values `rig()` in `controls/generate.py` emits, and save.
 4. Recompile, and run both checks.

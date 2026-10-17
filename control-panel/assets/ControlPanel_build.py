@@ -37,6 +37,10 @@ TOP, BOTTOM = R["plate"]["top"], R["plate"]["bottom"]
 GX, GR = R["grips"]["x"], R["grips"]["radius"]; GZ0, GZ1 = R["grips"]["z"]
 B = R["buttons"]; BL = R["buttonLamps"]; S = R["slider"]; SG = R["segments"]; OFF = R["offline"]
 NAMES = R["bones"]
+NB = len(B["x"])
+for what, lst in (("bones.buttons", NAMES["buttons"]), ("bones.buttonEnds", NAMES["buttonEnds"]),
+                  ("buttonLamps.shapes", BL["shapes"])):
+    assert len(lst) == NB, f"{what} names {len(lst)} buttons but buttons.x places {NB}"
 
 # ---- the look (m); nothing outside this file reads these ----------------------------------------------
 CORNER = 0.014            # plate corner chamfer, leg length
@@ -316,12 +320,12 @@ pv, pp = build_plate()
 PARTS.append((pv, pp, plate_swatch, NAMES["root"], None))
 (kv, kp), kfn = build_knob()
 PARTS.append((kv, kp, kfn, NAMES["sliderEnd"], None))   # the knob rides the slider tip rigidly
-for i, x in enumerate(B["x"]):
+for x, end in zip(B["x"], NAMES["buttonEnds"]):
     v, p = build_cap(x)
-    PARTS.append((v, p, lambda c: "cap", NAMES["buttonEnds"][i], None))
-for i, x in enumerate(B["x"]):
+    PARTS.append((v, p, lambda c: "cap", end, None))
+for x, shape in zip(B["x"], BL["shapes"]):
     v, p = build_disc(x, BL["z"], BL["diameter"])
-    PARTS.append((v, p, lambda c: "amber", NAMES["root"], BL["shapes"][i]))
+    PARTS.append((v, p, lambda c: "amber", NAMES["root"], shape))
 assert len(SG["shapes"]) == N, "segments.shapes must name N keys"
 for i in range(N):
     v, p = build_bar(SX0 + (i + 0.5) * PITCH)
@@ -375,11 +379,11 @@ def add(p, d, s):
     return tuple(p[k] + d[k] * s for k in range(3))
 bones = [(NAMES["root"], None, (0.0, 0.0, 0.0), UP, 0.02, ACROSS),
          (NAMES["buttonsRoot"], NAMES["root"], (0.0, TOP, B["z"]), UP, 0.01, ACROSS)]
-for i, x in enumerate(B["x"]):
+for x, btn, end in zip(B["x"], NAMES["buttons"], NAMES["buttonEnds"]):
     # The tip sits chainRadius inside the dome, so the chain's radius reaches exactly the cap's top.
     head = (x, B["capTop"] - B["chainRadius"] - B["boneLength"], B["z"])
-    bones.append((NAMES["buttons"][i], NAMES["buttonsRoot"], head, UP, B["boneLength"], ACROSS))
-    bones.append((NAMES["buttonEnds"][i], NAMES["buttons"][i], add(head, UP, B["boneLength"]), UP, TINY, ACROSS))
+    bones.append((btn, NAMES["buttonsRoot"], head, UP, B["boneLength"], ACROSS))
+    bones.append((end, btn, add(head, UP, B["boneLength"]), UP, TINY, ACROSS))
 slider_head = (S["rootX"], TOP, SZ)
 slider_tip = add(slider_head, ALONG, S["boneLength"])
 assert abs(slider_tip[0] - SX0) < 1e-9, "slider rootX + boneLength must land on the slot's start"

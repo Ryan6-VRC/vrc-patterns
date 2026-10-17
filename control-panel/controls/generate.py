@@ -4,7 +4,7 @@
     python control-panel/controls/generate.py            # writes controls/controller.yaml
     python control-panel/controls/generate.py --check    # asserts Panel.prefab's hand-built surface against CONFIG
 
-The entry's own generate.py imports CONFIG["N"] from here. Edit CONFIG, rerun, then
+The entry's own generate.py reads CONFIG's N, buttons and slider from here. Edit CONFIG, rerun, then
 recompile controls/built/ as a unit in a mounting Editor (CONVENTIONS.md §The gate). Every output is a pure
 function of CONFIG; nothing here writes Unity assets: `--check` holds the prefab to CONFIG afterwards.
 
@@ -58,8 +58,10 @@ CONFIG
   mountPath     the Panel instance from the FullController's GameObject; every binding is prefixed with it.
   armature      the FBX armature node under the Panel instance (bones live under <armature>/Panel).
   mesh          the skinned mesh node under the Panel instance.
+  face          the plate's full width along X (the frame CONFIG's plate.x spans the same; its generator refuses a mismatch).
   buttons       button x positions in the panel frame (one per button), z, the Buttons root's height, the bones' head height and length,
-                travel, and the chain radius (metres). maxSquish is travel over length.
+                travel, the chain radius and the cap diameter (metres). maxSquish is travel over length. The frame generator
+                reads this layout for the mesh; a cap must stay inside the face and clear its neighbour.
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every
                 receiver is at or below `release`.
   boxSpan       the receiver box's depth along the press axis, a multiple of travel above 1, so a full press
@@ -89,7 +91,9 @@ CONFIG = {
     "mountPath": "TwoHandProp/Body/Display/Panel",
     "armature": "Armature",
     "mesh": "ControlPanel",
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01},
+    "face": 0.34,
+    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01,
+                "capDiameter": 0.03},
     "press": 0.8,
     "release": 0.5,
     "boxSpan": 1.1,
@@ -118,7 +122,7 @@ def validate(c):
         refuse("internal may not sit under prefix: the published wildcard would reach it.")
     b = c["buttons"]
     if not 1 <= len(b["x"]) <= 8:
-        refuse("one to eight buttons.")
+        refuse("one to eight buttons, and fewer when the caps do not fit the face (checked below).")
     if b["travel"] <= 0 or b["travel"] >= b["boneLength"]:
         refuse("travel is positive and shorter than the button bone: maxSquish is travel over bone length.")
     if b["radius"] <= 0:
@@ -131,15 +135,22 @@ def validate(c):
         refuse("boxSpan above 1: a full press must sit inside the box, not on its top face.")
     if c["senderRadius"] <= 0:
         refuse("senderRadius is positive.")
-    if c["boxWidth"] / 2 >= min(abs(x1 - x0) for x0, x1 in zip(sorted(b["x"]), sorted(b["x"])[1:])) - c["boxWidth"] / 2:
-        refuse("receiver boxes overlap their neighbours' across X.")
+    if any(abs(x) + b["capDiameter"] / 2 > c["face"] / 2 for x in b["x"]):
+        refuse("a cap leaves the panel face: |x| + capDiameter / 2 is past face / 2.")
+    xs = sorted(b["x"])
+    if len(xs) > 1:
+        gap = min(x1 - x0 for x0, x1 in zip(xs, xs[1:]))
+        if gap < b["capDiameter"]:
+            refuse("neighbouring caps overlap: the closest centres are nearer than one capDiameter.")
+        if c["boxWidth"] / 2 >= gap - c["boxWidth"] / 2:
+            refuse("receiver boxes overlap their neighbours' across X.")
     if c["cooldown"] <= 0.2:
         refuse("cooldown at or under the wire's 0.2 s set/clear floor: two toggles could be a lost pair.")
     if not 0 < c["hysteresis"] < 0.5 / n:
         refuse("hysteresis is positive and under half a slot, or a slot has no stable band.")
     s = c["slider"]
-    if s["x"][0] - s["rootX"] - s["boneLength"] > 1e-9 or s["x"][1] <= s["x"][0]:
-        refuse("the Slider bone's rest tip is the slot's low end: rootX + boneLength == slider.x[0].")
+    if abs(s["x"][0] - s["rootX"] - s["boneLength"]) > 1e-9 or s["x"][1] <= s["x"][0]:
+        refuse("the Slider bone's rest tip is the slot's low end: rootX + boneLength == slider.x[0], and the slot runs up in X.")
 
 
 def r6(v):
