@@ -26,6 +26,7 @@ parameters:
   CP/Press4: float   # sensing: a local-only receiver's press depth reading
   CP/Slider_Stretch: float   # sensing: the slider physbone (CP/Slider)
   CP/One: { type: float, default: 1, scratch: true }   # the Direct tree's constant weight
+  CP/Live: { type: float, default: 0, aap: true }   # the frame's gate, written by the glue; matches its declaration
   # Shared with the object-sync build through the one component; declarations match the entry's.
   ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
   OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
@@ -38,14 +39,14 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Set1, when: [ CP/Press1 greater 0.288462, ControlPanel/Btn1 less 0.5 ] }
-          - { to: Clear1, when: [ CP/Press1 greater 0.288462, ControlPanel/Btn1 greater 0.5 ] }
-          - { to: Set2, when: [ CP/Press2 greater 0.288462, ControlPanel/Btn2 less 0.5 ] }
-          - { to: Clear2, when: [ CP/Press2 greater 0.288462, ControlPanel/Btn2 greater 0.5 ] }
-          - { to: Set3, when: [ CP/Press3 greater 0.288462, ControlPanel/Btn3 less 0.5 ] }
-          - { to: Clear3, when: [ CP/Press3 greater 0.288462, ControlPanel/Btn3 greater 0.5 ] }
-          - { to: Set4, when: [ CP/Press4 greater 0.288462, ControlPanel/Btn4 less 0.5 ] }
-          - { to: Clear4, when: [ CP/Press4 greater 0.288462, ControlPanel/Btn4 greater 0.5 ] }
+          - { to: Set1, when: [ CP/Live greater 0.5, CP/Press1 greater 0.288462, ControlPanel/Btn1 less 0.5 ] }
+          - { to: Clear1, when: [ CP/Live greater 0.5, CP/Press1 greater 0.288462, ControlPanel/Btn1 greater 0.5 ] }
+          - { to: Set2, when: [ CP/Live greater 0.5, CP/Press2 greater 0.288462, ControlPanel/Btn2 less 0.5 ] }
+          - { to: Clear2, when: [ CP/Live greater 0.5, CP/Press2 greater 0.288462, ControlPanel/Btn2 greater 0.5 ] }
+          - { to: Set3, when: [ CP/Live greater 0.5, CP/Press3 greater 0.288462, ControlPanel/Btn3 less 0.5 ] }
+          - { to: Clear3, when: [ CP/Live greater 0.5, CP/Press3 greater 0.288462, ControlPanel/Btn3 greater 0.5 ] }
+          - { to: Set4, when: [ CP/Live greater 0.5, CP/Press4 greater 0.288462, ControlPanel/Btn4 less 0.5 ] }
+          - { to: Clear4, when: [ CP/Live greater 0.5, CP/Press4 greater 0.288462, ControlPanel/Btn4 greater 0.5 ] }
       Set1:
         motion: { clip: tick }
         behaviours: [ { driver: { localOnly: true, set: { ControlPanel/Btn1: 1 } } } ]
@@ -187,6 +188,24 @@ layers:
                 - { clip: seg4, threshold: 4 }
     default: Lamps
 
+  # Caps sunk and the chain off until the frame's glue says every copy has settled; the crossfade smooths the caps.
+  - name: Live
+    states:
+      Inert:
+        motion: { clip: inert }
+        transitions:
+          - { to: Live, when: [ CP/Live greater 0.5 ], duration: 0.25 }
+      Live:
+        motion: { clip: live }
+        transitions:
+          - { to: Inert, when: [ CP/Live less 0.5 ], duration: 0.25 }
+    default: Inert
+    layout:
+      nodes: { Inert: [30, 180], Live: [270, 180] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
   # A remote shows the offline lamp until object-sync's word is trustworthy; the wearer never does.
   - name: Offline
     states:
@@ -253,5 +272,7 @@ clips:
       "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Seg2": 0
       "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Seg3": 0
       "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Seg4": 100
+  inert: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Caps_Retract": 100, "TwoHandProp/Body/Display/Panel/Armature/Panel/Buttons/VRCPhysBone.m_Enabled": 0 } }
+  live: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Caps_Retract": 0, "TwoHandProp/Body/Display/Panel/Armature/Panel/Buttons/VRCPhysBone.m_Enabled": 1 } }
   offline: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Offline": 100 } }
   online: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Offline": 0 } }

@@ -52,10 +52,17 @@ THE LAYERS
               while the slider is held, so the lit segment follows the hand; nothing samples at release.
   Lamps       one state: a Direct tree weighted by CP/One, a 1D tree per button on ControlPanel/Btn<i> and one
               1D tree on ControlPanel/Slot whose child k raises Lamp_Seg<k> and lowers the rest.
+  Live        Inert / Live on <internal>/Live, an AAP the frame's glue writes (1 only once every copy has settled
+              onto the panel's synced rest; the glue's header owns why). Inert switches the Buttons physbone off
+              and raises Caps_Retract, sinking the caps flush with the face; Live reverses both. The crossfade of
+              `retractTime` smooths the shape. The Buttons ladder also requires Live, so a press can never stamp
+              while the chain is off or the caps are still rising. A consumer lifting the controls without the
+              glue must write <internal>/Live itself: at its default 0 the buttons stay sunk and dead.
   Offline     Online / Offline writing Lamp_Offline: offline on a remote copy until object-sync's word is
               trustworthy (not IsLocal, and ObjectSync/Enable or OS/Ready low). A state machine because a tree
               cannot read IsLocal without declaring it float.
-Every state keys every binding its layer owns; Buttons and Slot own none, Lamps and Offline own the shapes.
+Every state keys every binding its layer owns; Buttons and Slot own none, Lamps, Live and Offline own the shapes,
+Live the Buttons physbone's m_Enabled too.
 
 CONFIG
 ------
@@ -84,6 +91,8 @@ CONFIG
                 state (the shipped value: a brush then toggles a cap, and nothing delays the stamp).
   cooldown      seconds between a release and the next accepted press.
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
+  retractTime   seconds the caps take to rise out of the face or sink flush into it when <internal>/Live changes
+                (the Live layer's crossfade).
   slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it),
                 chain radius and `pull` [EMPIRICAL]: the rate the knob glides toward its rest or pose when nothing holds
                 it, a time constant near 1/(60 pull) seconds whatever the frame rate (measured: residual 79 % after
@@ -121,6 +130,7 @@ CONFIG = {
     "arm": 0,
     "cooldown": 0.25,
     "hysteresis": 0.02,
+    "retractTime": 0.25,
     "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0.01},
     "tag": "ControlPanelPress",
 }
@@ -228,6 +238,9 @@ def document(c):
     LB = [f"{shape}Lamp_Btn{i + 1}" for i in range(nb)]
     LS = [f"{shape}Lamp_Seg{k}" for k in range(N)]
     LO = f"{shape}Lamp_Offline"
+    LIVE = f"{I}/Live"
+    RETRACT = f"{shape}Caps_Retract"
+    CHAIN = f"{M}/{c['armature']}/Panel/Buttons/VRCPhysBone.m_Enabled"
     h = c["hysteresis"]
 
     L = []
@@ -256,6 +269,7 @@ def document(c):
         o(f"  {p}: float   # sensing: a local-only receiver's press depth reading")
     o(f"  {STRETCH}: float   # sensing: the slider physbone ({I}/Slider)")
     o(f"  {ONE}: {{ type: float, default: 1, scratch: true }}   # the Direct tree's constant weight")
+    o(f"  {LIVE}: {{ type: float, default: 0, aap: true }}   # the frame's gate, written by the glue; matches its declaration")
     o("  # Shared with the object-sync build through the one component; declarations match the entry's.")
     o("  ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }")
     o("  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }")
@@ -272,10 +286,10 @@ def document(c):
     arm = c["arm"] > 0
     for i in range(nb):
         if arm:
-            o(f"          - {{ to: Arm{i + 1}, when: [ {PRESS[i]} greater {press} ] }}")
+            o(f"          - {{ to: Arm{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press} ] }}")
         else:
-            o(f"          - {{ to: Set{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
-            o(f"          - {{ to: Clear{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
+            o(f"          - {{ to: Set{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
+            o(f"          - {{ to: Clear{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
     if arm:
         o("      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp")
         o("      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.")
@@ -358,6 +372,25 @@ def document(c):
         o(f"                - {{ clip: seg{k}, threshold: {k} }}")
     o("    default: Lamps")
     o("")
+    # ---- Live ----
+    o("  # Caps sunk and the chain off until the frame's glue says every copy has settled; the crossfade smooths the caps.")
+    o("  - name: Live")
+    o("    states:")
+    o("      Inert:")
+    o("        motion: { clip: inert }")
+    o("        transitions:")
+    o(f"          - {{ to: Live, when: [ {LIVE} greater 0.5 ], duration: {c['retractTime']} }}")
+    o("      Live:")
+    o("        motion: { clip: live }")
+    o("        transitions:")
+    o(f"          - {{ to: Inert, when: [ {LIVE} less 0.5 ], duration: {c['retractTime']} }}")
+    o("    default: Inert")
+    o("    layout:")
+    o("      nodes: { Inert: [30, 180], Live: [270, 180] }")
+    o("      entry: [50, 120]")
+    o("      any: [50, 40]")
+    o("      exit: [50, 80]")
+    o("")
     # ---- Offline ----
     o("  # A remote shows the offline lamp until object-sync's word is trustworthy; the wearer never does.")
     o("  - name: Offline")
@@ -392,6 +425,8 @@ def document(c):
         o("    set:")
         for j in range(N):
             o(f'      "{LS[j]}": {100 if j == k else 0}')
+    o(f'  inert: {{ set: {{ "{RETRACT}": 100, "{CHAIN}": 0 }} }}')
+    o(f'  live: {{ set: {{ "{RETRACT}": 0, "{CHAIN}": 1 }} }}')
     o(f'  offline: {{ set: {{ "{LO}": 100 }} }}')
     o(f'  online: {{ set: {{ "{LO}": 0 }} }}')
     return "\n".join(L) + "\n"

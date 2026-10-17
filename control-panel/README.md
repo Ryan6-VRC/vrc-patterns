@@ -11,11 +11,12 @@ The rest of the prefab is the worked example of carrying and placing the control
 
 ## How it works
 
-- The panel rides `two-hand-prop`'s tilting prop. Each end carries an invisible grab handle: one hand carries the panel, two hands turn and tilt it, and a second player can steer while you hold it.
+- The panel rides `two-hand-prop`'s tilting prop. Each end carries an invisible grab handle: one hand carries the panel, two hands turn and tilt it, and a second player can steer while you hold it. The face is mounted tipped 45° toward the holder, since the two-hand carry keeps the panel level side to side. At home it follows the hips' heading but never their lean, so a grab from home starts level.
 - Let go and the panel stays where it is. Your own client measures where it rests and sends that over `object-sync`'s synced position (its **word**), so every other client and every late joiner places it on that spot.
 - Each button is a short physbone bone pointing out of the face, its cap skinned to the tip. A hand pushing the cap squashes the bone along its length (the physbone's squish). Grabbing is off and collision is on, so any player's hand presses it, yours included.
 - Only your client reads the presses. A local-only receiver on each cap measures how far it is pushed down against a local-only sender lying at full-press depth under the button row. The panel senses its own parts, never the presser's hand.
-- A press held for a moment toggles that button's synced on/off value, written by your client alone. Every client lights the button's lamp from the bool.
+- A press toggles that button's synced on/off value, written by your client alone. Every client lights the button's lamp from the bool.
+- The buttons work only on a set-down panel that every copy has settled onto. Carried, at home, or for a few seconds after a drop, the caps sink flush with the face and the button chain is off, so a hand goes straight through them. Each other player's copy replays your drop through its own delayed view of your hands, and a press judged on your copy before theirs settles would land on a different cap than the one they see. So your copy waits out their whole settle before the caps rise, and each other copy raises its caps once it has settled itself.
 - The slider is one stretchy physbone bone along the slot, with the knob skinned to its tip. Grab the knob, slide it, and let go while posing it (a **pose release**, VRChat's own) to leave it there. Your client turns the knob's position into a synced slot number while you slide, with a margin past each boundary so the number does not flicker.
 - The lamps are small glowing discs on the one mesh, each raised through the face by its own blendshape: one per button, one per slot, and an **offline lamp** another player's copy (the panel as their client draws it) shows until it has received the panel's synced position.
 - What crosses the network: the on/off switch, whether the panel has left its rest on the avatar, which handle was grabbed first, the button bools, the slot number, and `object-sync`'s own switch and word (§Performance stats).
@@ -46,7 +47,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **In the editor the panel sits where it was authored, not at its home.** The constraints on `TwoHandProp/Body` ship switched off and the animator switches them on in play. Never enable or Activate the two constraints on the prefab root: they ship disabled at zero offsets and a VRCFury `ApplyDuringUpload` turns them on at build.
 - **Do not rename anything inside the prefab.** The animations find their targets by path (§Traps).
 - **A late joiner sees a set-down panel where it was left, or glides to it.** A panel at home shows at home. When the "away from home" bit arrives during the joiner's boot dwell, the panel stays hidden until the copy has the word, then appears there. A bit that lands after the dwell shows the panel at home first, then glides from home to the word (`grab-sync`'s accepted shape).
-- **The buttons also work while the panel is carried.** A carried panel lags behind its carrier's hand on other clients, so a press on it lags more; whether to sense only while it is set down is open (§What is not proven here).
+- **After a drop the buttons stay dead for `bridge + settle + liveMargin` seconds** on your copy (about 4 s as shipped), then the caps rise. Another player's copy raises its own caps `liveMargin` earlier, so a player who presses the moment they see caps up can still be early by up to that margin plus their own frame-rate-dependent glide.
 
 ## Performance stats
 
@@ -82,6 +83,9 @@ Two generators carry the knobs: `controls/generate.py` for the controls, `genera
 | `rigSeed` (frame) | The `object-sync` build's contact tags and park position, which move together. Unique among the avatar's `object-sync` builds |
 | `bridge` (frame) | Seconds another player's copy holds its own replay of a release before it trusts the word: two word refreshes, Park's glide and a margin. Re-derive it, as its CONFIG comment gives, whenever the `object-sync` build's batch count or `syncDamp` changes |
 | `acquire`, `resumeGrab` (frame) | Seconds a late joiner stays hidden while it settles onto the word, and seconds the panel stays hidden while a grab taken during a resume settles. Each covers a slow client's few frames with margin |
+| `settle`, `liveMargin` (frame) | `settle` is another player's copy's inert wait after it starts gliding onto the word, sized to the glide closing a hand's worth of replay error to a millimetre at a low frame rate; `liveMargin` covers the wire's delay between your release and their copy seeing it. Your copy's buttons go live `bridge + settle + liveMargin` after a drop. Shorter makes the panel usable sooner and risks a press landing on the wrong cap for a player whose copy has not settled |
+| `tilt` (frame) | Degrees the face is mounted about the handle axis; negative tips it toward the holder's side when handle A is in the left hand. The carry keeps the panel level side to side, so this is its only resting tilt, at home included. `--check` holds the `Panel` instance's rotation to it |
+| `retractTime` (controls) | Seconds the caps take to sink flush or rise when the buttons go dead or live |
 | `syncDamp` (frame) | How fast another player's copy glides from its replayed rest onto the word, per frame. Higher steps visibly; lower glides past one word refresh, so steps stack into a trailing lag. Frame-rate dependent (`spring-damping` README §Framerate dependence) |
 | `handleSpacing` (frame) | The distance between the handles, set on every copy site `two-hand-prop` README §Knobs lists that this prefab keeps; `--check` holds each. Wider lengthens `two-hand-prop`'s handoff slide. The mesh's grips (`grips` in the frame's geometry) must sit at the handles, so a change rebuilds the mesh |
 | Panel geometry (frame: `plate`, `grips`, `knob`, `buttonLamps`, `segments`, `offline`, `labelStrip`) | The mesh-only layout, emitted as `rig.json` for the Blender build beside the button and slider layout read from the controls CONFIG (§Traps). `plate`'s width must equal the controls CONFIG's `face`; the frame generator refuses a mismatch |
@@ -140,7 +144,6 @@ Everything below needs the shipping client:
 - **A stranger's real hand on the buttons:** press depth, brush rejection, a double press across neighbouring caps, cap size against real hand colliders (which vary per avatar), and the feel of the round trip to the lamp.
 - **The press thresholds against the client's receiver refresh**, which can skip frames the emulator never skips, so a light tap that crosses `press` for a frame or two may go unseen.
 - **Join order:** you joining after the presser and the press still reading, which the self-sensing readout is built to guarantee.
-- **A press on a carried panel**, which decides whether the buttons should sense only while it is set down.
 - **What a plain release does to a knob that was posed before the grab**, and two players reaching for the knob at once.
 - **The handles under delayed remote hands**, the size of each client's replay drift, and a release into `bridge` after a grab the copy saw.
 
@@ -163,7 +166,8 @@ Everything below needs the shipping client:
 1. Copy `controls/` and the assets `Panel.prefab` uses from `assets/` (`ControlPanel.fbx`, `ControlPanel.mat`, the two atlas PNGs). Re-GUID every copied `.meta` that would collide with this entry's, `built/` included, and repoint the copy (`CONVENTIONS.md` §An entry is a folder).
 2. Set `mountPath` to where your `Panel` instance hangs below your FullController's GameObject; on an avatar that also carries `ControlPanel.prefab`, change `prefix`, `internal` and `tag` too. Regenerate and recompile.
 3. Add the controls controller and its parameters to your FullController, and `<prefix>/*` to its `globalParams`.
-4. The offline lamp reads `ObjectSync/Enable` and `OS/Ready`, which only an `object-sync` build merged in the **same** FullController provides; without one, every other player's copy shows the offline lamp for good. Merge your build there, with the controls ahead of it in both lists. The generator has no switch to leave the offline layer out.
+4. Write `<internal>/Live` (a float the controls declare at 0) from your own controller: 1 where a press may count, 0 elsewhere. At 0 the caps stay sunk and the chain off, so without a writer the buttons are dead. The entry's glue writes it 1 only once every copy has settled onto the word.
+5. The offline lamp reads `ObjectSync/Enable` and `OS/Ready`, which only an `object-sync` build merged in the **same** FullController provides; without one, every other player's copy shows the offline lamp for good. Merge your build there, with the controls ahead of it in both lists. The generator has no switch to leave the offline layer out.
 
 ## Verifying the install
 
@@ -173,7 +177,7 @@ Enable on, in play: the panel rests at `HomeAnchor/Offset` on the hips. At the a
 
 Carry it and let go: it stays in the world. A panel that drifts with the avatar after release means the root pin's `ApplyDuringUpload` never fired. A drop that springs back to where the grab began means the release frame is being read live: a source was added to a `two-hand-prop` constraint, or a carry node left `Body` (`two-hand-prop` README §Traps). The release is only trustworthy driven from `Update()` (`emulator.md` §Induce a physbone grab/pose).
 
-Press a cap with a scripted collider: `CP/Press<i>` rises with depth, the button's bool flips the frame the reading passes the press threshold (or after `arm`, when it is set), and its lamp rises. The collider reaches the solver only once it is in the button physbone's `colliders` list and the physbone component has been cycled; never cycle the `Buttons` GameObject, which re-registers the receivers with the sender already inside them and leaves every reading at 0 for the session. A press that never stamps has three causes: a reading stuck at 0 (the receiver left its bone end, or its tag differs from the sender's), a reading that never reaches `press` (the press popped through), or another cap resting down. A bool that flips with a dark lamp means the lamp animations no longer find the mesh (§Traps). Only your own copy stamps; a clone never does.
+Set the panel down and wait: the caps rise about 4 s later on your copy and a clone's about 0.5 s sooner, and before then a scripted collider passes through them without a reading. The emulator's parameter list does not show `CP/Live`; read the Buttons physbone's `enabled` and the `Caps_Retract` weight instead. Then press a cap with a scripted collider: `CP/Press<i>` rises with depth, the button's bool flips the frame the reading passes the press threshold (or after `arm`, when it is set), and its lamp rises. The collider reaches the solver only once it is in the button physbone's `colliders` list and the physbone component has been cycled; never cycle the `Buttons` GameObject, which re-registers the receivers with the sender already inside them and leaves every reading at 0 for the session. A press that never stamps has three causes: a reading stuck at 0 (the receiver left its bone end, or its tag differs from the sender's), a reading that never reaches `press` (the press popped through), or another cap resting down. A bool that flips with a dark lamp means the lamp animations no longer find the mesh (§Traps). Only your own copy stamps; a clone never does.
 
 Grab the knob, slide it and pose-release it: `ControlPanel/Slot` steps as the knob crosses each boundary and the lit segment follows. Spawn a non-local clone (`emulator.md` §Remote clone): its lamps follow your bools and slot a sync tick later, and its offline lamp is lit until its `OS/Ready` rises and dark after. An offline lamp that never clears on a clone means its word is not arriving or `ObjectSync/Enable` is off (§Traps, both orders).
 
@@ -194,13 +198,15 @@ The prefabs are the shipped artifacts; `generate.py`'s docstring is the construc
     │  │  │     │  │  └─ Btn<i>/Btn<i>_End   one chain per button; the cap skins to the end, which carries
     │  │  │     │  │                         the local-only face-mode receiver CP/Press<i>
     │  │  │     │  └─ Slider/Slider_End  the posable stretch VRCPhysBone CP/Slider; the knob skins to the end
-    │  │  │     └─ ControlPanel        the one skinned mesh: the lamp blendshapes, one material
+    │  │  │     └─ ControlPanel        the one skinned mesh: the lamp blendshapes and Caps_Retract, one material
     │  │  └─ CarryA, CarryB, AimNode, RestA, RestB   two-hand-prop's carry nodes
     │  ├─ HolderA, HolderB       the invisible grab handles
     │  └─ HomeAnchor             MA BoneProxy → Hips
     │     └─ Offset              the home rest
-    ├─ Park                      position + rotation constraint over [HomeAnchor/Offset, ObjectSync/Sync,
-    │                            Park itself, Body]; the glue animates the weights
+    ├─ HomeLevel                 rotation constraint on HomeAnchor/Offset, Y only: the home rest's heading
+    │                            without the hips' lean
+    ├─ Park                      position + rotation constraint over [HomeAnchor/Offset (HomeLevel for the
+    │                            rotation), ObjectSync/Sync, Park itself, Body]; the glue animates the weights
     └─ ObjectSync                nested object-sync/ObjectSync.prefab (one object, full rotation): its
                                  FullController, Toggles, ApplyDuringUpload and pin removed; re-parked and
                                  retagged to rigSeed; Sync_Target ← Body, so the wearer measures the panel

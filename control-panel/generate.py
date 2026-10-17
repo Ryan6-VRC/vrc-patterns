@@ -52,8 +52,14 @@ The prefab is the artifact; this is the recipe it was made by, and `--check` hol
                    to CONFIG handleSpacing on every copy site two-hand-prop's README §Knobs lists (RestA/B,
                    CarryA/B, OffA/B, AimNode, HolderA/B and the PositionAtRest of the constraints on
                    CarryA/B, AimNode, HolderA/B). Added: a connected instance of controls/Panel.prefab
-                   under Body/Display, named Panel, at identity (the lift unit; its bindings resolve here).
-  Park             as above, four sources; Locked, zero offsets, rest weights HOME.
+                   under Body/Display, named Panel, at the origin rotated CONFIG tilt about X (the lift unit; its bindings
+                   resolve here).
+  Park             as above, four sources; Locked, zero offsets, rest weights HOME. Its rotation constraint's
+                   source0 is HomeLevel instead of HomeAnchor/Offset.
+  HomeLevel        a child of the pinned root: one VRCRotationConstraint over TwoHandProp/HomeAnchor/Offset,
+                   AffectsRotation Y only, Locked, zero offsets. The home rest's heading without its lean, so a
+                   panel at home stays level when the wearer leans and a grab from home starts level
+                   (runtime.md §Constraints, the rotation-axis-mask bullet; compositions/grab-sync's home mux).
   ObjectSync       nested ../object-sync/ObjectSync.prefab (the entry root: one object, full rotation).
                    Removed: its root FullController, Toggle, ApplyDuringUpload and pin pair (the shared root
                    component, the root Toggle and the root pin replace them), and the Drop Toggle on
@@ -65,6 +71,7 @@ The prefab is the artifact; this is the recipe it was made by, and `--check` hol
 
 import importlib.util
 import json
+import math
 import os
 import re
 import sys
@@ -101,6 +108,20 @@ CONFIG = {
     # client's few frames.
     "acquire": 0.15,
     "resumeGrab": 0.1,
+    # The buttons are live only once every copy has settled onto the word, because each other player's copy
+    # replays the drop through its own IK-delayed view of the hands and a press judged on the wearer's copy
+    # before theirs settles lands on a different cap than the one they see.
+    #   settle      a remote's inert dwell in Synced while Park glides its replayed drop onto the word; the
+    #               glide keeps 1/(1+syncDamp) of the gap per frame, so 5 cm closes to 1 mm in about 41 frames,
+    #               0.9 s at 45 fps. [EMPIRICAL]
+    #   liveMargin  the wire's latency between the wearer's release and a remote seeing it. [EMPIRICAL]
+    # The wearer's buttons go live `bridge + settle + liveMargin` after a drop (the Dropped dwell).
+    "settle": 1.0,
+    "liveMargin": 0.5,
+    # The panel's mount under Body/Display: degrees about X, the handle axis. Negative tips the face toward -Z,
+    # the holder's side when handle A is in the left hand. The two-hand carry keeps roll level with the world,
+    # so this is the only tilt the panel has, carried, set down or at home.
+    "tilt": -45,
     # Park's damped word weight against its self source of 1 in Synced and Bridge. [EMPIRICAL] A per-frame
     # keep of 1/(1+w): sized so a word step finishes gliding inside one word refresh, so steps never stack
     # into a trailing lag. Lower glides longer than a refresh; higher steps visibly. Frame-rate dependent
@@ -188,6 +209,7 @@ def rig(c, cc):
         "handleSpacing": c["handleSpacing"],
         "buttons": b,
         "buttonLamps": dict(bl, shapes=[f"Lamp_{name}" for name in names["buttons"]]),
+        "capRetract": {"shape": "Caps_Retract", "depth": cb["travel"]},
         "slider": s,
         "segments": dict(sg, shapes=[f"Lamp_Seg{k}" for k in range(n)]),
         "offline": dict(of, shape="Lamp_Offline"),
@@ -212,26 +234,28 @@ def park_sets(c):
     return {"HOME": (1, 0, 0, 0), "ACQUIRE": (0, 1, 0, 0), "SYNC": (0, w, 1, 0), "BRIDGE": (0, 0, 0, 1)}
 
 
-# (glue clip, cell clip it transcribes, Park set, Display override or None, length key or None, note).
-# A length key of None keeps the cell clip's own length.
+# (glue clip, cell clip it transcribes, Park set, Display override or None, length key or None, live, note).
+# A length key of None keeps the cell clip's own length; `live` is the clip's write of the controls' <internal>/Live.
 CLIPS = (
-    ("timer", "timer", "HOME", None, None, "cell `timer` + Park HOME  [EMPIRICAL: the remote settle dwell is the cell's]"),
-    ("disabled", "disabled", "HOME", None, None, "cell `disabled` + Park HOME"),
-    ("home", "home", "HOME", None, None, "cell `home` + Park HOME: Body rides Park, Park rides HomeAnchor/Offset"),
-    ("heldA", "heldA", "HOME", None, None, "cell `heldA` + Park HOME"),
-    ("heldB", "heldB", "HOME", None, None, "cell `heldB` + Park HOME"),
-    ("bothA", "bothA", "HOME", None, None, "cell `bothA` + Park HOME"),
-    ("bothB", "bothB", "HOME", None, None, "cell `bothB` + Park HOME"),
-    ("handoffToA", "handoffToA", "HOME", None, None, "cell `handoffToA` + Park HOME  [EMPIRICAL: the cell's dwell and damper]"),
-    ("handoffToB", "handoffToB", "HOME", None, None, "cell `handoffToB` + Park HOME  [EMPIRICAL: the cell's dwell and damper]"),
-    ("dropped", "dropped", "HOME", None, None, "cell `dropped` + Park HOME: the wearer's hold"),
-    ("waiting", "waiting", "HOME", None, None, "cell `waiting` + Park HOME: hidden, never shown at a guessed spot"),
-    ("bridge", "dropped", "BRIDGE", None, "bridge", "cell `dropped` + Park BRIDGE: the remote holds its replayed drop and Park copies it rigidly  [EMPIRICAL: dwell = clip length]"),
-    ("synced", "home", "SYNC", 1, None, "cell `home` + Park SYNC: Body rides Park, Park glides from the replayed drop onto the word"),
-    ("acquire", "home", "ACQUIRE", 0, "acquire", "cell `home` + Park ACQUIRE, hidden: Park and Body flush onto the word  [EMPIRICAL: dwell = clip length]"),
-    ("resume", "home", "ACQUIRE", 0, "bridge", "cell `home` + Park ACQUIRE, hidden: the cull park  [EMPIRICAL: dwell = clip length = bridge]"),
-    ("resume_grabA", "heldA", "ACQUIRE", 0, "resumeGrab", "cell `heldA` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]"),
-    ("resume_grabB", "heldB", "ACQUIRE", 0, "resumeGrab", "cell `heldB` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]"),
+    ("timer", "timer", "HOME", None, None, 0, "cell `timer` + Park HOME  [EMPIRICAL: the remote settle dwell is the cell's]"),
+    ("disabled", "disabled", "HOME", None, None, 0, "cell `disabled` + Park HOME"),
+    ("home", "home", "HOME", None, None, 0, "cell `home` + Park HOME: Body rides Park, Park rides HomeAnchor/Offset"),
+    ("heldA", "heldA", "HOME", None, None, 0, "cell `heldA` + Park HOME"),
+    ("heldB", "heldB", "HOME", None, None, 0, "cell `heldB` + Park HOME"),
+    ("bothA", "bothA", "HOME", None, None, 0, "cell `bothA` + Park HOME"),
+    ("bothB", "bothB", "HOME", None, None, 0, "cell `bothB` + Park HOME"),
+    ("handoffToA", "handoffToA", "HOME", None, None, 0, "cell `handoffToA` + Park HOME  [EMPIRICAL: the cell's dwell and damper]"),
+    ("handoffToB", "handoffToB", "HOME", None, None, 0, "cell `handoffToB` + Park HOME  [EMPIRICAL: the cell's dwell and damper]"),
+    ("dropped", "dropped", "HOME", None, "live", 0, "cell `dropped` + Park HOME: the wearer's hold, buttons inert  [EMPIRICAL: dwell = clip length = live]"),
+    ("placed", "dropped", "HOME", None, None, 1, "cell `dropped` + Park HOME: the wearer's hold, buttons live"),
+    ("waiting", "waiting", "HOME", None, None, 0, "cell `waiting` + Park HOME: hidden, never shown at a guessed spot"),
+    ("bridge", "dropped", "BRIDGE", None, "bridge", 0, "cell `dropped` + Park BRIDGE: the remote holds its replayed drop and Park copies it rigidly  [EMPIRICAL: dwell = clip length]"),
+    ("synced", "home", "SYNC", 1, "settle", 0, "cell `home` + Park SYNC: Body rides Park, Park glides from the replayed drop onto the word, buttons inert  [EMPIRICAL: dwell = clip length = settle]"),
+    ("syncedLive", "home", "SYNC", 1, None, 1, "cell `home` + Park SYNC, settled: buttons live"),
+    ("acquire", "home", "ACQUIRE", 0, "acquire", 0, "cell `home` + Park ACQUIRE, hidden: Park and Body flush onto the word  [EMPIRICAL: dwell = clip length]"),
+    ("resume", "home", "ACQUIRE", 0, "bridge", 0, "cell `home` + Park ACQUIRE, hidden: the cull park  [EMPIRICAL: dwell = clip length = bridge]"),
+    ("resume_grabA", "heldA", "ACQUIRE", 0, "resumeGrab", 0, "cell `heldA` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]"),
+    ("resume_grabB", "heldB", "ACQUIRE", 0, "resumeGrab", 0, "cell `heldB` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]"),
 )
 
 
@@ -265,17 +289,23 @@ def parse_clips(path):
     return clips
 
 
+def live_param():
+    return f"{controls().CONFIG['internal']}/Live"
+
+
 def emit_clips(c):
     cell = parse_clips(CELL_DOC)
     sets = park_sets(c)
+    lens = dict(c, live=c["bridge"] + c["settle"] + c["liveMargin"])
+    live = live_param()
     out = []
-    for name, src, pset, disp, lkey, note in CLIPS:
+    for name, src, pset, disp, lkey, lv, note in CLIPS:
         if src not in cell:
             refuse(f"two-hand-prop/controller.yaml has no clip `{src}`; `{name}` transcribes it.")
         e = cell[src]
         if DISPLAY not in e["set"]:
             refuse(f"two-hand-prop clip `{src}` no longer writes {DISPLAY}; the glue's show/hide carve rides it.")
-        length = c[lkey] if lkey else (float(e["len"]) if e["len"] else None)
+        length = lens[lkey] if lkey else (float(e["len"]) if e["len"] else None)
         head = f"  {name}:"
         out.append(head + " " * max(1, 16 - len(head)) + "# " + note)
         if length is not None:
@@ -287,6 +317,7 @@ def emit_clips(c):
             out.append(f'      "{CELL}/{k}": {v}')
         for k, v in zip(PARK_KEYS, sets[pset] * 2):
             out.append(f'      "{k}": {_num(v)}')
+        out.append(f'      "{live}": {lv}')
     return out
 
 
@@ -366,14 +397,25 @@ def check(c):
     sets = park_sets(c)
     A(all(len(v) == 4 for v in sets.values()), f"every Park value-set spans Park's four sources ({sets})")
     home = sets["HOME"]
-    for has, label in ((r"^  PositionAtRest:(?![\s\S]*RotationAtRest)", "position"), (r"^  RotationAtRest:", "rotation")):
+    for has, label, h0 in ((r"^  PositionAtRest:(?![\s\S]*RotationAtRest)", "position", f"{CELL}/HomeAnchor/Offset"),
+                           (r"^  RotationAtRest:", "rotation", "HomeLevel")):
         cs = [d for d in P.components("Park", r"^  Sources:") if re.search(has, d, re.M)]
         if A(len(cs) == 1, f"Park carries one {label} constraint"):
-            want = [(f"{CELL}/HomeAnchor/Offset", home[0], None, None), (f"{SYNC_MOUNT}/Sync", home[1], None, None),
+            want = [(h0, home[0], None, None), (f"{SYNC_MOUNT}/Sync", home[1], None, None),
                     ("Park", home[2], None, None), (f"{CELL}/Body", home[3], None, None)]
             bad = ls.source_faults(P.sources(cs[0]), want) + ls.own_offsets(cs[0])
             A(not bad and ls.field(cs[0], "Locked") == "1",
-              f"Park {label} sources [HomeAnchor/Offset, Sync, self, Body] at {list(home)}, zero offsets, Locked" + (f": {bad}" if bad else ""))
+              f"Park {label} sources [{h0.rsplit('/', 2)[-2] + '/' if '/' in h0 else ''}{h0.rsplit('/', 1)[-1]}, Sync, self, Body] at {list(home)}, zero offsets, Locked" + (f": {bad}" if bad else ""))
+
+    # HomeLevel: the home rest's heading only, so a lean at the hips never tilts the panel at home, and a grab
+    # from home (the one-hand carry freezes the attitude it starts from) never starts tilted.
+    hl = P.components("HomeLevel", r"^  Sources:")
+    if A(len(hl) == 1 and re.search(r"^  RotationAtRest:", hl[0], re.M), "HomeLevel carries one rotation constraint"):
+        d = hl[0]
+        bad = ls.source_faults(P.sources(d), [(f"{CELL}/HomeAnchor/Offset", 1, None, None)]) + ls.own_offsets(d)
+        axes = [ls.field(d, f"AffectsRotation{a}") for a in "XYZ"]
+        A(not bad and axes == ["0", "1", "0"] and ls.field(d, "Locked") == "1",
+          f"HomeLevel: one source HomeAnchor/Offset at 1, Y only, zero offsets, Locked (axes {axes}{': ' + str(bad) if bad else ''})")
 
     # Every constraint authored here fills exactly its totalLength slots.
     for i, (cls, d) in P.docs.items():
@@ -383,7 +425,7 @@ def check(c):
             A(filled == int(m.group(1)), f"&{i}: totalLength {m.group(1)} == filled slots {filled}")
 
     check_cell(c, ls, P, A)
-    check_panel(ls, P, A)
+    check_panel(ls, P, A, c)
     check_sync(c, og, ls, P, A)
     print("OK" if ok else "FAILED")
     return ok
@@ -478,9 +520,9 @@ def check_cell(c, ls, P, A):
     A(not bad, f"handle spacing: PositionAtRest.x on CarryA/B, AimNode, HolderA/B (off: {bad})")
 
 
-def check_panel(ls, P, A):
+def check_panel(ls, P, A, c):
     """The controls subtree: one connected instance of controls/Panel.prefab, named Panel, under
-    TwoHandProp/Body/Display at identity, where the controls controller's bindings resolve."""
+    TwoHandProp/Body/Display at the origin, rotated CONFIG tilt about X, where the controls controller's bindings resolve."""
     got = nested(ls, P, "control-panel/controls/Panel.prefab")
     if not A(got, "ControlPanel.prefab nests control-panel/controls/Panel.prefab once"):
         return
@@ -488,11 +530,14 @@ def check_panel(ls, P, A):
     A(next((v.strip() for f, g, pp, v, ref in mods if pp == "m_Name"), None) == "Panel", "the controls instance is named 'Panel'")
     tp = re.search(r"m_TransformParent: \{fileID: (-?\d+)\}", sb)
     A(tp and P.path_of(int(tp.group(1))) == f"{CELL}/Body/Display", f"the controls instance hangs under {CELL}/Body/Display")
-    want = {"m_LocalPosition.x": 0, "m_LocalPosition.y": 0, "m_LocalPosition.z": 0, "m_LocalRotation.x": 0,
-            "m_LocalRotation.y": 0, "m_LocalRotation.z": 0, "m_LocalRotation.w": 1, "m_LocalScale.x": 1,
+    half = math.radians(c["tilt"]) / 2
+    want = {"m_LocalPosition.x": 0, "m_LocalPosition.y": 0, "m_LocalPosition.z": 0, "m_LocalRotation.x": math.sin(half),
+            "m_LocalRotation.y": 0, "m_LocalRotation.z": 0, "m_LocalRotation.w": math.cos(half), "m_LocalScale.x": 1,
             "m_LocalScale.y": 1, "m_LocalScale.z": 1}
     tfm = {pp: float(v) for f, g, pp, v, ref in mods if pp in want and nm(f, g) == "Panel" and "m_Father" in body(f, g)}
-    A(all(abs(v - want[pp]) < 1e-6 for pp, v in tfm.items()), f"the controls instance's root sits at identity ({tfm})")
+    unset = {"m_LocalRotation.w": 1}
+    A(all(abs(tfm.get(pp, unset.get(pp, 0)) - v) < 1e-5 for pp, v in want.items() if pp.startswith(("m_LocalPosition", "m_LocalRotation"))),
+      f"the controls instance's root sits at the origin, tilted {c['tilt']} degrees about X ({tfm})")
     other = sorted({pp for f, g, pp, v, ref in mods if pp not in want and pp != "m_Name" and not pp.startswith("m_LocalEulerAnglesHint")})
     removed = re.findall(r"m_Removed(?:Components|GameObjects): \[\]", sb)
     A(not other and len(removed) == 2, f"the controls instance carries no other override or removal ({other})")

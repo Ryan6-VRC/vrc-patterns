@@ -430,6 +430,13 @@ for shape in BL["shapes"] + SG["shapes"] + [OFF["shape"]]:
     for i in shape_verts[shape]:
         kb.data[i].co.z += LAMP_DY        # Unity +Y is Blender +Z
     kb.value = 0.0
+# The caps sink flush with the face while the buttons are inert; skinned to the chain tips, so the shape is the
+# offset from the tip's rest and the squish range already proves the sunk cap stays inside its well.
+RET = R["capRetract"]
+kb = ob.shape_key_add(name=RET["shape"], from_mix=False)
+for i in [i for i, bn in enumerate(vert_bone) if bn in NAMES["buttonEnds"]]:
+    kb.data[i].co.z -= RET["depth"]
+kb.value = 0.0
 
 os.makedirs(atlas_dir, exist_ok=True)
 write_atlases()
