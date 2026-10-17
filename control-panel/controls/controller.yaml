@@ -3,7 +3,7 @@
 # Published (synced, unsaved, wearer-stamped): ControlPanel/Btn1, ControlPanel/Btn2, ControlPanel/Btn3, ControlPanel/Btn4 (bool on the wire) and ControlPanel/Slot (int on the wire); both
 # float in the animator, because the lamp trees read them as blend parameters.
 # Press accepted at receiver reading 0.727273, held until every reading is under 0.454545 (depth 0.8 / 0.5 of
-# travel over a box 1.1 travels deep). Cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
+# travel over a box 1.1 travels deep). Arm 0.1 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
 
 schema: 1
 controller: ControlPanelControls_Fx
@@ -38,14 +38,36 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Set1, when: [ CP/Press1 greater 0.727273, ControlPanel/Btn1 less 0.5 ] }
-          - { to: Clear1, when: [ CP/Press1 greater 0.727273, ControlPanel/Btn1 greater 0.5 ] }
-          - { to: Set2, when: [ CP/Press2 greater 0.727273, ControlPanel/Btn2 less 0.5 ] }
-          - { to: Clear2, when: [ CP/Press2 greater 0.727273, ControlPanel/Btn2 greater 0.5 ] }
-          - { to: Set3, when: [ CP/Press3 greater 0.727273, ControlPanel/Btn3 less 0.5 ] }
-          - { to: Clear3, when: [ CP/Press3 greater 0.727273, ControlPanel/Btn3 greater 0.5 ] }
-          - { to: Set4, when: [ CP/Press4 greater 0.727273, ControlPanel/Btn4 less 0.5 ] }
-          - { to: Clear4, when: [ CP/Press4 greater 0.727273, ControlPanel/Btn4 greater 0.5 ] }
+          - { to: Arm1, when: [ CP/Press1 greater 0.727273 ] }
+          - { to: Arm2, when: [ CP/Press2 greater 0.727273 ] }
+          - { to: Arm3, when: [ CP/Press3 greater 0.727273 ] }
+          - { to: Arm4, when: [ CP/Press4 greater 0.727273 ] }
+      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp
+      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.
+      Arm1:
+        motion: { clip: arm }
+        transitions:
+          - { to: Idle, when: [ CP/Press1 less 0.727273 ] }
+          - { to: Set1, when: [ ControlPanel/Btn1 less 0.5 ], exitTime: 1.0 }
+          - { to: Clear1, when: [ ControlPanel/Btn1 greater 0.5 ], exitTime: 1.0 }
+      Arm2:
+        motion: { clip: arm }
+        transitions:
+          - { to: Idle, when: [ CP/Press2 less 0.727273 ] }
+          - { to: Set2, when: [ ControlPanel/Btn2 less 0.5 ], exitTime: 1.0 }
+          - { to: Clear2, when: [ ControlPanel/Btn2 greater 0.5 ], exitTime: 1.0 }
+      Arm3:
+        motion: { clip: arm }
+        transitions:
+          - { to: Idle, when: [ CP/Press3 less 0.727273 ] }
+          - { to: Set3, when: [ ControlPanel/Btn3 less 0.5 ], exitTime: 1.0 }
+          - { to: Clear3, when: [ ControlPanel/Btn3 greater 0.5 ], exitTime: 1.0 }
+      Arm4:
+        motion: { clip: arm }
+        transitions:
+          - { to: Idle, when: [ CP/Press4 less 0.727273 ] }
+          - { to: Set4, when: [ ControlPanel/Btn4 less 0.5 ], exitTime: 1.0 }
+          - { to: Clear4, when: [ ControlPanel/Btn4 greater 0.5 ], exitTime: 1.0 }
       Set1:
         motion: { clip: tick }
         behaviours: [ { driver: { localOnly: true, set: { ControlPanel/Btn1: 1 } } } ]
@@ -97,7 +119,7 @@ layers:
           - { to: Idle, when: [], exitTime: 1.0 }
     default: Idle
     layout:
-      nodes: { Idle: [30, 180], Set1: [-330, 260], Set2: [-90, 260], Set3: [150, 260], Set4: [390, 260], Clear1: [-330, 340], Clear2: [-90, 340], Clear3: [150, 340], Clear4: [390, 340], Hold: [30, 440], Cooldown: [30, 520] }
+      nodes: { Idle: [30, 180], Arm1: [-330, 260], Arm2: [-90, 260], Arm3: [150, 260], Arm4: [390, 260], Set1: [-330, 340], Set2: [-90, 340], Set3: [150, 340], Set4: [390, 340], Clear1: [-330, 420], Clear2: [-90, 420], Clear3: [150, 420], Clear4: [390, 420], Hold: [30, 520], Cooldown: [30, 600] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -209,6 +231,7 @@ layers:
 
 clips:
   tick: { seconds: 0.016667 }
+  arm: { seconds: 0.1 }
   cooldown: { seconds: 0.5 }
   btn1_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 0 } }
   btn1_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 100 } }

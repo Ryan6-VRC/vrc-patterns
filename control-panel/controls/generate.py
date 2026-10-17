@@ -14,21 +14,24 @@ One self-contained subtree, `Panel` (the model instance), lifted whole by a cons
   Buttons     the FBX bone under Panel, root of ONE physbone (multiChildType Ignore) over the four button chains
               Btn1..Btn4 -> Btn<i>_End. Angle limit zero, squish on, stretch zero, collision on, grabbing off: a
               hand pushing a cap down compresses that chain. The solver squishes by moving Btn<i>_End along the
-              bone, never by scaling the bone, so a cap skinned to Btn<i>_End travels rigidly.
+              bone, never by scaling the bone, so a cap skinned to Btn<i>_End travels rigidly. Each tip sits inside its
+              cap's dome by the chain radius, so the radius engages at the cap's top and not above it.
   Btn<i>_End  each carries a local-only face-mode box receiver whose +Z face points up the press axis; it reads
               the sender's depth into the box, `rig()['receiver']`. It rides the End directly: nothing scales it.
-  PressSender Unity-side, under the Panel bone: one local-only capsule sender along X lying just under the face,
+  PressSender Unity-side, under the Panel bone: one local-only capsule sender along X lying at bottom-out depth,
               tag `tag`. The readout senses the panel's own parts, never the presser's hand, so it does not care
               which senders a stranger's avatar carries or when they joined.
   Slider      the posed stretch physbone, Slider -> Slider_End along the slot; `CP/Slider_Stretch` is the
-              knob's fraction along the slot, 0 at slot 0's end and 1 at the far end.
-  Knob        a sibling bone the knob skins to, VRCPositionConstraint <- Slider_End.
+              knob's fraction along the slot, 0 at slot 0's end and 1 at the far end. The knob skins to
+              Slider_End, which the solver translates along the slot at unit scale.
 
 THE LAYERS
 ----------
   Buttons     Idle -> the press ladder, Press1 > Press2 > Press3 > Press4, first match wins. A press entering
-              above `press` depth goes to Set<i> when the button reads off and Clear<i> when it reads on (a driver
-              cannot invert), each stamping ControlPanel/Btn<i> wearer-only; then Hold until every receiver is
+              above `press` depth goes to Arm<i>, which falls back to Idle if the reading drops under `press`
+              before `arm` seconds: a hand passing sideways over a cap pushes it down too, and only a press holds the
+              depth. Past the dwell it goes to Set<i> when the button reads off and Clear<i> when it reads on (a
+              driver cannot invert), each stamping ControlPanel/Btn<i> wearer-only; then Hold until every receiver is
               below `release` depth, then Cooldown for `cooldown` seconds, then Idle. The cooldown is the floor
               between two toggles of one button, so it exceeds the wire's set/clear separation. Lifted from
               zone-touch's ladder, hold and cooldown dwell.
@@ -51,12 +54,14 @@ CONFIG
   mountPath     the Panel instance from the FullController's GameObject; every binding is prefixed with it.
   armature      the FBX armature node under the Panel instance (bones live under <armature>/Panel).
   mesh          the skinned mesh node under the Panel instance.
-  buttons       button x positions in the panel frame (one per button), z, bone length and travel (metres).
+  buttons       button x positions in the panel frame (one per button), z, the bones' head height and length,
+                travel, and the chain radius (metres). maxSquish is travel over length.
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every
                 receiver is at or below `release`.
   boxSpan       the receiver box's depth along the press axis, a multiple of travel above 1, so a full press
                 lies inside the box instead of on its top face (a face-mode box reads 0 past either face).
-  senderRadius  the capsule sender's radius; its top surface sits on the face plane (Y = buttons.face).
+  senderRadius  the capsule sender's radius; its top surface sits at the tip's bottom-out height.
+  arm           seconds a press must hold above `press` before it stamps [EMPIRICAL].
   cooldown      seconds between a release and the next accepted press.
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
   slider        the slot's x range, z, the Slider bone's length (its maxStretch is the slot over it).
@@ -77,12 +82,13 @@ CONFIG = {
     "mountPath": "TwoHandProp/Body/Display/Panel",
     "armature": "Armature",
     "mesh": "ControlPanel",
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "head": 0.0, "boneLength": 0.03, "travel": 0.01, "face": 0.02},
+    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01},
     "press": 0.8,
     "release": 0.5,
     "boxSpan": 1.1,
     "boxWidth": 0.02,
     "senderRadius": 0.004,
+    "arm": 0.1,
     "cooldown": 0.5,
     "hysteresis": 0.02,
     "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03},
@@ -108,8 +114,10 @@ def validate(c):
         refuse("one to eight buttons.")
     if b["travel"] <= 0 or b["travel"] >= b["boneLength"]:
         refuse("travel is positive and shorter than the button bone: maxSquish is travel over bone length.")
-    if abs(b["head"] + b["boneLength"] - b["travel"] - b["face"]) > 1e-9:
-        refuse("a cap at full travel must land on the face plane: head + boneLength - travel == face.")
+    if b["radius"] <= 0:
+        refuse("the button chain radius is positive: a radius of 0 neither collides nor grabs.")
+    if not 0 < c["arm"] < c["cooldown"]:
+        refuse("arm is positive and shorter than the cooldown.")
     if not 0 < c["release"] < c["press"] <= 1:
         refuse("0 < release < press <= 1: the hold band needs a gap.")
     if c["boxSpan"] <= 1 or c["press"] / c["boxSpan"] >= 1:
@@ -132,7 +140,7 @@ def r6(v):
 
 
 def rig(c):
-    """Every number the Unity-side controls subtree is built to (contacts, physbones, constraint)."""
+    """Every number the Unity-side controls subtree is built to (contacts, physbones)."""
     validate(c)
     b, s = c["buttons"], c["slider"]
     span = b["travel"] * c["boxSpan"]
@@ -149,10 +157,12 @@ def rig(c):
                      "params": [f"{c['internal']}/Press{i + 1}" for i in range(len(b["x"]))]},
         "sender": {"shape": "Capsule", "radius": c["senderRadius"],
                    "height": r6(max(b["x"]) - min(b["x"]) + c["boxWidth"] + 2 * c["senderRadius"]),
-                   "position": [r6((max(b["x"]) + min(b["x"])) / 2), r6(b["face"] - c["senderRadius"]), b["z"]],
+                   "position": [r6((max(b["x"]) + min(b["x"])) / 2), r6(tip - b["travel"] - c["senderRadius"]), b["z"]],
                    "rotation": [0, 0, 90], "localOnly": True, "tag": c["tag"]},
         "thresholds": {"press": r6(c["press"] / c["boxSpan"]), "release": r6(c["release"] / c["boxSpan"])},
-        "buttonsPhysBone": {"maxSquish": r6(b["travel"] / b["boneLength"]), "maxStretch": 0, "parameter": f"{c['internal']}/Buttons"},
+        "buttonsPhysBone": {"maxSquish": r6(b["travel"] / b["boneLength"]), "maxStretch": 0, "radius": b["radius"],
+                            "parameter": f"{c['internal']}/Buttons"},
+        "buttonTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"])},
         "sliderPhysBone": {"maxStretch": r6((s["x"][1] - s["x"][0]) / s["boneLength"]), "maxSquish": 0, "parameter": f"{c['internal']}/Slider"},
     }
 
@@ -178,7 +188,7 @@ def document(c):
     o(f"# Published (synced, unsaved, wearer-stamped): {', '.join(BTN)} (bool on the wire) and {SLOT} (int on the wire); both")
     o("# float in the animator, because the lamp trees read them as blend parameters.")
     o(f"# Press accepted at receiver reading {press}, held until every reading is under {release} (depth {c['press']} / {c['release']} of")
-    o(f"# travel over a box {c['boxSpan']} travels deep). Cooldown {c['cooldown']} s. Slot hysteresis {h} of the slider's length.")
+    o(f"# travel over a box {c['boxSpan']} travels deep). Arm {c['arm']} s, cooldown {c['cooldown']} s. Slot hysteresis {h} of the slider's length.")
     o("")
     o("schema: 1")
     o(f"controller: {c['controller']}")
@@ -211,8 +221,16 @@ def document(c):
     o("        motion: ~")
     o("        transitions:")
     for i in range(nb):
-        o(f"          - {{ to: Set{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
-        o(f"          - {{ to: Clear{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
+        o(f"          - {{ to: Arm{i + 1}, when: [ {PRESS[i]} greater {press} ] }}")
+    o("      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp")
+    o("      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.")
+    for i in range(nb):
+        o(f"      Arm{i + 1}:")
+        o("        motion: { clip: arm }")
+        o("        transitions:")
+        o(f"          - {{ to: Idle, when: [ {PRESS[i]} less {press} ] }}")
+        o(f"          - {{ to: Set{i + 1}, when: [ {BTN[i]} less 0.5 ], exitTime: 1.0 }}")
+        o(f"          - {{ to: Clear{i + 1}, when: [ {BTN[i]} greater 0.5 ], exitTime: 1.0 }}")
     for i in range(nb):
         for name, v in (("Set", 1), ("Clear", 0)):
             o(f"      {name}{i + 1}:")
@@ -232,8 +250,9 @@ def document(c):
     o("    default: Idle")
     o("    layout:")
     cols = [-330 + 240 * i for i in range(nb)]
-    nodes = ["Idle: [30, 180]"] + [f"Set{i + 1}: [{x}, 260]" for i, x in enumerate(cols)] \
-        + [f"Clear{i + 1}: [{x}, 340]" for i, x in enumerate(cols)] + ["Hold: [30, 440]", "Cooldown: [30, 520]"]
+    nodes = (["Idle: [30, 180]"] + [f"Arm{i + 1}: [{x}, 260]" for i, x in enumerate(cols)]
+             + [f"Set{i + 1}: [{x}, 340]" for i, x in enumerate(cols)]
+             + [f"Clear{i + 1}: [{x}, 420]" for i, x in enumerate(cols)] + ["Hold: [30, 520]", "Cooldown: [30, 600]"])
     o(f"      nodes: {{ {', '.join(nodes)} }}")
     o("      entry: [50, 120]")
     o("      any: [50, 40]")
@@ -307,6 +326,7 @@ def document(c):
     o("")
     o("clips:")
     o(f"  tick: {{ seconds: {r6(FRAME)} }}")
+    o(f"  arm: {{ seconds: {c['arm']} }}")
     o(f"  cooldown: {{ seconds: {c['cooldown']} }}")
     for i in range(nb):
         for name, v in (("off", 0), ("on", 100)):
