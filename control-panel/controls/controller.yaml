@@ -2,8 +2,8 @@
 # The controls subtree's machine: button stamps, the slider quantizer, the lamps. The generator's docstring is the design record.
 # Published (synced, unsaved, wearer-stamped): ControlPanel/Btn1, ControlPanel/Btn2, ControlPanel/Btn3, ControlPanel/Btn4 (bool on the wire) and ControlPanel/Slot (int on the wire); both
 # float in the animator, because the lamp trees read them as blend parameters.
-# Press accepted at receiver reading 0.307692, held until every reading is under 0.192308 (depth 0.8 / 0.5 of
-# travel over a box 0.026 m deep). Arm 0.15 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
+# Press accepted at receiver reading 0.230769, held until every reading is under 0.115385 (depth 0.6 / 0.3 of
+# travel over a box 0.026 m deep). Arm 0 s, cooldown 0.25 s. Slot hysteresis 0.02 of the slider's length.
 
 schema: 1
 controller: ControlPanelControls_Fx
@@ -38,36 +38,14 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Arm1, when: [ CP/Press1 greater 0.307692 ] }
-          - { to: Arm2, when: [ CP/Press2 greater 0.307692 ] }
-          - { to: Arm3, when: [ CP/Press3 greater 0.307692 ] }
-          - { to: Arm4, when: [ CP/Press4 greater 0.307692 ] }
-      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp
-      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.
-      Arm1:
-        motion: { clip: arm }
-        transitions:
-          - { to: Idle, when: [ CP/Press1 less 0.307692 ] }
-          - { to: Set1, when: [ ControlPanel/Btn1 less 0.5 ], exitTime: 1.0 }
-          - { to: Clear1, when: [ ControlPanel/Btn1 greater 0.5 ], exitTime: 1.0 }
-      Arm2:
-        motion: { clip: arm }
-        transitions:
-          - { to: Idle, when: [ CP/Press2 less 0.307692 ] }
-          - { to: Set2, when: [ ControlPanel/Btn2 less 0.5 ], exitTime: 1.0 }
-          - { to: Clear2, when: [ ControlPanel/Btn2 greater 0.5 ], exitTime: 1.0 }
-      Arm3:
-        motion: { clip: arm }
-        transitions:
-          - { to: Idle, when: [ CP/Press3 less 0.307692 ] }
-          - { to: Set3, when: [ ControlPanel/Btn3 less 0.5 ], exitTime: 1.0 }
-          - { to: Clear3, when: [ ControlPanel/Btn3 greater 0.5 ], exitTime: 1.0 }
-      Arm4:
-        motion: { clip: arm }
-        transitions:
-          - { to: Idle, when: [ CP/Press4 less 0.307692 ] }
-          - { to: Set4, when: [ ControlPanel/Btn4 less 0.5 ], exitTime: 1.0 }
-          - { to: Clear4, when: [ ControlPanel/Btn4 greater 0.5 ], exitTime: 1.0 }
+          - { to: Set1, when: [ CP/Press1 greater 0.230769, ControlPanel/Btn1 less 0.5 ] }
+          - { to: Clear1, when: [ CP/Press1 greater 0.230769, ControlPanel/Btn1 greater 0.5 ] }
+          - { to: Set2, when: [ CP/Press2 greater 0.230769, ControlPanel/Btn2 less 0.5 ] }
+          - { to: Clear2, when: [ CP/Press2 greater 0.230769, ControlPanel/Btn2 greater 0.5 ] }
+          - { to: Set3, when: [ CP/Press3 greater 0.230769, ControlPanel/Btn3 less 0.5 ] }
+          - { to: Clear3, when: [ CP/Press3 greater 0.230769, ControlPanel/Btn3 greater 0.5 ] }
+          - { to: Set4, when: [ CP/Press4 greater 0.230769, ControlPanel/Btn4 less 0.5 ] }
+          - { to: Clear4, when: [ CP/Press4 greater 0.230769, ControlPanel/Btn4 greater 0.5 ] }
       Set1:
         motion: { clip: tick }
         behaviours: [ { driver: { localOnly: true, set: { ControlPanel/Btn1: 1 } } } ]
@@ -111,7 +89,7 @@ layers:
       Hold:
         motion: ~
         transitions:
-          - { to: Cooldown, when: [ CP/Press1 less 0.192308, CP/Press2 less 0.192308, CP/Press3 less 0.192308, CP/Press4 less 0.192308 ] }
+          - { to: Cooldown, when: [ CP/Press1 less 0.115385, CP/Press2 less 0.115385, CP/Press3 less 0.115385, CP/Press4 less 0.115385 ] }
       # The floor between two toggles: no press rung leaves here.
       Cooldown:
         motion: { clip: cooldown }
@@ -119,7 +97,7 @@ layers:
           - { to: Idle, when: [], exitTime: 1.0 }
     default: Idle
     layout:
-      nodes: { Idle: [30, 180], Arm1: [-330, 260], Arm2: [-90, 260], Arm3: [150, 260], Arm4: [390, 260], Set1: [-330, 340], Set2: [-90, 340], Set3: [150, 340], Set4: [390, 340], Clear1: [-330, 420], Clear2: [-90, 420], Clear3: [150, 420], Clear4: [390, 420], Hold: [30, 520], Cooldown: [30, 600] }
+      nodes: { Idle: [30, 180], Set1: [-330, 340], Set2: [-90, 340], Set3: [150, 340], Set4: [390, 340], Clear1: [-330, 420], Clear2: [-90, 420], Clear3: [150, 420], Clear4: [390, 420], Hold: [30, 520], Cooldown: [30, 600] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -231,8 +209,7 @@ layers:
 
 clips:
   tick: { seconds: 0.016667 }
-  arm: { seconds: 0.15 }
-  cooldown: { seconds: 0.5 }
+  cooldown: { seconds: 0.25 }
   btn1_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 0 } }
   btn1_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 100 } }
   btn2_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn2": 0 } }

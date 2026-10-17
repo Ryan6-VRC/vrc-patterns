@@ -38,13 +38,15 @@ it (`--check` pins each bone's rest pose, so a stale one fails there).
 THE LAYERS
 ----------
   Buttons     Idle -> the press ladder, Press1 > Press2 > Press3 > Press4, first match wins. A press entering
-              above `press` depth goes to Arm<i>, which falls back to Idle if the reading drops under `press`
-              before `arm` seconds: a hand passing sideways over a cap pushes it down too, and only a press holds the
-              depth. Past the dwell it goes to Set<i> when the button reads off and Clear<i> when it reads on (a
-              driver cannot invert), each stamping ControlPanel/Btn<i> wearer-only; then Hold until every receiver is
-              below `release` depth, then Cooldown for `cooldown` seconds, then Idle. The cooldown is the floor
-              between two toggles of one button, so it exceeds the wire's set/clear separation. Lifted from
-              zone-touch's ladder, hold and cooldown dwell.
+              above `press` depth goes straight to Set<i> when the button reads off and Clear<i> when it reads on (a
+              driver cannot invert), each stamping ControlPanel/Btn<i> wearer-only the frame the depth is crossed;
+              then Hold until every receiver is below `release` depth, then Cooldown for `cooldown` seconds, then
+              Idle. Every guard is on the release side, because a delay before the stamp adds to the remote's wire
+              and IK delay where a delay after it costs nothing they can see: the cooldown is the floor between two
+              toggles of one button, so it exceeds the wire's set/clear separation. With `arm` above 0 an Arm<i>
+              dwell sits before the stamp and falls back to Idle if the reading drops under `press` first, which
+              rejects a hand brushing sideways over a cap at the cost of that much latency on every press. Lifted
+              from zone-touch's ladder, hold and cooldown dwell.
   Slot        N states, one per slot, each stamping its index into ControlPanel/Slot wearer-only; a state moves
               to its neighbour when CP/Slider_Stretch crosses the shared boundary by `hysteresis`. It runs live
               while the slider is held, so the lit segment follows the hand; nothing samples at release.
@@ -78,7 +80,8 @@ CONFIG
                 over the whole squish range (a face-mode box reads 0 once the sender passes either face, which would
                 read as a release mid-press).
   senderRadius  the capsule sender's radius; its top surface sits at the tip's bottom-out height.
-  arm           seconds a press must hold above `press` before it stamps [EMPIRICAL].
+  arm           seconds a press must hold above `press` before it stamps; 0 stamps on the crossing and emits no dwell
+                state (the shipped value: a brush then toggles a cap, and nothing delays the stamp).
   cooldown      seconds between a release and the next accepted press.
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
   slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it),
@@ -109,13 +112,13 @@ CONFIG = {
     "face": 0.34,
     "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.045,
                 "travel": 0.01, "squish": 0.016, "boneLength": 0.03},
-    "press": 0.8,
-    "release": 0.5,
+    "press": 0.6,
+    "release": 0.3,
     "boxMargin": 0.002,
     "boxWidth": 0.02,
     "senderRadius": 0.004,
-    "arm": 0.15,
-    "cooldown": 0.5,
+    "arm": 0,
+    "cooldown": 0.25,
     "hysteresis": 0.02,
     "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0},
     "tag": "ControlPanelPress",
@@ -144,8 +147,8 @@ def validate(c):
         refuse("squish is at most 0.9 of the button bone: maxSquish is squish over bone length and the solver needs some length left.")
     if b["radius"] <= 0:
         refuse("the button chain radius is positive: a radius of 0 neither collides nor grabs.")
-    if not 0 < c["arm"] < c["cooldown"]:
-        refuse("arm is positive and shorter than the cooldown.")
+    if not 0 <= c["arm"] < c["cooldown"]:
+        refuse("arm is 0 (no dwell) or positive and shorter than the cooldown.")
     if not 0 < c["release"] < c["press"] <= 1:
         refuse("0 < release < press <= 1: the hold band needs a gap.")
     if c["boxMargin"] <= 0:
@@ -265,17 +268,23 @@ def document(c):
     o("      Idle:")
     o("        motion: ~")
     o("        transitions:")
+    arm = c["arm"] > 0
     for i in range(nb):
-        o(f"          - {{ to: Arm{i + 1}, when: [ {PRESS[i]} greater {press} ] }}")
-    o("      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp")
-    o("      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.")
-    for i in range(nb):
-        o(f"      Arm{i + 1}:")
-        o("        motion: { clip: arm }")
-        o("        transitions:")
-        o(f"          - {{ to: Idle, when: [ {PRESS[i]} less {press} ] }}")
-        o(f"          - {{ to: Set{i + 1}, when: [ {BTN[i]} less 0.5 ], exitTime: 1.0 }}")
-        o(f"          - {{ to: Clear{i + 1}, when: [ {BTN[i]} greater 0.5 ], exitTime: 1.0 }}")
+        if arm:
+            o(f"          - {{ to: Arm{i + 1}, when: [ {PRESS[i]} greater {press} ] }}")
+        else:
+            o(f"          - {{ to: Set{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
+            o(f"          - {{ to: Clear{i + 1}, when: [ {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
+    if arm:
+        o("      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp")
+        o("      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.")
+        for i in range(nb):
+            o(f"      Arm{i + 1}:")
+            o("        motion: { clip: arm }")
+            o("        transitions:")
+            o(f"          - {{ to: Idle, when: [ {PRESS[i]} less {press} ] }}")
+            o(f"          - {{ to: Set{i + 1}, when: [ {BTN[i]} less 0.5 ], exitTime: 1.0 }}")
+            o(f"          - {{ to: Clear{i + 1}, when: [ {BTN[i]} greater 0.5 ], exitTime: 1.0 }}")
     for i in range(nb):
         for name, v in (("Set", 1), ("Clear", 0)):
             o(f"      {name}{i + 1}:")
@@ -295,7 +304,7 @@ def document(c):
     o("    default: Idle")
     o("    layout:")
     cols = [-330 + 240 * i for i in range(nb)]
-    nodes = (["Idle: [30, 180]"] + [f"Arm{i + 1}: [{x}, 260]" for i, x in enumerate(cols)]
+    nodes = (["Idle: [30, 180]"] + ([f"Arm{i + 1}: [{x}, 260]" for i, x in enumerate(cols)] if arm else [])
              + [f"Set{i + 1}: [{x}, 340]" for i, x in enumerate(cols)]
              + [f"Clear{i + 1}: [{x}, 420]" for i, x in enumerate(cols)] + ["Hold: [30, 520]", "Cooldown: [30, 600]"])
     o(f"      nodes: {{ {', '.join(nodes)} }}")
@@ -371,7 +380,8 @@ def document(c):
     o("")
     o("clips:")
     o(f"  tick: {{ seconds: {r6(FRAME)} }}")
-    o(f"  arm: {{ seconds: {c['arm']} }}")
+    if arm:
+        o(f"  arm: {{ seconds: {c['arm']} }}")
     o(f"  cooldown: {{ seconds: {c['cooldown']} }}")
     for i in range(nb):
         for name, v in (("off", 0), ("on", 100)):
