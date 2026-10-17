@@ -198,6 +198,10 @@ assert abs(PX0 + PX1) < 1e-9 and abs(PZ0 + PZ1) < 1e-9, "plate must be centred o
 CAP_R = B["capDiameter"] / 2
 WELL_R = CAP_R + WELL_CLEAR
 CAP_BOTTOM = TOP - B["travel"]          # a cap stands `travel` proud of the face, bottoming out flush
+# Past flush the chain lets the cap sink `squish - travel` further into its well before it sits still: the crown
+# must stay above the well floor (or it would clip through it) and the skirt above the plate's underside.
+assert B["capTop"] - B["squish"] > WELL_FLOOR + 0.002, "a fully sunk cap's crown passes the well floor: lower WELL_FLOOR or squish"
+assert CAP_BOTTOM - (B["squish"] - B["travel"]) > BOTTOM + 0.002, "a fully sunk cap's skirt leaves the plate's underside: shorten squish"
 SX0, SX1 = S["x"]; SZ = S["z"]
 PITCH = (SX1 - SX0) / N
 BOUNDS_X = [SX0 + k * PITCH for k in range(1, N)]

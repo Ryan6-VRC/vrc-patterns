@@ -18,8 +18,14 @@ it (`--check` pins each bone's rest pose, so a stale one fails there).
   Buttons     the FBX bone under Panel, root of ONE physbone (multiChildType Ignore) over the four button chains
               Btn1..Btn4 -> Btn<i>_End. Angle limit zero, squish on, stretch zero, collision on, grabbing off: a
               hand pushing a cap down compresses that chain. The solver squishes by moving Btn<i>_End along the
-              bone, never by scaling the bone, so a cap skinned to Btn<i>_End travels rigidly. Each tip sits inside its
-              cap's dome by the chain radius, so the radius engages at the cap's top and not above it.
+              bone, never by scaling the bone, so a cap skinned to Btn<i>_End travels rigidly. Each tip rests
+              `radius` below its cap's crown, so the joint sphere's top is the crown: that sphere is the press
+              surface, wide across the cap when the radius is large (measured: a presser engages where its
+              collider surface meets the sphere, within a millimetre). The tip's REST height is also where a hard
+              press inverts: with pull 1 the solver re-seats the tip at rest before each collision step, so a
+              presser whose centre passes below the rest tip pushes it up instead of down (measured). A deep seat
+              (large radius) therefore buys both the width and the overtravel; `squish` only sets how far the cap
+              sinks past flush before it sits still.
   Btn<i>_End  each carries a local-only face-mode box receiver whose +Z face points up the press axis; it reads
               the sender's depth into the box, `rig()['receiver']`. It rides the End directly: nothing scales it.
   PressSender Unity-side, under the Panel bone: one local-only capsule sender along X lying at bottom-out depth,
@@ -59,19 +65,28 @@ CONFIG
   armature      the FBX armature node under the Panel instance (bones live under <armature>/Panel).
   mesh          the skinned mesh node under the Panel instance.
   face          the plate's full width along X (the frame CONFIG's plate.x spans the same; its generator refuses a mismatch).
-  buttons       button x positions in the panel frame (one per button), z, the Buttons root's height, the bones' head height and length,
-                travel, the chain radius and the cap diameter (metres). maxSquish is travel over length. The frame generator
-                reads this layout for the mesh; a cap must stay inside the face and clear its neighbour.
+  buttons       button x positions in the panel frame (one per button), z, the Buttons root's height, the cap crown
+                height `capTop` and diameter, the chain `radius` (the tip rests `radius` below the crown, so the joint
+                sphere's top is the crown), the visible `travel` (crown to flush), the total `squish` the chain allows
+                (travel plus the sink past flush before the cap sits still) and the bone length (metres).
+                maxSquish is squish over length. The frame generator reads this layout for the mesh; a cap must stay
+                inside the face and clear its neighbour, and the sphere's cut at face level must not reach the
+                neighbouring cap.
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every
-                receiver is at or below `release`.
-  boxSpan       the receiver box's depth along the press axis, a multiple of travel above 1, so a full press
-                lies inside the box instead of on its top face (a face-mode box reads 0 past either face).
+                receiver is at or below `release`; emitted as readings over the box's depth.
+  boxMargin     the receiver box is `squish` plus the sender's diameter plus this deep, so the sender stays inside it
+                over the whole squish range (a face-mode box reads 0 once the sender passes either face, which would
+                read as a release mid-press).
   senderRadius  the capsule sender's radius; its top surface sits at the tip's bottom-out height.
   arm           seconds a press must hold above `press` before it stamps [EMPIRICAL].
   cooldown      seconds between a release and the next accepted press.
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
-  slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it) and
-                chain radius.
+  slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it),
+                chain radius and `pull` [EMPIRICAL]: the rate the knob glides toward its rest or pose when nothing holds
+                it, a time constant near 1/(60 pull) seconds whatever the frame rate (measured: residual 20 % after
+                0.5 s at 0.05, 4 % at 0.1, 0 at 1). Another player's copy sees the grab end before the pose arrives
+                and glides toward the authored rest in between, so a low pull shortens that dip; too low and the
+                held knob lags the hand (10 mm at 0.02, 0.2 mm at 0.05) and the pose lands late.
   tag           the sender/receiver collision tag (private).
 """
 
@@ -92,17 +107,17 @@ CONFIG = {
     "armature": "Armature",
     "mesh": "ControlPanel",
     "face": 0.34,
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01,
-                "capDiameter": 0.03},
+    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.03,
+                "travel": 0.01, "squish": 0.016, "boneLength": 0.03},
     "press": 0.8,
     "release": 0.5,
-    "boxSpan": 1.1,
+    "boxMargin": 0.002,
     "boxWidth": 0.02,
     "senderRadius": 0.004,
     "arm": 0.1,
     "cooldown": 0.5,
     "hysteresis": 0.02,
-    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02},
+    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0.05},
     "tag": "ControlPanelPress",
 }
 
@@ -123,16 +138,18 @@ def validate(c):
     b = c["buttons"]
     if not 1 <= len(b["x"]) <= 8:
         refuse("one to eight buttons, and fewer when the caps do not fit the face (checked below).")
-    if b["travel"] <= 0 or b["travel"] >= b["boneLength"]:
-        refuse("travel is positive and shorter than the button bone: maxSquish is travel over bone length.")
+    if b["travel"] <= 0 or b["travel"] >= b["squish"]:
+        refuse("travel is positive and shorter than squish: the cap must sink past flush before the chain stops it.")
+    if b["squish"] > 0.9 * b["boneLength"]:
+        refuse("squish is at most 0.9 of the button bone: maxSquish is squish over bone length and the solver needs some length left.")
     if b["radius"] <= 0:
         refuse("the button chain radius is positive: a radius of 0 neither collides nor grabs.")
     if not 0 < c["arm"] < c["cooldown"]:
         refuse("arm is positive and shorter than the cooldown.")
     if not 0 < c["release"] < c["press"] <= 1:
         refuse("0 < release < press <= 1: the hold band needs a gap.")
-    if c["boxSpan"] <= 1 or c["press"] / c["boxSpan"] >= 1:
-        refuse("boxSpan above 1: a full press must sit inside the box, not on its top face.")
+    if c["boxMargin"] <= 0:
+        refuse("boxMargin is positive: the sender must stay inside the receiver box at full squish.")
     if c["senderRadius"] <= 0:
         refuse("senderRadius is positive.")
     if any(abs(x) + b["capDiameter"] / 2 > c["face"] / 2 for x in b["x"]):
@@ -144,6 +161,9 @@ def validate(c):
             refuse("neighbouring caps overlap: the closest centres are nearer than one capDiameter.")
         if c["boxWidth"] / 2 >= gap - c["boxWidth"] / 2:
             refuse("receiver boxes overlap their neighbours' across X.")
+        reach = math.sqrt(max(0.0, 2 * b["radius"] * b["travel"] - b["travel"] ** 2))
+        if reach + b["capDiameter"] / 2 >= gap:
+            refuse("the joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
     if c["cooldown"] <= 0.2:
         refuse("cooldown at or under the wire's 0.2 s set/clear floor: two toggles could be a lost pair.")
     if not 0 < c["hysteresis"] < 0.5 / n:
@@ -161,8 +181,9 @@ def rig(c):
     """Every number the Unity-side controls subtree is built to (contacts, physbones)."""
     validate(c)
     b, s = c["buttons"], c["slider"]
-    span = b["travel"] * c["boxSpan"]
-    tip = b["head"] + b["boneLength"]
+    span = r6(b["squish"] + 2 * c["senderRadius"] + c["boxMargin"])
+    tip = b["capTop"] - b["radius"]
+    head = tip - b["boneLength"]
     # Face mode reads (half + d + r) / size along the box's +Z, d the sender centre's offset from the box centre.
     # The box rides the cap tip, its centre `travel - span/2` below it: the reading is 0 with the cap at rest (the
     # sender's top surface on the box's bottom face) and depth / span as the cap goes down.
@@ -177,15 +198,15 @@ def rig(c):
                    "height": r6(max(b["x"]) - min(b["x"]) + c["boxWidth"] + 2 * c["senderRadius"]),
                    "position": [r6((max(b["x"]) + min(b["x"])) / 2), r6(tip - b["travel"] - c["senderRadius"]), b["z"]],
                    "rotation": [0, 0, 90], "localOnly": True, "tag": c["tag"]},
-        "thresholds": {"press": r6(c["press"] / c["boxSpan"]), "release": r6(c["release"] / c["boxSpan"])},
-        "buttonsPhysBone": {"maxSquish": r6(b["travel"] / b["boneLength"]), "maxStretch": 0, "radius": b["radius"],
+        "thresholds": {"press": r6(c["press"] * b["travel"] / span), "release": r6(c["release"] * b["travel"] / span)},
+        "buttonsPhysBone": {"maxSquish": r6(b["squish"] / b["boneLength"]), "maxStretch": 0, "radius": b["radius"], "pull": 1,
                             "parameter": f"{c['internal']}/Buttons"},
-        "buttonTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"])},
+        "buttonTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"]), "floor": r6(tip - b["squish"])},
         "sliderPhysBone": {"maxStretch": r6((s["x"][1] - s["x"][0]) / s["boneLength"]), "maxSquish": 0, "radius": s["radius"],
-                           "parameter": f"{c['internal']}/Slider"},
+                           "pull": s["pull"], "parameter": f"{c['internal']}/Slider"},
         # Rest poses in the Panel bone's frame (the panel frame): what the FBX must import as.
         "bones": dict([("Buttons", [0, b["rootY"], b["z"]])]
-                      + [(f"Buttons/Btn{i + 1}", [x, b["head"], b["z"]]) for i, x in enumerate(b["x"])]
+                      + [(f"Buttons/Btn{i + 1}", [x, r6(head), b["z"]]) for i, x in enumerate(b["x"])]
                       + [(f"Buttons/Btn{i + 1}/Btn{i + 1}_End", [x, r6(tip), b["z"]]) for i, x in enumerate(b["x"])]
                       + [("Slider", [s["rootX"], s["y"], s["z"]]), ("Slider/Slider_End", [s["x"][0], s["y"], s["z"]])]),
     }
@@ -212,7 +233,7 @@ def document(c):
     o(f"# Published (synced, unsaved, wearer-stamped): {', '.join(BTN)} (bool on the wire) and {SLOT} (int on the wire); both")
     o("# float in the animator, because the lamp trees read them as blend parameters.")
     o(f"# Press accepted at receiver reading {press}, held until every reading is under {release} (depth {c['press']} / {c['release']} of")
-    o(f"# travel over a box {c['boxSpan']} travels deep). Arm {c['arm']} s, cooldown {c['cooldown']} s. Slot hysteresis {h} of the slider's length.")
+    o(f"# travel over a box {r['receiver']['size'][2]} m deep). Arm {c['arm']} s, cooldown {c['cooldown']} s. Slot hysteresis {h} of the slider's length.")
     o("")
     o("schema: 1")
     o(f"controller: {c['controller']}")
@@ -491,7 +512,7 @@ def check(c, prefab_path):
             return
         A(fid(d, "rootTransform") == tf_at.get(at), f"{at}: rootTransform is {at}")
         flds = {"parameter": want["parameter"], "maxSquish": want["maxSquish"], "maxStretch": want["maxStretch"],
-                "radius": want["radius"], "limitType": "1", "maxAngleX": 0, "pull": 1, "spring": 0, "stiffness": 0,
+                "radius": want["radius"], "limitType": "1", "maxAngleX": 0, "pull": want["pull"], "spring": 0, "stiffness": 0,
                 "gravity": 0, "immobileType": "0", "immobile": 1, "isAnimated": "0", "resetWhenDisabled": "1",
                 "ignoreTransforms": "[]", "colliders": "[]"}
         flds.update(extra)

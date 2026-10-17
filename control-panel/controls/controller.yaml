@@ -2,8 +2,8 @@
 # The controls subtree's machine: button stamps, the slider quantizer, the lamps. The generator's docstring is the design record.
 # Published (synced, unsaved, wearer-stamped): ControlPanel/Btn1, ControlPanel/Btn2, ControlPanel/Btn3, ControlPanel/Btn4 (bool on the wire) and ControlPanel/Slot (int on the wire); both
 # float in the animator, because the lamp trees read them as blend parameters.
-# Press accepted at receiver reading 0.727273, held until every reading is under 0.454545 (depth 0.8 / 0.5 of
-# travel over a box 1.1 travels deep). Arm 0.1 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
+# Press accepted at receiver reading 0.307692, held until every reading is under 0.192308 (depth 0.8 / 0.5 of
+# travel over a box 0.026 m deep). Arm 0.1 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
 
 schema: 1
 controller: ControlPanelControls_Fx
@@ -38,34 +38,34 @@ layers:
       Idle:
         motion: ~
         transitions:
-          - { to: Arm1, when: [ CP/Press1 greater 0.727273 ] }
-          - { to: Arm2, when: [ CP/Press2 greater 0.727273 ] }
-          - { to: Arm3, when: [ CP/Press3 greater 0.727273 ] }
-          - { to: Arm4, when: [ CP/Press4 greater 0.727273 ] }
+          - { to: Arm1, when: [ CP/Press1 greater 0.307692 ] }
+          - { to: Arm2, when: [ CP/Press2 greater 0.307692 ] }
+          - { to: Arm3, when: [ CP/Press3 greater 0.307692 ] }
+          - { to: Arm4, when: [ CP/Press4 greater 0.307692 ] }
       # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp
       # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.
       Arm1:
         motion: { clip: arm }
         transitions:
-          - { to: Idle, when: [ CP/Press1 less 0.727273 ] }
+          - { to: Idle, when: [ CP/Press1 less 0.307692 ] }
           - { to: Set1, when: [ ControlPanel/Btn1 less 0.5 ], exitTime: 1.0 }
           - { to: Clear1, when: [ ControlPanel/Btn1 greater 0.5 ], exitTime: 1.0 }
       Arm2:
         motion: { clip: arm }
         transitions:
-          - { to: Idle, when: [ CP/Press2 less 0.727273 ] }
+          - { to: Idle, when: [ CP/Press2 less 0.307692 ] }
           - { to: Set2, when: [ ControlPanel/Btn2 less 0.5 ], exitTime: 1.0 }
           - { to: Clear2, when: [ ControlPanel/Btn2 greater 0.5 ], exitTime: 1.0 }
       Arm3:
         motion: { clip: arm }
         transitions:
-          - { to: Idle, when: [ CP/Press3 less 0.727273 ] }
+          - { to: Idle, when: [ CP/Press3 less 0.307692 ] }
           - { to: Set3, when: [ ControlPanel/Btn3 less 0.5 ], exitTime: 1.0 }
           - { to: Clear3, when: [ ControlPanel/Btn3 greater 0.5 ], exitTime: 1.0 }
       Arm4:
         motion: { clip: arm }
         transitions:
-          - { to: Idle, when: [ CP/Press4 less 0.727273 ] }
+          - { to: Idle, when: [ CP/Press4 less 0.307692 ] }
           - { to: Set4, when: [ ControlPanel/Btn4 less 0.5 ], exitTime: 1.0 }
           - { to: Clear4, when: [ ControlPanel/Btn4 greater 0.5 ], exitTime: 1.0 }
       Set1:
@@ -111,7 +111,7 @@ layers:
       Hold:
         motion: ~
         transitions:
-          - { to: Cooldown, when: [ CP/Press1 less 0.454545, CP/Press2 less 0.454545, CP/Press3 less 0.454545, CP/Press4 less 0.454545 ] }
+          - { to: Cooldown, when: [ CP/Press1 less 0.192308, CP/Press2 less 0.192308, CP/Press3 less 0.192308, CP/Press4 less 0.192308 ] }
       # The floor between two toggles: no press rung leaves here.
       Cooldown:
         motion: { clip: cooldown }

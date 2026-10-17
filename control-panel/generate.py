@@ -110,9 +110,8 @@ CONFIG = {
     "handleSpacing": 0.4,
     "plate": {"x": [-0.17, 0.17], "z": [-0.11, 0.11], "top": 0.02, "bottom": -0.01},
     "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
-    # The button and slider layout (positions, bone length, travel, chain radius, cap diameter, slot run) is the
-    # controls CONFIG's; rig() reads it from there. Only the mesh-only numbers are here.
-    "capTop": 0.03,
+    # The button and slider layout (positions, cap crown and diameter, chain radius, travel, squish, bone length, slot
+    # run) is the controls CONFIG's; rig() reads it from there. Only the mesh-only numbers are here.
     "buttonLamps": {"z": 0.085, "diameter": 0.008, "parked": 0.019, "raised": 0.0205},
     "knob": [0.02, 0.025],
     "segments": {"z": -0.075, "depth": 0.006, "widthFraction": 0.6},
@@ -175,8 +174,8 @@ def rig(c, cc):
     n, cb, cs = cc["N"], cc["buttons"], cc["slider"]
     if abs(c["plate"]["x"][1] - c["plate"]["x"][0] - cc["face"]) > 1e-9:
         refuse(f"plate.x spans {c['plate']['x'][1] - c['plate']['x'][0]} but the controls CONFIG's face is {cc['face']}; they are one width.")
-    b = {"x": list(cb["x"]), "z": cb["z"], "capDiameter": cb["capDiameter"], "capTop": c["capTop"],
-         "travel": cb["travel"], "boneLength": cb["boneLength"], "chainRadius": cb["radius"]}
+    b = {"x": list(cb["x"]), "z": cb["z"], "capDiameter": cb["capDiameter"], "capTop": cb["capTop"],
+         "travel": cb["travel"], "squish": cb["squish"], "boneLength": cb["boneLength"], "chainRadius": cb["radius"]}
     s = {"x": list(cs["x"]), "z": cs["z"], "boneLength": cs["boneLength"], "rootX": cs["rootX"], "knob": c["knob"]}
     names = bones(len(cb["x"]))
     bl, sg, of = c["buttonLamps"], c["segments"], c["offline"]
