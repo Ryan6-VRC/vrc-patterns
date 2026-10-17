@@ -36,17 +36,13 @@ grabbing off; nothing of ours sits under it. A hand grabs our handle instead, ho
             collar for the plant frame.
   Mid       under Stake, position-constrained to the Start/Stake midpoint; its child P0 is the pendulum, a
             one-bone physbone pointing straight down to PTip (twice `rope.sag` long), grabbing, posing and
-            collision off. It runs on every client, so every copy swings.
-  Ctrl      under Stake, position-constrained to [PTip, Mid]; the Rope layer slides the weights from the tip
-            (close in) to the plain midpoint (at `rope.taut`): the curve's control point.
-  Line      under Stake at its origin, aimed at Ctrl along -Z. Its children are the curve's joints: J0 on
-            Start, the last joint a static child one last-bone length back from Stake toward Ctrl (so the
+            collision off. PTip is the curve's control point. It runs on every client, so every copy swings.
+  Line      under Stake at its origin, aimed at PTip along -Z. Its children are the curve's joints: J0 on
+            Start, the last joint a static child one last-bone length back from Stake toward PTip (so the
             last bone's visible end lands on Stake, along the curve's end tangent), the joints between on
-            the quadratic Bezier [Start, Ctrl, last joint] at their share of the rest length. Every joint
-            but the last aims at the next one, world up. Line, Mid and Ctrl ride under Stake so Stake's
+            the quadratic Bezier [Start, PTip, last joint] at their share of the rest length. Every joint
+            but the last aims at the next one, world up. Line and Mid ride under Stake so Stake's
             constraint solves before theirs: beside it they read Stake a frame late.
-  span      a sphere receiver on Line/J0 (radius taut - senderRadius) and a sender on Stake, not local-only,
-            allow-self only, on `<tag>Span`: `<internal>/Span` reads the Start-Stake distance on every client.
   strand    each bone takes one parent constraint, sources itself and its joint, weights animated:
             (1, 0) free, (0, 1) held and planted. Self at 1 writes back the bone's own solved pose, a
             no-op; the physbone keeps solving underneath, so a release fades onto the strand's own
@@ -81,9 +77,6 @@ Held is 1 in Held and PHeld; Planted is 1 in Plant, Planted and SyncPlanted; bot
 `SelfGrab` (layer `SelfGrab`): `<prefix>/SelfGrab`, unsynced, writes the handle's grabFilter.allowSelf and
 poseFilter.allowSelf. Only the wearer's own client tests the self case, so no bit rides the wire.
 
-`Rope` (layer `Rope`, every client): one 1D blend on `<internal>/Span` writing Ctrl's two weights, sampled from
-the sag table in rig.json (a rope of length `taut` hanging as a parabola, capped at `sag`).
-
 `Announce` (wearer only): `<internal>/Announce`, the one synced bool this entry adds besides the enables,
 rises `announce` seconds after `<prefix>/Planted` does and falls with it, so a pick-up drops it. The dwell outlasts a plant-to-remote object-sync refresh, so a
 remote reading it true with OS/Ready holds a word table that already carries the stake.
@@ -108,8 +101,8 @@ CONFIG
   home          Home's local pose under Start as measured on the settled strand, or None for the point
                 `homeAt` along the rest pose.
   handle        the handle physbone's settings; FIXED_HANDLE holds what makes it a handle.
-  rope          the curve: `sag` (metres below the chord close in), `taut` (the span where it runs straight),
-                the pendulum's `pull` and `spring` (FIXED_PENDULUM holds the rest), the span sender's radius.
+  rope          the curve: `sag` (metres the curve's middle hangs below the chord, at every distance) and the
+                pendulum's `pull` and `spring` (FIXED_PENDULUM holds the rest).
   fade          frames of the strand's transition blend each way.
   cycle         seconds the plant holds the handle off.
   announce      seconds from Planted to the synced flag.
@@ -157,10 +150,9 @@ CONFIG = {
     "home": None,
     # pull and spring are the release's feel: how fast the line retracts with the handle after a plain release.
     "handle": {"length": 0.05, "radius": 0.05, "maxStretch": 100, "pull": 0.2, "spring": 0.2, "stiffness": 0.2},
-    # The held and planted curve. sag: how far the curve's middle hangs below the straight line at close spans;
-    # taut: the Start-to-Stake span at which it runs straight; between, it fades as a rope of length `taut` would.
-    # pull and spring are the pendulum's swing (spring is the overshoot); senderRadius the span contact's sender.
-    "rope": {"sag": 0.3, "taut": 1.5, "pull": 0.2, "spring": 0.98, "senderRadius": 0.02},
+    # The held and planted curve. sag: how far the curve's middle hangs below the straight line, at every distance.
+    # pull and spring are the pendulum's swing (spring is the overshoot).
+    "rope": {"sag": 0.15, "pull": 0.2, "spring": 0.98},
     "fade": 10,
     "cycle": 0.05,
     "announce": 2.0,
@@ -185,7 +177,8 @@ AXES = (("Right", (0, 90, 0)), ("Forward", (0, 0, 0)), ("Up", (270, 0, 0)))
 SYNC_MOUNT = "ObjectSync"
 # Everything that reads Stake's position rides under it: a constraint on an ancestor's target solves first, so
 # the curve never reads Stake a frame late (beside Stake, the line ran one frame of the wearer's travel behind it).
-LINE, MID, CTRL = "Stake/Line", "Stake/Mid", "Stake/Ctrl"
+LINE, MID = "Stake/Line", "Stake/Mid"
+PTIP = f"{MID}/P0/PTip"
 # Seconds past `announce` a remote's Planted waits for the flag before taking an unplant as read.
 REMOTE_WAIT = 1.0
 
@@ -331,12 +324,8 @@ def validate(c):
     if len({b["bone"] for b in c["chain"]}) != n:
         refuse("chain bone paths repeat.")
     rp = c["rope"]
-    if not (rp["sag"] > 0 and rp["taut"] > 0):
-        refuse("rope sag and taut are positive metres.")
-    if not 0 < rp["senderRadius"] < rp["taut"]:
-        refuse("rope senderRadius is positive and under taut.")
-    if rp["taut"] - rp["senderRadius"] > 3:
-        refuse("rope taut minus senderRadius is the span receiver's radius, which the SDK caps at 3.")
+    if not rp["sag"] > 0:
+        refuse("rope sag is positive metres.")
     lo, hi = c["slackRange"]
     if not 0 <= lo < hi:
         refuse("slackRange is (min, max) metres, 0 <= min < max.")
@@ -388,9 +377,9 @@ def home_pose(c, g):
 
 
 def joints(c, g):
-    """The curve's joints under Line: name, and either position-constraint weights over [Start, Ctrl, last joint]
+    """The curve's joints under Line: name, and either position-constraint weights over [Start, PTip, last joint]
     (the quadratic Bezier's Bernstein terms at the joint's share of the rest length) plus the next joint it aims
-    at, or the last joint's static local position (one last-bone length back from Stake toward Ctrl)."""
+    at, or the last joint's static local position (one last-bone length back from Stake toward PTip)."""
     n = len(c["chain"])
     span = g["L"] - g["seg"][-1]
     last = f"{LINE}/J{n - 1}"
@@ -403,47 +392,23 @@ def joints(c, g):
             out.append({"name": "J0", "sources": ["Mount/Start"], "weights": [1.0], "aim": f"{LINE}/J{k + 1}"})
         else:
             t = cum / span
-            out.append({"name": f"J{k}", "sources": ["Mount/Start", CTRL, last],
+            out.append({"name": f"J{k}", "sources": ["Mount/Start", PTIP, last],
                         "weights": [round((1 - t) ** 2, 6), round(2 * t * (1 - t), 6), round(t * t, 6)],
                         "aim": f"{LINE}/J{k + 1}"})
         cum += g["seg"][k]
     return out
 
 
-def sag_height(rp, s):
-    """The curve's sag at span s: a rope of length taut hanging as a parabola (arc length s + 8h^2/3s), capped at
-    sag, and held at that cap (or at the parabola's peak) closer in."""
-    taut, sag = rp["taut"], rp["sag"]
-    disc = taut * taut - 32 * sag * sag / 3
-    s_hold = (taut + math.sqrt(disc)) / 2 if disc >= 0 else taut / 2
-    s = max(s, s_hold)
-    return 0.0 if s >= taut else min(sag, math.sqrt(3 * s * (taut - s) / 8)), s_hold
-
-
 def rope_rig(c, g):
-    """The pendulum, the control point and the span contact pair, with the sag table the Rope layer blends."""
-    rp, p, I = c["rope"], c["prefix"], c["internal"]
-    radius = rp["taut"] - rp["senderRadius"]
-    _, s_hold = sag_height(rp, 0)
-    spans = [s_hold + (rp["taut"] - s_hold) * u for u in (0, 0.25, 0.5, 0.7, 0.85, 0.95)] + [rp["taut"]]
-    # The receiver reads 1 - (span - senderRadius) / radius: 0 at taut and beyond, 1 with the two on each other.
-    table = [{"span": round(rp["senderRadius"], 6), "reading": 1.0, "weight": round(sag_height(rp, s_hold)[0] / rp["sag"], 6)}]
-    for s in spans:
-        table.append({"span": round(s, 6), "reading": round(1 - (s - rp["senderRadius"]) / radius, 6),
-                      "weight": round(sag_height(rp, s)[0] / rp["sag"], 6)})
-    table.sort(key=lambda e: e["reading"])
+    """The pendulum on the Start/Stake midpoint; its tip is the curve's control point."""
+    rp = c["rope"]
     pb = {"pull": rp["pull"], "spring": rp["spring"]}
     pb.update(FIXED_PENDULUM)
     return {
         "mid": {"path": MID, "sources": ["Mount/Start", "Stake"], "weights": [0.5, 0.5]},
-        "pendulum": {"bone": f"{MID}/P0", "tip": f"{MID}/P0/PTip", "tipLocalPosition": [0, round(-2 * rp["sag"], 6), 0], "physbone": pb},
-        "ctrl": {"path": CTRL, "sources": [f"{MID}/P0/PTip", MID], "weights": [1.0, 0.0]},
-        "span": {"parameter": f"{I}/Span", "tag": f"{c['tag']}Span",
-                 "receiver": {"path": f"{LINE}/J0", "radius": round(radius, 6)},
-                 "sender": {"path": "Stake", "radius": rp["senderRadius"]}},
-        "sag": {"height": rp["sag"], "taut": rp["taut"], "table": table},
+        "pendulum": {"bone": f"{MID}/P0", "tip": PTIP, "tipLocalPosition": [0, round(-2 * rp["sag"], 6), 0], "physbone": pb},
+        "sag": rp["sag"],
     }
-
 
 def sync_gen():
     if not os.path.exists(OS_GEN):
@@ -491,7 +456,7 @@ def rig(c, og):
         "home": {"path": "Mount/Start/Home", "localPosition": r6(hp), "localRotation": r6(hq), "localEuler": to_euler(hq)},
         "handle": {"physbone": handle_physbone(c), "tipLocalPosition": [0, 0, c["handle"]["length"]],
                    "reach": reach},
-        "line": {"path": LINE, "aimAxis": [0, 0, -1], "upAxis": [0, 1, 0], "aimAt": CTRL, "jointAimAxis": [0, 0, 1], "joints": joints(c, g)},
+        "line": {"path": LINE, "aimAxis": [0, 0, -1], "upAxis": [0, 1, 0], "aimAt": PTIP, "jointAimAxis": [0, 0, 1], "joints": joints(c, g)},
         "rope": rope_rig(c, g),
         "strand": [{"path": b["bone"], "joint": f"{LINE}/J{k}", "jointRotationOffset": r6(to_euler(g["offsets"][k])),
                     "jointRotationOffsetQ": r6(g["offsets"][k]), "segment": round(g["seg"][k], 6)}
@@ -546,10 +511,6 @@ def document(c, og):
         "self_on": (None, {f: 1 for f in FILTERS}),
         "self_off": (None, {f: 0 for f in FILTERS}),
     }
-    CTRLW = f"{CTRL}/VRCPositionConstraint.Sources.source"
-    sag = r["rope"]["sag"]["table"]
-    for k, e in enumerate(sag):
-        clips[f"sag{k}"] = (None, {CTRLW + "0.Weight": e["weight"], CTRLW + "1.Weight": round(1 - e["weight"], 6)})
     fade = secs(c["fade"])
 
     L = []
@@ -584,7 +545,6 @@ def document(c, og):
     o(f"  {FLAG}: {{ type: bool, default: false, vrc: {{ synced: true, saved: false }} }}   # the stake is on the wire")
     # Shared with the object-sync build through the one component. Enable's default 1 wins because this
     # controller sits first in the component's controllers and prms.
-    o(f"  {r['rope']['span']['parameter']}: float   # the span contact pair, every client")
     o("  ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }")
     o("  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }")
     o("  IsLocal: bool   # VRC built-in")
@@ -651,24 +611,6 @@ def document(c, og):
     o("    default: Anyone")
     o("    layout:")
     o("      nodes: { Anyone: [30, 180], OthersOnly: [270, 180] }")
-    o("      entry: [50, 120]")
-    o("      any: [50, 40]")
-    o("      exit: [50, 80]")
-    o("")
-    o(f"  # Every client: the curve's control point slides from the pendulum's tip to the plain midpoint as the span")
-    o(f"  # reaches taut ({r['rope']['sag']['taut']} m): the sag a rope of that length would show, capped at {r['rope']['sag']['height']} m.")
-    o("  - name: Rope")
-    o("    states:")
-    o("      Sag:")
-    o("        motion:")
-    o("          tree: 1d")
-    o(f"          param: {r['rope']['span']['parameter']}")
-    o("          children:")
-    for k, e in enumerate(sag):
-        o(f"            - {{ clip: sag{k}, threshold: {e['reading']} }}   # span {e['span']} m")
-    o("    default: Sag")
-    o("    layout:")
-    o("      nodes: { Sag: [30, 180] }")
     o("      entry: [50, 120]")
     o("      any: [50, 40]")
     o("      exit: [50, 80]")
@@ -1037,7 +979,7 @@ def check(c, prefab_path, entry=True):
             continue
         if "static" in j:
             A(same_rotation(vec(d, "m_LocalRotation"), ZERO_Q), f"{path}: unrotated under Line")
-            A(close(vec(d, "m_LocalPosition"), tuple(j["static"])), f"{path}: static at {j['static']} (the last bone's length back from Stake toward Ctrl)")
+            A(close(vec(d, "m_LocalPosition"), tuple(j["static"])), f"{path}: static at {j['static']} (the last bone's length back from Stake toward PTip)")
             A(not P.components(path, r"^  Sources:"), f"{path}: no constraint")
         else:
             one(path, r"^  PositionAtRest:", [(a, w, None, None) for a, w in zip(j["sources"], j["weights"])], "position constraint")
@@ -1047,7 +989,7 @@ def check(c, prefab_path, entry=True):
                   and field(aims[0], "WorldUp") == "0" and not own_offsets(aims[0]),
                   f"{path} aims {ln['jointAimAxis']} at the next joint, up {ln['upAxis']} against scene up, offset zero")
 
-    # The rope: the pendulum on the midpoint, the control point, the span contact pair.
+    # The rope: the pendulum on the midpoint, its tip the control point; nothing measures the span.
     rp = r["rope"]
     one(rp["mid"]["path"], r"^  PositionAtRest:", [(a, w, None, None) for a, w in zip(rp["mid"]["sources"], rp["mid"]["weights"])],
         "position constraint")
@@ -1066,25 +1008,9 @@ def check(c, prefab_path, entry=True):
                                                                got is not None and abs(float(got) - v) < 1e-6)
             A(good, f"pendulum physbone {fld} == {v!r} (got {got})")
         A(fid(pbs[0], "rootTransform") in (0, None), "pendulum physbone roots on its own bone")
-    one(rp["ctrl"]["path"], r"^  PositionAtRest:", [(a, w, None, None) for a, w in zip(rp["ctrl"]["sources"], rp["ctrl"]["weights"])],
-        "position constraint")
-    sp = rp["span"]
-    rc = [x for x in P.components(sp["receiver"]["path"], r"^  receiverType:")]
-    if A(len(rc) == 1, f"{sp['receiver']['path']} carries the span receiver"):
-        x = rc[0]
-        A(field(x, "parameter") == sp["parameter"] and tags_of(x) == [sp["tag"]], f"span receiver writes {sp['parameter']} on [{sp['tag']}]")
-        A(field(x, "radius") is not None and abs(float(field(x, "radius")) - sp["receiver"]["radius"]) < 1e-6,
-          f"span receiver radius == {sp['receiver']['radius']} (the sag table's readings assume it)")
-        for fld, v in (("shapeType", "0"), ("localOnly", "0"), ("allowSelf", "1"), ("allowOthers", "0"), ("receiverType", "2"),
-                       ("contentTypes", "1")):
-            A(field(x, fld) == v, f"span receiver {fld} == {v} (got {field(x, fld)}): every client reads its own span")
-        A(close(vec(x, "position"), ZERO3), "span receiver shape offset zero")
-    ss = P.components(sp["sender"]["path"], r"^  collisionTags:")
-    if A(len(ss) == 1, f"{sp['sender']['path']} carries the span sender"):
-        x = ss[0]
-        A(tags_of(x) == [sp["tag"]] and field(x, "shapeType") == "0" and field(x, "localOnly") == "0"
-          and abs(float(field(x, "radius") or "nan") - sp["sender"]["radius"]) < 1e-6 and close(vec(x, "position"), ZERO3),
-          f"span sender: a {sp['sender']['radius']} m sphere on [{sp['tag']}], not local-only, offset zero")
+    A(P.transform("Stake/Ctrl") is None and not P.components(LINE + "/J0", r"^  receiverType:")
+      and not P.components("Stake", r"^  collisionTags:"),
+      "no Stake/Ctrl and no span contact pair: the sag is fixed, PTip is the control point")
 
     # The handle: its pose and the physbone that makes it one.
     d = P.transform("Holder/HB0/HTip")

@@ -1,6 +1,6 @@
 # leash-stake (Module)
 
-A leash you can stake. Anyone can grab it and drag it. Released with a pose, it stays planted where the hand let go, and every client, late joiners included, sees it there. Held or planted, it hangs as a rope that sags close in, straightens as it stretches and swings as you move. With the optional `vrc-bridge` desktop app running (it reads your avatar's parameters over OSC and drives your movement), a held or planted leash pulls you toward its end. The leash is a short strand your avatar already has, such as a collar chain or a necklace; three or four bones suit it best (§Traps).
+A leash you can stake. Anyone can grab it and drag it. Released with a pose, it stays planted where the hand let go, and every client, late joiners included, sees it there. Held or planted, it hangs as a rope with a little sag that swings as you move. With the optional `vrc-bridge` desktop app running (it reads your avatar's parameters over OSC and drives your movement), a held or planted leash pulls you toward its end. The leash is a short strand your avatar already has, such as a collar chain or a necklace; three or four bones suit it best (§Traps).
 
 Two ways in: drop the shipped demo, a collar whose four-bone rope hangs from the neck (§Install guide, four steps), or turn a strand you already have into the leash (§Using your own strand, which runs `generate.py`).
 
@@ -8,9 +8,8 @@ Two ways in: drop the shipped demo, a collar whose four-bone rope hangs from the
 
 - The strand is never grabbed itself. It keeps its own physbone, with grabbing turned off. A hand grabs an invisible one-bone grab bone instead, whose resting point `Home` is part way along the strand.
 - Each strand bone has one parent constraint with two sources: its own physics, and a joint on a curve from `Start` (the strand's root) to `Stake` (the leash's far end). Free, the bone follows its own physics, which changes nothing. Held or planted, it follows the curve. The animator fades between the two.
-- The curve is a quadratic Bezier: a smooth curve bent toward one control point. That point is the tip of a pendulum, a one-bone physbone hanging down from the `Start`/`Stake` midpoint. The pendulum trails when you walk or the hand moves, and swings back past rest when you stop.
-- A contact pair, the span pair, measures how far `Stake` is from `Start`. As that distance grows, the animator slides the control point from the pendulum's tip up to the midpoint itself, so the rope sags close in and runs straight once stretched.
-- The pendulum and the span pair run on every client, so everyone sees the same sag and their own copy of the swing.
+- The curve is a quadratic Bezier: a smooth curve bent toward one control point. That point is the tip of a pendulum, a one-bone physbone hanging down from the `Start`/`Stake` midpoint, so the curve's middle hangs half the pendulum's length below the straight line at any distance. The pendulum trails when you walk or the hand moves, and swings back past rest when you stop.
+- The pendulum runs on every client, so everyone sees the same sag and their own copy of the swing.
 - `Stake` follows the grab bone's tip, so a held strand runs from your neck to the hand.
 - A pose release (VRChat's: letting go of a grab while posing it) plants the leash. `Stake` freezes in the world. The grab bone moves onto `Stake` and switches off for a moment, which clears its pose so it can be grabbed there.
 - Grabbing the planted end picks it up: the strand runs to the hand again. A plain release sends the strand back onto its own physics, and a pose release plants it again.
@@ -42,7 +41,7 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 - **One instance per avatar.** The published names are unprefixed, and `ObjectSync/Enable` is one parameter shared by every `object-sync` build on the avatar.
 - **Another `object-sync` build can share the avatar.** This one parks and tags its contacts from its own `rigSeed`, so they do not collide with another build's.
 - **A late joiner sees the leash free for a moment**, until its copy of the sync rig has a whole position and the synced bool, then plants it there. A leash held at the moment someone joins reads as free to them, since a live grab does not reach a late joiner (`../../docs/runtime.md` §PhysBones).
-- **Only you sense the leash.** The boxes and their sender are local-only on a private tag, so no other avatar can feed your bridge. The span pair is not local-only, so every client computes its own sag.
+- **Only you sense the leash.** The boxes and their sender are local-only on a private tag, so no other avatar can feed your bridge.
 - **`Self-grab` writes the grab bone's filters.** The bone's `allowGrabbing` and `allowPosing` are `Other`, so a grab reads its filters, and the `SelfGrab` layer animates both filters' `allowSelf`. Only your own client tests the self case, so `Leash/SelfGrab` is unsynced. With it off, a grab of yours lands on the next nearest grabbable chain, if one is in reach.
 - **The bridge reads seven parameters**, published without VRCFury's prefix and none of them synced. `Leash/Right`, `Leash/Forward` and `Leash/Up` are momentary readings, so sample them; `rig.json`'s `sensing.decode` turns one into metres (`Up` positive upward), and a reading of exactly 0 means `Stake` is outside the boxes. `Leash/Held` and `Leash/Planted` latch until the leash changes state. `Leash/Slack` and `Leash/SlackPlanted` are radial fractions 0..1 the bridge maps onto its `slack_min`..`slack_max` metres: free travel before it pulls, held and planted. A bridge that has not heard one change reads it once over OSCQuery.
 - **Do not rename anything under the prefab.** The animation clips find their targets by hierarchy path, so a rename silently breaks them.
@@ -51,12 +50,12 @@ Depends on the VRC SDK, VRCFury and Modular Avatar.
 ## Performance stats
 
 ```c++
-Constraints:        6 + 3 per strand bone, plus 9 for the sync rig (27 on the demo; an optimizer may drop the sync rig's unused ones)
+Constraints:        5 + 3 per strand bone, plus 9 for the sync rig (26 on the demo; an optimizer may drop the sync rig's unused ones)
 Constraint Depth:   13       (on a test body wearing the demo, built; within the Excellent rank limit)
 PhysBones:          2        (the grab bone and the pendulum, 4 transforms; no colliders, no collision checks; the demo adds its rope's own)
-Contact Receivers:  10       (1 counts toward rank, the span receiver; 3 sensing boxes and 6 in the sync rig are local-only)
-Contact Senders:    4        (1 counts toward rank, the span sender; 3 local-only)
-FX Animator Layers: 12       (not a rank stat: the leash's machine, self-grab, rope sag and announce, and object-sync's 8)
+Contact Receivers:  9        (3 sensing boxes and 6 in the sync rig; all local-only, none count toward rank)
+Contact Senders:    3        (local-only)
+FX Animator Layers: 11       (not a rank stat: the leash's machine, self-grab and announce, and object-sync's 8)
 Bones:              0        (the grab bone and the pendulum bind no mesh; the demo adds its collar's 5)
 Skinned Meshes:     1        (the demo collar: 1092 triangles, 3 materials; a strand of your own adds no mesh)
 Synced parameters:  29 bits  (not a rank stat: Leash/Enable, the announce bool, ObjectSync/Enable and 26 wire bits)
@@ -72,18 +71,18 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 |---|---|
 | `prefix` | The published names' prefix and the grab bone's `<prefix>/Handle`. The bridge's `prefix` must match |
 | `internal` | The announce bool's prefix. Required, and never under `prefix`, so the published wildcard cannot reach it |
-| `ratio`, `boxSize`, `senderRadius` | The sensing geometry: the bridge's `ratio`, `span` (the box size, nothing to do with the span pair) and `sender_radius`, so a mismatch mis-decodes every reading. Raising `ratio` reaches further and resolves coarser |
+| `ratio`, `boxSize`, `senderRadius` | The sensing geometry: the bridge's `ratio`, `span` and `sender_radius`, so a mismatch mis-decodes every reading. Raising `ratio` reaches further and resolves coarser |
 | `slackRange`, `slack`, `slackPlanted` | The bridge's `slack_min` and `slack_max`, and the held and planted free travel in metres inside them, emitted as `Leash/Slack`'s and `Leash/SlackPlanted`'s defaults as fractions of that range. `slackRange` must match the bridge |
 | `chain`, `endpoint` | The strand's bones, root first, and the last bone's visible end. They set `Start`'s pose, the curve's joints and one strand constraint per bone. `endpoint` must equal the strand physbone's `endpointPosition` |
 | `homeAt`, `home` | Where the grab bone rests: `homeAt` of the way along the strand from its root (1 is the tip), or `home`, a pose measured where your strand settles. The grab volume is a sphere around this point |
 | `handle` | `radius` is that sphere's size; it must cover the strand's swing. `length` × (1 + `maxStretch`) is the reach. `pull` and `spring` are the release's feel: how fast the strand retracts after a plain release |
-| `rope` | `sag` is how far the curve's middle hangs below the straight line close in (the pendulum is twice that long); `taut` is the `Start`-to-`Stake` distance at which it runs straight. `pull` is the pendulum's only restoring force and `spring` its overshoot; near 1 it barely settles. `rope.senderRadius` is the span sender's; `taut` − `rope.senderRadius` is the span receiver's radius, which `validate()` caps at 3. The defaults suit a held reach of a metre or two, whatever the strand's own length |
+| `rope` | `sag` is how far the curve's middle hangs below the straight line, the same at every distance (the pendulum is twice that long). `pull` is the pendulum's only restoring force and `spring` its overshoot; near 1 it barely settles |
 | `mount`, `mountRot` | The bone the demo's `Mount` snaps to, and `Mount`'s rest rotation against the avatar root, which sets the strand's twist on the curve |
 | `fade` | Frames of the strand's fade each way. Shorter moves the strand further per frame |
 | `cycle` | Seconds a plant holds the grab bone off; a grab then misses. `validate()` refuses under three frames |
 | `announce` | Seconds from a plant to the synced bool. It must outlast an `object-sync` measure cycle and a wire refresh (`../object-sync/README.md` §How it works), or a remote plants at the position from before the plant |
 | `rigSeed` | The sync rig's contact tags and park, which move together. Unique among the avatar's `object-sync` builds |
-| `tag`, `controller`, `enableDefault`, `selfGrabDefault` | The sensing contacts' private tag (the span pair's is `<tag>Span`), the emitted controller's name, `Leash/Enable`'s and `Leash/SelfGrab`'s defaults |
+| `tag`, `controller`, `enableDefault`, `selfGrabDefault` | The sensing contacts' private tag, the emitted controller's name, `Leash/Enable`'s and `Leash/SelfGrab`'s defaults |
 
 **Provenance:** the idea's ancestor is OSCLeash (MIT, ZenithVal), which the bridge half re-derives; nothing here is ported from it. The planted position rides `object-sync`, merged through one component the way `compositions/grab-sync` merges it. The worked example's strand is the necklace on PINKPUDDING's Peridot costume. The grab bone on the strand, the self-sourced fade, the plant and the pendulum rope are this entry's own.
 
@@ -103,9 +102,9 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 
 **One pendulum, not a chain of springy joints.** A quadratic Bezier needs one control point, and one physbone is the cheapest moving thing that trails and overshoots. Gravity does nothing to a bone already resting straight down.
 
-**The sag is blended, not simulated.** A physbone's length cannot change at runtime, so the pendulum fixes the deepest sag and an animator blend takes it away. The distance comes from a contact because a contact reads on every client.
+**The sag is fixed.** A physbone's length cannot change at runtime, so the pendulum sets one sag at every distance; a leash has no real length for the sag to fade against, and fading it would cost a contact pair every client simulates.
 
-**`Line`, `Mid` and `Ctrl` hang under `Stake`.** A constraint on a parent's target solves before its children's (`../../docs/runtime.md` §Constraints), so everything that reads `Stake` reads this frame's `Stake`.
+**`Line` and `Mid` hang under `Stake`.** A constraint on a parent's target solves before its children's (`../../docs/runtime.md` §Constraints), so everything that reads `Stake` reads this frame's `Stake`.
 
 **`Holder` is frozen through a pick-up**, because it follows `Stake`, which rides the grab bone's own tip.
 
@@ -136,7 +135,7 @@ The seams are three: the bone the strand hangs from (`Mount`), the strand's bone
 2. **Generate and compile.** `python generate.py --config <json> --out <folder>` writes `controller.yaml` and `rig.json` there; compile that `controller.yaml` into a built folder with `CompileController`. You share this entry's `object-sync` build, so `rigSeed` is not yours to set.
 3. **Make an owned copy of the rig.** Delete the demo collar, `Mount/Leash`, which takes its strand constraints with it.
 4. **Retarget `Mount`'s BoneProxy** to the bone the strand hangs from, attaching as a child at its root (the demo keeps its rotation instead), so `Start`'s pose is bone 0's local pose there. A dragged costume bone works: Modular Avatar resolves the target before Merge Armature moves it.
-5. **Set the rig's nodes to `rig.json`:** `Start` and `Home` from `start` and `home`, `Stake/Line` (at `Stake`'s origin, its aim from `line`) and its children from `line.joints`, `Stake/Mid`, its pendulum, `Stake/Ctrl` and the span pair from `rope`, the grab bone's physbone and `HTip` from `handle`, and the sensing contacts and `SenseProxy`'s weights from `sensing`.
+5. **Set the rig's nodes to `rig.json`:** `Start` and `Home` from `start` and `home`, `Stake/Line` (at `Stake`'s origin, its aim from `line`) and its children from `line.joints`, `Stake/Mid` and its pendulum from `rope`, the grab bone's physbone and `HTip` from `handle`, and the sensing contacts and `SenseProxy`'s weights from `sensing`.
 6. **Replace the `FullController`**, removing it and adding one (`../../docs/nondestructive.md` §A VRCFury component on a prefab variant): your controller then this entry's `object-sync/built` controller, your menu, your parameters then `object-sync`'s, and `rig.json`'s `globalParams`.
 7. **On each strand bone**, add a parent constraint with sources itself and its `Stake/Line/J<k>`, weights 1 and 0, zero offsets, and the joint source's rotation offset from `rig.json`'s `strand`. Turn the strand's own physbone's grabbing off, as an override on your avatar, never on the vendor prefab.
 8. **Place `Home` where the strand settles.** In play, read the strand's bones once still, take the point `homeAt` along them in `Start`'s frame, write it as `home`, regenerate and set `Home` again. A strand under gravity droops off its authored rest.
@@ -159,9 +158,9 @@ Run `--check` (or `--check-prefab`) first. In the editor the sync rig's contacts
 - **Grab at `Home`.** `Leash/Held` rises and the strand runs from your neck to the hand. `Leash/Held` never rising while the strand follows means the grab bone's parameter came out prefixed: `globalParams` lost `Leash/*`. A strand twitching or leaving its curve means its own physbone still takes grabs. `Start` and `Home` at their authored place instead of on your neck means the BoneProxy never resolved.
 - **Drag it.** The three readings decode to `Stake`'s offset from `Start`. Off by a fixed amount means the bridge's `sender_radius` differs; off by a factor, its `ratio` or `span`. `Leash/Held` rising with no pull means the bridge's `[leash]` is off or its `prefix` differs.
 - **Pose-release it.** `Leash/Planted` rises and the strand runs from your neck to where you let go, holding while you walk.
-- **Watch the rope.** Close in it sags and swings when you walk and stop; stretched past `taut` it runs straight. Straight at every span means the controller never reads the span: the pair's tags differ, the receiver's parameter is not the controller's, or the receiver refuses your own sender. Sagging at every span means the `Rope` layer's clips miss `Ctrl`, which then holds its rest weights on the pendulum's tip. The strand's end trailing `Stake` while you walk means `Line` is not under `Stake`.
+- **Watch the rope.** It sags by `sag` and swings when you walk and stop. A straight strand means the joints' middle source is not the pendulum's tip, or the pendulum lost its physbone. The strand's end trailing `Stake` while you walk means `Line` is not under `Stake`.
 - **Press `Unplant` while planted.** `Leash/Planted` falls and the strand fades back onto its own physics.
-- **Spawn a remote clone after the plant** (`../../docs/emulator.md` §Remote clone, its animator set to always animate) and wait for its sync rig's ready flag and `announce`: the clone's `Stake` and strand end sit on your planted spot within `object-sync`'s precision, and its rope sags as yours does at its own span. A clone whose rope stays straight has a local-only span pair. Ready never rising means the position is not arriving, or the clone's animator stopped. The clone's strand staying free with ready up means the synced bool never rose, or `ObjectSync/Enable` is off.
+- **Spawn a remote clone after the plant** (`../../docs/emulator.md` §Remote clone, its animator set to always animate) and wait for its sync rig's ready flag and `announce`: the clone's `Stake` and strand end sit on your planted spot within `object-sync`'s precision, and its rope sags as yours does. Ready never rising means the position is not arriving, or the clone's animator stopped. The clone's strand staying free with ready up means the synced bool never rose, or `ObjectSync/Enable` is off.
 
 ## Rig
 
@@ -177,16 +176,15 @@ Run `--check` (or `--check-prefab`) first. In the editor the sync rig's contacts
     ├─ Holder                    parent ← [Home, Stake], weights and FreezeToWorld animated
     │  └─ HB0 → HTip             the grab bone: VRCPhysBone `Leash/Handle` on HB0, collision off
     ├─ Far                       position ← HTip
-    ├─ Stake                     position ← [Far, ObjectSync/Rig/Prop/Display], weights and FreezeToWorld animated;
-    │  │                         the span sender
+    ├─ Stake                     position ← [Far, ObjectSync/Rig/Prop/Display], weights and FreezeToWorld animated
     │  ├─ Mid                    position ← [Start, Stake] at a half each
-    │  │  └─ P0 → PTip           the pendulum: a one-bone physbone pointing down; grabbing, posing, collision off
-    │  ├─ Ctrl                   position ← [PTip, Mid], weights animated by the span: the curve's control point
-    │  └─ Line                   at Stake's origin, aim at Ctrl along −Z
-    │     ├─ J0                  position ← Start; aim at J1; the span receiver
-    │     ├─ J1 … J(n−2)         position ← [Start, Ctrl, J(n−1)] by the Bezier's terms at the joint's share of
+    │  │  └─ P0 → PTip           the pendulum: a one-bone physbone pointing down, twice `sag` long; grabbing,
+    │  │                         posing, collision off. PTip is the curve's control point
+    │  └─ Line                   at Stake's origin, aim at PTip along −Z
+    │     ├─ J0                  position ← Start; aim at J1
+    │     ├─ J1 … J(n−2)         position ← [Start, PTip, J(n−1)] by the Bezier's terms at the joint's share of
     │     │                      the rest length; aim at the next joint
-    │     └─ J(n−1)              static, one last-bone length back from Stake toward Ctrl
+    │     └─ J(n−1)              static, one last-bone length back from Stake toward PTip
     ├─ Sense                     position ← Start; three local-only face boxes, Leash/Right, Leash/Forward, Leash/Up
     ├─ SenseProxy                position ← [Sense, Stake] at the ratio's two weights; the sender
     └─ ObjectSync                nested object-sync/y/ObjectSync.prefab: its FullController and both Toggles

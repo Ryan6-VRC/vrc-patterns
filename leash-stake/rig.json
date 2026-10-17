@@ -76,7 +76,7 @@
       1,
       0
     ],
-    "aimAt": "Stake/Ctrl",
+    "aimAt": "Stake/Mid/P0/PTip",
     "jointAimAxis": [
       0,
       0,
@@ -97,7 +97,7 @@
         "name": "J1",
         "sources": [
           "Mount/Start",
-          "Stake/Ctrl",
+          "Stake/Mid/P0/PTip",
           "Stake/Line/J3"
         ],
         "weights": [
@@ -111,7 +111,7 @@
         "name": "J2",
         "sources": [
           "Mount/Start",
-          "Stake/Ctrl",
+          "Stake/Mid/P0/PTip",
           "Stake/Line/J3"
         ],
         "weights": [
@@ -148,7 +148,7 @@
       "tip": "Stake/Mid/P0/PTip",
       "tipLocalPosition": [
         0,
-        -0.6,
+        -0.3,
         0
       ],
       "physbone": {
@@ -166,75 +166,7 @@
         "parameter": ""
       }
     },
-    "ctrl": {
-      "path": "Stake/Ctrl",
-      "sources": [
-        "Stake/Mid/P0/PTip",
-        "Stake/Mid"
-      ],
-      "weights": [
-        1.0,
-        0.0
-      ]
-    },
-    "span": {
-      "parameter": "LeashStake/Span",
-      "tag": "LeashSenseSpan",
-      "receiver": {
-        "path": "Stake/Line/J0",
-        "radius": 1.48
-      },
-      "sender": {
-        "path": "Stake",
-        "radius": 0.02
-      }
-    },
-    "sag": {
-      "height": 0.3,
-      "taut": 1.5,
-      "table": [
-        {
-          "span": 1.5,
-          "reading": 0.0,
-          "weight": 0.0
-        },
-        {
-          "span": 1.490895,
-          "reading": 0.006152,
-          "weight": 0.237831
-        },
-        {
-          "span": 1.472684,
-          "reading": 0.018457,
-          "weight": 0.409412
-        },
-        {
-          "span": 1.445367,
-          "reading": 0.036914,
-          "weight": 0.573601
-        },
-        {
-          "span": 1.408945,
-          "reading": 0.061523,
-          "weight": 0.731126
-        },
-        {
-          "span": 1.363418,
-          "reading": 0.092285,
-          "weight": 0.880857
-        },
-        {
-          "span": 1.317891,
-          "reading": 0.123047,
-          "weight": 1.0
-        },
-        {
-          "span": 0.02,
-          "reading": 1.0,
-          "weight": 1.0
-        }
-      ]
-    }
+    "sag": 0.15
   },
   "strand": [
     {

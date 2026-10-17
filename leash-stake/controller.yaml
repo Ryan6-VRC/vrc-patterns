@@ -27,7 +27,6 @@ parameters:
   Leash/Handle_IsGrabbed: { type: bool, vrc: { synced: false, saved: false } }   # the handle physbone
   Leash/Handle_IsPosed: { type: bool, vrc: { synced: false, saved: false } }   # the handle physbone
   LeashStake/Announce: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the stake is on the wire
-  LeashStake/Span: float   # the span contact pair, every client
   ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
   OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal: bool   # VRC built-in
@@ -116,30 +115,6 @@ layers:
     default: Anyone
     layout:
       nodes: { Anyone: [30, 180], OthersOnly: [270, 180] }
-      entry: [50, 120]
-      any: [50, 40]
-      exit: [50, 80]
-
-  # Every client: the curve's control point slides from the pendulum's tip to the plain midpoint as the span
-  # reaches taut (1.5 m): the sag a rope of that length would show, capped at 0.3 m.
-  - name: Rope
-    states:
-      Sag:
-        motion:
-          tree: 1d
-          param: LeashStake/Span
-          children:
-            - { clip: sag0, threshold: 0.0 }   # span 1.5 m
-            - { clip: sag1, threshold: 0.006152 }   # span 1.490895 m
-            - { clip: sag2, threshold: 0.018457 }   # span 1.472684 m
-            - { clip: sag3, threshold: 0.036914 }   # span 1.445367 m
-            - { clip: sag4, threshold: 0.061523 }   # span 1.408945 m
-            - { clip: sag5, threshold: 0.092285 }   # span 1.363418 m
-            - { clip: sag6, threshold: 0.123047 }   # span 1.317891 m
-            - { clip: sag7, threshold: 1.0 }   # span 0.02 m
-    default: Sag
-    layout:
-      nodes: { Sag: [30, 180] }
       entry: [50, 120]
       any: [50, 40]
       exit: [50, 80]
@@ -305,38 +280,6 @@ clips:
     set:
       "Holder/HB0/VRCPhysBone.grabFilter.allowSelf": 0
       "Holder/HB0/VRCPhysBone.poseFilter.allowSelf": 0
-  sag0:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.0
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 1.0
-  sag1:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.237831
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.762169
-  sag2:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.409412
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.590588
-  sag3:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.573601
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.426399
-  sag4:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.731126
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.268874
-  sag5:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.880857
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.119143
-  sag6:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 1.0
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.0
-  sag7:
-    set:
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 1.0
-      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.0
 
 menu:
   - submenu: Leash
