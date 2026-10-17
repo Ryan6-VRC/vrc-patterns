@@ -15,20 +15,27 @@ reading bone heads in the Unity frame, never the Blender ones.
 Rows, far edge to near: toggle buttons (domed caps in round wells, a dot lamp beyond each), the selector (four
 caps on the buttons' joint, the end caps rounded on their outer side and the middle ones square, a bar lamp on
 the near side of each), the discrete slider (a knob in a recessed channel, detent ticks, one segment lamp per
-slot), the smooth slider (a knob in a channel, M bar lamps). Bones are placed at `restPoses` exactly; the
+slot), the smooth slider (a knob in a channel, and the strip). Bones are placed at `restPoses` exactly; the
 geometry is asserted against them.
+
+The strip: one always-lit bar on the smooth slider's channel floor, from the track's low end (`strip.x`) to
+`STRIP_TUCK` past the knob's centre. Its near-end verts are skinned to `Panel` and its far-end verts to the knob
+bone, so it stretches as the knob translates and its far end always hides under the knob. It shows the knob, not
+the accepted value; at rest the knob lands on the synced value.
 
 Shells: the plate is one shell - bezel, necks and ridged grips unioned; cap wells, selector wells, knob
 channels, detent ticks and the label recess cut - by Boolean modifiers (Manifold solver), so its parts never
-show interior walls. Each cap, each knob and each lamp is its own closed shell, because each moves on its own
-(a bone or a blendshape). A lamp is a thin disc or bar parked under the opaque face and raised through it by its
+show interior walls. Each cap, each knob, each lamp and the strip is its own closed shell, because each moves on
+its own (a bone or a blendshape). A lamp is a thin disc or bar parked under the opaque face and raised through it by its
 key; nothing else hides it. A cap's skirt and a knob's foot reach below their well or channel floor when sunk,
 into the plate's solid, which hides them; the asserts keep them above the plate's underside.
 
 Shapes: every lamp key raises its lamp by `lamps.raised - lamps.parked`. `Lamp_Sel<k>` also sinks cap k by
 `selector.sink`, one key, so the chosen cap rests depressed and lit. `Controls_Retract` sinks every cap by
 `controlsRetract.capDepth` and every knob by `controlsRetract.channelDepth` (flush with the face). Caps and
-knobs ride bones that only translate, so a bind-space key holds at any chain or knob position.
+knobs ride bones that only translate, so a bind-space key holds at any chain or knob position. The strip has no
+key: it lies under the knob's foot at rest, and retracted the knob sinks around its far end (the strip is narrower
+than the knob and tucked inside its footprint), so the retract neither buries the strip nor lets it poke through.
 
 Colour: a palette atlas of flat swatches, one material slot. Every face's UVs sit on one swatch centre, so a
 consumer recolours a part by repainting its square. The emission atlas is black except the two lamp swatches.
@@ -55,8 +62,7 @@ for what, lst, n in (("bones.buttons", NAMES["buttons"], len(B["x"])), ("bones.b
                      ("bones.sliders", NAMES["sliders"], len(SL)), ("bones.knobs", NAMES["knobs"], len(SL))):
     assert len(lst) == n, f"{what} names {len(lst)} but the rows place {n}"
 for s in SL:
-    lamps = s.get("segments") or s.get("bars")
-    assert lamps, f"slider {s['name']} carries neither segments nor bars"
+    assert ("segments" in s) == (s["kind"] == "slider") and ("strip" in s) == (s["kind"] == "smooth"),         f"slider {s['name']}: a discrete slider carries segments, a smooth one a strip"
     assert s["bone"] in NAMES["sliders"] and s["end"] in NAMES["sliderEnds"] and s["knob"] in NAMES["knobs"], s["name"]
 
 # ---- the look (m); nothing outside this file reads these ----------------------------------------------
@@ -81,6 +87,8 @@ FIN_W, FIN_H, FIN_SPAN = 0.003, 0.0025, 0.8   # the pointer fin across the knob 
 TICK_W, TICK_D, TICK_GAP, TICK_LEN = 0.002, 0.0015, 0.003, 0.006   # detent ticks off the channel's lamp side
 LABEL_HALF_Z, LABEL_HALF_X, LABEL_DEPTH = 0.005, 0.13, 0.0008
 LAMP_THICK = 0.002
+STRIP_PROUD, STRIP_SINK = 0.0003, 0.0005   # the strip's top above its channel floor and its bottom into the plate
+STRIP_TUCK = 0.005        # the strip's far end past the knob's centre, so the knob always covers it
 GRIP_END_CHAMFER = 0.004
 RIDGES, RIDGE_W, RIDGE_GAP, RIDGE_R = 5, 0.007, 0.011, 0.0025   # count, width, gap, extra radius
 NECK_HALF_Y, NECK_HALF_Z, NECK_Z, NECK_INTO = 0.007, 0.006, 0.058, 0.006
@@ -278,11 +286,12 @@ def slider_layout(s):
     lo, hi = s["x"]
     khx, khz = s["knobSize"][0] / 2, s["knobSize"][1] / 2
     cd = s["channelDepth"]
-    lamps = s.get("segments") or s.get("bars")
-    n = len(lamps["shapes"])
+    lamps = s.get("segments")
+    n = len(lamps["shapes"]) if lamps else 0
     return {"lo": lo, "hi": hi, "z": s["z"], "khx": khx, "khz": khz, "cd": cd, "floor": TOP - cd,
             "chx": (hi - lo) / 2 + khx + CH_CLEAR, "chz": khz + CH_CLEAR, "cx": (lo + hi) / 2,
-            "foot": TOP - cd + KNOB_LIFT, "crown": TOP + cd, "lamps": lamps, "n": n, "pitch": (hi - lo) / n,
+            "foot": TOP - cd + KNOB_LIFT, "crown": TOP + cd, "lamps": lamps, "strip": s.get("strip"), "n": n,
+            "pitch": (hi - lo) / n if n else None,
             "ticks": [lo + k * (hi - lo) / n for k in range(1, n)] if s["kind"] == "slider" else []}
 
 
@@ -292,10 +301,20 @@ for s, L in zip(SL, SLY):
     assert L["foot"] - L["cd"] > BOTTOM + SINK_MARGIN, f"{s['name']}: a retracted knob's foot leaves the underside"
     assert L["foot"] > L["floor"], f"{s['name']}: the knob's foot passes its channel floor at rest"
     assert L["chz"] > L["khz"] and L["chx"] - (L["hi"] - L["lo"]) / 2 > L["khx"], f"{s['name']}: the channel fits the knob's travel"
-    lz = L["lamps"]["z"]
-    gap = abs(lz - L["z"]) - L["chz"] - L["lamps"]["depth"] / 2
-    assert gap > TICK_GAP + TICK_LEN + 0.002, f"{s['name']}: its lamps crowd its channel"
     assert L["foot"] < TOP, f"{s['name']}: the knob sits in its channel"
+    if L["lamps"]:
+        lz = L["lamps"]["z"]
+        gap = abs(lz - L["z"]) - L["chz"] - L["lamps"]["depth"] / 2
+        assert gap > TICK_GAP + TICK_LEN + 0.002, f"{s['name']}: its lamps crowd its channel"
+    if L["strip"]:
+        st = L["strip"]
+        assert SWATCHES.get(st["swatch"], (0, 0, None))[2], f"{s['name']}: strip swatch {st['swatch']!r} has no emission"
+        assert abs(st["x"] - L["lo"]) < 1e-9 and abs(st["z"] - L["z"]) < 1e-9, f"{s['name']}: the strip starts at (x_lo, z)"
+        # At rest the knob's foot clears the strip's top; retracted, the knob's footprint encloses its far end.
+        assert L["floor"] + STRIP_PROUD < L["foot"], f"{s['name']}: the strip's top reaches the knob's foot"
+        assert L["floor"] - STRIP_SINK > BOTTOM + SINK_MARGIN, f"{s['name']}: the strip's bottom leaves the underside"
+        assert 0 < STRIP_TUCK < L["khx"] - 0.001, f"{s['name']}: the strip's far end is not under the knob"
+        assert st["width"] / 2 < L["khz"] - 0.001, f"{s['name']}: the strip is wider than the knob covers"
 
 
 def octagon_inset(x, z):
@@ -322,8 +341,8 @@ def footprints():
     for s, L in zip(SL, SLY):
         e = L["chx"] + CH_CHAMFER
         out.append((f"{s['name']} channel", L["cx"] - e, L["cx"] + e, L["z"] - L["chz"] - CH_CHAMFER, L["z"] + L["chz"] + CH_CHAMFER))
-        w, lz = L["pitch"] * L["lamps"]["widthFraction"], L["lamps"]["z"]
         for i in range(L["n"]):
+            w, lz = L["pitch"] * L["lamps"]["widthFraction"], L["lamps"]["z"]
             cx = L["lo"] + (i + 0.5) * L["pitch"]
             out.append((f"{s['name']} lamp {i}", cx - w / 2, cx + w / 2, lz - L["lamps"]["depth"] / 2, lz + L["lamps"]["depth"] / 2))
         for i, tx in enumerate(L["ticks"]):
@@ -393,8 +412,8 @@ def build_plate():
     for s, L in zip(SL, SLY):
         cuts.append(part(f"channel_{s['name']}", lambda bm, L=L: flared_cut(
             bm, lambda h: rect_pts(L["chx"] - L["chz"] + h, h, CH_CORNER), L["chz"], L["floor"], CH_CHAMFER, L["cx"], L["z"])))
-        z0, z1 = tick_z(L)
         for k, tx in enumerate(L["ticks"]):
+            z0, z1 = tick_z(L)
             cuts.append(part(f"tick_{s['name']}{k}", lambda bm, tx=tx, z0=z0, z1=z1: box(
                 bm, tx - TICK_W / 2, tx + TICK_W / 2, TOP - TICK_D, TOP + 0.003, z0, z1)))
     lz = R["labelStrip"]["z"]
@@ -466,7 +485,7 @@ def build_bar(cx, cz, w, depth):
 # ---- assemble --------------------------------------------------------------------------------------------
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
-# (verts, polys, swatch fn, bone, [(shape key, dy in Unity Y)])
+# (verts, polys, swatch fn, bone or fn(Unity vertex) -> bone, [(shape key, dy in Unity Y)])
 PARTS = []
 pv, pp = build_plate()
 PARTS.append((pv, pp, plate_swatch, NAMES["root"], []))
@@ -486,6 +505,16 @@ for x, shape in zip(SEL["x"], SEL["shapes"]):
     v, p = build_bar(x, SEL["lamps"]["z"], SEL["lamps"]["width"], SEL["lamps"]["depth"])
     PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
 for s, L in zip(SL, SLY):
+    if L["strip"]:
+        st = L["strip"]
+        far = L["lo"] + STRIP_TUCK
+        v, p = plain(part("strip", lambda bm, st=st, L=L, far=far: box(
+            bm, L["lo"], far, L["floor"] - STRIP_SINK, L["floor"] + STRIP_PROUD,
+            st["z"] - st["width"] / 2, st["z"] + st["width"] / 2)))
+        # Near end on the plate, far end on the knob bone: the strip stretches as the knob translates.
+        PARTS.append((v, p, lambda c, sw=st["swatch"]: sw,
+                      lambda co, knob=s["knob"], mid=(L["lo"] + far) / 2: knob if co[0] > mid else NAMES["root"], []))
+        continue
     for i, shape in enumerate(L["lamps"]["shapes"]):
         v, p = build_bar(L["lo"] + (i + 0.5) * L["pitch"], L["lamps"]["z"], L["pitch"] * L["lamps"]["widthFraction"],
                          L["lamps"]["depth"])
@@ -493,7 +522,8 @@ for s, L in zip(SL, SLY):
 v, p = build_disc(OFF["x"], OFF["z"], OFF["diameter"])
 PARTS.append((v, p, lambda c: "red", NAMES["root"], [(OFF["shape"], LAMP_DY)]))
 
-SHAPES = BL["shapes"] + SEL["shapes"] + [sh for L in SLY for sh in L["lamps"]["shapes"]] + [OFF["shape"], RET["shape"]]
+SHAPES = (BL["shapes"] + SEL["shapes"] + [sh for L in SLY if L["lamps"] for sh in L["lamps"]["shapes"]]
+          + [OFF["shape"], RET["shape"]])
 assert len(set(SHAPES)) == len(SHAPES), "a shape name repeats"
 
 bm = bmesh.new()
@@ -501,7 +531,7 @@ face_swatch, vert_bone, shape_moves = [], [], {s: [] for s in SHAPES}
 for verts, polys, fn, bone, keys in PARTS:
     bv = [bm.verts.new(u2b(co)) for co in verts]
     first = len(vert_bone)
-    vert_bone += [bone] * len(bv)
+    vert_bone += [bone(co) if callable(bone) else bone for co in verts]
     for shape, dy in keys:
         shape_moves[shape] += [(i, dy) for i in range(first, first + len(bv))]
     for poly in polys:

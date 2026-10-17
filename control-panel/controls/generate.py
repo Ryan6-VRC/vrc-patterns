@@ -74,8 +74,9 @@ THE LAYERS
               slider held as the panel goes inert would bounce Held <-> Settle until its chain switches off).
   Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; one on Select lighting
               Lamp_Sel<k> (bar lit and cap sunk `travel`, one shape); one on each discrete slider's int lighting
-              Lamp_Seg<k>; one on each smooth slider's float with children at k/M lighting the bars below k, so the
-              boundary bar fades through the blend. Both lamps show what the wearer accepted; the knob shows the hand.
+              Lamp_Seg<k>, which shows what the wearer accepted. A smooth slider has no lamp shape: the mesh's
+              always-lit strip runs from the track's low end to the knob (near end skinned to Panel, far end to
+              Knob_<name>), so it shows the knob, which at rest lands on the synced value.
               Per slider, the knob memory CP/<name>_Knob (track fraction 0..1): a razor 1D on the reading, children
               at floor - RAZOR and floor. Above: the knob from the reading (r_lo -> 0, r_hi -> 1). Below: a 1D on
               Settling whose child 1 writes the AAP back to itself (holds where the hand let go; a WD-ON tree state
@@ -108,8 +109,8 @@ CONFIG
                 mismatch).
   controls      the rows, in the panel frame: exactly one `buttons` and one `selector` row ({x: cap centres, z}), and
                 sliders, each {kind: slider (discrete, N slots, `hysteresis` past each boundary as a fraction of the
-                track) or smooth (M bar lamps), name, x: (x_lo, x_hi) the knob's track, z, tag}. The frame
-                generator reads the layout for the mesh.
+                track) or smooth (a float, lit by the mesh's knob strip), name, x: (x_lo, x_hi) the knob's track, z,
+                tag}. The frame generator reads the layout for the mesh.
   caps          the cap joint shared by both cap rows: the Buttons root's height, the crown `capTop` and
                 `capDiameter`, the chain `radius`, the visible `travel` (crown to flush), the `squish` the chain
                 allows (travel plus the sink past flush) and the bone length. maxSquish is squish over length.
@@ -164,7 +165,7 @@ CONFIG = {
         {"kind": "selector", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.04},
         {"kind": "slider", "name": "Slot", "N": 5, "hysteresis": 0.02, "x": (-0.1, 0.1), "z": -0.04,
          "tag": "ControlPanelSlot"},
-        {"kind": "smooth", "name": "Level", "M": 10, "x": (-0.1, 0.1), "z": -0.12, "tag": "ControlPanelLevel"},
+        {"kind": "smooth", "name": "Level", "x": (-0.1, 0.1), "z": -0.12, "tag": "ControlPanelLevel"},
     ],
     "caps": {"rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.04, "travel": 0.01, "squish": 0.016,
              "boneLength": 0.03},
@@ -337,9 +338,6 @@ def validate(c):
                 refuse(f"slider {name}: N is a whole number of slots, 2..255: the value is an 8-bit synced int.")
             if not 0 < s["hysteresis"] < 0.5 / n:
                 refuse(f"slider {name}: hysteresis is positive and under half a slot, or a slot has no stable band.")
-        else:
-            if not isinstance(s["M"], int) or s["M"] < 1:
-                refuse(f"smooth slider {name}: M is a whole number of bar lamps, at least 1.")
     if len(set(names)) != len(names):
         refuse(f"slider names repeat ({names}).")
     if None in tags or len(set(tags)) != len(tags):
@@ -362,9 +360,8 @@ def shapes(c):
     out = {"buttons": [f"Lamp_Btn{i + 1}" for i in range(len(rows(c, "buttons")[0]["x"]))],
            "selector": [f"Lamp_Sel{k + 1}" for k in range(len(rows(c, "selector")[0]["x"]))],
            "offline": "Lamp_Offline", "retract": "Controls_Retract"}
-    for s in sliders(c):
-        out[s["name"]] = ([f"Lamp_Seg{k}" for k in range(s["N"])] if s["kind"] == "slider"
-                          else [f"Lamp_Bar{k}" for k in range(s["M"])])
+    for s in rows(c, "slider"):
+        out[s["name"]] = [f"Lamp_Seg{k}" for k in range(s["N"])]
     return out
 
 
@@ -403,8 +400,6 @@ def rig(c):
             e["N"] = N
             e["up"] = {bb: r6(geo["rLo"] + (bb / N + h) * span_r) for bb in range(1, N)}
             e["down"] = {bb: r6(geo["rLo"] + (bb / N - h) * span_r) for bb in range(1, N)}
-        else:
-            e["M"] = s["M"]
         out_sliders.append(e)
     sel_root_z = r6(sum(row["z"] for _, row, *_ in crs) / len(crs))
     s0 = out_sliders
@@ -674,7 +669,6 @@ def document(c):
             tree1d(12, f"{n}_Lamps", e["value"], [(f"{lo}_seg{k}", k) for k in range(e["N"])])
             value_children = [(f"{lo}_detent{k}", k) for k in range(e["N"])]
         else:
-            tree1d(12, f"{n}_Lamps", e["value"], [(f"{lo}_bars{k}", r6(k / e["M"])) for k in range(e["M"] + 1)])
             value_children = knob01
 
         def from_value(ind, t, e=e, n=n, vc=value_children):
@@ -756,8 +750,8 @@ def document(c):
             o(f'      "{LSEL[j]}": {100 if j == k else 0}')
     for e in SL:
         n, lo = e["name"], e["name"].lower()
-        lamps = [f"{shape}{s}" for s in sh[n]]
         if e["kind"] == "slider":
+            lamps = [f"{shape}{s}" for s in sh[n]]
             for k in range(e["N"]):
                 o(f"  {lo}_seg{k}:")
                 o("    set:")
@@ -765,12 +759,6 @@ def document(c):
                     o(f'      "{lamps[j]}": {100 if j == k else 0}')
             for k in range(e["N"]):
                 o(f"  {lo}_detent{k}: {{ set: {{ {e['knobParam']}: {r6((k + 0.5) / e['N'])} }} }}")
-        else:
-            for k in range(e["M"] + 1):
-                o(f"  {lo}_bars{k}:")
-                o("    set:")
-                for j in range(e["M"]):
-                    o(f'      "{lamps[j]}": {100 if j < k else 0}')
         o(f"  {lo}_knob0: {{ set: {{ {e['knobParam']}: 0 }} }}")
         o(f"  {lo}_knob1: {{ set: {{ {e['knobParam']}: 1 }} }}")
         kp = f"{bone}/{e['knob']}/Transform.m_LocalPosition"
