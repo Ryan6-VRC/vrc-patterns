@@ -34,16 +34,21 @@ grabbing off; nothing of ours sits under it. A hand grabs our handle instead, ho
             captures it at a plant. The line and the sensing read Stake, never Far: Far solves before
             Holder in the Holder <- Stake <- Far <- HTip cycle, so sourcing Far flashes the line to the
             collar for the plant frame.
-  Line      at Stake, aimed back at Start, so its +Z runs along the leash. Its children are the line's
-            joints: J0 on Start, the last joint a static child one last-bone length back from Stake (so
-            the last bone's visible end lands on Stake), the joints between spread over that span by
-            the strand's rest bone lengths.
+  Mid       under Stake, position-constrained to the Start/Stake midpoint; its child P0 is the pendulum, a
+            one-bone physbone pointing straight down to PTip (twice `rope.sag` long), grabbing, posing and
+            collision off. PTip is the curve's control point. It runs on every client, so every copy swings.
+  Line      under Stake at its origin, aimed at PTip along -Z. Its children are the curve's joints: J0 on
+            Start, the last joint a static child one last-bone length back from Stake toward PTip (so the
+            last bone's visible end lands on Stake, along the curve's end tangent), the joints between on
+            the quadratic Bezier [Start, PTip, last joint] at their share of the rest length. Every joint
+            but the last aims at the next one, world up. Line and Mid ride under Stake so Stake's
+            constraint solves before theirs: beside it they read Stake a frame late.
   strand    each bone takes one parent constraint, sources itself and its joint, weights animated:
             (1, 0) free, (0, 1) held and planted. Self at 1 writes back the bone's own solved pose, a
             no-op; the physbone keeps solving underneath, so a release fades onto the strand's own
             current physics.
   Sense     the level carrier: position from Start, rotation from the avatar root's yaw (it rides the
-            prefab root). Two local face-proximity boxes, Right and Forward; SenseProxy carries the
+            prefab root). Three local face-proximity boxes, Right, Forward and Up; SenseProxy carries the
             sender 1/ratio of the way from Sense to Stake.
 
 THE MACHINE (layer `<prefix>`)
@@ -96,6 +101,8 @@ CONFIG
   home          Home's local pose under Start as measured on the settled strand, or None for the point
                 `homeAt` along the rest pose.
   handle        the handle physbone's settings; FIXED_HANDLE holds what makes it a handle.
+  rope          the curve: `sag` (nominal metres the curve's middle hangs below the chord; deeper at short spans) and the
+                pendulum's `pull` and `spring` (FIXED_PENDULUM holds the rest).
   fade          frames of the strand's transition blend each way.
   cycle         seconds the plant holds the handle off.
   announce      seconds from Planted to the synced flag.
@@ -133,12 +140,9 @@ CONFIG = {
     # The demo's rope (assets/Leash.fbx, unpacked under Mount at local zero): its Collar bone's frame is Mount's.
     "chain": [
         {"bone": "Mount/Leash/Armature/Collar/V0", "pos": (0, -0.015, 0.0652), "rot": (165, 0, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1", "pos": (0, 0.15, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2", "pos": (0, 0.15, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2/V3", "pos": (0, 0.15, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4", "pos": (0, 0.15, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5", "pos": (0, 0.15, 0)},
-        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6", "pos": (0, 0.15, 0)},
+        {"bone": "Mount/Leash/Armature/Collar/V0/V1", "pos": (0, 0.3, 0)},
+        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2", "pos": (0, 0.3, 0)},
+        {"bone": "Mount/Leash/Armature/Collar/V0/V1/V2/V3", "pos": (0, 0.3, 0)},
     ],
     "endpoint": (0, 0.165, 0),
     # The midpoint: a hand reaching for the strand anywhere along it is near it, however the strand swings.
@@ -146,6 +150,10 @@ CONFIG = {
     "home": None,
     # pull and spring are the release's feel: how fast the line retracts with the handle after a plain release.
     "handle": {"length": 0.05, "radius": 0.05, "maxStretch": 100, "pull": 0.2, "spring": 0.2, "stiffness": 0.2},
+    # The held and planted curve. sag: how far the curve's middle hangs below the straight line, nominally; the curve
+    # ends one last-bone length short of Stake, so a short span or a long last bone deepens it a little.
+    # pull and spring are the pendulum's swing (spring is the overshoot).
+    "rope": {"sag": 0.15, "pull": 0.2, "spring": 0.98},
     "fade": 10,
     "cycle": 0.05,
     "announce": 2.0,
@@ -158,11 +166,20 @@ CONFIG = {
 FIXED_HANDLE = {"gravity": 0.0, "grabMovement": 1.0, "allowGrabbing": "Other", "allowPosing": "Other",
                 "allowCollision": "False", "resetWhenDisabled": True, "isAnimated": False,
                 "integrationType": "Simplified", "limitType": "None"}
+# What makes the pendulum a pendulum: it hangs straight down from the midpoint (gravity is inert on a rest pointing
+# down; pull is the restoring force and spring the momentum), nothing grabs, poses or collides with it.
+FIXED_PENDULUM = {"gravity": 1.0, "stiffness": 0.0, "radius": 0.0, "allowGrabbing": "False", "allowPosing": "False",
+                  "allowCollision": "False", "isAnimated": False, "integrationType": "Simplified", "limitType": "None",
+                  "parameter": ""}
 # Unity HumanBodyBones values the demo Mount's BoneProxy may target.
 HUMAN = {"Hips": 0, "Spine": 7, "Chest": 8, "Neck": 9, "Head": 10, "UpperChest": 54}
 # Box shape rotations putting each face-proximity box's +Z face on the carrier's named axis.
-AXES = (("Right", (0, 90, 0)), ("Forward", (0, 0, 0)))
+AXES = (("Right", (0, 90, 0)), ("Forward", (0, 0, 0)), ("Up", (270, 0, 0)))
 SYNC_MOUNT = "ObjectSync"
+# Everything that reads Stake's position rides under it: a constraint on an ancestor's target solves first, so
+# the curve never reads Stake a frame late (beside Stake, the line ran one frame of the wearer's travel behind it).
+LINE, MID = "Stake/Line", "Stake/Mid"
+PTIP = f"{MID}/P0/PTip"
 # Seconds past `announce` a remote's Planted waits for the flag before taking an unplant as read.
 REMOTE_WAIT = 1.0
 
@@ -307,6 +324,9 @@ def validate(c):
         refuse("endpoint is the last bone's visible end; a zero endpoint leaves the last bone no length to place.")
     if len({b["bone"] for b in c["chain"]}) != n:
         refuse("chain bone paths repeat.")
+    rp = c["rope"]
+    if not rp["sag"] > 0:
+        refuse("rope sag is positive metres.")
     lo, hi = c["slackRange"]
     if not 0 <= lo < hi:
         refuse("slackRange is (min, max) metres, 0 <= min < max.")
@@ -358,24 +378,38 @@ def home_pose(c, g):
 
 
 def joints(c, g):
-    """The line's joints under Line: name, kind and either position-constraint weights over [Start, last
-    joint] or the last joint's static local position."""
+    """The curve's joints under Line: name, and either position-constraint weights over [Start, PTip, last joint]
+    (the quadratic Bezier's Bernstein terms at the joint's share of the rest length) plus the next joint it aims
+    at, or the last joint's static local position (one last-bone length back from Stake toward PTip)."""
     n = len(c["chain"])
     span = g["L"] - g["seg"][-1]
+    last = f"{LINE}/J{n - 1}"
     out = []
     cum = 0.0
     for k in range(n):
         if k == n - 1:
             out.append({"name": f"J{k}", "static": [0, 0, round(-g["seg"][-1], 6)]})
         elif k == 0:
-            out.append({"name": "J0", "sources": ["Mount/Start"], "weights": [1.0]})
+            out.append({"name": "J0", "sources": ["Mount/Start"], "weights": [1.0], "aim": f"{LINE}/J{k + 1}"})
         else:
             t = cum / span
-            out.append({"name": f"J{k}", "sources": ["Mount/Start", f"Line/J{n - 1}"],
-                        "weights": [round(1 - t, 6), round(t, 6)]})
+            out.append({"name": f"J{k}", "sources": ["Mount/Start", PTIP, last],
+                        "weights": [round((1 - t) ** 2, 6), round(2 * t * (1 - t), 6), round(t * t, 6)],
+                        "aim": f"{LINE}/J{k + 1}"})
         cum += g["seg"][k]
     return out
 
+
+def rope_rig(c, g):
+    """The pendulum on the Start/Stake midpoint; its tip is the curve's control point."""
+    rp = c["rope"]
+    pb = {"pull": rp["pull"], "spring": rp["spring"]}
+    pb.update(FIXED_PENDULUM)
+    return {
+        "mid": {"path": MID, "sources": ["Mount/Start", "Stake"], "weights": [0.5, 0.5]},
+        "pendulum": {"bone": f"{MID}/P0", "tip": PTIP, "tipLocalPosition": [0, round(-2 * rp["sag"], 6), 0], "physbone": pb},
+        "sag": rp["sag"],
+    }
 
 def sync_gen():
     if not os.path.exists(OS_GEN):
@@ -423,8 +457,9 @@ def rig(c, og):
         "home": {"path": "Mount/Start/Home", "localPosition": r6(hp), "localRotation": r6(hq), "localEuler": to_euler(hq)},
         "handle": {"physbone": handle_physbone(c), "tipLocalPosition": [0, 0, c["handle"]["length"]],
                    "reach": reach},
-        "line": {"aimAxis": [0, 0, -1], "upAxis": [0, 1, 0], "joints": joints(c, g)},
-        "strand": [{"path": b["bone"], "joint": f"Line/J{k}", "jointRotationOffset": r6(to_euler(g["offsets"][k])),
+        "line": {"path": LINE, "aimAxis": [0, 0, -1], "upAxis": [0, 1, 0], "aimAt": PTIP, "jointAimAxis": [0, 0, 1], "joints": joints(c, g)},
+        "rope": rope_rig(c, g),
+        "strand": [{"path": b["bone"], "joint": f"{LINE}/J{k}", "jointRotationOffset": r6(to_euler(g["offsets"][k])),
                     "jointRotationOffsetQ": r6(g["offsets"][k]), "segment": round(g["seg"][k], 6)}
                    for k, b in enumerate(c["chain"])],
         "length": round(g["L"], 6),
@@ -887,7 +922,7 @@ def check(c, prefab_path, entry=True):
             want = meta_guid(os.path.join(HERE, rel))
             A(want in refs and refs.index(want) > 0, f"FullController {kind}: the consumer's own entry before this entry's {rel} (got {refs})")
 
-    # Sensing: two boxes on Sense, one sender on SenseProxy, one private tag, the geometry the decode assumes.
+    # Sensing: three boxes on Sense, one sender on SenseProxy, one private tag, the geometry the decode assumes.
     boxes = P.components("Sense", r"^  receiverType:")
     A(len(boxes) == len(s["boxes"]), f"Sense carries {len(s['boxes'])} receivers (got {len(boxes)})")
     for want in s["boxes"]:
@@ -927,25 +962,56 @@ def check(c, prefab_path, entry=True):
     one("Stake", r"^  PositionAtRest:", [("Far", 1, None, None), (f"{SYNC_MOUNT}/Rig/Prop/Display", 0, None, None)],
         "position constraint")
     ln = r["line"]
-    line_cs = P.components("Line", r"^  Sources:")
-    lp = [d for d in line_cs if not re.search(r"^  AimAxis:", d, re.M)]
-    la = [d for d in line_cs if re.search(r"^  AimAxis:", d, re.M)]
-    A(len(lp) == 1 and [x[0] for x in P.sources(lp[0])] == ["Stake"], "Line position <- Stake")
-    if A(len(la) == 1 and [x[0] for x in P.sources(la[0])] == ["Mount/Start"], "Line aim <- Mount/Start"):
-        A(close(vec(la[0], "AimAxis"), tuple(ln["aimAxis"])) and close(vec(la[0], "UpAxis"), tuple(ln["upAxis"])),
-          f"Line aims {ln['aimAxis']} at Start, up {ln['upAxis']}, so +Z runs along the leash")
-        A(not own_offsets(la[0]), "Line aim offset zero")
+    line_cs = P.components(ln["path"], r"^  Sources:")
+    lp = [x for x in line_cs if not re.search(r"^  AimAxis:", x, re.M)]
+    la = [x for x in line_cs if re.search(r"^  AimAxis:", x, re.M)]
+    d = P.transform(ln["path"])
+    A(d is not None and close(vec(d, "m_LocalPosition"), ZERO3) and not lp,
+      f"{ln['path']} sits on Stake's origin with no position constraint: under Stake it reads Stake's solved position")
+    if A(len(la) == 1 and [x[0] for x in P.sources(la[0])] == [ln["aimAt"]], f"{ln['path']} aim <- {ln['aimAt']}"):
+        A(close(vec(la[0], "AimAxis"), tuple(ln["aimAxis"])) and close(vec(la[0], "UpAxis"), tuple(ln["upAxis"]))
+          and field(la[0], "WorldUp") == "0",
+          f"{ln['path']} aims {ln['aimAxis']} at {ln['aimAt']}, up {ln['upAxis']} against scene up, so +Z runs along the curve's end")
+        A(not own_offsets(la[0]), f"{ln['path']} aim offset zero")
     for j in ln["joints"]:
-        path = f"Line/{j['name']}"
+        path = f"{ln['path']}/{j['name']}"
         d = P.transform(path)
         if not A(d is not None, f"{path} exists"):
             continue
-        A(same_rotation(vec(d, "m_LocalRotation"), ZERO_Q), f"{path}: unrotated under Line")
         if "static" in j:
-            A(close(vec(d, "m_LocalPosition"), tuple(j["static"])), f"{path}: static at {j['static']} (the last bone's length back from Stake)")
+            A(same_rotation(vec(d, "m_LocalRotation"), ZERO_Q), f"{path}: unrotated under Line")
+            A(close(vec(d, "m_LocalPosition"), tuple(j["static"])), f"{path}: static at {j['static']} (the last bone's length back from Stake toward PTip)")
             A(not P.components(path, r"^  Sources:"), f"{path}: no constraint")
         else:
             one(path, r"^  PositionAtRest:", [(a, w, None, None) for a, w in zip(j["sources"], j["weights"])], "position constraint")
+            aims = P.components(path, r"^  AimAxis:")
+            if A(len(aims) == 1 and [x[0] for x in P.sources(aims[0])] == [j["aim"]], f"{path} aim <- {j['aim']}"):
+                A(close(vec(aims[0], "AimAxis"), tuple(ln["jointAimAxis"])) and close(vec(aims[0], "UpAxis"), tuple(ln["upAxis"]))
+                  and field(aims[0], "WorldUp") == "0" and not own_offsets(aims[0]),
+                  f"{path} aims {ln['jointAimAxis']} at the next joint, up {ln['upAxis']} against scene up, offset zero")
+
+    # The rope: the pendulum on the midpoint, its tip the control point; nothing measures the span.
+    rp = r["rope"]
+    one(rp["mid"]["path"], r"^  PositionAtRest:", [(a, w, None, None) for a, w in zip(rp["mid"]["sources"], rp["mid"]["weights"])],
+        "position constraint")
+    A(not P.components(rp["mid"]["path"], r"^  RotationAtRest:"), f"{rp['mid']['path']} carries no rotation constraint: the pendulum hangs in the root's frame")
+    pen = rp["pendulum"]
+    d = P.transform(pen["tip"])
+    A(d is not None and close(vec(d, "m_LocalPosition"), tuple(pen["tipLocalPosition"])), f"{pen['tip']} at {pen['tipLocalPosition']} (twice the sag)")
+    d = P.transform(pen["bone"])
+    A(d is not None and close(vec(d, "m_LocalPosition"), ZERO3) and same_rotation(vec(d, "m_LocalRotation"), ZERO_Q),
+      f"{pen['bone']} at its parent's origin, unrotated, so the pendulum rests straight down")
+    pbs = P.components(pen["bone"], r"^  maxStretch:")
+    if A(len(pbs) == 1, f"{pen['bone']} carries one physbone"):
+        for fld, v in pen["physbone"].items():
+            got = field(pbs[0], fld)
+            good = (got or "") == v if fld == "parameter" else (got == ENUM[v] if isinstance(v, (bool, str)) else
+                                                               got is not None and abs(float(got) - v) < 1e-6)
+            A(good, f"pendulum physbone {fld} == {v!r} (got {got})")
+        A(fid(pbs[0], "rootTransform") in (0, None), "pendulum physbone roots on its own bone")
+    A(P.transform("Stake/Ctrl") is None and not P.components(LINE + "/J0", r"^  receiverType:")
+      and not P.components("Stake", r"^  collisionTags:"),
+      "no Stake/Ctrl and no span contact pair: the sag is fixed, PTip is the control point")
 
     # The handle: its pose and the physbone that makes it one.
     d = P.transform("Holder/HB0/HTip")
@@ -1084,7 +1150,7 @@ def check_sync(c, og, P, A):
 
 
 CONSUMER_KEYS = {"prefix", "internal", "controller", "tag", "boxSize", "senderRadius", "ratio", "slackRange", "slack", "slackPlanted", "selfGrabDefault", "mount", "mountRot",
-                 "chain", "endpoint", "homeAt", "home", "handle", "fade", "cycle", "announce", "enableDefault"}
+                 "chain", "endpoint", "homeAt", "home", "handle", "rope", "fade", "cycle", "announce", "enableDefault"}
 
 
 def arg(name):
@@ -1097,7 +1163,7 @@ def arg(name):
 
 
 def consumer_config(path):
-    """CONFIG with a consumer's JSON keys over it; `handle` merges key by key."""
+    """CONFIG with a consumer's JSON keys over it; `handle` and `rope` merge key by key."""
     with open(path, encoding="utf-8") as fh:
         user = json.load(fh)
     bad = sorted(set(user) - CONSUMER_KEYS - {"_comment"})
@@ -1105,8 +1171,8 @@ def consumer_config(path):
         refuse(f"{path}: unknown or non-consumer keys {bad} (rigSeed belongs to this entry's object-sync build)")
     c = dict(CONFIG)
     for k, v in user.items():
-        if k == "handle":
-            c["handle"] = dict(CONFIG["handle"], **v)
+        if k in ("handle", "rope"):
+            c[k] = dict(CONFIG[k], **v)
         elif k != "_comment":
             c[k] = v
     return c
