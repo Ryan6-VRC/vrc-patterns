@@ -4,103 +4,140 @@
     python control-panel/controls/generate.py            # writes controls/controller.yaml
     python control-panel/controls/generate.py --check    # asserts Panel.prefab's hand-built surface against CONFIG
 
-The entry's own generate.py reads CONFIG's N, buttons and slider from here. Edit CONFIG, rerun, then
-recompile controls/built/ as a unit in a mounting Editor (CONVENTIONS.md §The gate). Every output is a pure
-function of CONFIG; nothing here writes Unity assets: `--check` holds the prefab to CONFIG afterwards.
+The entry's own generate.py reads `controls`, `face` and rig() from here (rig.json, the mesh's numbers). Edit
+CONFIG, rerun both generators, then recompile controls/built/ as a unit in a mounting Editor (CONVENTIONS.md
+§The gate). Every output is a pure function of CONFIG; nothing here writes Unity assets: `--check` holds the
+prefab to CONFIG afterwards.
 
 WHAT THE CONTROLS ARE
 ---------------------
 One self-contained subtree, `Panel.prefab`, lifted whole by a consumer: the model (assets/ControlPanel.fbx)
 fully unpacked, so every bone is a named node a binding and `--check` can address, plus the components below
 and nothing else. Unpacked, the prefab no longer follows the FBX: after a re-export that moves a bone, rebuild
-it (`--check` pins each bone's rest pose, so a stale one fails there).
+it (`--check` pins each bone's rest pose, so a stale one fails there). Four rows, CONFIG `controls`: toggle
+buttons, a selector, a discrete slider, a smooth slider.
 
-  Buttons     the FBX bone under Panel, root of ONE physbone (multiChildType Ignore) over the four button chains
-              Btn1..Btn4 -> Btn<i>_End. Angle limit zero, squish on, stretch zero, collision on, grabbing off: a
-              hand pushing a cap down compresses that chain. The solver squishes by moving Btn<i>_End along the
-              bone, never by scaling the bone, so a cap skinned to Btn<i>_End travels rigidly. Each tip rests
-              `radius` below its cap's crown, so the joint sphere's top is the crown: that sphere is the press
-              surface, wide across the cap when the radius is large (measured: a presser engages where its
-              collider surface meets the sphere, within a millimetre). The tip's REST height is also where a hard
-              press inverts: with pull 1 the solver re-seats the tip at rest before each collision step, so a
-              presser whose centre passes below the rest tip pushes it up instead of down (measured). A deep seat
-              (large radius) therefore buys both the width and the overtravel; `squish` only sets how far the cap
+  Buttons     the bone under Panel, root of ONE physbone (multiChildType Ignore) over every cap chain, the button
+              row's Btn<i> -> Btn<i>_End and the selector row's Sel<k> -> Sel<k>_End. Angle limit zero, squish on,
+              stretch zero, collision on, grabbing off: a hand pushing a cap down compresses that chain. The solver
+              squishes by moving the End along the bone, never by scaling it, so a cap skinned to its End travels
+              rigidly. Each tip rests `radius` below its cap's crown, so the joint sphere's top is the crown: that
+              sphere is the press surface, wide across the cap when the radius is large (measured: a presser
+              engages where its collider surface meets the sphere, within a millimetre). The tip's REST height is
+              also where a hard press inverts: with pull 1 the solver re-seats the tip at rest before each collision
+              step, so a presser whose centre passes below the rest tip pushes it up instead of down (measured). A
+              deep seat (large radius) buys both the width and the overtravel; `squish` only sets how far the cap
               sinks past flush before it sits still.
-  Btn<i>_End  each carries a local-only face-mode box receiver whose +Z face points up the press axis; it reads
-              the sender's depth into the box, `rig()['receiver']`. It rides the End directly: nothing scales it.
-  PressSender Unity-side, under the Panel bone: one local-only capsule sender along X lying at bottom-out depth,
-              tag `tag`. The readout senses the panel's own parts, never the presser's hand, so it does not care
-              which senders a stranger's avatar carries or when they joined.
-  Slider      the posed stretch physbone, Slider -> Slider_End along the slot; `CP/Slider_Stretch` is the
-              knob's fraction along the slot, 0 at slot 0's end and 1 at the far end. The knob skins to
-              Slider_End, which the solver translates along the slot at unit scale.
+  <cap>_End   each carries a local-only face-mode box receiver whose +Z face points up the press axis, reading the
+              row sender's depth into the box (CP/Press<i>, CP/SelPress<k>).
+  PressSender, SelSender   two local-only capsule senders on the Panel bone, one per cap row, lying along X at
+              that row's Z and bottom-out depth, both tagged `tag`. A capsule lies at one Z, so it cannot serve two
+              rows; validate() refuses a row sender reaching another row's receiver boxes, because the tag is shared.
+              The readout senses the panel's own parts, never a hand, so it does not care which senders a stranger
+              carries or when they joined.
+  Sliders     the bone under Panel, root of ONE physbone (Ignore) over Sld_<name> -> Sld_<name>_End per slider, so
+              one slider on the panel is grabbable at a time. It is a grab surface, not a readout: no angle limit
+              (limit 0 does not project the hand onto the axis; it over-reads by about h^2/2d), snapToHand 1 (at 0
+              the tip keeps the grab offset), grabMovement 1, pull 1, collision and posing off, no parameter. The tip
+              rests `restOffset` past the box's high face; maxSquish 0.9 lets it reach `boxMargin/2` below the
+              track's low end, maxStretch lets it reach a hand `boxAbove` over the far end. Released, it springs to
+              rest and nothing reads it.
+  Sld_<name>_End  a non-local sphere sender tagged per slider (`ControlPanel<name>`; the boxes may overlap).
+  slider boxes   two non-local face-mode box receivers on the Panel bone, CP/<name>_Read, +Z face toward the
+              track's high-X end, spanning the track plus `boxMargin` each side: the reading is the tip's track
+              position, r_lo at x_lo and r_hi at x_hi, `floor` at the squish limit, 0 with the tip at rest outside.
+              Non-local, so every client runs the held branch for a remote's grab and its knob follows the hand.
+  Knob_<name> a child of Panel in no chain, built UP/ACROSS so its m_LocalPosition is a panel-frame position; the
+              knob mesh skins to it. Only the Lamps tree writes it.
 
 THE LAYERS
 ----------
-  Buttons     Idle -> the press ladder, Press1 > Press2 > Press3 > Press4, first match wins. A press entering
-              above `press` depth goes straight to Set<i> when the button reads off and Clear<i> when it reads on (a
-              driver cannot invert), each stamping ControlPanel/Btn<i> wearer-only the frame the depth is crossed;
-              then Hold until every receiver is below `release` depth, then Cooldown for `cooldown` seconds, then
-              Idle. Every guard is on the release side, because a delay before the stamp adds to the remote's wire
-              and IK delay where a delay after it costs nothing they can see: the cooldown is the floor between two
-              toggles of one button, so it exceeds the wire's set/clear separation. With `arm` above 0 an Arm<i>
-              dwell sits before the stamp and falls back to Idle if the reading drops under `press` first, which
-              rejects a hand brushing sideways over a cap at the cost of that much latency on every press. Lifted
-              from zone-touch's ladder, hold and cooldown dwell.
-  Slot        N states, one per slot, each stamping its index into ControlPanel/Slot wearer-only; a state moves
-              to its neighbour when CP/Slider_Stretch crosses the shared boundary by `hysteresis`. It runs live
-              while the slider is held, so the lit segment follows the hand; nothing samples at release.
-  Lamps       one state: a Direct tree weighted by CP/One, a 1D tree per button on ControlPanel/Btn<i> and one
-              1D tree on ControlPanel/Slot whose child k raises Lamp_Seg<k> and lowers the rest.
+  Buttons     Idle -> the press ladder, buttons then selector caps, first match wins. A button press entering above
+              `press` depth goes straight to Set<i> when the button reads off and Clear<i> when it reads on (a driver
+              cannot invert); a selector press goes to StampSel<k>, which stamps ControlPanel/Select = k-1 (0-based, so
+              the declared default 0 rests on cap 1) and re-stamps on a press of the chosen cap. Each stamps
+              wearer-only the frame the depth is crossed, then Hold until every one of the row receivers is below
+              `release`, then Cooldown for `cooldown` seconds, then Idle. Every guard is on the release side,
+              because a delay before the stamp adds to the remote's wire and IK delay where one after it costs
+              nothing they can see. With `arm` above 0 an Arm dwell sits before each stamp and falls back to Idle if
+              the reading drops under `press` first. Lifted from zone-touch's ladder, hold and cooldown dwell.
+  Sliders     writes exactly one thing, the AAP CP/Settling, through single-clip states (no Direct tree, so each
+              holds what it writes): Idle 0; Held_<name>, the stamp ticks and Settle 1, so the knob memory holds the
+              very frame a reading falls. Idle -> Held_<name> on Live and the reading above `floor`, not gated on
+              IsLocal: remotes run it for Settling. Every held state leaves for Settle first on Live low, then on
+              its reading under floor. A discrete slider's Held_<name> stamps ControlPanel/<name> wearer-only
+              through Stamp_<name>_<k> on a crossing of boundary b/N by `hysteresis`: up rungs highest boundary
+              first, down rungs lowest first, so a jump lands on the slot the reading is in. A smooth slider
+              alternates Held_<name>A <-> Held_<name>B every frame on the wearer, each entry copying the reading
+              through convertRange (r_lo, r_hi) -> (0, 1) into ControlPanel/<name>; remotes stay in A. Settle
+              dwells `sliderSettle` seconds, re-entering a held state on any reading above floor (Live-gated, or a
+              slider held as the panel goes inert would bounce Held <-> Settle until its chain switches off).
+  Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; one on Select lighting
+              Lamp_Sel<k> (bar lit and cap sunk `travel`, one shape); one on each discrete slider's int lighting
+              Lamp_Seg<k>; one on each smooth slider's float with children at k/M lighting the bars below k, so the
+              boundary bar fades through the blend. Both lamps show what the wearer accepted; the knob shows the hand.
+              Per slider, the knob memory CP/<name>_Knob (track fraction 0..1): a razor 1D on the reading, children
+              at floor - RAZOR and floor. Above: the knob from the reading (r_lo -> 0, r_hi -> 1). Below: a 1D on
+              Settling whose child 1 writes the AAP back to itself (holds where the hand let go; a WD-ON tree state
+              reverts an AAP no child writes) and child 0 writes it from the synced value (a discrete slot's centre,
+              (k + 1/2)/N; a smooth value as is). Then a 1D on the AAP writes Knob_<name>'s whole m_LocalPosition,
+              x_lo at 0 and x_hi at 1. So on every client the knob follows the hand while held, holds while
+              Settling is 1, then goes to the value.
   Live        Inert / Live on <internal>/Live, an AAP the frame's glue writes (1 only once every copy has settled
-              onto the panel's synced rest; the glue's header owns why). Inert switches the Buttons physbone off
-              and raises Caps_Retract, sinking the caps flush with the face; Live reverses both. The crossfade of
-              `retractTime` smooths the shape. The Buttons ladder also requires Live, so a press can never stamp
-              while the chain is off or the caps are still rising. A consumer lifting the controls without the
-              glue must write <internal>/Live itself: at its default 0 the buttons stay sunk and dead.
+              onto the panel's synced rest; the glue's header owns why). Inert switches both physbones off and
+              raises Controls_Retract, sinking every cap by `travel` and every knob by `channelDepth`; Live reverses
+              them. Disabling Sliders breaks a grab network-wide. The press and slider rungs also require Live, so a
+              stamp never lands while a chain is off. A consumer lifting the controls without the glue must write
+              <internal>/Live itself: at its default 0 the controls stay sunk and dead.
   Offline     Online / Offline writing Lamp_Offline: offline on a remote copy until object-sync's word is
               trustworthy (not IsLocal, and ObjectSync/Enable or OS/Ready low). A state machine because a tree
               cannot read IsLocal without declaring it float.
-Every state keys every binding its layer owns; Buttons and Slot own none, Lamps, Live and Offline own the shapes,
-Live the Buttons physbone's m_Enabled too.
+Every state keys every binding its layer owns: Buttons owns none, Sliders CP/Settling, Lamps the lamp shapes, the
+knob AAPs and the knob transforms, Live Controls_Retract and both physbones' m_Enabled, Offline Lamp_Offline.
 
 CONFIG
 ------
   controller    the emitted controller's name.
-  prefix        the published prefix (ControlPanel/Btn<i>, ControlPanel/Slot).
+  prefix        the published prefix: ControlPanel/Btn<i> (bool), ControlPanel/Select (int), ControlPanel/<name> per
+                slider (int for a discrete slider, float 0..1 for a smooth one), all synced and unsaved.
   internal      the internal prefix (required): no published wildcard may reach it.
-  N             slider slots; feeds the segment lamps and the Slot layer together.
   mountPath     the Panel instance from the FullController's GameObject; every binding is prefixed with it.
   armature      the FBX armature node under the Panel instance (bones live under <armature>/Panel).
   mesh          the skinned mesh node under the Panel instance.
-  face          the plate's full width along X (the frame CONFIG's plate.x spans the same; its generator refuses a mismatch).
-  buttons       button x positions in the panel frame (one per button), z, the Buttons root's height, the cap crown
-                height `capTop` and diameter, the chain `radius` (the tip rests `radius` below the crown, so the joint
-                sphere's top is the crown), the visible `travel` (crown to flush), the total `squish` the chain allows
-                (travel plus the sink past flush before the cap sits still) and the bone length (metres).
-                maxSquish is squish over length. The frame generator reads this layout for the mesh; a cap must stay
-                inside the face and clear its neighbour, and the sphere's cut at face level must not reach the
-                neighbouring cap.
-  press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every
+  face          the plate's full width along X (the frame CONFIG's plate.x spans the same; its generator refuses a
+                mismatch).
+  controls      the rows, in the panel frame: exactly one `buttons` and one `selector` row ({x: cap centres, z}), and
+                sliders, each {kind: slider (discrete, N slots, `hysteresis` past each boundary as a fraction of the
+                track) or smooth (M bar lamps), name, x: (x_lo, x_hi) the knob's track, z, tag}. The frame
+                generator reads the layout for the mesh.
+  caps          the cap joint shared by both cap rows: the Buttons root's height, the crown `capTop` and
+                `capDiameter`, the chain `radius`, the visible `travel` (crown to flush), the `squish` the chain
+                allows (travel plus the sink past flush) and the bone length. maxSquish is squish over length.
+                validate() refuses caps leaving the face, overlapping, or whose joint sphere's cut at face level
+                reaches a neighbouring cap in either row.
+  press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every cap
                 receiver is at or below `release`; emitted as readings over the box's depth.
-  boxMargin     the receiver box is `squish` plus the sender's diameter plus this deep, so the sender stays inside it
-                over the whole squish range (a face-mode box reads 0 once the sender passes either face, which would
-                read as a release mid-press).
-  senderRadius  the capsule sender's radius; its top surface sits at the tip's bottom-out height.
+  boxMargin     the cap receiver box is `squish` plus the sender's diameter plus this deep, so the sender stays inside
+                it over the whole squish (a face-mode box reads 0 once the sender passes either face, which would read
+                as a release mid-press).
+  boxWidth, senderRadius   cap contact geometry; validate() refuses boxes overlapping neighbours.
   arm           seconds a press must hold above `press` before it stamps; 0 stamps on the crossing and emits no dwell
                 state (the shipped value: a brush then toggles a cap, and nothing delays the stamp).
-  cooldown      seconds between a release and the next accepted press.
-  hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
-  retractTime   seconds the caps take to rise out of the face or sink flush into it when <internal>/Live changes
-                (the Live layer's crossfade).
-  slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it),
-                chain radius and `pull` [EMPIRICAL]: the rate the knob glides toward its rest or pose when nothing holds
-                it, a time constant near 1/(60 pull) seconds whatever the frame rate (measured: residual 79 % after
-                0.5 s at 0.01, 20 % at 0.05, 0 at 1). Another player's copy sees the grab end before the pose arrives
-                and glides toward the authored rest in between, so a low pull shortens that dip; 0 removes it but
-                then nothing moves a copy onto the received pose, so a late joiner never sees it (client-observed).
-                The held knob trails a moving hand (6 mm at 0.27 m/s at 0.01) and settles onto it once the hand stops.
-  tag           the sender/receiver collision tag (private).
+  cooldown      seconds between a release and the next accepted press, above the wire's 0.2 s set/clear floor.
+  retractTime   seconds the caps and knobs take to rise or sink when <internal>/Live changes (the Live crossfade).
+  sliders       shared by every slider. `y` the chain's height (the box's floor: a tip below it reads 0); `radius`
+                the chain radius (the capsule along the bone is the grab surface); `boxMargin` m past each track end;
+                `senderRadius` r of the tip sphere; `restOffset` the tip's rest past the high track end + m, refused
+                at or under r (a sender straddling the +Z face reads 1 and would hold every client in Held for
+                ever); `boxAcross`, `boxAbove` the box's extent across the track and above `y` (contact size limit
+                6 m); `knobY` the knob bone's rest height; `channelDepth` the knob channel's depth and the knob's
+                retract; `settle` [EMPIRICAL] Settle's dwell, the wire plus IK delay between the grabber's release and
+                the wearer's last stamp arriving. validate() refuses a slider box reaching a cap receiver.
+  tag           the cap rows' sender/receiver tag (private).
+Derived per slider (rig()['sliders']): run = x_hi - x_lo; box size run + 2m; readings r_lo = (m + r)/(run + 2m),
+r_hi = (run + m + r)/(run + 2m), floor = (m/2 + r)/(run + 2m); tip rest x_hi + m + restOffset; bone length
+L = (run + 1.5 m + restOffset)/0.9; root at tip rest - L; maxStretch = sqrt(L^2 + boxAbove^2)/L - 1, the largest
+over the sliders, since they share one component.
 """
 
 import math
@@ -110,18 +147,26 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FRAME = 1 / 60
+SQUISH = 0.9     # the Sliders chain's maxSquish: the tip reaches the low track end's squish limit at this fraction
+RAZOR = 0.0001   # the knob memory's razor width below `floor`
 
 CONFIG = {
     "controller": "ControlPanelControls_Fx",
     "prefix": "ControlPanel",
     "internal": "CP",
-    "N": 5,
     "mountPath": "TwoHandProp/Body/Display/Panel",
     "armature": "Armature",
     "mesh": "ControlPanel",
     "face": 0.34,
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.04,
-                "travel": 0.01, "squish": 0.016, "boneLength": 0.03},
+    "controls": [
+        {"kind": "buttons", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.11},
+        {"kind": "selector", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.04},
+        {"kind": "slider", "name": "Slot", "N": 5, "hysteresis": 0.02, "x": (-0.1, 0.1), "z": -0.04,
+         "tag": "ControlPanelSlot"},
+        {"kind": "smooth", "name": "Level", "M": 10, "x": (-0.1, 0.1), "z": -0.12, "tag": "ControlPanelLevel"},
+    ],
+    "caps": {"rootY": 0.02, "capTop": 0.03, "capDiameter": 0.03, "radius": 0.04, "travel": 0.01, "squish": 0.016,
+             "boneLength": 0.03},
     "press": 0.75,
     "release": 0.3,
     "boxMargin": 0.002,
@@ -129,35 +174,103 @@ CONFIG = {
     "senderRadius": 0.004,
     "arm": 0,
     "cooldown": 0.25,
-    "hysteresis": 0.02,
     "retractTime": 0.25,
-    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02, "pull": 0.01},
+    "sliders": {"y": 0.02, "radius": 0.02, "boxMargin": 0.02, "senderRadius": 0.005, "restOffset": 0.015,
+                "boxAcross": 0.25, "boxAbove": 0.2, "knobY": 0.02, "channelDepth": 0.012, "settle": 0.5},
     "tag": "ControlPanelPress",
 }
+
+ROW_KINDS = ("buttons", "selector")
+SLIDER_KINDS = ("slider", "smooth")
+END_KEY = {"buttons": "buttonEnds", "selector": "selectorEnds"}
 
 
 def refuse(msg):
     raise SystemExit(f"REFUSE: {msg}")
 
 
+def r6(v):
+    return round(v, 6)
+
+
+def rows(c, kind):
+    return [r for r in c["controls"] if r["kind"] == kind]
+
+
+def sliders(c):
+    return [r for r in c["controls"] if r["kind"] in SLIDER_KINDS]
+
+
+def cap_rows(c):
+    """(kind, row, bone prefix, receiver parameter prefix, sender name) for the button row, then the selector row."""
+    return [("buttons", rows(c, "buttons")[0], "Btn", "Press", "PressSender"),
+            ("selector", rows(c, "selector")[0], "Sel", "SelPress", "SelSender")]
+
+
+def cap_geometry(c):
+    b = c["caps"]
+    span = b["squish"] + 2 * c["senderRadius"] + c["boxMargin"]
+    tip = b["capTop"] - b["radius"]
+    # Face mode reads (half + d + r) / size along the box's +Z, d the sender centre's offset from the box centre.
+    # The box rides the cap tip, its centre `travel - span/2` below it: the reading is 0 with the cap at rest (the
+    # sender's top surface on the box's bottom face) and depth / span as the cap goes down.
+    centre = tip - (b["travel"] - span / 2)
+    return span, tip, tip - b["boneLength"], centre
+
+
+def slider_geometry(c, s):
+    g = c["sliders"]
+    lo, hi = s["x"]
+    run, m, r, h = hi - lo, g["boxMargin"], g["senderRadius"], g["boxAbove"]
+    size = run + 2 * m
+    tip = hi + m + g["restOffset"]
+    length = (run + m / 2 + m + g["restOffset"]) / SQUISH
+    return {"run": run, "size": size, "rLo": (m + r) / size, "rHi": (run + m + r) / size, "floor": (m / 2 + r) / size,
+            "tipRestX": tip, "boneLength": length, "rootX": tip - length,
+            "maxStretch": math.sqrt(length ** 2 + h ** 2) / length - 1, "centre": ((lo + hi) / 2, g["y"] + h / 2, s["z"])}
+
+
+def aabb_overlap(a, b):
+    return all(a[k][0] < b[k][1] and b[k][0] < a[k][1] for k in range(3))
+
+
+def cap_receiver_aabbs(c, row):
+    """Each cap receiver's panel-frame box over its whole squish (it rides the End down)."""
+    span, tip, head, centre = cap_geometry(c)
+    w = c["boxWidth"] / 2
+    return [((x - w, x + w), (centre - c["caps"]["squish"] - span / 2, centre + span / 2), (row["z"] - w, row["z"] + w))
+            for x in row["x"]]
+
+
+def row_sender_aabb(c, row):
+    span, tip, head, centre = cap_geometry(c)
+    r = c["senderRadius"]
+    y = tip - c["caps"]["travel"] - r
+    half = (max(row["x"]) - min(row["x"]) + c["boxWidth"] + 2 * r) / 2
+    xc = (max(row["x"]) + min(row["x"])) / 2
+    return ((xc - half, xc + half), (y - r, y + r), (row["z"] - r, row["z"] + r))
+
+
 def validate(c):
-    n = c["N"]
-    if not isinstance(n, int) or n < 2 or n > 255:
-        refuse("N is a whole number of slots, 2..255: Slot is an 8-bit synced int.")
     for k in ("prefix", "internal"):
         if not c[k] or "/" in c[k]:
             refuse(f"{k} is one bare name segment, required.")
     if c["internal"].startswith(c["prefix"]):
         refuse("internal may not sit under prefix: the published wildcard would reach it.")
-    b = c["buttons"]
-    if not 1 <= len(b["x"]) <= 8:
-        refuse("one to eight buttons, and fewer when the caps do not fit the face (checked below).")
+    kinds = [r.get("kind") for r in c["controls"]]
+    if any(k not in ROW_KINDS + SLIDER_KINDS for k in kinds):
+        refuse(f"controls kinds are {ROW_KINDS + SLIDER_KINDS} (got {kinds}).")
+    if kinds.count("buttons") != 1 or kinds.count("selector") != 1:
+        refuse("controls carries exactly one buttons row and one selector row: the Buttons ladder and its Hold are built for those two.")
+    if not sliders(c):
+        refuse("controls carries at least one slider (kind slider or smooth).")
+    b = c["caps"]
     if b["travel"] <= 0 or b["travel"] >= b["squish"]:
         refuse("travel is positive and shorter than squish: the cap must sink past flush before the chain stops it.")
     if b["squish"] > 0.9 * b["boneLength"]:
-        refuse("squish is at most 0.9 of the button bone: maxSquish is squish over bone length and the solver needs some length left.")
+        refuse("squish is at most 0.9 of the cap bone: maxSquish is squish over bone length and the solver needs some length left.")
     if b["radius"] <= 0:
-        refuse("the button chain radius is positive: a radius of 0 neither collides nor grabs.")
+        refuse("the cap chain radius is positive: a radius of 0 neither collides nor grabs.")
     if not 0 <= c["arm"] < c["cooldown"]:
         refuse("arm is 0 (no dwell) or positive and shorter than the cooldown.")
     if not 0 < c["release"] < c["press"] <= 1:
@@ -166,91 +279,201 @@ def validate(c):
         refuse("boxMargin is positive: the sender must stay inside the receiver box at full squish.")
     if c["senderRadius"] <= 0:
         refuse("senderRadius is positive.")
-    if any(abs(x) + b["capDiameter"] / 2 > c["face"] / 2 for x in b["x"]):
-        refuse("a cap leaves the panel face: |x| + capDiameter / 2 is past face / 2.")
-    xs = sorted(b["x"])
-    if len(xs) > 1:
-        gap = min(x1 - x0 for x0, x1 in zip(xs, xs[1:]))
-        if gap < b["capDiameter"]:
-            refuse("neighbouring caps overlap: the closest centres are nearer than one capDiameter.")
-        if c["boxWidth"] / 2 >= gap - c["boxWidth"] / 2:
-            refuse("receiver boxes overlap their neighbours' across X.")
-        reach = math.sqrt(max(0.0, 2 * b["radius"] * b["travel"] - b["travel"] ** 2))
-        if reach + b["capDiameter"] / 2 >= gap:
-            refuse("the joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
     if c["cooldown"] <= 0.2:
         refuse("cooldown at or under the wire's 0.2 s set/clear floor: two toggles could be a lost pair.")
-    if not 0 < c["hysteresis"] < 0.5 / n:
-        refuse("hysteresis is positive and under half a slot, or a slot has no stable band.")
-    s = c["slider"]
-    if abs(s["x"][0] - s["rootX"] - s["boneLength"]) > 1e-9 or s["x"][1] <= s["x"][0]:
-        refuse("the Slider bone's rest tip is the slot's low end: rootX + boneLength == slider.x[0], and the slot runs up in X.")
+    reach = math.sqrt(max(0.0, 2 * b["radius"] * b["travel"] - b["travel"] ** 2))
+    crs = cap_rows(c)
+    for kind, row, *_ in crs:
+        lo_n = 2 if kind == "selector" else 1
+        if not lo_n <= len(row["x"]) <= 8:
+            refuse(f"the {kind} row carries {lo_n} to eight caps.")
+        if any(abs(x) + b["capDiameter"] / 2 > c["face"] / 2 for x in row["x"]):
+            refuse(f"a {kind} cap leaves the panel face: |x| + capDiameter / 2 is past face / 2.")
+        xs = sorted(row["x"])
+        if len(xs) > 1:
+            gap = min(x1 - x0 for x0, x1 in zip(xs, xs[1:]))
+            if gap < b["capDiameter"]:
+                refuse(f"neighbouring {kind} caps overlap: the closest centres are nearer than one capDiameter.")
+            if c["boxWidth"] >= gap:
+                refuse(f"{kind} receiver boxes overlap their neighbours' across X.")
+            if reach + b["capDiameter"] / 2 >= gap:
+                refuse(f"a {kind} joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
+    (k1, row1, *_), (k2, row2, *_) = crs
+    dz = abs(row1["z"] - row2["z"])
+    if reach + b["capDiameter"] / 2 >= dz:
+        refuse("a joint sphere reaches the other cap row at face level: the rows are too close in Z.")
+    for (ka, ra, *_), (kb, rb, *_) in ((crs[0], crs[1]), (crs[1], crs[0])):
+        if any(aabb_overlap(row_sender_aabb(c, ra), box) for box in cap_receiver_aabbs(c, rb)):
+            refuse(f"the {ka} row's sender reaches a {kb} receiver box: both rows share the tag `{c['tag']}`, so a press on one row would read on the other.")
+
+    g = c["sliders"]
+    for k in ("radius", "boxMargin", "senderRadius", "boxAcross", "boxAbove", "channelDepth", "settle"):
+        if g[k] <= 0:
+            refuse(f"sliders.{k} is positive.")
+    if g["restOffset"] <= g["senderRadius"]:
+        refuse("sliders.restOffset is at or under senderRadius: the resting tip's sphere straddles the box's +Z face, "
+               "which reads 1 and would hold every client in Held for ever.")
+    if g["boxAcross"] > 6 or g["boxAbove"] > 6:
+        refuse("a slider box side is past the 6 m contact size limit.")
+    names, tags = [], [c["tag"]]
+    caps_boxes = [box for kind, row, *_ in crs for box in cap_receiver_aabbs(c, row)]
+    for s in sliders(c):
+        name = s.get("name", "")
+        if not re.fullmatch(r"[A-Z][A-Za-z0-9]*", name) or name in ("Btn", "Select", "Sel", "Press", "One", "Live", "Settling"):
+            refuse(f"slider name {name!r} is one capitalised identifier, not a name the controls already publish or use.")
+        names.append(name)
+        tags.append(s.get("tag"))
+        lo, hi = s["x"]
+        if not lo < hi:
+            refuse(f"slider {name}: x is (x_lo, x_hi) with x_lo < x_hi: the reading grows with x.")
+        if max(abs(lo), abs(hi)) > c["face"] / 2:
+            refuse(f"slider {name}: the track leaves the face (|x| past face / 2).")
+        geo = slider_geometry(c, s)
+        if geo["size"] > 6:
+            refuse(f"slider {name}: the box's run + 2 boxMargin is past the 6 m contact size limit.")
+        if s["kind"] == "slider":
+            n = s["N"]
+            if not isinstance(n, int) or n < 2 or n > 255:
+                refuse(f"slider {name}: N is a whole number of slots, 2..255: the value is an 8-bit synced int.")
+            if not 0 < s["hysteresis"] < 0.5 / n:
+                refuse(f"slider {name}: hysteresis is positive and under half a slot, or a slot has no stable band.")
+        else:
+            if not isinstance(s["M"], int) or s["M"] < 1:
+                refuse(f"smooth slider {name}: M is a whole number of bar lamps, at least 1.")
+        cx, cy, cz = geo["centre"]
+        box = ((cx - geo["size"] / 2, cx + geo["size"] / 2), (g["y"], g["y"] + g["boxAbove"]),
+               (cz - g["boxAcross"] / 2, cz + g["boxAcross"] / 2))
+        if any(aabb_overlap(box, cb) for cb in caps_boxes):
+            refuse(f"slider {name}'s box reaches a button or selector receiver box.")
+    if len(set(names)) != len(names):
+        refuse(f"slider names repeat ({names}).")
+    if None in tags or len(set(tags)) != len(tags):
+        refuse(f"every slider carries its own tag, distinct from the cap rows' `{c['tag']}` (got {tags}).")
 
 
-def r6(v):
-    return round(v, 6)
+def names(c):
+    """Bone and shape names: rig.json, the mesh and the bindings all read them from here."""
+    out = {"root": "Panel", "buttonsRoot": "Buttons", "slidersRoot": "Sliders"}
+    for kind, row, bone, _, sender in cap_rows(c):
+        out[kind] = [f"{bone}{i + 1}" for i in range(len(row["x"]))]
+        out[END_KEY[kind]] = [f"{bone}{i + 1}_End" for i in range(len(row["x"]))]
+    out["sliders"] = [f"Sld_{s['name']}" for s in sliders(c)]
+    out["sliderEnds"] = [f"Sld_{s['name']}_End" for s in sliders(c)]
+    out["knobs"] = [f"Knob_{s['name']}" for s in sliders(c)]
+    return out
+
+
+def shapes(c):
+    out = {"buttons": [f"Lamp_Btn{i + 1}" for i in range(len(rows(c, "buttons")[0]["x"]))],
+           "selector": [f"Lamp_Sel{k + 1}" for k in range(len(rows(c, "selector")[0]["x"]))],
+           "offline": "Lamp_Offline", "retract": "Controls_Retract"}
+    for s in sliders(c):
+        out[s["name"]] = ([f"Lamp_Seg{k}" for k in range(s["N"])] if s["kind"] == "slider"
+                          else [f"Lamp_Bar{k}" for k in range(s["M"])])
+    return out
 
 
 def rig(c):
-    """Every number the Unity-side controls subtree is built to (contacts, physbones)."""
+    """Every number the Unity-side controls subtree is built to (contacts, physbones, bone rest poses)."""
     validate(c)
-    b, s = c["buttons"], c["slider"]
-    span = r6(b["squish"] + 2 * c["senderRadius"] + c["boxMargin"])
-    tip = b["capTop"] - b["radius"]
-    head = tip - b["boneLength"]
-    # Face mode reads (half + d + r) / size along the box's +Z, d the sender centre's offset from the box centre.
-    # The box rides the cap tip, its centre `travel - span/2` below it: the reading is 0 with the cap at rest (the
-    # sender's top surface on the box's bottom face) and depth / span as the cap goes down.
-    centre = tip - (b["travel"] - span / 2)
+    b, g, I = c["caps"], c["sliders"], c["internal"]
+    span, tip, head, centre = cap_geometry(c)
     w = r6(c["boxWidth"])
+    nm = names(c)
+    crs = cap_rows(c)
+    senders = []
+    for kind, row, bone, prm, sname in crs:
+        senders.append({"name": sname, "row": kind, "shape": "Capsule", "radius": c["senderRadius"],
+                        "height": r6(max(row["x"]) - min(row["x"]) + c["boxWidth"] + 2 * c["senderRadius"]),
+                        "position": [r6((max(row["x"]) + min(row["x"])) / 2), r6(tip - b["travel"] - c["senderRadius"]), row["z"]],
+                        "rotation": [0, 0, 90], "localOnly": True, "tag": c["tag"]})
+    out_sliders = []
+    for s in sliders(c):
+        geo = slider_geometry(c, s)
+        n = s["name"]
+        e = {"name": n, "kind": s["kind"], "x": list(s["x"]), "z": s["z"], "y": g["y"], "tag": s["tag"],
+             "read": f"{I}/{n}_Read", "knobParam": f"{I}/{n}_Knob", "value": f"{c['prefix']}/{n}",
+             "bone": f"Sld_{n}", "end": f"Sld_{n}_End", "knob": f"Knob_{n}",
+             "run": r6(geo["run"]), "boneLength": r6(geo["boneLength"]), "rootX": r6(geo["rootX"]),
+             "tipRestX": r6(geo["tipRestX"]), "knobY": g["knobY"], "channelDepth": g["channelDepth"],
+             "rLo": r6(geo["rLo"]), "rHi": r6(geo["rHi"]), "floor": r6(geo["floor"]),
+             "receiver": {"shape": "Box", "useFaceProximity": True, "size": [r6(g["boxAcross"]), r6(g["boxAbove"]), r6(geo["size"])],
+                          "position": [r6(v) for v in geo["centre"]], "rotation": [0, 90, 0], "localOnly": False,
+                          "allowSelf": True, "allowOthers": False, "tag": s["tag"], "param": f"{I}/{n}_Read"},
+             "sender": {"shape": "Sphere", "radius": g["senderRadius"], "position": [0, 0, 0], "localOnly": False,
+                        "tag": s["tag"]}}
+        span_r = geo["rHi"] - geo["rLo"]
+        if s["kind"] == "slider":
+            N, h = s["N"], s["hysteresis"]
+            e["N"] = N
+            e["up"] = {bb: r6(geo["rLo"] + (bb / N + h) * span_r) for bb in range(1, N)}
+            e["down"] = {bb: r6(geo["rLo"] + (bb / N - h) * span_r) for bb in range(1, N)}
+        else:
+            e["M"] = s["M"]
+        out_sliders.append(e)
+    sel_root_z = r6(sum(row["z"] for _, row, *_ in crs) / len(crs))
+    s0 = out_sliders
+    bones = [("Buttons", [0, b["rootY"], sel_root_z])]
+    for kind, row, bone, _, _ in crs:
+        bones += [(f"Buttons/{bone}{i + 1}", [x, r6(head), row["z"]]) for i, x in enumerate(row["x"])]
+        bones += [(f"Buttons/{bone}{i + 1}/{bone}{i + 1}_End", [x, r6(tip), row["z"]]) for i, x in enumerate(row["x"])]
+    bones.append(("Sliders", [min(e["rootX"] for e in s0), g["y"], r6(sum(e["z"] for e in s0) / len(s0))]))
+    for e in s0:
+        bones += [(f"Sliders/{e['bone']}", [e["rootX"], g["y"], e["z"]]),
+                  (f"Sliders/{e['bone']}/{e['end']}", [e["tipRestX"], g["y"], e["z"]]),
+                  (e["knob"], [e["x"][0], g["knobY"], e["z"]])]
     return {
+        "names": nm,
+        "shapes": shapes(c),
         "receiver": {"shape": "Box", "useFaceProximity": True, "size": [w, w, r6(span)],
                      "position": [0, r6(centre - tip), 0], "rotation": [-90, 0, 0],
                      "localOnly": True, "allowSelf": True, "allowOthers": False, "tag": c["tag"],
-                     "params": [f"{c['internal']}/Press{i + 1}" for i in range(len(b["x"]))]},
-        "sender": {"shape": "Capsule", "radius": c["senderRadius"],
-                   "height": r6(max(b["x"]) - min(b["x"]) + c["boxWidth"] + 2 * c["senderRadius"]),
-                   "position": [r6((max(b["x"]) + min(b["x"])) / 2), r6(tip - b["travel"] - c["senderRadius"]), b["z"]],
-                   "rotation": [0, 0, 90], "localOnly": True, "tag": c["tag"]},
+                     "params": {kind: [f"{I}/{prm}{i + 1}" for i in range(len(row["x"]))] for kind, row, _, prm, _ in crs}},
+        "senders": senders,
         "thresholds": {"press": r6(c["press"] * b["travel"] / span), "release": r6(c["release"] * b["travel"] / span)},
         "buttonsPhysBone": {"maxSquish": r6(b["squish"] / b["boneLength"]), "maxStretch": 0, "radius": b["radius"], "pull": 1,
-                            "parameter": f"{c['internal']}/Buttons"},
-        "buttonTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"]), "floor": r6(tip - b["squish"])},
-        "sliderPhysBone": {"maxStretch": r6((s["x"][1] - s["x"][0]) / s["boneLength"]), "maxSquish": 0, "radius": s["radius"],
-                           "pull": s["pull"], "parameter": f"{c['internal']}/Slider"},
+                            "parameter": f"{I}/Buttons"},
+        "capTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"]), "floor": r6(tip - b["squish"])},
+        "slidersPhysBone": {"maxSquish": SQUISH, "maxStretch": r6(max(slider_geometry(c, s)["maxStretch"] for s in sliders(c))),
+                            "radius": g["radius"], "pull": 1, "grabMovement": 1, "parameter": ""},
+        "sliders": out_sliders,
         # Rest poses in the Panel bone's frame (the panel frame): what the FBX must import as.
-        "bones": dict([("Buttons", [0, b["rootY"], b["z"]])]
-                      + [(f"Buttons/Btn{i + 1}", [x, r6(head), b["z"]]) for i, x in enumerate(b["x"])]
-                      + [(f"Buttons/Btn{i + 1}/Btn{i + 1}_End", [x, r6(tip), b["z"]]) for i, x in enumerate(b["x"])]
-                      + [("Slider", [s["rootX"], s["y"], s["z"]]), ("Slider/Slider_End", [s["x"][0], s["y"], s["z"]])]),
+        "bones": dict(bones),
     }
 
 
 def document(c):
     r = rig(c)
-    P, I, N, M = c["prefix"], c["internal"], c["N"], c["mountPath"]
-    nb = len(c["buttons"]["x"])
+    P, I, M = c["prefix"], c["internal"], c["mountPath"]
+    nm, sh = r["names"], r["shapes"]
+    crs = cap_rows(c)
+    nb = len(crs[0][1]["x"])
+    ns = len(crs[1][1]["x"])
     BTN = [f"{P}/Btn{i + 1}" for i in range(nb)]
-    PRESS = r["receiver"]["params"]
-    SLOT, STRETCH, ONE = f"{P}/Slot", f"{I}/Slider_Stretch", f"{I}/One"
+    SEL = f"{P}/Select"
+    PRESS = r["receiver"]["params"]["buttons"]
+    SPRESS = r["receiver"]["params"]["selector"]
+    ONE, LIVE, SETTLING = f"{I}/One", f"{I}/Live", f"{I}/Settling"
     press, release = r["thresholds"]["press"], r["thresholds"]["release"]
     shape = f"{M}/{c['mesh']}/SkinnedMeshRenderer.blendShape."
-    LB = [f"{shape}Lamp_Btn{i + 1}" for i in range(nb)]
-    LS = [f"{shape}Lamp_Seg{k}" for k in range(N)]
-    LO = f"{shape}Lamp_Offline"
-    LIVE = f"{I}/Live"
-    RETRACT = f"{shape}Caps_Retract"
-    CHAIN = f"{M}/{c['armature']}/Panel/Buttons/VRCPhysBone.m_Enabled"
-    h = c["hysteresis"]
+    bone = f"{M}/{c['armature']}/Panel"
+    LO = f"{shape}{sh['offline']}"
+    RETRACT = f"{shape}{sh['retract']}"
+    CHAINS = [f"{bone}/{nm['buttonsRoot']}/VRCPhysBone.m_Enabled", f"{bone}/{nm['slidersRoot']}/VRCPhysBone.m_Enabled"]
+    SL = r["sliders"]
+    gate = f"{LIVE} greater 0.5"
 
     L = []
     o = L.append
     o(f"# {c['controller']} — GENERATED by control-panel/controls/generate.py; edit its CONFIG and rerun, never hand-edit this file.")
-    o("# The controls subtree's machine: button stamps, the slider quantizer, the lamps. The generator's docstring is the design record.")
-    o(f"# Published (synced, unsaved, wearer-stamped): {', '.join(BTN)} (bool on the wire) and {SLOT} (int on the wire); both")
-    o("# float in the animator, because the lamp trees read them as blend parameters.")
-    o(f"# Press accepted at receiver reading {press}, held until every reading is under {release} (depth {c['press']} / {c['release']} of")
-    o(f"# travel over a box {r['receiver']['size'][2]} m deep). Arm {c['arm']} s, cooldown {c['cooldown']} s. Slot hysteresis {h} of the slider's length.")
+    o("# The controls subtree's machine: button and selector stamps, the slider readouts and knob memories, the lamps.")
+    o("# The generator's docstring is the design record.")
+    o(f"# Published (synced, unsaved, wearer-stamped, float in the animator): {', '.join(BTN)} (bool), {SEL} (int, 0-based),")
+    o(f"# {', '.join(e['value'] + (' (int)' if e['kind'] == 'slider' else ' (float 0..1)') for e in SL)}.")
+    o(f"# Cap press accepted at receiver reading {press}, held until every reading is under {release} (depth {c['press']} / {c['release']}")
+    o(f"# of travel over a box {r['receiver']['size'][2]} m deep). Arm {c['arm']} s, cooldown {c['cooldown']} s.")
+    for e in SL:
+        o(f"# {e['name']}: readings r_lo {e['rLo']} at x {e['x'][0]}, r_hi {e['rHi']} at x {e['x'][1]}, floor {e['floor']}.")
     o("")
     o("schema: 1")
     o(f"controller: {c['controller']}")
@@ -264,12 +487,18 @@ def document(c):
     o("parameters:")
     for p in BTN:
         o(f"  {p}: {{ type: float, default: 0, vrc: {{ type: bool, synced: true, saved: false }} }}")
-    o(f"  {SLOT}: {{ type: float, default: 0, vrc: {{ type: int, synced: true, saved: false }} }}")
-    for p in PRESS:
-        o(f"  {p}: float   # sensing: a local-only receiver's press depth reading")
-    o(f"  {STRETCH}: float   # sensing: the slider physbone ({I}/Slider)")
+    o(f"  {SEL}: {{ type: float, default: 0, vrc: {{ type: int, synced: true, saved: false }} }}")
+    for e in SL:
+        o(f"  {e['value']}: {{ type: float, default: 0, vrc: {{ type: {'int' if e['kind'] == 'slider' else 'float'}, synced: true, saved: false }} }}")
+    for p in PRESS + SPRESS:
+        o(f"  {p}: float   # sensing: a local-only cap receiver's press depth reading")
+    for e in SL:
+        o(f"  {e['read']}: float   # sensing: the non-local slider box's reading of the tip's track position")
     o(f"  {ONE}: {{ type: float, default: 1, scratch: true }}   # the Direct tree's constant weight")
     o(f"  {LIVE}: {{ type: float, default: 0, aap: true }}   # the frame's gate, written by the glue; matches its declaration")
+    o(f"  {SETTLING}: {{ type: float, default: 0, aap: true }}   # the Sliders layer's one output: 1 while held or settling")
+    for e in SL:
+        o(f"  {e['knobParam']}: {{ type: float, default: 0, aap: true }}   # the knob memory, track fraction 0..1")
     o("  # Shared with the object-sync build through the one component; declarations match the entry's.")
     o("  ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }")
     o("  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }")
@@ -277,19 +506,22 @@ def document(c):
     o("")
     o("layers:")
     # ---- Buttons ----
+    arm = c["arm"] > 0
+    # (stamp states, reading, arm state) per cap; a button stamps through Set/Clear, a selector cap through Sel<k>.
     o("  - name: Buttons")
     o("    states:")
     o("      # Remotes never leave Idle: the receivers are local-only, so their readings stay 0 there.")
     o("      Idle:")
     o("        motion: ~")
     o("        transitions:")
-    arm = c["arm"] > 0
     for i in range(nb):
         if arm:
-            o(f"          - {{ to: Arm{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press} ] }}")
+            o(f"          - {{ to: Arm{i + 1}, when: [ {gate}, {PRESS[i]} greater {press} ] }}")
         else:
-            o(f"          - {{ to: Set{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
-            o(f"          - {{ to: Clear{i + 1}, when: [ {LIVE} greater 0.5, {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
+            o(f"          - {{ to: Set{i + 1}, when: [ {gate}, {PRESS[i]} greater {press}, {BTN[i]} less 0.5 ] }}")
+            o(f"          - {{ to: Clear{i + 1}, when: [ {gate}, {PRESS[i]} greater {press}, {BTN[i]} greater 0.5 ] }}")
+    for k in range(ns):
+        o(f"          - {{ to: {'ArmSel' if arm else 'StampSel'}{k + 1}, when: [ {gate}, {SPRESS[k]} greater {press} ] }}")
     if arm:
         o("      # The dwell: a cap pushed down by a hand passing sideways falls back before the clip ends. The stamp")
         o("      # rungs' condition is constant over the state (nothing writes Btn<i> here), so exit time is safe on them.")
@@ -300,6 +532,12 @@ def document(c):
             o(f"          - {{ to: Idle, when: [ {PRESS[i]} less {press} ] }}")
             o(f"          - {{ to: Set{i + 1}, when: [ {BTN[i]} less 0.5 ], exitTime: 1.0 }}")
             o(f"          - {{ to: Clear{i + 1}, when: [ {BTN[i]} greater 0.5 ], exitTime: 1.0 }}")
+        for k in range(ns):
+            o(f"      ArmSel{k + 1}:")
+            o("        motion: { clip: arm }")
+            o("        transitions:")
+            o(f"          - {{ to: Idle, when: [ {SPRESS[k]} less {press} ] }}")
+            o(f"          - {{ to: StampSel{k + 1}, when: [], exitTime: 1.0 }}")
     for i in range(nb):
         for name, v in (("Set", 1), ("Clear", 0)):
             o(f"      {name}{i + 1}:")
@@ -307,10 +545,17 @@ def document(c):
             o(f"        behaviours: [ {{ driver: {{ localOnly: true, set: {{ {BTN[i]}: {v} }} }} }} ]")
             o("        transitions:")
             o("          - { to: Hold, when: [], exitTime: 1.0 }")
+    o(f"      # Cap k stamps {SEL} = k - 1; a press on the chosen cap re-stamps the same value.")
+    for k in range(ns):
+        o(f"      StampSel{k + 1}:")
+        o("        motion: { clip: tick }")
+        o(f"        behaviours: [ {{ driver: {{ localOnly: true, set: {{ {SEL}: {k} }} }} }} ]")
+        o("        transitions:")
+        o("          - { to: Hold, when: [], exitTime: 1.0 }")
     o("      Hold:")
     o("        motion: ~")
     o("        transitions:")
-    o(f"          - {{ to: Cooldown, when: [ {', '.join(f'{p} less {release}' for p in PRESS)} ] }}")
+    o(f"          - {{ to: Cooldown, when: [ {', '.join(f'{p} less {release}' for p in PRESS + SPRESS)} ] }}")
     o("      # The floor between two toggles: no press rung leaves here.")
     o("      Cooldown:")
     o("        motion: { clip: cooldown }")
@@ -318,36 +563,87 @@ def document(c):
     o("          - { to: Idle, when: [], exitTime: 1.0 }")
     o("    default: Idle")
     o("    layout:")
-    cols = [-330 + 240 * i for i in range(nb)]
-    nodes = (["Idle: [30, 180]"] + ([f"Arm{i + 1}: [{x}, 260]" for i, x in enumerate(cols)] if arm else [])
-             + [f"Set{i + 1}: [{x}, 340]" for i, x in enumerate(cols)]
-             + [f"Clear{i + 1}: [{x}, 420]" for i, x in enumerate(cols)] + ["Hold: [30, 520]", "Cooldown: [30, 600]"])
+    cols = [-690 + 240 * i for i in range(max(nb, ns) * 2)]
+    nodes = (["Idle: [30, 180]"]
+             + ([f"Arm{i + 1}: [{cols[i]}, 260]" for i in range(nb)] + [f"ArmSel{k + 1}: [{cols[nb + k]}, 260]" for k in range(ns)] if arm else [])
+             + [f"Set{i + 1}: [{cols[i]}, 340]" for i in range(nb)] + [f"Clear{i + 1}: [{cols[i]}, 420]" for i in range(nb)]
+             + [f"StampSel{k + 1}: [{cols[nb + k]}, 380]" for k in range(ns)] + ["Hold: [30, 520]", "Cooldown: [30, 600]"])
     o(f"      nodes: {{ {', '.join(nodes)} }}")
     o("      entry: [50, 120]")
     o("      any: [50, 40]")
     o("      exit: [50, 80]")
     o("")
-    # ---- Slot ----
-    o("  # Boundary k/N between slot k-1 and slot k; a state leaves for a neighbour only past it by the hysteresis.")
-    o("  - name: Slot")
+    # ---- Sliders ----
+    o(f"  # Writes only {SETTLING}, through single-clip states: Idle 0, every other state 1. Remotes run the held and")
+    o("  # settle branches too (the slider receivers are non-local); only the wearer stamps.")
+    o("  - name: Sliders")
     o("    states:")
-    for k in range(N):
-        o(f"      Slot{k}:")
-        o("        motion: ~")
-        o(f"        behaviours: [ {{ driver: {{ localOnly: true, set: {{ {SLOT}: {k} }} }} }} ]")
-        o("        transitions:")
-        if k + 1 < N:
-            o(f"          - {{ to: Slot{k + 1}, when: [ {STRETCH} greater {r6((k + 1) / N + h)} ] }}")
-        if k > 0:
-            o(f"          - {{ to: Slot{k - 1}, when: [ {STRETCH} less {r6(k / N - h)} ] }}")
-    o("    default: Slot0")
+    o("      Idle:")
+    o("        motion: { clip: settling_off }")
+    o("        transitions:")
+    for e in SL:
+        o(f"          - {{ to: {held_entry(e)}, when: [ {gate}, {e['read']} greater {e['floor']} ] }}")
+    for e in SL:
+        settle_rungs = [f"          - {{ to: Settle, when: [ {LIVE} less 0.5 ] }}",
+                        f"          - {{ to: Settle, when: [ {e['read']} less {e['floor']} ] }}"]
+        if e["kind"] == "slider":
+            N, V = e["N"], e["value"]
+            o(f"      # Boundary b/N between slot b-1 and slot b, crossed by the hysteresis: up rungs highest b first,")
+            o("      # down rungs lowest b first, so a jump lands on the slot the reading is in.")
+            o(f"      Held_{e['name']}:")
+            o("        motion: { clip: settling_on }")
+            o("        transitions:")
+            for ln in settle_rungs:
+                o(ln)
+            for bb in range(N - 1, 0, -1):
+                o(f"          - {{ to: Stamp_{e['name']}_{bb}, when: [ IsLocal is true, {gate}, {e['read']} greater {e['up'][bb]}, {V} less {bb - 0.5} ] }}")
+            for bb in range(1, N):
+                o(f"          - {{ to: Stamp_{e['name']}_{bb - 1}, when: [ IsLocal is true, {gate}, {e['read']} less {e['down'][bb]}, {V} greater {bb - 0.5} ] }}")
+            for k in range(N):
+                o(f"      Stamp_{e['name']}_{k}:")
+                o("        motion: { clip: settling_tick }")
+                o(f"        behaviours: [ {{ driver: {{ localOnly: true, set: {{ {V}: {k} }} }} }} ]")
+                o("        transitions:")
+                o(f"          - {{ to: Held_{e['name']}, when: [], exitTime: 1.0 }}")
+        else:
+            o(f"      # The wearer alternates A <-> B every frame so each entry re-copies the reading; remotes stay in A.")
+            for this, other in (("A", "B"), ("B", "A")):
+                o(f"      Held_{e['name']}{this}:")
+                o("        motion: { clip: settling_on }")
+                o(f"        behaviours: [ {{ driver: {{ localOnly: true, copy: {{ {e['value']}: {{ source: {e['read']}, "
+                  f"sourceMin: {e['rLo']}, sourceMax: {e['rHi']}, destMin: 0, destMax: 1 }} }} }} }} ]")
+                o("        transitions:")
+                for ln in settle_rungs:
+                    o(ln)
+                o(f"          - {{ to: Held_{e['name']}{other}, when: [ IsLocal is true, {ONE} greater 0.5 ] }}")
+    o(f"      # The knob holds where the hand let go for the dwell, while the wearer's last stamp crosses the wire.")
+    o("      Settle:")
+    o("        motion: { clip: settle }")
+    o("        transitions:")
+    for e in SL:
+        o(f"          - {{ to: {held_entry(e)}, when: [ {gate}, {e['read']} greater {e['floor']} ] }}")
+    o("          - { to: Idle, when: [], exitTime: 1.0 }")
+    o("    default: Idle")
     o("    layout:")
-    o(f"      nodes: {{ {', '.join(f'Slot{k}: [{30 + 240 * k}, 180]' for k in range(N))} }}")
+    sn = ["Idle: [30, 180]", "Settle: [30, 420]"]
+    x = -210
+    for e in SL:
+        if e["kind"] == "slider":
+            sn.append(f"Held_{e['name']}: [{x}, 300]")
+            sn += [f"Stamp_{e['name']}_{k}: [{x - 240 * (e['N'] - k)}, 420]" for k in range(e["N"])]
+            x -= 240 * (e["N"] + 1)
+    x = 270
+    for e in SL:
+        if e["kind"] == "smooth":
+            sn += [f"Held_{e['name']}A: [{x}, 300]", f"Held_{e['name']}B: [{x}, 420]"]
+            x += 240
+    o(f"      nodes: {{ {', '.join(sn)} }}")
     o("      entry: [50, 120]")
     o("      any: [50, 40]")
     o("      exit: [50, 80]")
     o("")
     # ---- Lamps ----
+    o("  # Every binding is written by exactly one weight-1 child, so the Direct sum is exact.")
     o("  - name: Lamps")
     o("    states:")
     o("      Lamps:")
@@ -355,25 +651,57 @@ def document(c):
     o("          tree: direct")
     o("          name: Lamps")
     o("          children:")
+
+    def tree1d(ind, name, param, children, weight=True, threshold=None):
+        """A 1D tree as a list item. A child is (clip, threshold) or (subtree emitter, threshold)."""
+        p = " " * ind
+        o(f"{p}- tree: 1d")
+        o(f"{p}  name: {name}")
+        o(f"{p}  param: {param}")
+        if weight:
+            o(f"{p}  directWeight: {ONE}")
+        if threshold is not None:
+            o(f"{p}  threshold: {threshold}")
+        o(f"{p}  children:")
+        for ch, t in children:
+            if callable(ch):
+                ch(ind + 4, t)
+            else:
+                o(f"{p}    - {{ clip: {ch}, threshold: {t} }}")
+
     for i in range(nb):
-        o("            - tree: 1d")
-        o(f"              name: Btn{i + 1}")
-        o(f"              param: {BTN[i]}")
-        o(f"              directWeight: {ONE}")
-        o("              children:")
-        o(f"                - {{ clip: btn{i + 1}_off, threshold: 0 }}")
-        o(f"                - {{ clip: btn{i + 1}_on, threshold: 1 }}")
-    o("            - tree: 1d")
-    o("              name: Slot")
-    o(f"              param: {SLOT}")
-    o(f"              directWeight: {ONE}")
-    o("              children:")
-    for k in range(N):
-        o(f"                - {{ clip: seg{k}, threshold: {k} }}")
+        tree1d(12, f"Btn{i + 1}", BTN[i], [(f"btn{i + 1}_off", 0), (f"btn{i + 1}_on", 1)])
+    tree1d(12, "Select", SEL, [(f"sel{k + 1}", k) for k in range(ns)])
+    for e in SL:
+        n, lo = e["name"], e["name"].lower()
+        knob01 = [(f"{lo}_knob0", 0), (f"{lo}_knob1", 1)]
+        if e["kind"] == "slider":
+            tree1d(12, f"{n}_Lamps", e["value"], [(f"{lo}_seg{k}", k) for k in range(e["N"])])
+            value_children = [(f"{lo}_detent{k}", k) for k in range(e["N"])]
+        else:
+            tree1d(12, f"{n}_Lamps", e["value"], [(f"{lo}_bars{k}", r6(k / e["M"])) for k in range(e["M"] + 1)])
+            value_children = knob01
+
+        def from_value(ind, t, e=e, n=n, vc=value_children):
+            tree1d(ind, f"{n}_FromValue", e["value"], vc, False, t)
+
+        def hold(ind, t, e=e, n=n, k01=knob01):
+            tree1d(ind, f"{n}_Hold", e["knobParam"], k01, False, t)
+
+        def released(ind, t, n=n, fv=from_value, hd=hold):
+            tree1d(ind, f"{n}_Released", SETTLING, [(fv, 0), (hd, 1)], False, t)
+
+        def held(ind, t, e=e, n=n, lo=lo):
+            tree1d(ind, f"{n}_Held", e["read"], [(f"{lo}_knob0", e["rLo"]), (f"{lo}_knob1", e["rHi"])], False, t)
+
+        o(f"            # {n}'s knob memory: the razor on the reading; below it the settle hold, then the synced value.")
+        tree1d(12, f"{n}_Memory", e["read"], [(released, r6(e["floor"] - RAZOR)), (held, e["floor"])])
+        tree1d(12, f"{n}_Knob", e["knobParam"], [(f"{lo}_at_lo", 0), (f"{lo}_at_hi", 1)])
     o("    default: Lamps")
     o("")
     # ---- Live ----
-    o("  # Caps sunk and the chain off until the frame's glue says every copy has settled; the crossfade smooths the caps.")
+    o("  # Caps and knobs sunk and both chains off until the frame's glue says every copy has settled; the crossfade")
+    o("  # smooths the shape.")
     o("  - name: Live")
     o("    states:")
     o("      Inert:")
@@ -417,24 +745,59 @@ def document(c):
     if arm:
         o(f"  arm: {{ seconds: {c['arm']} }}")
     o(f"  cooldown: {{ seconds: {c['cooldown']} }}")
+    o(f"  settling_off: {{ set: {{ {SETTLING}: 0 }} }}")
+    o(f"  settling_on: {{ set: {{ {SETTLING}: 1 }} }}")
+    o(f"  settling_tick: {{ seconds: {r6(FRAME)}, set: {{ {SETTLING}: 1 }} }}")
+    o(f"  settle: {{ seconds: {c['sliders']['settle']}, set: {{ {SETTLING}: 1 }} }}")
+    LB = [f"{shape}{s}" for s in sh["buttons"]]
     for i in range(nb):
         for name, v in (("off", 0), ("on", 100)):
             o(f'  btn{i + 1}_{name}: {{ set: {{ "{LB[i]}": {v} }} }}')
-    for k in range(N):
-        o(f"  seg{k}:")
+    LSEL = [f"{shape}{s}" for s in sh["selector"]]
+    for k in range(ns):
+        o(f"  sel{k + 1}:")
         o("    set:")
-        for j in range(N):
-            o(f'      "{LS[j]}": {100 if j == k else 0}')
-    o(f'  inert: {{ set: {{ "{RETRACT}": 100, "{CHAIN}": 0 }} }}')
-    o(f'  live: {{ set: {{ "{RETRACT}": 0, "{CHAIN}": 1 }} }}')
+        for j in range(ns):
+            o(f'      "{LSEL[j]}": {100 if j == k else 0}')
+    for e in SL:
+        n, lo = e["name"], e["name"].lower()
+        lamps = [f"{shape}{s}" for s in sh[n]]
+        if e["kind"] == "slider":
+            for k in range(e["N"]):
+                o(f"  {lo}_seg{k}:")
+                o("    set:")
+                for j in range(e["N"]):
+                    o(f'      "{lamps[j]}": {100 if j == k else 0}')
+            for k in range(e["N"]):
+                o(f"  {lo}_detent{k}: {{ set: {{ {e['knobParam']}: {r6((k + 0.5) / e['N'])} }} }}")
+        else:
+            for k in range(e["M"] + 1):
+                o(f"  {lo}_bars{k}:")
+                o("    set:")
+                for j in range(e["M"]):
+                    o(f'      "{lamps[j]}": {100 if j < k else 0}')
+        o(f"  {lo}_knob0: {{ set: {{ {e['knobParam']}: 0 }} }}")
+        o(f"  {lo}_knob1: {{ set: {{ {e['knobParam']}: 1 }} }}")
+        kp = f"{bone}/{e['knob']}/Transform.m_LocalPosition"
+        for cname, xv in (("at_lo", e["x"][0]), ("at_hi", e["x"][1])):
+            o(f"  {lo}_{cname}:")
+            o("    set:")
+            for ax, v in (("x", xv), ("y", e["knobY"]), ("z", e["z"])):
+                o(f'      "{kp}.{ax}": {v}')
+    o(f'  inert: {{ set: {{ "{RETRACT}": 100, {", ".join(f"{chr(34)}{ch}{chr(34)}: 0" for ch in CHAINS)} }} }}')
+    o(f'  live: {{ set: {{ "{RETRACT}": 0, {", ".join(f"{chr(34)}{ch}{chr(34)}: 1" for ch in CHAINS)} }} }}')
     o(f'  offline: {{ set: {{ "{LO}": 100 }} }}')
     o(f'  online: {{ set: {{ "{LO}": 0 }} }}')
     return "\n".join(L) + "\n"
 
 
+def held_entry(e):
+    return f"Held_{e['name']}" + ("A" if e["kind"] == "smooth" else "")
+
+
 # ---- --check: Panel.prefab's hand-built surface, which no compile or gate reads ----
-# Serialized enum values (VRC SDK): MultiChildType Ignore 0; AdvancedBool False 0 / True 1; LimitType Angle 1;
-# ImmobileType AllMotion 0; contact ShapeType Capsule 1 / Box 2; ReceiverType Proximity 2.
+# Serialized enum values (VRC SDK): MultiChildType Ignore 0; AdvancedBool False 0 / True 1; LimitType None 0 / Angle 1;
+# ImmobileType AllMotion 0; contact ShapeType Sphere 0 / Capsule 1 / Box 2; ReceiverType Proximity 2.
 def docs_of(path):
     """fileID -> (class id, body, stripped)."""
     return {int(m.group(2)): (int(m.group(1)), m.group(4), bool(m.group(3))) for m in re.finditer(
@@ -452,7 +815,7 @@ def vec(d, key):
 
 
 def field(d, key):
-    m = re.search(rf"^  {key}: (.*)$", d, re.M)
+    m = re.search(rf"^  {key}:(.*)$", d, re.M)
     return m.group(1).strip() if m else None
 
 
@@ -467,13 +830,14 @@ def quat(e):
         v = [0.0, 0.0, 0.0]
         v[ax] = math.sin(h)
         return (v[0], v[1], v[2], math.cos(h))
+    return qmul(qmul(axis(1, e[1]), axis(0, e[0])), axis(2, e[2]))
 
-    def mul(a, b):
-        ax, ay, az, aw = a
-        bx, by, bz, bw = b
-        return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
-                aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
-    return mul(mul(axis(1, e[1]), axis(0, e[0])), axis(2, e[2]))
+
+def qmul(a, b):
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
 
 
 def same_rot(got, want):
@@ -528,17 +892,18 @@ def check(c, prefab_path):
         for seg in rel.split("/"):
             acc = f"{acc}/{seg}"
             d = tf[tf_at[acc]]
-            lp, lr = vec(d, "m_LocalPosition"), vec(d, "m_LocalRotation")
-            off = rotate(rot, lp)
-            pos = tuple(p + q for p, q in zip(pos, off))
-            x1, y1, z1, w1 = rot
-            x2, y2, z2, w2 = lr
-            rot = (w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2, w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-                   w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2, w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2)
+            pos = tuple(p + q for p, q in zip(pos, rotate(rot, vec(d, "m_LocalPosition"))))
+            rot = qmul(rot, vec(d, "m_LocalRotation"))
         A(close(pos, tuple(want), 1e-4), f"{bone}/{rel} rests at {want} in the panel frame (got {[round(v, 5) for v in pos]})")
-    if f"{bone}/Slider" in tf_at:
-        along = rotate(vec(tf[tf_at[f"{bone}/Slider"]], "m_LocalRotation"), (0, 1, 0))
-        A(close(along, (1, 0, 0), 1e-4), f"Slider's local +Y points along the slot (+X) (got {[round(v, 4) for v in along]})")
+    for e in r["sliders"]:
+        at = f"{bone}/Sliders/{e['bone']}"
+        if at in tf_at:
+            along = rotate(vec(tf[tf_at[at]], "m_LocalRotation"), (0, 1, 0))
+            A(close(along, (1, 0, 0), 1e-4), f"{e['bone']}'s local +Y points along the track (+X) (got {[round(v, 4) for v in along]})")
+        at = f"{bone}/{e['knob']}"
+        if at in tf_at:
+            A(same_rot(vec(tf[tf_at[at]], "m_LocalRotation"), (0, 0, 0, 1)),
+              f"{e['knob']} carries no local rotation, so the knob clips' m_LocalPosition is a panel-frame position")
     root_go = next((fid(d, "m_GameObject") for d in tf.values() if not fid(d, "m_Father")), None)
     A(name.get(root_go) == "Panel", f"root is Panel (got {name.get(root_go)})")
     A(c["mesh"] in tf_at, f"mesh node {c['mesh']} present (the lamp clips bind {c['mountPath']}/{c['mesh']})")
@@ -548,9 +913,12 @@ def check(c, prefab_path):
     pbs = [d for d in comps if re.search(r"^  multiChildType:", d, re.M)]
     recv = [d for d in comps if re.search(r"^  receiverType:", d, re.M)]
     send = [d for d in comps if re.search(r"^  collisionTags:", d, re.M) and not re.search(r"^  receiverType:", d, re.M)]
-    nb = len(c["buttons"]["x"])
-    A(len(comps) == 2 + nb + 1 and len(pbs) == 2 and len(recv) == nb and len(send) == 1,
-      f"two physbones, {nb} receivers and one sender, nothing else (got {len(comps)} MonoBehaviours)")
+    ncap = sum(len(v) for v in r["receiver"]["params"].values())
+    nsl = len(r["sliders"])
+    want_n = 2 + ncap + nsl + len(r["senders"]) + nsl
+    A(len(comps) == want_n and len(pbs) == 2 and len(recv) == ncap + nsl and len(send) == len(r["senders"]) + nsl,
+      f"two physbones, {ncap + nsl} receivers and {len(r['senders']) + nsl} senders, nothing else "
+      f"(want {want_n} MonoBehaviours, got {len(comps)}: {len(pbs)} physbones, {len(recv)} receivers, {len(send)} senders)")
 
     def physbone(at, want, extra):
         d = next((p for p in pbs if host(p) == at), None)
@@ -558,57 +926,81 @@ def check(c, prefab_path):
             return
         A(fid(d, "rootTransform") == tf_at.get(at), f"{at}: rootTransform is {at}")
         flds = {"parameter": want["parameter"], "maxSquish": want["maxSquish"], "maxStretch": want["maxStretch"],
-                "radius": want["radius"], "limitType": "1", "maxAngleX": 0, "pull": want["pull"], "spring": 0, "stiffness": 0,
-                "gravity": 0, "immobileType": "0", "immobile": 1, "isAnimated": "0", "resetWhenDisabled": "1",
+                "radius": want["radius"], "pull": want["pull"], "spring": 0, "stiffness": 0, "gravity": 0,
+                "multiChildType": "0", "immobileType": "0", "immobile": 1, "isAnimated": "0", "resetWhenDisabled": "1",
                 "ignoreTransforms": "[]", "colliders": "[]"}
         flds.update(extra)
         for k, v in flds.items():
             got = field(d, k)
             good = (got is not None and abs(float(got) - v) < 1e-5) if isinstance(v, (int, float)) else got == v
-            A(good, f"{at}: {k} == {v} (got {got})")
+            A(good, f"{at}: {k} == {v!r} (got {got!r})")
 
-    physbone(f"{bone}/Buttons", r["buttonsPhysBone"], {"multiChildType": "0", "allowCollision": "1", "allowGrabbing": "0", "allowPosing": "0"})
-    physbone(f"{bone}/Slider", r["sliderPhysBone"], {"allowCollision": "0", "allowGrabbing": "1", "allowPosing": "1",
-                                                     "stretchMotion": 0, "snapToHand": "0"})
+    physbone(f"{bone}/Buttons", r["buttonsPhysBone"], {"limitType": "1", "maxAngleX": 0, "snapToHand": "0",
+                                                      "allowCollision": "1", "allowGrabbing": "0", "allowPosing": "0"})
+    sp = r["slidersPhysBone"]
+    physbone(f"{bone}/Sliders", sp, {"limitType": "0", "snapToHand": "1", "grabMovement": sp["grabMovement"],
+                                     "allowCollision": "0", "allowGrabbing": "1", "allowPosing": "0"})
+
+    def receiver(d, at, prm, rv, local):
+        A(field(d, "parameter") == prm, f"{at}: parameter {prm} (got {field(d, 'parameter')})")
+        A(tags_of(d) == [rv["tag"]], f"{at} {prm}: tags == [{rv['tag']}] (got {tags_of(d)})")
+        for k, v in (("shapeType", "2"), ("useFaceProximity", "1"), ("receiverType", "2"), ("localOnly", local),
+                     ("allowSelf", "1"), ("allowOthers", "0")):
+            A(field(d, k) == v, f"{at} {prm}: {k} == {v} (got {field(d, k)})")
+        A(fid(d, "rootTransform") in (0, tf_at.get(at)), f"{at} {prm}: rides its host")
+        A(close(vec(d, "size"), tuple(rv["size"])), f"{at} {prm}: box size {rv['size']} (got {vec(d, 'size')})")
+        A(close(vec(d, "position"), tuple(rv["position"])), f"{at} {prm}: box offset {rv['position']} (got {vec(d, 'position')})")
+        A(same_rot(vec(d, "rotation"), quat(rv["rotation"])), f"{at} {prm}: box rotation Euler {rv['rotation']}")
 
     rv = r["receiver"]
-    for i, prm in enumerate(rv["params"]):
-        at = f"{bone}/Buttons/Btn{i + 1}/Btn{i + 1}_End"
-        d = next((x for x in recv if host(x) == at), None)
-        if not A(d is not None, f"a receiver on {at}"):
+    nm = r["names"]
+    for kind in ("buttons", "selector"):
+        for prm, b_, end in zip(rv["params"][kind], nm[kind], nm[END_KEY[kind]]):
+            at = f"{bone}/Buttons/{b_}/{end}"
+            d = next((x for x in recv if host(x) == at), None)
+            if A(d is not None, f"a receiver on {at}"):
+                receiver(d, at, prm, rv, "1")
+    for e in r["sliders"]:
+        d = next((x for x in recv if host(x) == bone and field(x, "parameter") == e["read"]), None)
+        if A(d is not None, f"a {e['name']} slider box receiver ({e['read']}) on {bone}"):
+            receiver(d, bone, e["read"], e["receiver"], "0")
+        at = f"{bone}/Sliders/{e['bone']}/{e['end']}"
+        d = next((x for x in send if host(x) == at), None)
+        sv = e["sender"]
+        if A(d is not None, f"a sender on {at}"):
+            A(tags_of(d) == [sv["tag"]], f"{at}: sender tags == [{sv['tag']}] (got {tags_of(d)})")
+            A(field(d, "shapeType") == "0" and field(d, "localOnly") == "0", f"{at}: a non-local sphere sender")
+            A(fid(d, "rootTransform") in (0, tf_at.get(at)), f"{at}: sender rides its End")
+            A(field(d, "radius") is not None and abs(float(field(d, "radius")) - sv["radius"]) < 1e-6, f"{at}: sender radius == {sv['radius']}")
+            A(close(vec(d, "position"), tuple(sv["position"])), f"{at}: sender at the End's origin")
+    row_senders = [d for d in send if host(d) == bone]
+    A(len(row_senders) == len(r["senders"]), f"{len(r['senders'])} row senders on {bone} (got {len(row_senders)})")
+    for sv in r["senders"]:
+        d = next((x for x in row_senders if close(vec(x, "position"), tuple(sv["position"]))), None)
+        if not A(d is not None, f"{sv['name']} ({sv['row']} row) on {bone} at {sv['position']} (top surface on bottom-out)"):
             continue
-        A(field(d, "parameter") == prm, f"{at}: parameter {prm} (got {field(d, 'parameter')})")
-        A(tags_of(d) == [rv["tag"]], f"{at}: tags == [{rv['tag']}] (got {tags_of(d)})")
-        for k, v in (("shapeType", "2"), ("useFaceProximity", "1"), ("receiverType", "2"), ("localOnly", "1"),
-                     ("allowSelf", "1"), ("allowOthers", "0")):
-            A(field(d, k) == v, f"{at}: {k} == {v} (got {field(d, k)})")
-        A(fid(d, "rootTransform") in (0, tf_at.get(at)), f"{at}: rides its own End")
-        A(close(vec(d, "size"), tuple(rv["size"])), f"{at}: box size {rv['size']}")
-        A(close(vec(d, "position"), tuple(rv["position"])), f"{at}: box offset {rv['position']}")
-        A(same_rot(vec(d, "rotation"), quat(rv["rotation"])), f"{at}: box +Z face points up the press axis")
-    sv = r["sender"]
-    if A(len(send) == 1 and host(send[0]) == bone, f"one sender, on {bone}"):
-        d = send[0]
-        A(tags_of(d) == [sv["tag"]], f"sender tags == [{sv['tag']}] (got {tags_of(d)})")
-        A(field(d, "shapeType") == "1" and field(d, "localOnly") == "1", "sender is a local-only capsule")
-        A(fid(d, "rootTransform") in (0, tf_at.get(bone)), f"sender rides {bone}")
+        A(tags_of(d) == [sv["tag"]], f"{sv['name']}: tags == [{sv['tag']}] (got {tags_of(d)})")
+        A(field(d, "shapeType") == "1" and field(d, "localOnly") == "1", f"{sv['name']}: a local-only capsule")
+        A(fid(d, "rootTransform") in (0, tf_at.get(bone)), f"{sv['name']}: rides {bone}")
         for k in ("radius", "height"):
-            A(field(d, k) is not None and abs(float(field(d, k)) - sv[k]) < 1e-6, f"sender {k} == {sv[k]}")
-        A(close(vec(d, "position"), tuple(sv["position"])), f"sender at {sv['position']} (top surface on bottom-out)")
-        A(same_rot(vec(d, "rotation"), quat(sv["rotation"])), "sender capsule lies along X")
+            A(field(d, k) is not None and abs(float(field(d, k)) - sv[k]) < 1e-6, f"{sv['name']}: {k} == {sv[k]}")
+        A(same_rot(vec(d, "rotation"), quat(sv["rotation"])), f"{sv['name']}: capsule lies along X")
     return ok
 
 
 def main():
     if "--check" in sys.argv:
-        return 0 if check(CONFIG, os.path.join(HERE, "Panel.prefab")) else 1
+        good = check(CONFIG, os.path.join(HERE, "Panel.prefab"))
+        print("OK" if good else "FAILED")
+        return 0 if good else 1
     text = document(CONFIG)
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
     r = rig(CONFIG)
-    print(f"wrote controls/controller.yaml ({CONFIG['controller']}): N={CONFIG['N']}, press/release readings "
-          f"{r['thresholds']['press']}/{r['thresholds']['release']}, receiver {r['receiver']['size']} at {r['receiver']['position']}, "
-          f"sender {r['sender']['position']} h {r['sender']['height']}")
+    print(f"wrote controls/controller.yaml ({CONFIG['controller']}): cap press/release readings "
+          f"{r['thresholds']['press']}/{r['thresholds']['release']}; "
+          + "; ".join(f"{e['name']} r_lo/r_hi/floor {e['rLo']}/{e['rHi']}/{e['floor']}, L {e['boneLength']}" for e in r["sliders"])
+          + f"; Sliders maxStretch {r['slidersPhysBone']['maxStretch']}")
 
 
 if __name__ == "__main__":

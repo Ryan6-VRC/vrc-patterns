@@ -8,8 +8,11 @@ object-sync build and rig.json from CONFIG, and checks ControlPanel.prefab's han
 Edit CONFIG, rerun, then recompile `built/` and `object-sync/built/` as units in a mounting Editor
 (CONVENTIONS.md §The gate), with both the source and the outDir addressed as
 `Packages/com.ryan6vrc.patterns/control-panel/...`. The controls subtree has its own generator
-(`controls/generate.py`); this one reads its CONFIG for N and the button and slider layout, which the mesh and
-the lamps share, and keeps only the frame's own geometry (plate, grips, lamps, segments, offline, label strip).
+(`controls/generate.py`); this one reads its `controls` rows, `face` and rig() (every cap, slider and knob
+number, the bone and shape names, the bone rest poses) and keeps only the frame's own geometry: plate, grips,
+lamp placement and size, offline lamp, label strip. rig.json is the mesh builder's whole input
+(assets/ControlPanel_build.py); its `restPoses` are the positions `controls/generate.py --check` holds the
+imported bones to.
 
 WHAT THE FRAME IS
 -----------------
@@ -129,24 +132,28 @@ CONFIG = {
     "syncDamp": 0.1,
     # Panel geometry, Unity frame of TwoHandProp/Body/Display, metres (contract's rig.json defaults).
     "handleSpacing": 0.4,
-    "plate": {"x": [-0.17, 0.17], "z": [-0.11, 0.11], "top": 0.02, "bottom": -0.01},
+    # bottom -0.02: the chosen selector cap rests sunk `travel` by its lamp shape and a press sinks it `squish` more,
+    # so its skirt reaches capTop - travel - travel - squish; the mesh builder asserts it clears the underside.
+    "plate": {"x": [-0.17, 0.17], "z": [-0.17, 0.17], "top": 0.02, "bottom": -0.02},
     "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
-    # The button and slider layout (positions, cap crown and diameter, chain radius, travel, squish, bone length, slot
-    # run) is the controls CONFIG's; rig() reads it from there. Only the mesh-only numbers are here.
-    "buttonLamps": {"z": 0.085, "diameter": 0.008, "parked": 0.019, "raised": 0.0205},
+    # The rows (cap positions and joint, slider tracks, chains, knob rest, channel depth) are the controls CONFIG's;
+    # rig() reads them from there. Only the mesh-only numbers are here. Every lamp parks `parked` under the face and
+    # its shape raises it to `raised`.
+    "lamps": {"parked": 0.019, "raised": 0.0205},
+    "buttonLamps": {"z": 0.145, "diameter": 0.014},
+    # A bar per selector cap, centred on the cap's x, `width` along X and `depth` along Z.
+    "selectorLamps": {"z": 0.012, "width": 0.03, "depth": 0.005},
+    # The knob's footprint, [along X, across Z].
     "knob": [0.02, 0.025],
-    "segments": {"z": -0.075, "depth": 0.006, "widthFraction": 0.6},
-    "offline": {"x": 0.14, "z": 0.085, "diameter": 0.01},
-    "labelStrip": {"z": -0.1},
+    # Per slider kind, its lamps' row: `dz` from the track, `depth` along Z, `widthFraction` of one detent's or
+    # bar's pitch along X (a discrete slider lights one segment per slot, a smooth one M bars).
+    "segments": {"dz": -0.03, "depth": 0.006, "widthFraction": 0.8},
+    "bars": {"dz": -0.03, "depth": 0.006, "widthFraction": 0.8},
+    "offline": {"x": 0.14, "z": 0.145, "diameter": 0.01},
+    "labelStrip": {"z": -0.09},
     "mesh": "ControlPanel",
     "material": "ControlPanel",
 }
-
-
-def bones(nb):
-    return {"root": "Panel", "buttonsRoot": "Buttons", "buttons": [f"Btn{i + 1}" for i in range(nb)],
-            "buttonEnds": [f"Btn{i + 1}_End" for i in range(nb)], "slider": "Slider",
-            "sliderEnd": "Slider_End", "knob": "Knob"}
 
 
 def refuse(msg):
@@ -161,10 +168,10 @@ def load(path, name):
 
 
 def controls():
-    """The controls subtree's generator module: its CONFIG owns N and the button and slider layout, so the
-    mesh, the lamps, the contacts and the quantizer agree. Refuses a layout its validate() refuses."""
+    """The controls subtree's generator module: its CONFIG owns the rows, so the mesh, the lamps, the contacts
+    and the controller agree. Refuses a layout its validate() refuses."""
     if not os.path.exists(CONTROLS_GEN):
-        refuse(f"{CONTROLS_GEN} is missing; the button and slider layout is read from its CONFIG.")
+        refuse(f"{CONTROLS_GEN} is missing; the rows are read from its CONFIG.")
     mod = load(CONTROLS_GEN, "control_panel_controls")
     mod.validate(mod.CONFIG)
     return mod
@@ -189,32 +196,46 @@ def global_params(c, og):
     return [f"{c['prefix']}/*"] + og.document(sync_config(c, og))[1]["facts"]["globalParams"]
 
 
-def rig(c, cc):
-    """rig.json: the numbers the mesh is built to. The contract's schema, key for key. `cc` is the controls
-    CONFIG: N and the button and slider layout come from it, the mesh-only geometry from `c`."""
-    n, cb, cs = cc["N"], cc["buttons"], cc["slider"]
+def rig(c, ctl):
+    """rig.json: every number the mesh is built to. `ctl` is the controls generator module: the rows, names and
+    rest poses come from its rig(), the mesh-only geometry from `c`."""
+    cc = ctl.CONFIG
     if abs(c["plate"]["x"][1] - c["plate"]["x"][0] - cc["face"]) > 1e-9:
         refuse(f"plate.x spans {c['plate']['x'][1] - c['plate']['x'][0]} but the controls CONFIG's face is {cc['face']}; they are one width.")
-    b = {"x": list(cb["x"]), "z": cb["z"], "capDiameter": cb["capDiameter"], "capTop": cb["capTop"],
-         "travel": cb["travel"], "squish": cb["squish"], "boneLength": cb["boneLength"], "chainRadius": cb["radius"]}
-    s = {"x": list(cs["x"]), "z": cs["z"], "boneLength": cs["boneLength"], "rootX": cs["rootX"], "knob": c["knob"]}
-    names = bones(len(cb["x"]))
-    bl, sg, of = c["buttonLamps"], c["segments"], c["offline"]
+    cr = ctl.rig(cc)
+    nm, sh, cb = cr["names"], cr["shapes"], cc["caps"]
+    btn, sel = ctl.rows(cc, "buttons")[0], ctl.rows(cc, "selector")[0]
+    sliders = []
+    for e in cr["sliders"]:
+        lamps = c["segments"] if e["kind"] == "slider" else c["bars"]
+        group = "segments" if e["kind"] == "slider" else "bars"
+        s = {"name": e["name"], "kind": e["kind"], "x": e["x"], "z": e["z"], "y": e["y"], "bone": e["bone"],
+             "end": e["end"], "knob": e["knob"], "boneLength": e["boneLength"], "rootX": e["rootX"],
+             "tipRestX": e["tipRestX"], "knobY": e["knobY"], "channelDepth": e["channelDepth"], "knobSize": c["knob"],
+             group: {"z": round(e["z"] + lamps["dz"], 6), "depth": lamps["depth"], "widthFraction": lamps["widthFraction"],
+                     "shapes": sh[e["name"]]}}
+        sliders.append(s)
     return {
         "_comment": "GENERATED by control-panel/generate.py; never hand-edit.",
-        "frame": "Unity: X long axis, +Y face normal, +Z far edge; metres",
-        "N": n,
+        "frame": "Unity panel frame: X long axis (handle A at -X), +Y face normal, +Z far edge; metres. Every position "
+                 "below is in it; restPoses are the bones' heads, relative to the Panel bone.",
         "plate": c["plate"],
         "grips": c["grips"],
         "handleSpacing": c["handleSpacing"],
-        "buttons": b,
-        "buttonLamps": dict(bl, shapes=[f"Lamp_{name}" for name in names["buttons"]]),
-        "capRetract": {"shape": "Caps_Retract", "depth": cb["travel"]},
-        "slider": s,
-        "segments": dict(sg, shapes=[f"Lamp_Seg{k}" for k in range(n)]),
-        "offline": dict(of, shape="Lamp_Offline"),
+        "lamps": c["lamps"],
+        "buttons": {"x": list(btn["x"]), "z": btn["z"], "capDiameter": cb["capDiameter"], "capTop": cb["capTop"],
+                    "travel": cb["travel"], "squish": cb["squish"], "boneLength": cb["boneLength"],
+                    "chainRadius": cb["radius"]},
+        "buttonLamps": dict(c["buttonLamps"], shapes=sh["buttons"]),
+        # The selector's caps share the buttons' joint; `sink` is how far its lamp shape lowers the chosen cap.
+        "selector": {"x": list(sel["x"]), "z": sel["z"], "sink": cb["travel"],
+                     "lamps": c["selectorLamps"], "shapes": sh["selector"]},
+        "sliders": sliders,
+        "controlsRetract": {"shape": sh["retract"], "capDepth": cb["travel"], "channelDepth": cc["sliders"]["channelDepth"]},
+        "offline": dict(c["offline"], shape=sh["offline"]),
         "labelStrip": c["labelStrip"],
-        "bones": names,
+        "bones": nm,
+        "restPoses": cr["bones"],
         "mesh": c["mesh"],
         "material": c["material"],
     }
@@ -596,7 +617,7 @@ def main():
     with open(SYNC_OUT, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(stext)
     with open(RIG_OUT, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(rig(c, controls().CONFIG), fh, indent=2)
+        json.dump(rig(c, controls()), fh, indent=2)
         fh.write("\n")
     facts = f["facts"]
     print(f"wrote controller.yaml ({len(CLIPS)} clips, {n} lines), object-sync/controller.yaml "
