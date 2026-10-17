@@ -62,7 +62,7 @@ Skinned Meshes:     1        (the demo collar: 1092 triangles, 3 materials; a st
 Synced parameters:  29 bits  (not a rank stat: Leash/Enable, the announce bool, ObjectSync/Enable and 26 wire bits)
 ```
 
-The demo collar adds a skinned mesh, so an avatar already at the Good rank's skinned-mesh limit drops to Medium. The pendulum is a counted physbone component, against the Excellent rank's 4. The 29 synced bits can push an avatar past VRChat's 256-bit parameter budget, where VRCFury's Parameter Compressor starts compressing menu toggles, `Leash/Enable` among them.
+The demo collar adds a skinned mesh, so an avatar already at the Good rank's skinned-mesh limit drops to Medium. The grab bone and the pendulum are two counted physbone components (three on the demo), against the Excellent rank's 4. The 29 synced bits can push an avatar past VRChat's 256-bit parameter budget, where VRCFury's Parameter Compressor starts compressing menu toggles, `Leash/Enable` among them.
 
 ## Knobs
 
@@ -72,7 +72,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 |---|---|
 | `prefix` | The published names' prefix and the grab bone's `<prefix>/Handle`. The bridge's `prefix` must match |
 | `internal` | The announce bool's prefix. Required, and never under `prefix`, so the published wildcard cannot reach it |
-| `ratio`, `boxSize`, `senderRadius` | The sensing geometry: the bridge's `ratio`, `span` and `sender_radius`, so a mismatch mis-decodes every reading. Raising `ratio` reaches further and resolves coarser |
+| `ratio`, `boxSize`, `senderRadius` | The sensing geometry: the bridge's `ratio`, `span` (the box size, nothing to do with the span pair) and `sender_radius`, so a mismatch mis-decodes every reading. Raising `ratio` reaches further and resolves coarser |
 | `slackRange`, `slack`, `slackPlanted` | The bridge's `slack_min` and `slack_max`, and the held and planted free travel in metres inside them, emitted as `Leash/Slack`'s and `Leash/SlackPlanted`'s defaults as fractions of that range. `slackRange` must match the bridge |
 | `chain`, `endpoint` | The strand's bones, root first, and the last bone's visible end. They set `Start`'s pose, the curve's joints and one strand constraint per bone. `endpoint` must equal the strand physbone's `endpointPosition` |
 | `homeAt`, `home` | Where the grab bone rests: `homeAt` of the way along the strand from its root (1 is the tip), or `home`, a pose measured where your strand settles. The grab volume is a sphere around this point |
