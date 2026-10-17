@@ -81,9 +81,15 @@ THE LAYERS
               descending destination: the inverted-range form runtime.md measured); remotes stay in A. Settle
               dwells `sliderSettle` seconds, re-entering a held state on any reading above floor (Live-gated, or a
               slider held as the panel goes inert would bounce Held <-> Settle until its chain switches off).
-  Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; one on Select lighting
-              Lamp_Sel<k> (dot lit and segment sunk `travel`, one shape); one on each discrete slider's int lighting
-              Lamp_Seg<k>, which shows what the wearer accepted. A smooth slider has no lamp shape: the mesh's
+  Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; the selector glide; one
+              on each discrete slider's int lighting Lamp_Seg<k>, which shows what the wearer accepted.
+              The selector glide: an AAP CP/Sel<k>_Pos per segment (default 1 for cap 1, which Select's default 0
+              chooses, else 0) and an exponential smoother, a 1D on the constant CP/SelKeep (`selectorKeep`) over a
+              target child at 0 (a 1D on Select whose child k-1 writes Sel<k>_Pos 1 and the rest 0) and a self-write
+              child at 1 (a Direct tree of one 1D per Sel<k>_Pos writing it back to itself, blendtree-math's smoother
+              cell). Each frame Pos = (1 - keep) target + keep Pos, so the four stay in 0..1 and sum to 1. A 1D on each
+              Sel<k>_Pos raises Lamp_Sel<k> 0..100 (dot lit and segment sunk `travel`, one shape), so the sink and dot
+              glide. The keep is per frame: the glide's duration scales with frame time. A smooth slider has no lamp shape: the mesh's
               always-lit strip, in the segment-lamp row's geometry, runs from the track's low end to the knob (near
               end skinned to Panel, far end to Knob_<name>), so it shows the knob, which at rest lands on the synced
               value.
@@ -102,7 +108,7 @@ THE LAYERS
               stamp never lands while a chain is off. A consumer lifting the controls without the glue must write
               <internal>/Live itself: at its default 0 the controls stay sunk and dead.
 Every state keys every binding its layer owns: Buttons owns none, Sliders CP/Settling, Lamps the lamp shapes, the
-knob AAPs and the knob transforms, Live Controls_Retract and both physbones' m_Enabled.
+knob and selector AAPs and the knob transforms, Live Controls_Retract and both physbones' m_Enabled.
 
 CONFIG
 ------
@@ -139,6 +145,8 @@ CONFIG
                 state (the shipped value: a brush then toggles a cap, and nothing delays the stamp).
   cooldown      seconds between a release and the next accepted press, above the wire's 0.2 s set/clear floor.
   retractTime   seconds the caps and knobs take to rise or sink when <internal>/Live changes (the Live crossfade).
+  selectorKeep  [EMPIRICAL] the selector glide's per-frame keep, in [0, 1): higher glides slower, 0 snaps. Per frame, so
+                the glide's duration in seconds scales with frame time (a lower frame rate glides slower).
   sliders       shared by every slider. `y` the chain's height (the box's vertical centre, so a grab from above or below the face reads); `radius`
                 the chain radius (the capsule along the bone is the grab surface); `boxMargin` m past each track end;
                 `senderRadius` r of the tip sphere; `restOffset` the tip's rest past the high track end + m (the
@@ -196,6 +204,7 @@ CONFIG = {
     "arm": 0,
     "cooldown": 0.25,
     "retractTime": 0.25,
+    "selectorKeep": 0.8,
     "sliders": {"y": 0.02, "radius": 0.02, "boxMargin": 0.02, "senderRadius": 0.005, "restOffset": 0.015,
                 "boxAcross": 0.25, "boxHeight": 0.2, "knobY": 0.02, "channelDepth": 0.012, "settle": 0.5},
     "tag": "ControlPanelPress",
@@ -304,6 +313,8 @@ def validate(c):
         refuse("boxMargin is positive: the sender must stay inside the receiver box at full squish.")
     if c["senderRadius"] <= 0:
         refuse("senderRadius is positive.")
+    if not 0 <= c["selectorKeep"] < 1:
+        refuse("selectorKeep is in [0, 1): at 1 the selector glide keeps its old value for ever and never moves.")
     if c["cooldown"] <= 0.2:
         refuse("cooldown at or under the wire's 0.2 s set/clear floor: two toggles could be a lost pair.")
     reach = math.sqrt(max(0.0, 2 * b["radius"] * b["travel"] - b["travel"] ** 2))
@@ -480,6 +491,8 @@ def document(c):
     PRESS = r["receiver"]["params"]["buttons"]
     SPRESS = r["receiver"]["params"]["selector"]
     ONE, LIVE, SETTLING = f"{I}/One", f"{I}/Live", f"{I}/Settling"
+    KEEP = f"{I}/SelKeep"
+    SELPOS = [f"{I}/Sel{k + 1}_Pos" for k in range(ns)]
     press, release = r["thresholds"]["press"], r["thresholds"]["release"]
     shape = f"{M}/{c['mesh']}/SkinnedMeshRenderer.blendShape."
     bone = f"{M}/{c['armature']}/Panel"
@@ -521,6 +534,9 @@ def document(c):
     for e in SL:
         o(f"  {e['read']}: float   # sensing: the non-local slider box's reading of the tip's track position")
     o(f"  {ONE}: {{ type: float, default: 1, scratch: true }}   # the Direct tree's constant weight")
+    o(f"  {KEEP}: {{ type: float, default: {c['selectorKeep']}, scratch: true }}   # [EMPIRICAL] the selector glide's per-frame keep; frame-rate dependent")
+    for k in range(ns):
+        o(f"  {SELPOS[k]}: {{ type: float, default: {1 if k == 0 else 0}, aap: true }}   # segment {k + 1}'s glide position, 0..1" + ("; Select's default 0 rests on cap 1" if k == 0 else ""))
     o(f"  {LIVE}: {{ type: float, default: 0, aap: true }}   # the frame's gate, written by the glue; matches its declaration")
     o(f"  {SETTLING}: {{ type: float, default: 0, aap: true }}   # the Sliders layer's one output: 1 while held or settling")
     for e in SL:
@@ -695,7 +711,22 @@ def document(c):
 
     for i in range(nb):
         tree1d(12, f"Btn{i + 1}", BTN[i], [(f"btn{i + 1}_off", 0), (f"btn{i + 1}_on", 1)])
-    tree1d(12, "Select", SEL, [(f"sel{k + 1}", k) for k in range(ns)])
+    # The selector glide: each frame Sel<k>_Pos = (1 - keep) * target + keep * itself, so the four sum to 1.
+    def sel_target(ind, t):
+        tree1d(ind, "Select_Target", SEL, [(f"sel_target{k + 1}", k) for k in range(ns)], False, t)
+
+    def sel_self(ind, t):
+        p = " " * ind
+        o(f"{p}- tree: direct")
+        o(f"{p}  name: Select_Self")
+        o(f"{p}  threshold: {t}")
+        o(f"{p}  children:")
+        for k in range(ns):
+            tree1d(ind + 4, f"Sel{k + 1}_Keep", SELPOS[k], [(f"sel{k + 1}_pos0", 0), (f"sel{k + 1}_pos1", 1)])
+
+    tree1d(12, "Select_Glide", KEEP, [(sel_target, 0), (sel_self, 1)])
+    for k in range(ns):
+        tree1d(12, f"Sel{k + 1}_Lamp", SELPOS[k], [(f"lamp_sel{k + 1}_off", 0), (f"lamp_sel{k + 1}_on", 1)])
     for e in SL:
         n, lo = e["name"], e["name"].lower()
         knob01 = [(f"{lo}_knob0", 0), (f"{lo}_knob1", 1)]
@@ -757,10 +788,15 @@ def document(c):
             o(f'  btn{i + 1}_{name}: {{ set: {{ "{LB[i]}": {v} }} }}')
     LSEL = [f"{shape}{s}" for s in sh["selector"]]
     for k in range(ns):
-        o(f"  sel{k + 1}:")
+        o(f"  sel_target{k + 1}:")
         o("    set:")
         for j in range(ns):
-            o(f'      "{LSEL[j]}": {100 if j == k else 0}')
+            o(f"      {SELPOS[j]}: {1 if j == k else 0}")
+    for k in range(ns):
+        o(f"  sel{k + 1}_pos0: {{ set: {{ {SELPOS[k]}: 0 }} }}")
+        o(f"  sel{k + 1}_pos1: {{ set: {{ {SELPOS[k]}: 1 }} }}")
+        for name, v in (("off", 0), ("on", 100)):
+            o(f'  lamp_sel{k + 1}_{name}: {{ set: {{ "{LSEL[k]}": {v} }} }}')
     for e in SL:
         n, lo = e["name"], e["name"].lower()
         if e["kind"] == "slider":

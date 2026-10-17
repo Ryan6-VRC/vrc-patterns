@@ -38,6 +38,11 @@ parameters:
   CP/Slot_Read: float   # sensing: the non-local slider box's reading of the tip's track position
   CP/Level_Read: float   # sensing: the non-local slider box's reading of the tip's track position
   CP/One: { type: float, default: 1, scratch: true }   # the Direct tree's constant weight
+  CP/SelKeep: { type: float, default: 0.8, scratch: true }   # [EMPIRICAL] the selector glide's per-frame keep; frame-rate dependent
+  CP/Sel1_Pos: { type: float, default: 1, aap: true }   # segment 1's glide position, 0..1; Select's default 0 rests on cap 1
+  CP/Sel2_Pos: { type: float, default: 0, aap: true }   # segment 2's glide position, 0..1
+  CP/Sel3_Pos: { type: float, default: 0, aap: true }   # segment 3's glide position, 0..1
+  CP/Sel4_Pos: { type: float, default: 0, aap: true }   # segment 4's glide position, 0..1
   CP/Live: { type: float, default: 0, aap: true }   # the frame's gate, written by the glue; matches its declaration
   CP/Settling: { type: float, default: 0, aap: true }   # the Sliders layer's one output: 1 while held or settling
   CP/Slot_Knob: { type: float, default: 0, aap: true }   # the knob memory, track fraction 0..1
@@ -256,14 +261,79 @@ layers:
                 - { clip: btn4_off, threshold: 0 }
                 - { clip: btn4_on, threshold: 1 }
             - tree: 1d
-              name: Select
-              param: ControlPanel/Select
+              name: Select_Glide
+              param: CP/SelKeep
               directWeight: CP/One
               children:
-                - { clip: sel1, threshold: 0 }
-                - { clip: sel2, threshold: 1 }
-                - { clip: sel3, threshold: 2 }
-                - { clip: sel4, threshold: 3 }
+                - tree: 1d
+                  name: Select_Target
+                  param: ControlPanel/Select
+                  threshold: 0
+                  children:
+                    - { clip: sel_target1, threshold: 0 }
+                    - { clip: sel_target2, threshold: 1 }
+                    - { clip: sel_target3, threshold: 2 }
+                    - { clip: sel_target4, threshold: 3 }
+                - tree: direct
+                  name: Select_Self
+                  threshold: 1
+                  children:
+                    - tree: 1d
+                      name: Sel1_Keep
+                      param: CP/Sel1_Pos
+                      directWeight: CP/One
+                      children:
+                        - { clip: sel1_pos0, threshold: 0 }
+                        - { clip: sel1_pos1, threshold: 1 }
+                    - tree: 1d
+                      name: Sel2_Keep
+                      param: CP/Sel2_Pos
+                      directWeight: CP/One
+                      children:
+                        - { clip: sel2_pos0, threshold: 0 }
+                        - { clip: sel2_pos1, threshold: 1 }
+                    - tree: 1d
+                      name: Sel3_Keep
+                      param: CP/Sel3_Pos
+                      directWeight: CP/One
+                      children:
+                        - { clip: sel3_pos0, threshold: 0 }
+                        - { clip: sel3_pos1, threshold: 1 }
+                    - tree: 1d
+                      name: Sel4_Keep
+                      param: CP/Sel4_Pos
+                      directWeight: CP/One
+                      children:
+                        - { clip: sel4_pos0, threshold: 0 }
+                        - { clip: sel4_pos1, threshold: 1 }
+            - tree: 1d
+              name: Sel1_Lamp
+              param: CP/Sel1_Pos
+              directWeight: CP/One
+              children:
+                - { clip: lamp_sel1_off, threshold: 0 }
+                - { clip: lamp_sel1_on, threshold: 1 }
+            - tree: 1d
+              name: Sel2_Lamp
+              param: CP/Sel2_Pos
+              directWeight: CP/One
+              children:
+                - { clip: lamp_sel2_off, threshold: 0 }
+                - { clip: lamp_sel2_on, threshold: 1 }
+            - tree: 1d
+              name: Sel3_Lamp
+              param: CP/Sel3_Pos
+              directWeight: CP/One
+              children:
+                - { clip: lamp_sel3_off, threshold: 0 }
+                - { clip: lamp_sel3_on, threshold: 1 }
+            - tree: 1d
+              name: Sel4_Lamp
+              param: CP/Sel4_Pos
+              directWeight: CP/One
+              children:
+                - { clip: lamp_sel4_off, threshold: 0 }
+                - { clip: lamp_sel4_on, threshold: 1 }
             - tree: 1d
               name: Slot_Lamps
               param: ControlPanel/Slot
@@ -391,30 +461,46 @@ clips:
   btn3_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn3": 100 } }
   btn4_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn4": 0 } }
   btn4_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn4": 100 } }
-  sel1:
+  sel_target1:
     set:
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 100
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 0
-  sel2:
+      CP/Sel1_Pos: 1
+      CP/Sel2_Pos: 0
+      CP/Sel3_Pos: 0
+      CP/Sel4_Pos: 0
+  sel_target2:
     set:
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 100
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 0
-  sel3:
+      CP/Sel1_Pos: 0
+      CP/Sel2_Pos: 1
+      CP/Sel3_Pos: 0
+      CP/Sel4_Pos: 0
+  sel_target3:
     set:
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 100
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 0
-  sel4:
+      CP/Sel1_Pos: 0
+      CP/Sel2_Pos: 0
+      CP/Sel3_Pos: 1
+      CP/Sel4_Pos: 0
+  sel_target4:
     set:
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 0
-      "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 100
+      CP/Sel1_Pos: 0
+      CP/Sel2_Pos: 0
+      CP/Sel3_Pos: 0
+      CP/Sel4_Pos: 1
+  sel1_pos0: { set: { CP/Sel1_Pos: 0 } }
+  sel1_pos1: { set: { CP/Sel1_Pos: 1 } }
+  lamp_sel1_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 0 } }
+  lamp_sel1_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel1": 100 } }
+  sel2_pos0: { set: { CP/Sel2_Pos: 0 } }
+  sel2_pos1: { set: { CP/Sel2_Pos: 1 } }
+  lamp_sel2_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 0 } }
+  lamp_sel2_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel2": 100 } }
+  sel3_pos0: { set: { CP/Sel3_Pos: 0 } }
+  sel3_pos1: { set: { CP/Sel3_Pos: 1 } }
+  lamp_sel3_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 0 } }
+  lamp_sel3_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel3": 100 } }
+  sel4_pos0: { set: { CP/Sel4_Pos: 0 } }
+  sel4_pos1: { set: { CP/Sel4_Pos: 1 } }
+  lamp_sel4_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 0 } }
+  lamp_sel4_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Sel4": 100 } }
   slot_seg0:
     set:
       "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Seg0": 100
