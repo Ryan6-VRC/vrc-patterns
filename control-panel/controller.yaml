@@ -1,15 +1,16 @@
 # ControlPanel glue — the frame's ONE controller: two-hand-prop's eleven-state cell, arbitrated against object-sync's word in compositions/grab-sync's shape. The README owns the arc; this header owns what the graph cannot say.
-# The clip table below the BEGIN marker is EMITTED by generate.py (its docstring is the record): every cell binding read live from ../two-hand-prop/controller.yaml, values unchanged, path gaining TwoHandProp/; plus Park's six weights. State<->clip mapping, total: Timer->timer, Disabled->disabled, Home->home, HeldA/HeldB/BothA/BothB/HandoffToA/HandoffToB/Dropped/Waiting->their cell clip, Bridge->dropped+SYNC, Synced->home+SYNC (shown), Acquire/Resume->home+ACQUIRE (hidden), Resume_GrabA/B->heldA/heldB+ACQUIRE (hidden).
-# Park value-sets, over [HomeAnchor/Offset, ObjectSync/Sync, Park itself] on both channels — generate.py's PARK_SETS is their canon:
-#   HOME    (1,0,0)    every cell state: Park sits on the home rest, so the cell's home is unchanged
-#   ACQUIRE (0,1,0)    Acquire/Resume/Resume_Grab*: Park rigid on the word, the prop hidden while it flushes
-#   SYNC    (0,w,1)    Bridge/Synced: Park damps onto the word through its self source; w is CONFIG syncDamp [EMPIRICAL]
-# THE REPOINT: Body's position and rotation constraints keep their sources, and source0 (shipped HomeAnchor/Offset) now names Park. Every cell clip that writes Body source0 = 1 (home, timer, waiting, disabled) therefore shows the prop on Park, and Park decides home or word. No source is added to any two-hand-prop constraint: an added source can reorder the cell's release frame with every clip identical (../two-hand-prop/README.md §Traps). Park itself sits under the pinned root, so its self-source damper has an inertially static parent.
+# The clip table below the BEGIN marker is EMITTED by generate.py (its docstring is the record): every cell binding read live from ../two-hand-prop/controller.yaml, values unchanged, path gaining TwoHandProp/; plus Park's eight weights. State<->clip mapping, total: Timer->timer, Disabled->disabled, Home->home, HeldA/HeldB/BothA/BothB/HandoffToA/HandoffToB/Dropped/Waiting->their cell clip, Bridge->dropped+BRIDGE, Synced->home+SYNC (shown), Acquire/Resume->home+ACQUIRE (hidden), Resume_GrabA/B->heldA/heldB+ACQUIRE (hidden).
+# Park value-sets, over [HomeAnchor/Offset, ObjectSync/Sync, Park itself, TwoHandProp/Body] on both channels — generate.py's PARK_SETS is their canon:
+#   HOME    (1,0,0,0)  every cell state: Park sits on the home rest, so the cell's home is unchanged
+#   BRIDGE  (0,0,0,1)  Bridge: Park a rigid copy of the remote's replayed drop (Body holds; its constraints are off)
+#   SYNC    (0,w,1,0)  Synced: Park glides from where Body rested onto the word through its self source, and Body, on Park at s0 = 1, rides the glide on both channels with no entry step; w is CONFIG syncDamp [EMPIRICAL]
+#   ACQUIRE (0,1,0,0)  Acquire/Resume/Resume_Grab*: Park rigid on the word, the prop hidden while it flushes
+# THE REPOINT: Body's position and rotation constraints keep their sources, and source0 (shipped HomeAnchor/Offset) now names Park. Every cell clip that writes Body source0 = 1 (home, timer, waiting, disabled) therefore shows the prop on Park, and Park decides home or word. No source is added to any two-hand-prop constraint: an added source can reorder the cell's release frame with every clip identical (../two-hand-prop/README.md §Traps). Park is this entry's own node, so its Body slot is outside that rule; the Body<->Park loop it closes carries no hierarchy relation, so re-measure the release frame by frame lag after any change to it. Park sits under the pinned root, so its self-source damper has an inertially static parent.
 # Display carve: TwoHandProp/Body/Display is the cell's visibility node, and the panel model (Body/Display/Panel) rides under it, so its m_IsActive covers the panel and the glue writes no second show/hide binding. The glue's hidden states (Acquire, Resume, Resume_Grab*) override the transcribed cell value to 0; Synced overrides home's to 1 (the same value). That override is the only departure from the cell's values.
 # Enable: ControlPanel/Enable replaces the cell's TwoHandProp/Enable everywhere (the cell's own FullController and Toggle are removed on the nested instance; the root's bare Toggle drives ControlPanel/Enable by name). Float with vrc.type bool, default 1: the controls controller merged in the same component reads it as a float too. Off is the reset on every client: Disabled recalls home and clears Detached.
 # ObjectSync/Enable and OS/Ready MATCH the entry's animator declarations (float, vrc.type bool); this glue sits FIRST in the shared FullController's controllers AND prms lists, so ObjectSync/Enable's default 1 wins the first-wins merge and arms the word with nothing driving it (compositions/grab-sync/controller.yaml's header owns the trap). Engage predicate on a remote: Detached AND ObjectSync/Enable AND OS/Ready (../object-sync/README.md §Params out).
 # Detached (ControlPanel/Detached; synced, unsaved, default false): stamped true by the wearer on every Held entry, cleared in Disabled. True means away from home, carried or placed; false is home, which is also what a joiner reads before the wire speaks. Waiting goes Home on !Detached at once, so a joiner never parks a panel that is at home.
-# Release split: the cell's every `-> Dropped` rung becomes two, Dropped for the wearer (IsLocal) and Bridge for a remote. The wearer holds its own drop, which is the truth its Sync_Target measures; a remote holds its replayed drop (per-client, IK-delayed) for the bridge dwell while Park glides onto the word behind it, then Synced puts Body on Park.
+# Release split: the cell's every `-> Dropped` rung becomes two, Dropped for the wearer (IsLocal) and Bridge for a remote. The wearer holds its own drop, which is the truth its Sync_Target measures; a remote holds its replayed drop (per-client, IK-delayed) for the bridge dwell with Park copying it, then Synced puts Body on Park and Park glides the replayed drop onto the word.
 # Late join: show-at-drop (the handoff's lean, carried as a lean). Waiting -> Acquire on the engage predicate: Park rigid on the word, prop hidden for the flush dwell, then Synced shows it there. A late joiner never sees a placed panel at home.
 # Re-grab from Synced goes straight to HeldA/HeldB. The held clip freezes Body's rotation where it stood (the cell's one-hand rule), which on a remote in Synced is the word's attitude, and the holder that is not held rides Body's rest, so the free tip re-seeds from the word by construction. No sample cell exists to wake, so grab-sync's Reacquire dwell is not carried.
 # Resume/Resume_GrabA/B — grab-sync's cull park. A distance-hide pauses the animator; a remote resuming in Synced or Bridge integrates Park from its stale pose to the word (Park's self source is the integrator), and one resuming mid-carry reads a stale cell. IsAnimatorEnabled is false for exactly one frame before the halt, so a resume is not detectable and every rung PRE-ARMS on that frame: the pause begins in Resume, hidden and rigid on the word. Pre-armed from every state a remote can be carrying or placed in: Held*, Both*, Handoff*, Bridge, Synced, Acquire, Resume_Grab*. Each pre-arm rung is gated on IsLocal false: the wearer's own copy is never culled, and a wearer parked in Resume would wait forever on an OS/Ready that is false on the wearer by design (the emulator also drops IsAnimatorEnabled on the wearer's runtime to stage a halt).
@@ -228,7 +229,7 @@ layers:
       any:   [50, 40]
       exit:  [50, 80]
 
-# Every clip writes the cell's thirteen bindings (transcribed) and Park's six weights (value-set).
+# Every clip writes the cell's thirteen bindings (transcribed) and Park's eight weights (value-set).
 clips:
   # --- BEGIN GENERATED by generate.py: cell bindings from two-hand-prop, Park from PARK_SETS.
   timer:        # cell `timer` + Park HOME  [EMPIRICAL: the remote settle dwell is the cell's]
@@ -250,9 +251,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   disabled:     # cell `disabled` + Park HOME
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 0
@@ -271,9 +274,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   home:         # cell `home` + Park HOME: Body rides Park, Park rides HomeAnchor/Offset
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -292,9 +297,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   heldA:        # cell `heldA` + Park HOME
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -313,9 +320,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   heldB:        # cell `heldB` + Park HOME
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -334,9 +343,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   bothA:        # cell `bothA` + Park HOME
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -355,9 +366,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   bothB:        # cell `bothB` + Park HOME
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -376,9 +389,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   handoffToA:   # cell `handoffToA` + Park HOME  [EMPIRICAL: the cell's dwell and damper]
     seconds: 0.4
     set:
@@ -398,9 +413,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   handoffToB:   # cell `handoffToB` + Park HOME  [EMPIRICAL: the cell's dwell and damper]
     seconds: 0.4
     set:
@@ -420,9 +437,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   dropped:      # cell `dropped` + Park HOME: the wearer's hold
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -441,9 +460,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   waiting:      # cell `waiting` + Park HOME: hidden, never shown at a guessed spot
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 0
@@ -462,10 +483,12 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 1
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 1
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
-  bridge:       # cell `dropped` + Park SYNC: the remote holds its replayed drop while Park glides onto the word  [EMPIRICAL: dwell = clip length]
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
+  bridge:       # cell `dropped` + Park BRIDGE: the remote holds its replayed drop and Park copies it rigidly  [EMPIRICAL: dwell = clip length]
     seconds: 2.4
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
@@ -482,12 +505,14 @@ clips:
       "TwoHandProp/Body/VRCRotationConstraint.Sources.source0.Weight": 0
       "TwoHandProp/Body/VRCRotationConstraint.Sources.source1.Weight": 1
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
-      "Park/VRCPositionConstraint.Sources.source1.Weight": 0.1
-      "Park/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Park/VRCPositionConstraint.Sources.source1.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 1
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
-      "Park/VRCRotationConstraint.Sources.source1.Weight": 0.1
-      "Park/VRCRotationConstraint.Sources.source2.Weight": 1
-  synced:       # cell `home` + Park SYNC: Body rides Park, Park damps onto the word
+      "Park/VRCRotationConstraint.Sources.source1.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 1
+  synced:       # cell `home` + Park SYNC: Body rides Park, Park glides from the replayed drop onto the word
     set:
       "TwoHandProp/Body/Display/GameObject.m_IsActive": 1
       "TwoHandProp/HolderA/HandleA_Root/GameObject.m_IsActive": 1
@@ -505,9 +530,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
       "Park/VRCPositionConstraint.Sources.source1.Weight": 0.1
       "Park/VRCPositionConstraint.Sources.source2.Weight": 1
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
       "Park/VRCRotationConstraint.Sources.source1.Weight": 0.1
       "Park/VRCRotationConstraint.Sources.source2.Weight": 1
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   acquire:      # cell `home` + Park ACQUIRE, hidden: Park and Body flush onto the word  [EMPIRICAL: dwell = clip length]
     seconds: 0.15
     set:
@@ -527,9 +554,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
       "Park/VRCPositionConstraint.Sources.source1.Weight": 1
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
       "Park/VRCRotationConstraint.Sources.source1.Weight": 1
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   resume:       # cell `home` + Park ACQUIRE, hidden: the cull park  [EMPIRICAL: dwell = clip length = bridge]
     seconds: 2.4
     set:
@@ -549,9 +578,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
       "Park/VRCPositionConstraint.Sources.source1.Weight": 1
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
       "Park/VRCRotationConstraint.Sources.source1.Weight": 1
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   resume_grabA: # cell `heldA` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:
@@ -571,9 +602,11 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
       "Park/VRCPositionConstraint.Sources.source1.Weight": 1
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
       "Park/VRCRotationConstraint.Sources.source1.Weight": 1
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   resume_grabB: # cell `heldB` + Park ACQUIRE, hidden while the cell populates  [EMPIRICAL: dwell = clip length]
     seconds: 0.1
     set:
@@ -593,7 +626,9 @@ clips:
       "Park/VRCPositionConstraint.Sources.source0.Weight": 0
       "Park/VRCPositionConstraint.Sources.source1.Weight": 1
       "Park/VRCPositionConstraint.Sources.source2.Weight": 0
+      "Park/VRCPositionConstraint.Sources.source3.Weight": 0
       "Park/VRCRotationConstraint.Sources.source0.Weight": 0
       "Park/VRCRotationConstraint.Sources.source1.Weight": 1
       "Park/VRCRotationConstraint.Sources.source2.Weight": 0
+      "Park/VRCRotationConstraint.Sources.source3.Weight": 0
   # --- END GENERATED

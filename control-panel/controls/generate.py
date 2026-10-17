@@ -2,14 +2,18 @@
 """control-panel controls generator: emits controls/controller.yaml (ControlPanelControls_Fx) from CONFIG.
 
     python control-panel/controls/generate.py            # writes controls/controller.yaml
+    python control-panel/controls/generate.py --check    # asserts Panel.prefab's hand-built surface against CONFIG
 
 The entry's own generate.py imports CONFIG, document(cfg) and rig(cfg) from here. Edit CONFIG, rerun, then
 recompile controls/built/ as a unit in a mounting Editor (CONVENTIONS.md §The gate). Every output is a pure
-function of CONFIG; nothing here writes Unity assets.
+function of CONFIG; nothing here writes Unity assets: `--check` holds the prefab to CONFIG afterwards.
 
 WHAT THE CONTROLS ARE
 ---------------------
-One self-contained subtree, `Panel` (the model instance), lifted whole by a consumer:
+One self-contained subtree, `Panel.prefab`, lifted whole by a consumer: the model (assets/ControlPanel.fbx)
+fully unpacked, so every bone is a named node a binding and `--check` can address, plus the components below
+and nothing else. Unpacked, the prefab no longer follows the FBX: after a re-export that moves a bone, rebuild
+it (`--check` pins each bone's rest pose, so a stale one fails there).
 
   Buttons     the FBX bone under Panel, root of ONE physbone (multiChildType Ignore) over the four button chains
               Btn1..Btn4 -> Btn<i>_End. Angle limit zero, squish on, stretch zero, collision on, grabbing off: a
@@ -54,7 +58,7 @@ CONFIG
   mountPath     the Panel instance from the FullController's GameObject; every binding is prefixed with it.
   armature      the FBX armature node under the Panel instance (bones live under <armature>/Panel).
   mesh          the skinned mesh node under the Panel instance.
-  buttons       button x positions in the panel frame (one per button), z, the bones' head height and length,
+  buttons       button x positions in the panel frame (one per button), z, the Buttons root's height, the bones' head height and length,
                 travel, and the chain radius (metres). maxSquish is travel over length.
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every
                 receiver is at or below `release`.
@@ -64,11 +68,14 @@ CONFIG
   arm           seconds a press must hold above `press` before it stamps [EMPIRICAL].
   cooldown      seconds between a release and the next accepted press.
   hysteresis    the Slot layer's margin past each slot boundary, in fractions of the slot's whole length.
-  slider        the slot's x range, z, the Slider bone's length (its maxStretch is the slot over it).
+  slider        the slot's x range, z, the Slider bone's root x, height, length (its maxStretch is the slot over it) and
+                chain radius.
   tag           the sender/receiver collision tag (private).
 """
 
+import math
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -82,7 +89,7 @@ CONFIG = {
     "mountPath": "TwoHandProp/Body/Display/Panel",
     "armature": "Armature",
     "mesh": "ControlPanel",
-    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01},
+    "buttons": {"x": (-0.09, -0.03, 0.03, 0.09), "z": 0.05, "rootY": 0.02, "head": 0.0, "boneLength": 0.02, "travel": 0.01, "radius": 0.01},
     "press": 0.8,
     "release": 0.5,
     "boxSpan": 1.1,
@@ -91,7 +98,7 @@ CONFIG = {
     "arm": 0.1,
     "cooldown": 0.5,
     "hysteresis": 0.02,
-    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03},
+    "slider": {"x": (-0.1, 0.1), "z": -0.04, "rootX": -0.13, "y": 0.02, "boneLength": 0.03, "radius": 0.02},
     "tag": "ControlPanelPress",
 }
 
@@ -163,7 +170,13 @@ def rig(c):
         "buttonsPhysBone": {"maxSquish": r6(b["travel"] / b["boneLength"]), "maxStretch": 0, "radius": b["radius"],
                             "parameter": f"{c['internal']}/Buttons"},
         "buttonTip": {"rest": r6(tip), "bottom": r6(tip - b["travel"])},
-        "sliderPhysBone": {"maxStretch": r6((s["x"][1] - s["x"][0]) / s["boneLength"]), "maxSquish": 0, "parameter": f"{c['internal']}/Slider"},
+        "sliderPhysBone": {"maxStretch": r6((s["x"][1] - s["x"][0]) / s["boneLength"]), "maxSquish": 0, "radius": s["radius"],
+                           "parameter": f"{c['internal']}/Slider"},
+        # Rest poses in the Panel bone's frame (the panel frame): what the FBX must import as.
+        "bones": dict([("Buttons", [0, b["rootY"], b["z"]])]
+                      + [(f"Buttons/Btn{i + 1}", [x, b["head"], b["z"]]) for i, x in enumerate(b["x"])]
+                      + [(f"Buttons/Btn{i + 1}/Btn{i + 1}_End", [x, r6(tip), b["z"]]) for i, x in enumerate(b["x"])]
+                      + [("Slider", [s["rootX"], s["y"], s["z"]]), ("Slider/Slider_End", [s["x"][0], s["y"], s["z"]])]),
     }
 
 
@@ -341,7 +354,176 @@ def document(c):
     return "\n".join(L) + "\n"
 
 
+# ---- --check: Panel.prefab's hand-built surface, which no compile or gate reads ----
+# Serialized enum values (VRC SDK): MultiChildType Ignore 0; AdvancedBool False 0 / True 1; LimitType Angle 1;
+# ImmobileType AllMotion 0; contact ShapeType Capsule 1 / Box 2; ReceiverType Proximity 2.
+def docs_of(path):
+    """fileID -> (class id, body, stripped)."""
+    return {int(m.group(2)): (int(m.group(1)), m.group(4), bool(m.group(3))) for m in re.finditer(
+        r"^--- !u!(\d+) &(-?\d+)( stripped)?\n(.*?)(?=^--- |\Z)", open(path, encoding="utf-8").read(), re.M | re.S)}
+
+
+def fid(d, key):
+    m = re.search(rf"^  {key}: \{{fileID: (-?\d+)", d, re.M)
+    return int(m.group(1)) if m else None
+
+
+def vec(d, key):
+    m = re.search(rf"^  {key}: \{{x: (\S+), y: (\S+), z: (\S+)(?:, w: (\S+))?\}}", d, re.M)
+    return tuple(float(v) for v in m.groups() if v is not None) if m else None
+
+
+def field(d, key):
+    m = re.search(rf"^  {key}: (.*)$", d, re.M)
+    return m.group(1).strip() if m else None
+
+
+def close(a, b, eps=1e-5):
+    return a is not None and len(a) == len(b) and all(abs(x - y) <= eps for x, y in zip(a, b))
+
+
+def quat(e):
+    """Unity Euler degrees (applied Z, then X, then Y) -> (x, y, z, w)."""
+    def axis(ax, deg):
+        h = math.radians(deg) / 2
+        v = [0.0, 0.0, 0.0]
+        v[ax] = math.sin(h)
+        return (v[0], v[1], v[2], math.cos(h))
+
+    def mul(a, b):
+        ax, ay, az, aw = a
+        bx, by, bz, bw = b
+        return (aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz)
+    return mul(mul(axis(1, e[1]), axis(0, e[0])), axis(2, e[2]))
+
+
+def same_rot(got, want):
+    return got is not None and abs(abs(sum(a * b for a, b in zip(got, want))) - 1) < 1e-5
+
+
+def rotate(q, v):
+    x, y, z, w = q
+    tx, ty, tz = 2 * (y * v[2] - z * v[1]), 2 * (z * v[0] - x * v[2]), 2 * (x * v[1] - y * v[0])
+    return (v[0] + w * tx + y * tz - z * ty, v[1] + w * ty + z * tx - x * tz, v[2] + w * tz + x * ty - y * tx)
+
+
+def tags_of(d):
+    m = re.search(r"^  collisionTags:\n((?:  - .+\n)+)", d, re.M)
+    return [ln.split("- ", 1)[1].strip() for ln in m.group(1).splitlines()] if m else []
+
+
+def check(c, prefab_path):
+    """Panel.prefab against CONFIG. Reads the YAML textually; a field it cannot find is a FAIL, never a pass."""
+    r = rig(c)
+    ok = True
+
+    def A(cond, msg):
+        nonlocal ok
+        print(("  ok   " if cond else "  FAIL ") + msg)
+        ok = ok and bool(cond)
+        return cond
+
+    if not A(os.path.exists(prefab_path), f"{prefab_path} exists"):
+        return False
+    docs = docs_of(prefab_path)
+    A(not any(st for _, _, st in docs.values()) and not any(cls == 1001 for cls, _, _ in docs.values()),
+      "no prefab instance inside: the model is unpacked, so every bone is a named node")
+    name = {i: field(d, "m_Name") for i, (cls, d, _) in docs.items() if cls == 1}
+    tf = {i: d for i, (cls, d, _) in docs.items() if cls == 4}
+    go_tf = {fid(d, "m_GameObject"): i for i, d in tf.items()}
+
+    def path_of(t):
+        parts = []
+        while t in tf and fid(tf[t], "m_Father"):
+            parts.append(name[fid(tf[t], "m_GameObject")])
+            t = fid(tf[t], "m_Father")
+        return "/".join(reversed(parts))
+
+    tf_at = {path_of(t): t for t in tf}
+    bone = f"{c['armature']}/Panel"
+    # Bone rest poses in the Panel bone's frame (the panel frame); each step carries its parent's local rotation.
+    for rel, want in r["bones"].items():
+        if not A(f"{bone}/{rel}" in tf_at, f"bone {bone}/{rel} present"):
+            continue
+        pos, rot, acc = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0), bone
+        for seg in rel.split("/"):
+            acc = f"{acc}/{seg}"
+            d = tf[tf_at[acc]]
+            lp, lr = vec(d, "m_LocalPosition"), vec(d, "m_LocalRotation")
+            off = rotate(rot, lp)
+            pos = tuple(p + q for p, q in zip(pos, off))
+            x1, y1, z1, w1 = rot
+            x2, y2, z2, w2 = lr
+            rot = (w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2, w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                   w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2, w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2)
+        A(close(pos, tuple(want), 1e-4), f"{bone}/{rel} rests at {want} in the panel frame (got {[round(v, 5) for v in pos]})")
+    if f"{bone}/Slider" in tf_at:
+        along = rotate(vec(tf[tf_at[f"{bone}/Slider"]], "m_LocalRotation"), (0, 1, 0))
+        A(close(along, (1, 0, 0), 1e-4), f"Slider's local +Y points along the slot (+X) (got {[round(v, 4) for v in along]})")
+    root_go = next((fid(d, "m_GameObject") for d in tf.values() if not fid(d, "m_Father")), None)
+    A(name.get(root_go) == "Panel", f"root is Panel (got {name.get(root_go)})")
+    A(c["mesh"] in tf_at, f"mesh node {c['mesh']} present (the lamp clips bind {c['mountPath']}/{c['mesh']})")
+
+    comps = [d for cls, d, _ in docs.values() if cls == 114]
+    host = lambda d: path_of(go_tf.get(fid(d, "m_GameObject")))
+    pbs = [d for d in comps if re.search(r"^  multiChildType:", d, re.M)]
+    recv = [d for d in comps if re.search(r"^  receiverType:", d, re.M)]
+    send = [d for d in comps if re.search(r"^  collisionTags:", d, re.M) and not re.search(r"^  receiverType:", d, re.M)]
+    nb = len(c["buttons"]["x"])
+    A(len(comps) == 2 + nb + 1 and len(pbs) == 2 and len(recv) == nb and len(send) == 1,
+      f"two physbones, {nb} receivers and one sender, nothing else (got {len(comps)} MonoBehaviours)")
+
+    def physbone(at, want, extra):
+        d = next((p for p in pbs if host(p) == at), None)
+        if not A(d is not None, f"a physbone on {at}"):
+            return
+        A(fid(d, "rootTransform") == tf_at.get(at), f"{at}: rootTransform is {at}")
+        flds = {"parameter": want["parameter"], "maxSquish": want["maxSquish"], "maxStretch": want["maxStretch"],
+                "radius": want["radius"], "limitType": "1", "maxAngleX": 0, "pull": 1, "spring": 0, "stiffness": 0,
+                "gravity": 0, "immobileType": "0", "immobile": 1, "isAnimated": "0", "resetWhenDisabled": "1",
+                "ignoreTransforms": "[]", "colliders": "[]"}
+        flds.update(extra)
+        for k, v in flds.items():
+            got = field(d, k)
+            good = (got is not None and abs(float(got) - v) < 1e-5) if isinstance(v, (int, float)) else got == v
+            A(good, f"{at}: {k} == {v} (got {got})")
+
+    physbone(f"{bone}/Buttons", r["buttonsPhysBone"], {"multiChildType": "0", "allowCollision": "1", "allowGrabbing": "0", "allowPosing": "0"})
+    physbone(f"{bone}/Slider", r["sliderPhysBone"], {"allowCollision": "0", "allowGrabbing": "1", "allowPosing": "1",
+                                                     "stretchMotion": 0, "snapToHand": "0"})
+
+    rv = r["receiver"]
+    for i, prm in enumerate(rv["params"]):
+        at = f"{bone}/Buttons/Btn{i + 1}/Btn{i + 1}_End"
+        d = next((x for x in recv if host(x) == at), None)
+        if not A(d is not None, f"a receiver on {at}"):
+            continue
+        A(field(d, "parameter") == prm, f"{at}: parameter {prm} (got {field(d, 'parameter')})")
+        A(tags_of(d) == [rv["tag"]], f"{at}: tags == [{rv['tag']}] (got {tags_of(d)})")
+        for k, v in (("shapeType", "2"), ("useFaceProximity", "1"), ("receiverType", "2"), ("localOnly", "1"),
+                     ("allowSelf", "1"), ("allowOthers", "0")):
+            A(field(d, k) == v, f"{at}: {k} == {v} (got {field(d, k)})")
+        A(fid(d, "rootTransform") in (0, tf_at.get(at)), f"{at}: rides its own End")
+        A(close(vec(d, "size"), tuple(rv["size"])), f"{at}: box size {rv['size']}")
+        A(close(vec(d, "position"), tuple(rv["position"])), f"{at}: box offset {rv['position']}")
+        A(same_rot(vec(d, "rotation"), quat(rv["rotation"])), f"{at}: box +Z face points up the press axis")
+    sv = r["sender"]
+    if A(len(send) == 1 and host(send[0]) == bone, f"one sender, on {bone}"):
+        d = send[0]
+        A(tags_of(d) == [sv["tag"]], f"sender tags == [{sv['tag']}] (got {tags_of(d)})")
+        A(field(d, "shapeType") == "1" and field(d, "localOnly") == "1", "sender is a local-only capsule")
+        A(fid(d, "rootTransform") in (0, tf_at.get(bone)), f"sender rides {bone}")
+        for k in ("radius", "height"):
+            A(field(d, k) is not None and abs(float(field(d, k)) - sv[k]) < 1e-6, f"sender {k} == {sv[k]}")
+        A(close(vec(d, "position"), tuple(sv["position"])), f"sender at {sv['position']} (top surface on bottom-out)")
+        A(same_rot(vec(d, "rotation"), quat(sv["rotation"])), "sender capsule lies along X")
+    return ok
+
+
 def main():
+    if "--check" in sys.argv:
+        return 0 if check(CONFIG, os.path.join(HERE, "Panel.prefab")) else 1
     text = document(CONFIG)
     with open(os.path.join(HERE, "controller.yaml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
