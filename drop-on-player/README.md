@@ -11,7 +11,7 @@ Two seam facts no artifact states:
 - The four box-cage receivers are `localOnly: 0` **by necessity** — remotes re-derive the chase from them — while `SelfDetect` is `localOnly: 1` (routing input only; its outcome syncs as the pair). Menu intents stay unsynced, so the menu costs 0 extra synced bits.
 - **Seam:** VRCFury `FullController` (FX, `basis: mount-root`) merging `built/`'s params + menu at prefix `Drop On Player`. `globalParams` is **empty**: with two controls the menu ships as an asset, so `RewriteParamName` takes control and parameter together and nothing escapes to the host avatar. **Plus one MA `BoneProxy`** on `HeadMount` → the wearer's Head bone — a mixed seam, needed so the anchor's placement is visible while authoring. `HeadMount` is referenced only as a constraint source; no VRCF clip binding paths through it.
 
-**Dependencies:** VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull` alongside** (its README §When a module needs this) — the tracked and dropped modes replay choreography while the payload is away from the wearer.
+**Dependencies:** VRC SDK + VRCFury + Modular Avatar to build; **compose `anti-cull` alongside** (its README §Traps, "When a module needs this") — the tracked and dropped modes replay choreography while the payload is away from the wearer.
 
 **Required assets:** `assets/World.prefab` — a never-instantiated absolute-meters scale reference the cage constraint-pins to; do not instantiate or delete it. The menu regenerates from `controller.yaml`'s `menu:` block. `Payload` is a placeholder sphere — swap it, keep it under `Container`.
 
