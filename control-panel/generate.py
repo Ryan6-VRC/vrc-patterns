@@ -112,7 +112,7 @@ CONFIG = {
     "plate": {"x": [-0.17, 0.17], "z": [-0.11, 0.11], "top": 0.02, "bottom": -0.01},
     "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
     "buttons": {"x": [-0.09, -0.03, 0.03, 0.09], "z": 0.05, "capDiameter": 0.03, "capTop": 0.03, "travel": 0.01,
-                "boneLength": 0.03},
+                "boneLength": 0.02, "chainRadius": 0.01},
     "buttonLamps": {"z": 0.085, "diameter": 0.008, "parked": 0.019, "raised": 0.0205},
     "slider": {"x": [-0.1, 0.1], "z": -0.04, "boneLength": 0.03, "rootX": -0.13, "knob": [0.02, 0.025]},
     "segments": {"z": -0.075, "depth": 0.006, "widthFraction": 0.6},

@@ -4,7 +4,7 @@
     python control-panel/controls/generate.py            # writes controls/controller.yaml
     python control-panel/controls/generate.py --check    # asserts Panel.prefab's hand-built surface against CONFIG
 
-The entry's own generate.py imports CONFIG, document(cfg) and rig(cfg) from here. Edit CONFIG, rerun, then
+The entry's own generate.py imports CONFIG["N"] from here. Edit CONFIG, rerun, then
 recompile controls/built/ as a unit in a mounting Editor (CONVENTIONS.md §The gate). Every output is a pure
 function of CONFIG; nothing here writes Unity assets: `--check` holds the prefab to CONFIG afterwards.
 
