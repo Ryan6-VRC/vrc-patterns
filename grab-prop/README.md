@@ -9,7 +9,7 @@ Grab a prop off your avatar, carry it live, drop it anywhere in the world, re-gr
 - **Params:**
   - `GrabProp/Enable` (bool, in) — synced, **unsaved**. The menu front (VRCFury Toggle on the prefab root). Off-is-reset: toggling off/on recalls a dropped prop to the home anchor.
 - **Seam:** VRCFury `FullController` on the prefab root (FX, `rootBindingsApplyToAvatar: 0`), so every clip binding resolves **prop-root relative** (`basis: mount-root`). The FullController merges `built/GrabProp_Fx_Parameters.asset`; `GrabProp/Enable` is exported via `globalParams` and the Toggle drives it.
-- **Dependencies:** none beyond the VRC SDK + VRCFury to build; **compose `anti-cull` alongside** (its README §When a module needs this) — a dropped prop holds state through replayed choreography while the wearer may be off-screen. Drop the prefab anywhere under the avatar.
+- **Dependencies:** none beyond the VRC SDK + VRCFury to build; **compose `anti-cull` alongside** (its README §Traps, "When a module needs this") — a dropped prop holds state through replayed choreography while the wearer may be off-screen. Drop the prefab anywhere under the avatar.
 - **Required assets:** none — `Payload` is a placeholder sphere on Unity's built-in default material; swap it for your prop mesh, keep it under `Container`.
 
 ## Before you compose it
