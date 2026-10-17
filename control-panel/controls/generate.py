@@ -40,7 +40,7 @@ buttons, a selector, a discrete slider, a smooth slider.
               (limit 0 does not project the hand onto the axis; it over-reads by about h^2/2d), snapToHand 1 (at 0
               the tip keeps the grab offset), grabMovement 1, pull 1, collision and posing off, no parameter. The tip
               rests `restOffset` past the box's high face; maxSquish 0.9 lets it reach `boxMargin/2` below the
-              track's low end, maxStretch lets it reach a hand `boxAbove` over the far end. Released, it springs to
+              track's low end, maxStretch lets it reach a hand `boxHeight/2` above or below the far end. Released, it springs to
               rest and nothing reads it.
   Sld_<name>_End  a non-local sphere sender tagged per slider (`ControlPanel<name>`; the boxes may overlap).
   slider boxes   two non-local face-mode box receivers on the Panel bone, CP/<name>_Read, +Z face toward the
@@ -125,18 +125,19 @@ CONFIG
                 state (the shipped value: a brush then toggles a cap, and nothing delays the stamp).
   cooldown      seconds between a release and the next accepted press, above the wire's 0.2 s set/clear floor.
   retractTime   seconds the caps and knobs take to rise or sink when <internal>/Live changes (the Live crossfade).
-  sliders       shared by every slider. `y` the chain's height (the box's floor: a tip below it reads 0); `radius`
+  sliders       shared by every slider. `y` the chain's height (the box's vertical centre, so a grab from above or below the face reads); `radius`
                 the chain radius (the capsule along the bone is the grab surface); `boxMargin` m past each track end;
                 `senderRadius` r of the tip sphere; `restOffset` the tip's rest past the high track end + m, refused
                 at or under r (a sender straddling the +Z face reads 1 and would hold every client in Held for
-                ever); `boxAcross`, `boxAbove` the box's extent across the track and above `y` (contact size limit
-                6 m); `knobY` the knob bone's rest height; `channelDepth` the knob channel's depth and the knob's
+                ever); `boxAcross`, `boxHeight` the box's extent across the track and through `y`, centred on it (contact size
+                limit 6 m); `knobY` the knob bone's rest height; `channelDepth` the knob channel's depth and the knob's
                 retract; `settle` [EMPIRICAL] Settle's dwell, the wire plus IK delay between the grabber's release and
-                the wearer's last stamp arriving. validate() refuses a slider box reaching a cap receiver.
+                the wearer's last stamp arriving. A slider box may overlap the cap receivers: the tags differ, so neither reads
+                the other's sender.
   tag           the cap rows' sender/receiver tag (private).
 Derived per slider (rig()['sliders']): run = x_hi - x_lo; box size run + 2m; readings r_lo = (m + r)/(run + 2m),
 r_hi = (run + m + r)/(run + 2m), floor = (m/2 + r)/(run + 2m); tip rest x_hi + m + restOffset; bone length
-L = (run + 1.5 m + restOffset)/0.9; root at tip rest - L; maxStretch = sqrt(L^2 + boxAbove^2)/L - 1, the largest
+L = (run + 1.5 m + restOffset)/0.9; root at tip rest - L; maxStretch = sqrt(L^2 + (boxHeight/2)^2)/L - 1, the largest
 over the sliders, since they share one component.
 """
 
@@ -176,7 +177,7 @@ CONFIG = {
     "cooldown": 0.25,
     "retractTime": 0.25,
     "sliders": {"y": 0.02, "radius": 0.02, "boxMargin": 0.02, "senderRadius": 0.005, "restOffset": 0.015,
-                "boxAcross": 0.25, "boxAbove": 0.2, "knobY": 0.02, "channelDepth": 0.012, "settle": 0.5},
+                "boxAcross": 0.25, "boxHeight": 0.2, "knobY": 0.02, "channelDepth": 0.012, "settle": 0.5},
     "tag": "ControlPanelPress",
 }
 
@@ -221,13 +222,13 @@ def cap_geometry(c):
 def slider_geometry(c, s):
     g = c["sliders"]
     lo, hi = s["x"]
-    run, m, r, h = hi - lo, g["boxMargin"], g["senderRadius"], g["boxAbove"]
+    run, m, r, h = hi - lo, g["boxMargin"], g["senderRadius"], g["boxHeight"] / 2
     size = run + 2 * m
     tip = hi + m + g["restOffset"]
     length = (run + m / 2 + m + g["restOffset"]) / SQUISH
     return {"run": run, "size": size, "rLo": (m + r) / size, "rHi": (run + m + r) / size, "floor": (m / 2 + r) / size,
             "tipRestX": tip, "boneLength": length, "rootX": tip - length,
-            "maxStretch": math.sqrt(length ** 2 + h ** 2) / length - 1, "centre": ((lo + hi) / 2, g["y"] + h / 2, s["z"])}
+            "maxStretch": math.sqrt(length ** 2 + h ** 2) / length - 1, "centre": ((lo + hi) / 2, g["y"], s["z"])}
 
 
 def aabb_overlap(a, b):
@@ -307,16 +308,15 @@ def validate(c):
             refuse(f"the {ka} row's sender reaches a {kb} receiver box: both rows share the tag `{c['tag']}`, so a press on one row would read on the other.")
 
     g = c["sliders"]
-    for k in ("radius", "boxMargin", "senderRadius", "boxAcross", "boxAbove", "channelDepth", "settle"):
+    for k in ("radius", "boxMargin", "senderRadius", "boxAcross", "boxHeight", "channelDepth", "settle"):
         if g[k] <= 0:
             refuse(f"sliders.{k} is positive.")
     if g["restOffset"] <= g["senderRadius"]:
         refuse("sliders.restOffset is at or under senderRadius: the resting tip's sphere straddles the box's +Z face, "
                "which reads 1 and would hold every client in Held for ever.")
-    if g["boxAcross"] > 6 or g["boxAbove"] > 6:
+    if g["boxAcross"] > 6 or g["boxHeight"] > 6:
         refuse("a slider box side is past the 6 m contact size limit.")
     names, tags = [], [c["tag"]]
-    caps_boxes = [box for kind, row, *_ in crs for box in cap_receiver_aabbs(c, row)]
     for s in sliders(c):
         name = s.get("name", "")
         if not re.fullmatch(r"[A-Z][A-Za-z0-9]*", name) or name in ("Btn", "Select", "Sel", "Press", "One", "Live", "Settling"):
@@ -340,11 +340,6 @@ def validate(c):
         else:
             if not isinstance(s["M"], int) or s["M"] < 1:
                 refuse(f"smooth slider {name}: M is a whole number of bar lamps, at least 1.")
-        cx, cy, cz = geo["centre"]
-        box = ((cx - geo["size"] / 2, cx + geo["size"] / 2), (g["y"], g["y"] + g["boxAbove"]),
-               (cz - g["boxAcross"] / 2, cz + g["boxAcross"] / 2))
-        if any(aabb_overlap(box, cb) for cb in caps_boxes):
-            refuse(f"slider {name}'s box reaches a button or selector receiver box.")
     if len(set(names)) != len(names):
         refuse(f"slider names repeat ({names}).")
     if None in tags or len(set(tags)) != len(tags):
@@ -397,7 +392,7 @@ def rig(c):
              "run": r6(geo["run"]), "boneLength": r6(geo["boneLength"]), "rootX": r6(geo["rootX"]),
              "tipRestX": r6(geo["tipRestX"]), "knobY": g["knobY"], "channelDepth": g["channelDepth"],
              "rLo": r6(geo["rLo"]), "rHi": r6(geo["rHi"]), "floor": r6(geo["floor"]),
-             "receiver": {"shape": "Box", "useFaceProximity": True, "size": [r6(g["boxAcross"]), r6(g["boxAbove"]), r6(geo["size"])],
+             "receiver": {"shape": "Box", "useFaceProximity": True, "size": [r6(g["boxAcross"]), r6(g["boxHeight"]), r6(geo["size"])],
                           "position": [r6(v) for v in geo["centre"]], "rotation": [0, 90, 0], "localOnly": False,
                           "allowSelf": True, "allowOthers": False, "tag": s["tag"], "param": f"{I}/{n}_Read"},
              "sender": {"shape": "Sphere", "radius": g["senderRadius"], "position": [0, 0, 0], "localOnly": False,
