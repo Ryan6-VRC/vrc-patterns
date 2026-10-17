@@ -83,10 +83,11 @@ THE LAYERS
               dwells `sliderSettle` seconds, re-entering a held state on any reading above floor (Live-gated, or a
               slider held as the panel goes inert would bounce Held <-> Settle until its chain switches off).
   Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; one on Select lighting
-              Lamp_Sel<k> (bar lit and cap sunk `travel`, one shape); one on each discrete slider's int lighting
+              Lamp_Sel<k> (dot lit and segment sunk `travel`, one shape); one on each discrete slider's int lighting
               Lamp_Seg<k>, which shows what the wearer accepted. A smooth slider has no lamp shape: the mesh's
-              always-lit strip runs from the track's low end to the knob (near end skinned to Panel, far end to
-              Knob_<name>), so it shows the knob, which at rest lands on the synced value.
+              always-lit strip, in the segment-lamp row's geometry, runs from the track's low end to the knob (near
+              end skinned to Panel, far end to Knob_<name>), so it shows the knob, which at rest lands on the synced
+              value.
               Per slider, the knob memory CP/<name>_Knob (track fraction 0..1): a razor 1D on the reading, children
               at floor - RAZOR and floor. Above: the knob from the reading (r_hi -> 0, r_lo -> 1; the children sit
               at ascending thresholds r_lo then r_hi). Below: a 1D on

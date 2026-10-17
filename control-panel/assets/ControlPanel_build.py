@@ -15,15 +15,16 @@ reading bone heads in the Unity frame, never the Blender ones.
 Rows, far edge to near: toggle buttons (domed caps in round wells, a dot lamp beyond each), the selector (one
 strip: four near-full-width segments, `selector.segmentWidth` along X and the caps' diameter in Z, on the buttons'
 joint, with seams between, in one shared tray whose two ends are rounded; the end segments' outer corners follow
-the tray's rounding, concentric with it, and every other corner is square with the chamfer; a bar lamp on the near
-side of each segment), the discrete slider (a knob in a recessed channel, detent ticks, one segment lamp per
-slot), the smooth slider (a knob in a channel, and the strip). Bones are placed at `restPoses` exactly; the
-geometry is asserted against them.
+the tray's rounding, concentric with it, and every other corner is square with the chamfer; beyond each segment the
+button row's dot lamp, at the button dots' z offset from their caps), the discrete slider (a knob in a recessed
+channel, detent ticks, one segment lamp per slot), the smooth slider (a knob in a channel, and the strip). Bones
+are placed at `restPoses` exactly; the geometry is asserted against them.
 
-The strip: one always-lit bar on the smooth slider's channel floor, from the track's low end (`strip.x`) to
-`STRIP_TUCK` past the knob's centre. Its near-end verts are skinned to `Panel` and its far-end verts to the knob
-bone, so it stretches as the knob translates and its far end always hides under the knob. It shows the knob, not
-the accepted value; at rest the knob lands on the synced value.
+The strip: one always-lit bar at `strip.z`, `strip.width` across Z (rig.json puts it in the discrete slider's
+segment-lamp row geometry), from the track's low end (`strip.x`) to `STRIP_LEAD` past the knob's centre. It sits
+permanently at a lit lamp's height (top at `lamps.raised`, `LAMP_THICK` deep), so it reads as high as a lit
+segment. Its near-end verts are skinned to `Panel` and its far-end verts to the knob bone, so it stretches as the
+knob translates. It shows the knob, not the accepted value; at rest the knob lands on the synced value.
 
 Shells: the plate is one shell - bezel, necks and ridged grips unioned; cap wells, the selector tray, knob
 channels and detent ticks cut - by Boolean modifiers (Manifold solver), so its parts never
@@ -36,8 +37,7 @@ Shapes: every lamp key raises its lamp by `lamps.raised - lamps.parked`. `Lamp_S
 `selector.sink`, one key, so the chosen cap rests depressed and lit. `Controls_Retract` sinks every cap by
 `controlsRetract.capDepth` and every knob by `controlsRetract.channelDepth` (flush with the face). Caps and
 knobs ride bones that only translate, so a bind-space key holds at any chain or knob position. The strip has no
-key: it lies under the knob's foot at rest, and retracted the knob sinks around its far end (the strip is narrower
-than the knob and tucked inside its footprint), so the retract neither buries the strip nor lets it poke through.
+key and stays lit when retracted; it lies outside the knob's channel, so the retract never meets it.
 
 Colour: a palette atlas of flat swatches, one material slot. Every face's UVs sit on one swatch centre, so a
 consumer recolours a part by repainting its square. The emission atlas is black except the two lamp swatches.
@@ -88,8 +88,7 @@ KNOB_LIFT, KNOB_CHAMFER, KNOB_CORNER = 0.0005, 0.003, 0.002   # foot above the c
 FIN_W, FIN_H, FIN_SPAN = 0.003, 0.0025, 0.8   # the pointer fin across the knob top; span as a fraction of its Z
 TICK_W, TICK_D, TICK_GAP, TICK_LEN = 0.002, 0.0015, 0.003, 0.006   # detent ticks off the channel's lamp side
 LAMP_THICK = 0.002
-STRIP_PROUD, STRIP_SINK = 0.0003, 0.0005   # the strip's top above its channel floor and its bottom into the plate
-STRIP_TUCK = 0.005        # the strip's far end past the knob's centre, so the knob always covers it
+STRIP_LEAD = 0.005        # the strip's far end past the knob's centre: its length at x_lo, so it is never degenerate
 GRIP_END_CHAMFER = 0.004
 RIDGES, RIDGE_W, RIDGE_GAP, RIDGE_R = 5, 0.007, 0.011, 0.0025   # count, width, gap, extra radius
 NECK_HALF_Y, NECK_HALF_Z, NECK_Z, NECK_INTO = 0.007, 0.006, 0.058, 0.006
@@ -331,12 +330,13 @@ for s, L in zip(SL, SLY):
     if L["strip"]:
         st = L["strip"]
         assert SWATCHES.get(st["swatch"], (0, 0, None))[2], f"{s['name']}: strip swatch {st['swatch']!r} has no emission"
-        assert abs(st["x"] - L["lo"]) < 1e-9 and abs(st["z"] - L["z"]) < 1e-9, f"{s['name']}: the strip starts at (x_lo, z)"
-        # At rest the knob's foot clears the strip's top; retracted, the knob's footprint encloses its far end.
-        assert L["floor"] + STRIP_PROUD < L["foot"], f"{s['name']}: the strip's top reaches the knob's foot"
-        assert L["floor"] - STRIP_SINK > BOTTOM + SINK_MARGIN, f"{s['name']}: the strip's bottom leaves the underside"
-        assert 0 < STRIP_TUCK < L["khx"] - 0.001, f"{s['name']}: the strip's far end is not under the knob"
-        assert st["width"] / 2 < L["khz"] - 0.001, f"{s['name']}: the strip is wider than the knob covers"
+        assert abs(st["x"] - L["lo"]) < 1e-9, f"{s['name']}: the strip starts at x_lo"
+        assert STRIP_LEAD > 0, f"{s['name']}: the strip needs a length at x_lo"
+        # Where it pierces the face, its band clears the channel's flared mouth, so it never cuts the channel.
+        gap = abs(st["z"] - L["z"]) - L["chz"] - CH_CHAMFER - st["width"] / 2
+        assert gap > 0.002, f"{s['name']}: the strip's band ({gap * 1000:.1f} mm) crowds its channel"
+        # Seated like a lit lamp: its top through the face, its bottom inside the plate's solid.
+        assert LAMP["raised"] - LAMP_THICK < TOP < LAMP["raised"], f"{s['name']}: the strip is not seated through the face"
 
 
 def octagon_inset(x, z):
@@ -352,9 +352,8 @@ def footprints():
     h = SEL_WELL_H + WELL_CHAMFER
     e = TRAY_HX + WELL_CLEAR + WELL_CHAMFER
     out.append(("selector tray well", TRAY_CX - e, TRAY_CX + e, SEL["z"] - h, SEL["z"] + h))
-    sl = SEL["lamps"]
-    out += [(f"selector lamp {x}", x - sl["width"] / 2, x + sl["width"] / 2, sl["z"] - sl["depth"] / 2,
-             sl["z"] + sl["depth"] / 2) for x in SEL["x"]]
+    r = SEL["lamps"]["diameter"] / 2
+    out += [(f"selector lamp {x}", x - r, x + r, SEL["lamps"]["z"] - r, SEL["lamps"]["z"] + r) for x in SEL["x"]]
     r = BL["diameter"] / 2
     out += [(f"button lamp {x}", x - r, x + r, BL["z"] - r, BL["z"] + r) for x in B["x"]]
     r = OFF["diameter"] / 2
@@ -362,6 +361,9 @@ def footprints():
     for s, L in zip(SL, SLY):
         e = L["chx"] + CH_CHAMFER
         out.append((f"{s['name']} channel", L["cx"] - e, L["cx"] + e, L["z"] - L["chz"] - CH_CHAMFER, L["z"] + L["chz"] + CH_CHAMFER))
+        if L["strip"]:   # its whole sweep, the knob from x_lo to x_hi
+            st = L["strip"]
+            out.append((f"{s['name']} strip", L["lo"], L["hi"] + STRIP_LEAD, st["z"] - st["width"] / 2, st["z"] + st["width"] / 2))
         for i in range(L["n"]):
             w, lz = L["pitch"] * L["lamps"]["widthFraction"], L["lamps"]["z"]
             cx = L["lo"] + (i + 0.5) * L["pitch"]
@@ -516,14 +518,14 @@ for x, shape in zip(B["x"], BL["shapes"]):
     v, p = build_disc(x, BL["z"], BL["diameter"])
     PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
 for x, shape in zip(SEL["x"], SEL["shapes"]):
-    v, p = build_bar(x, SEL["lamps"]["z"], SEL["lamps"]["width"], SEL["lamps"]["depth"])
+    v, p = build_disc(x, SEL["lamps"]["z"], SEL["lamps"]["diameter"])
     PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
 for s, L in zip(SL, SLY):
     if L["strip"]:
         st = L["strip"]
-        far = L["lo"] + STRIP_TUCK
+        far = L["lo"] + STRIP_LEAD
         v, p = plain(part("strip", lambda bm, st=st, L=L, far=far: box(
-            bm, L["lo"], far, L["floor"] - STRIP_SINK, L["floor"] + STRIP_PROUD,
+            bm, L["lo"], far, LAMP["raised"] - LAMP_THICK, LAMP["raised"],
             st["z"] - st["width"] / 2, st["z"] + st["width"] / 2)))
         # Near end on the plate, far end on the knob bone: the strip stretches as the knob translates.
         PARTS.append((v, p, lambda c, sw=st["swatch"]: sw,
