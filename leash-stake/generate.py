@@ -101,7 +101,7 @@ CONFIG
   home          Home's local pose under Start as measured on the settled strand, or None for the point
                 `homeAt` along the rest pose.
   handle        the handle physbone's settings; FIXED_HANDLE holds what makes it a handle.
-  rope          the curve: `sag` (metres the curve's middle hangs below the chord, at every distance) and the
+  rope          the curve: `sag` (nominal metres the curve's middle hangs below the chord; deeper at short spans) and the
                 pendulum's `pull` and `spring` (FIXED_PENDULUM holds the rest).
   fade          frames of the strand's transition blend each way.
   cycle         seconds the plant holds the handle off.
@@ -150,7 +150,8 @@ CONFIG = {
     "home": None,
     # pull and spring are the release's feel: how fast the line retracts with the handle after a plain release.
     "handle": {"length": 0.05, "radius": 0.05, "maxStretch": 100, "pull": 0.2, "spring": 0.2, "stiffness": 0.2},
-    # The held and planted curve. sag: how far the curve's middle hangs below the straight line, at every distance.
+    # The held and planted curve. sag: how far the curve's middle hangs below the straight line, nominally; the curve
+    # ends one last-bone length short of Stake, so a short span or a long last bone deepens it a little.
     # pull and spring are the pendulum's swing (spring is the overshoot).
     "rope": {"sag": 0.15, "pull": 0.2, "spring": 0.98},
     "fade": 10,
@@ -921,7 +922,7 @@ def check(c, prefab_path, entry=True):
             want = meta_guid(os.path.join(HERE, rel))
             A(want in refs and refs.index(want) > 0, f"FullController {kind}: the consumer's own entry before this entry's {rel} (got {refs})")
 
-    # Sensing: two boxes on Sense, one sender on SenseProxy, one private tag, the geometry the decode assumes.
+    # Sensing: three boxes on Sense, one sender on SenseProxy, one private tag, the geometry the decode assumes.
     boxes = P.components("Sense", r"^  receiverType:")
     A(len(boxes) == len(s["boxes"]), f"Sense carries {len(s['boxes'])} receivers (got {len(boxes)})")
     for want in s["boxes"]:

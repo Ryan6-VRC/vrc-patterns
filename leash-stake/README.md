@@ -8,7 +8,7 @@ Two ways in: drop the shipped demo, a collar whose four-bone rope hangs from the
 
 - The strand is never grabbed itself. It keeps its own physbone, with grabbing turned off. A hand grabs an invisible one-bone grab bone instead, whose resting point `Home` is part way along the strand.
 - Each strand bone has one parent constraint with two sources: its own physics, and a joint on a curve from `Start` (the strand's root) to `Stake` (the leash's far end). Free, the bone follows its own physics, which changes nothing. Held or planted, it follows the curve. The animator fades between the two.
-- The curve is a quadratic Bezier: a smooth curve bent toward one control point. That point is the tip of a pendulum, a one-bone physbone hanging down from the `Start`/`Stake` midpoint, so the curve's middle hangs half the pendulum's length below the straight line at any distance. The pendulum trails when you walk or the hand moves, and swings back past rest when you stop.
+- The curve is a quadratic Bezier: a smooth curve bent toward one control point. That point is the tip of a pendulum, a one-bone physbone hanging down from the `Start`/`Stake` midpoint, so the curve's middle hangs about half the pendulum's length below the straight line, a little deeper at short distances because the curve ends one last-bone length short of `Stake`. The pendulum trails when you walk or the hand moves, and swings back past rest when you stop.
 - The pendulum runs on every client, so everyone sees the same sag and their own copy of the swing.
 - `Stake` follows the grab bone's tip, so a held strand runs from your neck to the hand.
 - A pose release (VRChat's: letting go of a grab while posing it) plants the leash. `Stake` freezes in the world. The grab bone moves onto `Stake` and switches off for a moment, which clears its pose so it can be grabbed there.
@@ -76,7 +76,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 | `chain`, `endpoint` | The strand's bones, root first, and the last bone's visible end. They set `Start`'s pose, the curve's joints and one strand constraint per bone. `endpoint` must equal the strand physbone's `endpointPosition` |
 | `homeAt`, `home` | Where the grab bone rests: `homeAt` of the way along the strand from its root (1 is the tip), or `home`, a pose measured where your strand settles. The grab volume is a sphere around this point |
 | `handle` | `radius` is that sphere's size; it must cover the strand's swing. `length` × (1 + `maxStretch`) is the reach. `pull` and `spring` are the release's feel: how fast the strand retracts after a plain release |
-| `rope` | `sag` is how far the curve's middle hangs below the straight line, the same at every distance (the pendulum is twice that long). `pull` is the pendulum's only restoring force and `spring` its overshoot; near 1 it barely settles |
+| `rope` | `sag` is the nominal depth of the curve's middle below the straight line (the pendulum is twice that long); a short distance or a long last bone deepens it a little (0.19 m at 0.3 m on the demo, 0.16 m at 2 m). `pull` is the pendulum's only restoring force and `spring` its overshoot; near 1 it barely settles |
 | `mount`, `mountRot` | The bone the demo's `Mount` snaps to, and `Mount`'s rest rotation against the avatar root, which sets the strand's twist on the curve |
 | `fade` | Frames of the strand's fade each way. Shorter moves the strand further per frame |
 | `cycle` | Seconds a plant holds the grab bone off; a grab then misses. `validate()` refuses under three frames |
@@ -102,7 +102,7 @@ Everything is `generate.py`'s CONFIG, or a consumer's JSON over it (§Using your
 
 **One pendulum, not a chain of springy joints.** A quadratic Bezier needs one control point, and one physbone is the cheapest moving thing that trails and overshoots. Gravity does nothing to a bone already resting straight down.
 
-**The sag is fixed.** A physbone's length cannot change at runtime, so the pendulum sets one sag at every distance; a leash has no real length for the sag to fade against, and fading it would cost a contact pair every client simulates.
+**The sag is fixed.** A physbone's length cannot change at runtime, so the pendulum sets one nominal sag at every distance; a leash has no real length for the sag to fade against, and fading it would cost a contact pair every client simulates.
 
 **`Line` and `Mid` hang under `Stake`.** A constraint on a parent's target solves before its children's (`../../docs/runtime.md` §Constraints), so everything that reads `Stake` reads this frame's `Stake`.
 
