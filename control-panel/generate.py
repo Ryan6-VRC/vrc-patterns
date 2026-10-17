@@ -50,8 +50,8 @@ The prefab is the artifact; this is the recipe it was made by, and `--check` hol
                    Overridden: Body's position and rotation constraint source0 -> Park; the handle spacing
                    to CONFIG handleSpacing on every copy site two-hand-prop's README §Knobs lists (RestA/B,
                    CarryA/B, OffA/B, AimNode, HolderA/B and the PositionAtRest of the constraints on
-                   CarryA/B, AimNode, HolderA/B). Added: Body/Display/Panel, the controls subtree's mount
-                   (controls/Panel.prefab once it exists; a placeholder cube until then).
+                   CarryA/B, AimNode, HolderA/B). Added: a connected instance of controls/Panel.prefab
+                   under Body/Display, named Panel, at identity (the lift unit; its bindings resolve here).
   Park             as above, four sources; Locked, zero offsets, rest weights HOME.
   ObjectSync       nested ../object-sync/ObjectSync.prefab (the entry root: one object, full rotation).
                    Removed: its root FullController, Toggle, ApplyDuringUpload and pin pair (the shared root
@@ -370,6 +370,7 @@ def check(c):
             A(filled == int(m.group(1)), f"&{i}: totalLength {m.group(1)} == filled slots {filled}")
 
     check_cell(c, ls, P, A)
+    check_panel(ls, P, A)
     check_sync(c, og, ls, P, A)
     print("OK" if ok else "FAILED")
     return ok
@@ -462,6 +463,26 @@ def check_cell(c, ls, P, A):
     want_rest = {n: sites[n] for n in ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB")}
     bad = {n: rest.get(n) for n, x in want_rest.items() if rest.get(n) is None or abs(rest[n] - x) > 1e-6}
     A(not bad, f"handle spacing: PositionAtRest.x on CarryA/B, AimNode, HolderA/B (off: {bad})")
+
+
+def check_panel(ls, P, A):
+    """The controls subtree: one connected instance of controls/Panel.prefab, named Panel, under
+    TwoHandProp/Body/Display at identity, where the controls controller's bindings resolve."""
+    got = nested(ls, P, "control-panel/controls/Panel.prefab")
+    if not A(got, "ControlPanel.prefab nests control-panel/controls/Panel.prefab once"):
+        return
+    inst, sb, mods, nm, body = got
+    A(next((v.strip() for f, g, pp, v, ref in mods if pp == "m_Name"), None) == "Panel", "the controls instance is named 'Panel'")
+    tp = re.search(r"m_TransformParent: \{fileID: (-?\d+)\}", sb)
+    A(tp and P.path_of(int(tp.group(1))) == f"{CELL}/Body/Display", f"the controls instance hangs under {CELL}/Body/Display")
+    want = {"m_LocalPosition.x": 0, "m_LocalPosition.y": 0, "m_LocalPosition.z": 0, "m_LocalRotation.x": 0,
+            "m_LocalRotation.y": 0, "m_LocalRotation.z": 0, "m_LocalRotation.w": 1, "m_LocalScale.x": 1,
+            "m_LocalScale.y": 1, "m_LocalScale.z": 1}
+    tfm = {pp: float(v) for f, g, pp, v, ref in mods if pp in want and nm(f, g) == "Panel" and "m_Father" in body(f, g)}
+    A(all(abs(v - want[pp]) < 1e-6 for pp, v in tfm.items()), f"the controls instance's root sits at identity ({tfm})")
+    other = sorted({pp for f, g, pp, v, ref in mods if pp not in want and pp != "m_Name" and not pp.startswith("m_LocalEulerAnglesHint")})
+    removed = re.findall(r"m_Removed(?:Components|GameObjects): \[\]", sb)
+    A(not other and len(removed) == 2, f"the controls instance carries no other override or removal ({other})")
 
 
 def check_sync(c, og, ls, P, A):
