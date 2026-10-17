@@ -132,8 +132,9 @@ CONFIG = {
     "syncDamp": 0.1,
     # Panel geometry, Unity frame of TwoHandProp/Body/Display, metres (contract's rig.json defaults).
     "handleSpacing": 0.4,
-    # bottom -0.02: the chosen selector cap rests sunk `travel` by its lamp shape and a press sinks it `squish` more,
-    # so its skirt reaches capTop - travel - travel - squish; the mesh builder asserts it clears the underside.
+    # bottom -0.02: the chosen selector cap rests sunk `travel` by its lamp shape and a press sinks it `squish` more, and
+    # its skirt reaches `travel` below the face (capTop - travel), so it bottoms at capTop - 3 travel - squish; the mesh
+    # builder asserts it clears the underside.
     "plate": {"x": [-0.17, 0.17], "z": [-0.17, 0.17], "top": 0.02, "bottom": -0.02},
     "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
     # The rows (cap positions and joint, slider tracks, chains, knob rest, channel depth) are the controls CONFIG's;

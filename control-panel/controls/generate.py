@@ -49,8 +49,7 @@ buttons, a selector, a discrete slider, a smooth slider.
               the tip at rest outside. Why low: a sender leaving a face-mode box through its +Z face within one
               contact step reads 1.0 for that step before 0, and through the -Z face reads 0 at once (measured in
               av3emu). A release springs the tip to its rest past the high end, so the release must exit through
-              the face that reads 0, the -Z face; with +Z at the high end every release read 1.0 for a step and the
-              held branch stamped the top slot. Overshoot past the low end still exits through +Z, and its 1.0 is
+              the face that reads 0, the -Z face. Overshoot past the low end still exits through +Z, and its 1.0 is
               the low end's own value (past r_hi: knob 0, Slot 0, Level 0), so it lands where the hand went.
               Non-local, so every client runs the held branch for a remote's grab and its knob follows the hand.
   Knob_<name> a child of Panel in no chain, built UP/ACROSS so its m_LocalPosition is a panel-frame position; the
@@ -127,7 +126,8 @@ CONFIG
                 allows (travel plus the sink past flush) and the bone length. maxSquish is squish over length.
                 validate() refuses caps leaving the face, overlapping, or whose joint sphere's cut at face level
                 reaches a neighbouring button cap. The selector row is exempt from that reach refusal by the
-                operator's acceptance: its segments are wider than the sphere's reach, so the outer ~10 mm of each is
+                operator's acceptance: its segments are wider than the sphere's reach, so its outer few millimetres (past
+                about 23 mm from its centre) are
                 dead (a press there dips it and its neighbour and stamps neither).
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every cap
                 receiver is at or below `release`; emitted as readings over the box's depth.
@@ -326,7 +326,7 @@ def validate(c):
             if c["boxWidth"] >= gap:
                 refuse(f"{kind} receiver boxes overlap their neighbours' across X.")
             # Relaxed for the selector by the operator's acceptance: a segment is wider than its joint sphere's reach,
-            # so the outer ~10 mm of each is dead (a press there dips it and its neighbour and stamps neither).
+            # so its outer few millimetres (past about 23 mm from its centre) are dead (a press there dips it and its neighbour and stamps neither).
             if kind != "selector" and reach + width / 2 >= gap:
                 refuse(f"a {kind} joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
     (k1, row1, *_), (k2, row2, *_) = crs
