@@ -25,7 +25,7 @@
     "localPosition": [
       0.0,
       0.5325,
-      0.0
+      -0.0
     ],
     "localRotation": [
       0.0,
@@ -35,8 +35,8 @@
     ],
     "localEuler": [
       270.0,
-      0.0,
-      180.0
+      180.0,
+      0.0
     ]
   },
   "handle": {
@@ -65,6 +65,7 @@
     "reach": 5.05
   },
   "line": {
+    "path": "Stake/Line",
     "aimAxis": [
       0,
       0,
@@ -75,6 +76,12 @@
       1,
       0
     ],
+    "aimAt": "Stake/Ctrl",
+    "jointAimAxis": [
+      0,
+      0,
+      1
+    ],
     "joints": [
       {
         "name": "J0",
@@ -83,65 +90,39 @@
         ],
         "weights": [
           1.0
-        ]
+        ],
+        "aim": "Stake/Line/J1"
       },
       {
         "name": "J1",
         "sources": [
           "Mount/Start",
-          "Line/J6"
+          "Stake/Ctrl",
+          "Stake/Line/J3"
         ],
         "weights": [
-          0.833333,
-          0.166667
-        ]
+          0.444444,
+          0.444444,
+          0.111111
+        ],
+        "aim": "Stake/Line/J2"
       },
       {
         "name": "J2",
         "sources": [
           "Mount/Start",
-          "Line/J6"
+          "Stake/Ctrl",
+          "Stake/Line/J3"
         ],
         "weights": [
-          0.666667,
-          0.333333
-        ]
+          0.111111,
+          0.444444,
+          0.444444
+        ],
+        "aim": "Stake/Line/J3"
       },
       {
         "name": "J3",
-        "sources": [
-          "Mount/Start",
-          "Line/J6"
-        ],
-        "weights": [
-          0.5,
-          0.5
-        ]
-      },
-      {
-        "name": "J4",
-        "sources": [
-          "Mount/Start",
-          "Line/J6"
-        ],
-        "weights": [
-          0.333333,
-          0.666667
-        ]
-      },
-      {
-        "name": "J5",
-        "sources": [
-          "Mount/Start",
-          "Line/J6"
-        ],
-        "weights": [
-          0.166667,
-          0.833333
-        ]
-      },
-      {
-        "name": "J6",
         "static": [
           0,
           0,
@@ -150,10 +131,115 @@
       }
     ]
   },
+  "rope": {
+    "mid": {
+      "path": "Stake/Mid",
+      "sources": [
+        "Mount/Start",
+        "Stake"
+      ],
+      "weights": [
+        0.5,
+        0.5
+      ]
+    },
+    "pendulum": {
+      "bone": "Stake/Mid/P0",
+      "tip": "Stake/Mid/P0/PTip",
+      "tipLocalPosition": [
+        0,
+        -0.6,
+        0
+      ],
+      "physbone": {
+        "pull": 0.2,
+        "spring": 0.98,
+        "gravity": 1.0,
+        "stiffness": 0.0,
+        "radius": 0.0,
+        "allowGrabbing": "False",
+        "allowPosing": "False",
+        "allowCollision": "False",
+        "isAnimated": false,
+        "integrationType": "Simplified",
+        "limitType": "None",
+        "parameter": ""
+      }
+    },
+    "ctrl": {
+      "path": "Stake/Ctrl",
+      "sources": [
+        "Stake/Mid/P0/PTip",
+        "Stake/Mid"
+      ],
+      "weights": [
+        1.0,
+        0.0
+      ]
+    },
+    "span": {
+      "parameter": "LeashStake/Span",
+      "tag": "LeashSenseSpan",
+      "receiver": {
+        "path": "Stake/Line/J0",
+        "radius": 1.48
+      },
+      "sender": {
+        "path": "Stake",
+        "radius": 0.02
+      }
+    },
+    "sag": {
+      "height": 0.3,
+      "taut": 1.5,
+      "table": [
+        {
+          "span": 1.5,
+          "reading": 0.0,
+          "weight": 0.0
+        },
+        {
+          "span": 1.490895,
+          "reading": 0.006152,
+          "weight": 0.237831
+        },
+        {
+          "span": 1.472684,
+          "reading": 0.018457,
+          "weight": 0.409412
+        },
+        {
+          "span": 1.445367,
+          "reading": 0.036914,
+          "weight": 0.573601
+        },
+        {
+          "span": 1.408945,
+          "reading": 0.061523,
+          "weight": 0.731126
+        },
+        {
+          "span": 1.363418,
+          "reading": 0.092285,
+          "weight": 0.880857
+        },
+        {
+          "span": 1.317891,
+          "reading": 0.123047,
+          "weight": 1.0
+        },
+        {
+          "span": 0.02,
+          "reading": 1.0,
+          "weight": 1.0
+        }
+      ]
+    }
+  },
   "strand": [
     {
       "path": "Mount/Leash/Armature/Collar/V0",
-      "joint": "Line/J0",
+      "joint": "Stake/Line/J0",
       "jointRotationOffset": [
         90.0,
         0.0,
@@ -165,11 +251,11 @@
         0.0,
         0.707107
       ],
-      "segment": 0.15
+      "segment": 0.3
     },
     {
       "path": "Mount/Leash/Armature/Collar/V0/V1",
-      "joint": "Line/J1",
+      "joint": "Stake/Line/J1",
       "jointRotationOffset": [
         90.0,
         0.0,
@@ -181,11 +267,11 @@
         0.0,
         0.707107
       ],
-      "segment": 0.15
+      "segment": 0.3
     },
     {
       "path": "Mount/Leash/Armature/Collar/V0/V1/V2",
-      "joint": "Line/J2",
+      "joint": "Stake/Line/J2",
       "jointRotationOffset": [
         90.0,
         0.0,
@@ -197,63 +283,15 @@
         0.0,
         0.707107
       ],
-      "segment": 0.15
+      "segment": 0.3
     },
     {
       "path": "Mount/Leash/Armature/Collar/V0/V1/V2/V3",
-      "joint": "Line/J3",
+      "joint": "Stake/Line/J3",
       "jointRotationOffset": [
         90.0,
         0.0,
         0.0
-      ],
-      "jointRotationOffsetQ": [
-        0.707107,
-        0.0,
-        0.0,
-        0.707107
-      ],
-      "segment": 0.15
-    },
-    {
-      "path": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4",
-      "joint": "Line/J4",
-      "jointRotationOffset": [
-        90.0,
-        0.0,
-        0.0
-      ],
-      "jointRotationOffsetQ": [
-        0.707107,
-        0.0,
-        0.0,
-        0.707107
-      ],
-      "segment": 0.15
-    },
-    {
-      "path": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5",
-      "joint": "Line/J5",
-      "jointRotationOffset": [
-        90.0,
-        180.0,
-        180.0
-      ],
-      "jointRotationOffsetQ": [
-        0.707107,
-        0.0,
-        0.0,
-        0.707107
-      ],
-      "segment": 0.15
-    },
-    {
-      "path": "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6",
-      "joint": "Line/J6",
-      "jointRotationOffset": [
-        90.0,
-        180.0,
-        180.0
       ],
       "jointRotationOffsetQ": [
         0.707107,
@@ -287,6 +325,14 @@
         "parameter": "Leash/Forward",
         "rotation": [
           0,
+          0,
+          0
+        ]
+      },
+      {
+        "parameter": "Leash/Up",
+        "rotation": [
+          270,
           0,
           0
         ]

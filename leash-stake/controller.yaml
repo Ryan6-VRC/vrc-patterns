@@ -17,6 +17,7 @@ parameters:
   Leash/Enable: { type: bool, default: true, vrc: { synced: true, saved: true } }
   Leash/Right: { type: float, vrc: { synced: false, saved: false, osc: true } }   # face-proximity box, sensing
   Leash/Forward: { type: float, vrc: { synced: false, saved: false, osc: true } }   # face-proximity box, sensing
+  Leash/Up: { type: float, vrc: { synced: false, saved: false, osc: true } }   # face-proximity box, sensing
   Leash/Held: { type: bool, vrc: { synced: false, saved: false, osc: true } }   # latching, driven here
   Leash/Planted: { type: bool, vrc: { synced: false, saved: false, osc: true } }   # latching, driven here
   Leash/Slack: { type: float, default: 0.285714, vrc: { synced: false, saved: true, osc: true } }   # held slack, 0..1 over the bridge's 0.5-4.0 m
@@ -26,6 +27,7 @@ parameters:
   Leash/Handle_IsGrabbed: { type: bool, vrc: { synced: false, saved: false } }   # the handle physbone
   Leash/Handle_IsPosed: { type: bool, vrc: { synced: false, saved: false } }   # the handle physbone
   LeashStake/Announce: { type: bool, default: false, vrc: { synced: true, saved: false } }   # the stake is on the wire
+  LeashStake/Span: float   # the span contact pair, every client
   ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }
   OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
   IsLocal: bool   # VRC built-in
@@ -118,6 +120,30 @@ layers:
       any: [50, 40]
       exit: [50, 80]
 
+  # Every client: the curve's control point slides from the pendulum's tip to the plain midpoint as the span
+  # reaches taut (1.5 m): the sag a rope of that length would show, capped at 0.3 m.
+  - name: Rope
+    states:
+      Sag:
+        motion:
+          tree: 1d
+          param: LeashStake/Span
+          children:
+            - { clip: sag0, threshold: 0.0 }   # span 1.5 m
+            - { clip: sag1, threshold: 0.006152 }   # span 1.490895 m
+            - { clip: sag2, threshold: 0.018457 }   # span 1.472684 m
+            - { clip: sag3, threshold: 0.036914 }   # span 1.445367 m
+            - { clip: sag4, threshold: 0.061523 }   # span 1.408945 m
+            - { clip: sag5, threshold: 0.092285 }   # span 1.363418 m
+            - { clip: sag6, threshold: 0.123047 }   # span 1.317891 m
+            - { clip: sag7, threshold: 1.0 }   # span 0.02 m
+    default: Sag
+    layout:
+      nodes: { Sag: [30, 180] }
+      entry: [50, 120]
+      any: [50, 40]
+      exit: [50, 80]
+
   # Wearer-only: the synced flag follows Leash/Planted, rising 2.0 s late and falling at once.
   - name: Announce
     states:
@@ -162,12 +188,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 0
   free:
     set:
       "Holder/VRCParentConstraint.Sources.source0.Weight": 1
@@ -186,12 +206,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 0
   held:
     set:
       "Holder/VRCParentConstraint.Sources.source0.Weight": 1
@@ -210,12 +224,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 1
   plant:
     seconds: 0.05
     set:
@@ -235,12 +243,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 1
   planted:
     set:
       "Holder/VRCParentConstraint.Sources.source0.Weight": 0
@@ -259,12 +261,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 1
   pheld:
     set:
       "Holder/VRCParentConstraint.Sources.source0.Weight": 0
@@ -283,12 +279,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 1
   sync_planted:
     set:
       "Holder/VRCParentConstraint.Sources.source0.Weight": 0
@@ -307,12 +297,6 @@ clips:
       "Mount/Leash/Armature/Collar/V0/V1/V2/VRCParentConstraint.Sources.source1.Weight": 1
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source0.Weight": 0
       "Mount/Leash/Armature/Collar/V0/V1/V2/V3/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/VRCParentConstraint.Sources.source1.Weight": 1
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source0.Weight": 0
-      "Mount/Leash/Armature/Collar/V0/V1/V2/V3/V4/V5/V6/VRCParentConstraint.Sources.source1.Weight": 1
   self_on:
     set:
       "Holder/HB0/VRCPhysBone.grabFilter.allowSelf": 1
@@ -321,6 +305,38 @@ clips:
     set:
       "Holder/HB0/VRCPhysBone.grabFilter.allowSelf": 0
       "Holder/HB0/VRCPhysBone.poseFilter.allowSelf": 0
+  sag0:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.0
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 1.0
+  sag1:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.237831
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.762169
+  sag2:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.409412
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.590588
+  sag3:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.573601
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.426399
+  sag4:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.731126
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.268874
+  sag5:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 0.880857
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.119143
+  sag6:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 1.0
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.0
+  sag7:
+    set:
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source0.Weight": 1.0
+      "Stake/Ctrl/VRCPositionConstraint.Sources.source1.Weight": 0.0
 
 menu:
   - submenu: Leash
