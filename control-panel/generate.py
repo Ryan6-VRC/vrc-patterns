@@ -10,7 +10,7 @@ Edit CONFIG, rerun, then recompile `built/` and `object-sync/built/` as units in
 `Packages/com.ryan6vrc.patterns/control-panel/...`. The controls subtree has its own generator
 (`controls/generate.py`); this one reads its `controls` rows, `face` and rig() (every cap, slider and knob
 number, the bone and shape names, the bone rest poses) and keeps only the frame's own geometry: plate, grips,
-lamp placement and size, offline lamp, label strip. rig.json is the mesh builder's whole input
+lamp placement and size, offline lamp. rig.json is the mesh builder's whole input
 (assets/ControlPanel_build.py); its `restPoses` are the positions `controls/generate.py --check` holds the
 imported bones to.
 
@@ -152,7 +152,6 @@ CONFIG = {
     # emission), `width` across Z, on its channel's floor from x_lo to under the knob. It has no shape.
     "strip": {"width": 0.008, "swatch": "amber"},
     "offline": {"x": 0.14, "z": 0.145, "diameter": 0.01},
-    "labelStrip": {"z": -0.09},
     "mesh": "ControlPanel",
     "material": "ControlPanel",
 }
@@ -231,13 +230,13 @@ def rig(c, ctl):
                     "travel": cb["travel"], "squish": cb["squish"], "boneLength": cb["boneLength"],
                     "chainRadius": cb["radius"]},
         "buttonLamps": dict(c["buttonLamps"], shapes=sh["buttons"]),
-        # The selector's caps share the buttons' joint; `sink` is how far its lamp shape lowers the chosen cap.
-        "selector": {"x": list(sel["x"]), "z": sel["z"], "sink": cb["travel"],
+        # The selector's segments share the buttons' joint; `segmentWidth` is each one's extent along X (its depth in Z
+        # is the caps' capDiameter), and `sink` how far its lamp shape lowers the chosen segment.
+        "selector": {"x": list(sel["x"]), "z": sel["z"], "segmentWidth": sel["segmentWidth"], "sink": cb["travel"],
                      "lamps": c["selectorLamps"], "shapes": sh["selector"]},
         "sliders": sliders,
         "controlsRetract": {"shape": sh["retract"], "capDepth": cb["travel"], "channelDepth": cc["sliders"]["channelDepth"]},
         "offline": dict(c["offline"], shape=sh["offline"]),
-        "labelStrip": c["labelStrip"],
         "bones": nm,
         "restPoses": cr["bones"],
         "mesh": c["mesh"],

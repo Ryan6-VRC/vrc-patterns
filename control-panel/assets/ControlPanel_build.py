@@ -12,9 +12,11 @@ must sit at Blender +X. The panel is chiral (the slider chains root at -X, the o
 dropped negation shows as a mirrored panel. Verify after any exporter change by re-importing the FBX and
 reading bone heads in the Unity frame, never the Blender ones.
 
-Rows, far edge to near: toggle buttons (domed caps in round wells, a dot lamp beyond each), the selector (four
-caps on the buttons' joint, the end caps rounded on their outer side and the middle ones square, a bar lamp on
-the near side of each), the discrete slider (a knob in a recessed channel, detent ticks, one segment lamp per
+Rows, far edge to near: toggle buttons (domed caps in round wells, a dot lamp beyond each), the selector (one
+strip: four near-full-width segments, `selector.segmentWidth` along X and the caps' diameter in Z, on the buttons'
+joint, with seams between, in one shared tray whose two ends are rounded; the end segments' outer corners follow
+the tray's rounding, concentric with it, and every other corner is square with the chamfer; a bar lamp on the near
+side of each segment), the discrete slider (a knob in a recessed channel, detent ticks, one segment lamp per
 slot), the smooth slider (a knob in a channel, and the strip). Bones are placed at `restPoses` exactly; the
 geometry is asserted against them.
 
@@ -23,8 +25,8 @@ The strip: one always-lit bar on the smooth slider's channel floor, from the tra
 bone, so it stretches as the knob translates and its far end always hides under the knob. It shows the knob, not
 the accepted value; at rest the knob lands on the synced value.
 
-Shells: the plate is one shell - bezel, necks and ridged grips unioned; cap wells, selector wells, knob
-channels, detent ticks and the label recess cut - by Boolean modifiers (Manifold solver), so its parts never
+Shells: the plate is one shell - bezel, necks and ridged grips unioned; cap wells, the selector tray, knob
+channels and detent ticks cut - by Boolean modifiers (Manifold solver), so its parts never
 show interior walls. Each cap, each knob, each lamp and the strip is its own closed shell, because each moves on
 its own (a bone or a blendshape). A lamp is a thin disc or bar parked under the opaque face and raised through it by its
 key; nothing else hides it. A cap's skirt and a knob's foot reach below their well or channel floor when sunk,
@@ -77,15 +79,14 @@ WELL_CHAMFER = 0.0015
 WELL_GAP = 0.003          # a selector well's floor under the lowest crown it must hold
 SINK_MARGIN = 0.002       # what a sunk crown keeps above its floor and a sunk skirt or foot above the underside
 CAP_SEG, WELL_SEG, LAMP_SEG, GRIP_SEG = 16, 16, 12, 8
-SEL_ARC = 6               # facets on a selector end cap's rounded side
-SEL_CORNER = 0.002        # a selector cap's square corners
-SEL_CHAMFER = 0.002       # a selector cap's top edge
+SEL_ARC = 6               # facets on each rounded end of the selector tray and its end segments
+SEL_CORNER = 0.002        # a selector segment's square corners
+SEL_CHAMFER = 0.002       # a selector segment's top edge
 CH_CLEAR = 0.002          # channel clearance around the knob, each side
 CH_CORNER, CH_CHAMFER = 0.003, 0.0015
 KNOB_LIFT, KNOB_CHAMFER, KNOB_CORNER = 0.0005, 0.003, 0.002   # foot above the channel floor at rest
 FIN_W, FIN_H, FIN_SPAN = 0.003, 0.0025, 0.8   # the pointer fin across the knob top; span as a fraction of its Z
 TICK_W, TICK_D, TICK_GAP, TICK_LEN = 0.002, 0.0015, 0.003, 0.006   # detent ticks off the channel's lamp side
-LABEL_HALF_Z, LABEL_HALF_X, LABEL_DEPTH = 0.005, 0.13, 0.0008
 LAMP_THICK = 0.002
 STRIP_PROUD, STRIP_SINK = 0.0003, 0.0005   # the strip's top above its channel floor and its bottom into the plate
 STRIP_TUCK = 0.005        # the strip's far end past the knob's centre, so the knob always covers it
@@ -102,7 +103,7 @@ SWATCHES = {   # name: (index, albedo sRGB, emission sRGB)
     "knob":  (3, (64, 124, 128), None),
     "amber": (4, (255, 170, 40), (255, 160, 30)),
     "red":   (5, (235, 45, 35), (255, 40, 25)),
-    "label": (6, (140, 143, 148), None),
+    "label": (6, (140, 143, 148), None),   # unused since the label strip was dropped; kept so the atlas holds
     "tick":  (7, (210, 208, 196), None),
     "well":  (8, (24, 27, 31), None),
     "grip":  (9, (30, 32, 36), None),
@@ -192,16 +193,29 @@ def revolve(bm, profile, axis, centre, seg):
     loft(bm, rings)
 
 
-def sel_pts(h, side):
-    """A selector cap's outline, half-size h: side 0 a square (chamfered corners), -1 / +1 rounded on that X side
-    with the inner side square. The point count is the same for every h, so outlines at several sizes loft."""
-    c = SEL_CORNER * h / (B["capDiameter"] / 2)
+def half_arc(cx, h, a0):
+    """SEL_ARC facets of a half circle of radius h about (cx, 0), from angle a0 through a0 + pi."""
+    return [(cx + h * math.cos(a), h * math.sin(a)) for a in (a0 + math.pi * i / SEL_ARC for i in range(SEL_ARC + 1))]
+
+
+def seg_pts(h, side):
+    """A selector segment's outline at half-depth h (CAP_R is the segment itself; other h are offsets of it by
+    h - CAP_R): side 0 a rectangle with chamfered corners, -1 / +1 rounded on that X side by a half circle concentric
+    with the tray's end, the inner side square. The point count is the same for every h, so outlines at several
+    sizes loft."""
+    c = SEL_CORNER * h / CAP_R
+    hx = SEG_HX + h - CAP_R
     if side == 0:
-        return rect_pts(h, h, c)
-    arc = [(h * math.cos(a), h * math.sin(a))
-           for a in (-math.pi / 2 + math.pi * i / SEL_ARC for i in range(SEL_ARC + 1))]
-    pts = arc + [(-h + c, h), (-h, h - c), (-h, -h + c), (-h + c, -h)]
+        return rect_pts(hx, h, c)
+    pts = half_arc(SEG_HX - CAP_R, h, -math.pi / 2) + [(-hx + c, h), (-hx, h - c), (-hx, -h + c), (-hx + c, -h)]
     return [(side * u, v) for u, v in pts]
+
+
+def tray_pts(h):
+    """The selector tray's outline at half-depth h, centred on the row: straight sides, both ends half circles
+    concentric with the end segments' rounding."""
+    e = TRAY_HX - CAP_R
+    return half_arc(e, h, -math.pi / 2) + half_arc(-e, h, math.pi / 2)
 
 
 def part(name, fill):
@@ -279,7 +293,15 @@ for what, drop, floor in (("button", BTN_DROP, WELL_FLOOR), ("selector", SEL_DRO
         f"a fully sunk {what} cap's skirt ({CAP_BOTTOM - drop:.4f}) leaves the plate's underside ({BOTTOM}) by the margin"
     assert floor > BOTTOM + BOTTOM_CHAMFER, f"the {what} well floor passes the plate's underside"
 SEL_SIDE = [-1 if i == 0 else 1 if i == len(SEL["x"]) - 1 else 0 for i in range(len(SEL["x"]))]
-SEL_WELL_H = CAP_R + WELL_CLEAR
+SEL_WELL_H = CAP_R + WELL_CLEAR          # the tray's half-depth: WELL_CLEAR round every segment
+SEG_HX = SEL["segmentWidth"] / 2
+SEL_XS = sorted(SEL["x"])
+assert list(SEL["x"]) == SEL_XS, "selector x runs low to high, so the first and last segments are the rounded ends"
+assert SEG_HX >= CAP_R, "a selector segment is at least as wide as it is deep, so its rounded end is a half circle"
+assert min(b - a for a, b in zip(SEL_XS, SEL_XS[1:])) > 2 * SEG_HX, "selector segments overlap: no seam between them"
+TRAY_CX = (SEL_XS[0] + SEL_XS[-1]) / 2
+TRAY_HX = (SEL_XS[-1] - SEL_XS[0]) / 2 + SEG_HX   # the segments' span; the tray outline adds WELL_CLEAR round it
+assert all(abs(x - TRAY_CX) <= TRAY_HX - SEG_HX + 1e-9 for x in SEL_XS)
 
 
 def slider_layout(s):
@@ -328,7 +350,8 @@ def footprints():
     out = [(f"well {x}", x - WELL_R - WELL_CHAMFER, x + WELL_R + WELL_CHAMFER, B["z"] - WELL_R - WELL_CHAMFER,
             B["z"] + WELL_R + WELL_CHAMFER) for x in B["x"]]
     h = SEL_WELL_H + WELL_CHAMFER
-    out += [(f"selector well {x}", x - h, x + h, SEL["z"] - h, SEL["z"] + h) for x in SEL["x"]]
+    e = TRAY_HX + WELL_CLEAR + WELL_CHAMFER
+    out.append(("selector tray well", TRAY_CX - e, TRAY_CX + e, SEL["z"] - h, SEL["z"] + h))
     sl = SEL["lamps"]
     out += [(f"selector lamp {x}", x - sl["width"] / 2, x + sl["width"] / 2, sl["z"] - sl["depth"] / 2,
              sl["z"] + sl["depth"] / 2) for x in SEL["x"]]
@@ -336,8 +359,6 @@ def footprints():
     out += [(f"button lamp {x}", x - r, x + r, BL["z"] - r, BL["z"] + r) for x in B["x"]]
     r = OFF["diameter"] / 2
     out.append(("offline lamp", OFF["x"] - r, OFF["x"] + r, OFF["z"] - r, OFF["z"] + r))
-    lz = R["labelStrip"]["z"]
-    out.append(("label", -LABEL_HALF_X, LABEL_HALF_X, lz - LABEL_HALF_Z, lz + LABEL_HALF_Z))
     for s, L in zip(SL, SLY):
         e = L["chx"] + CH_CHAMFER
         out.append((f"{s['name']} channel", L["cx"] - e, L["cx"] + e, L["z"] - L["chz"] - CH_CHAMFER, L["z"] + L["chz"] + CH_CHAMFER))
@@ -406,9 +427,7 @@ def build_plate():
         prof = [(WELL_FLOOR, WELL_R), (TOP - WELL_CHAMFER, WELL_R), (TOP, WELL_R + WELL_CHAMFER),
                 (TOP + 0.003, WELL_R + WELL_CHAMFER + 0.003)]
         cuts.append(part(f"well{i}", lambda bm, x=x, prof=prof: revolve(bm, prof, "Y", (x, B["z"]), WELL_SEG)))
-    for i, (x, side) in enumerate(zip(SEL["x"], SEL_SIDE)):
-        cuts.append(part(f"selwell{i}", lambda bm, x=x, side=side: flared_cut(
-            bm, lambda h: sel_pts(h, side), SEL_WELL_H, SEL_FLOOR, WELL_CHAMFER, x, SEL["z"])))
+    cuts.append(part("seltray", lambda bm: flared_cut(bm, tray_pts, SEL_WELL_H, SEL_FLOOR, WELL_CHAMFER, TRAY_CX, SEL["z"])))
     for s, L in zip(SL, SLY):
         cuts.append(part(f"channel_{s['name']}", lambda bm, L=L: flared_cut(
             bm, lambda h: rect_pts(L["chx"] - L["chz"] + h, h, CH_CORNER), L["chz"], L["floor"], CH_CHAMFER, L["cx"], L["z"])))
@@ -416,9 +435,6 @@ def build_plate():
             z0, z1 = tick_z(L)
             cuts.append(part(f"tick_{s['name']}{k}", lambda bm, tx=tx, z0=z0, z1=z1: box(
                 bm, tx - TICK_W / 2, tx + TICK_W / 2, TOP - TICK_D, TOP + 0.003, z0, z1)))
-    lz = R["labelStrip"]["z"]
-    cuts.append(part("label", lambda bm: box(bm, -LABEL_HALF_X, LABEL_HALF_X, TOP - LABEL_DEPTH, TOP + 0.003,
-                                             lz - LABEL_HALF_Z, lz + LABEL_HALF_Z)))
     return combine(base, unions, cuts)
 
 
@@ -436,8 +452,6 @@ def plate_swatch(c):
                     return "well"
                 if "tick" in na:
                     return "tick"
-                if na == "label":
-                    return "label"
     inset = octagon_inset(x, z)
     if inset < 1e-4:
         return "body"                                    # outer wall
@@ -467,9 +481,9 @@ def build_cap(x):
 def build_sel_cap(x, side):
     t = B["capTop"]
     return plain(part("selcap", lambda bm: loft(bm, [
-        ring_at(bm, sel_pts(CAP_R, side), CAP_BOTTOM, x, SEL["z"]),
-        ring_at(bm, sel_pts(CAP_R, side), t - SEL_CHAMFER, x, SEL["z"]),
-        ring_at(bm, sel_pts(CAP_R - SEL_CHAMFER, side), t, x, SEL["z"])])))
+        ring_at(bm, seg_pts(CAP_R, side), CAP_BOTTOM, x, SEL["z"]),
+        ring_at(bm, seg_pts(CAP_R, side), t - SEL_CHAMFER, x, SEL["z"]),
+        ring_at(bm, seg_pts(CAP_R - SEL_CHAMFER, side), t, x, SEL["z"])])))
 
 
 def build_disc(x, z, d):

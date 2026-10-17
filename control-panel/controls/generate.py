@@ -39,13 +39,19 @@ buttons, a selector, a discrete slider, a smooth slider.
               one slider on the panel is grabbable at a time. It is a grab surface, not a readout: no angle limit
               (limit 0 does not project the hand onto the axis; it over-reads by about h^2/2d), snapToHand 1 (at 0
               the tip keeps the grab offset), grabMovement 1, pull 1, collision and posing off, no parameter. The tip
-              rests `restOffset` past the box's high face; maxSquish 0.9 lets it reach `boxMargin/2` below the
+              rests `restOffset` past the box's -Z face (beyond the high track end); maxSquish 0.9 lets it reach `boxMargin/2` below the
               track's low end, maxStretch lets it reach a hand `boxHeight/2` above or below the far end. Released, it springs to
               rest and nothing reads it.
   Sld_<name>_End  a non-local sphere sender tagged per slider (`ControlPanel<name>`; the boxes may overlap).
-  slider boxes   two non-local face-mode box receivers on the Panel bone, CP/<name>_Read, +Z face toward the
-              track's high-X end, spanning the track plus `boxMargin` each side: the reading is the tip's track
-              position, r_lo at x_lo and r_hi at x_hi, `floor` at the squish limit, 0 with the tip at rest outside.
+  slider boxes   two non-local face-mode box receivers on the Panel bone, CP/<name>_Read, rotated Euler (0, -90, 0)
+              so the +Z face points to -X, the track's LOW end, spanning the track plus `boxMargin` each side. The
+              reading falls as the knob rises: r_hi at x_lo, r_lo at x_hi, `floor` half a margin past x_hi, 0 with
+              the tip at rest outside. Why low: a sender leaving a face-mode box through its +Z face within one
+              contact step reads 1.0 for that step before 0, and through the -Z face reads 0 at once (measured in
+              av3emu). A release springs the tip to its rest past the high end, so the release must exit through
+              the face that reads 0, the -Z face; with +Z at the high end every release read 1.0 for a step and the
+              held branch stamped the top slot. Overshoot past the low end still exits through +Z, and its 1.0 is
+              the low end's own value (past r_hi: knob 0, Slot 0, Level 0), so it lands where the hand went.
               Non-local, so every client runs the held branch for a remote's grab and its knob follows the hand.
   Knob_<name> a child of Panel in no chain, built UP/ACROSS so its m_LocalPosition is a panel-frame position; the
               knob mesh skins to it. Only the Lamps tree writes it.
@@ -66,10 +72,14 @@ THE LAYERS
               very frame a reading falls. Idle -> Held_<name> on Live and the reading above `floor`, not gated on
               IsLocal: remotes run it for Settling. Every held state leaves for Settle first on Live low, then on
               its reading under floor. A discrete slider's Held_<name> stamps ControlPanel/<name> wearer-only
-              through Stamp_<name>_<k> on a crossing of boundary b/N by `hysteresis`: up rungs highest boundary
-              first, down rungs lowest first, so a jump lands on the slot the reading is in. A smooth slider
-              alternates Held_<name>A <-> Held_<name>B every frame on the wearer, each entry copying the reading
-              through convertRange (r_lo, r_hi) -> (0, 1) into ControlPanel/<name>; remotes stay in A. Settle
+              through Stamp_<name>_<k> on a crossing of boundary b/N by `hysteresis`. The reading falls as the slot
+              rises (track fraction f = (r_hi - reading)/(r_hi - r_lo)), so an up rung is the reading LESS than
+              r_hi - (b/N + h)(r_hi - r_lo) and a down rung GREATER than r_hi - (b/N - h)(r_hi - r_lo): up rungs
+              highest boundary first, down rungs lowest first, so a jump lands on the slot the reading is in. The
+              Settle rungs come first, so a released reading of 0 (under every up threshold) never stamps. A smooth
+              slider alternates Held_<name>A <-> Held_<name>B every frame on the wearer, each entry copying the
+              reading through convertRange (r_lo, r_hi) -> (1, 0) into ControlPanel/<name> (ascending source,
+              descending destination: the inverted-range form runtime.md measured); remotes stay in A. Settle
               dwells `sliderSettle` seconds, re-entering a held state on any reading above floor (Live-gated, or a
               slider held as the panel goes inert would bounce Held <-> Settle until its chain switches off).
   Lamps       one state: a Direct tree weighted by CP/One. A 1D tree per button on its bool; one on Select lighting
@@ -78,7 +88,8 @@ THE LAYERS
               always-lit strip runs from the track's low end to the knob (near end skinned to Panel, far end to
               Knob_<name>), so it shows the knob, which at rest lands on the synced value.
               Per slider, the knob memory CP/<name>_Knob (track fraction 0..1): a razor 1D on the reading, children
-              at floor - RAZOR and floor. Above: the knob from the reading (r_lo -> 0, r_hi -> 1). Below: a 1D on
+              at floor - RAZOR and floor. Above: the knob from the reading (r_hi -> 0, r_lo -> 1; the children sit
+              at ascending thresholds r_lo then r_hi). Below: a 1D on
               Settling whose child 1 writes the AAP back to itself (holds where the hand let go; a WD-ON tree state
               reverts an AAP no child writes) and child 0 writes it from the synced value (a discrete slot's centre,
               (k + 1/2)/N; a smooth value as is). Then a 1D on the AAP writes Knob_<name>'s whole m_LocalPosition,
@@ -107,7 +118,9 @@ CONFIG
   mesh          the skinned mesh node under the Panel instance.
   face          the plate's full width along X (the frame CONFIG's plate.x spans the same; its generator refuses a
                 mismatch).
-  controls      the rows, in the panel frame: exactly one `buttons` and one `selector` row ({x: cap centres, z}), and
+  controls      the rows, in the panel frame: exactly one `buttons` and one `selector` row ({x: cap centres, z}; the
+                selector also carries `segmentWidth`, each segment's extent along X, its depth in Z the caps'
+                capDiameter: four near-full-width segments with seams between, in one shared tray), and
                 sliders, each {kind: slider (discrete, N slots, `hysteresis` past each boundary as a fraction of the
                 track) or smooth (a float, lit by the mesh's knob strip), name, x: (x_lo, x_hi) the knob's track, z,
                 tag}. The frame generator reads the layout for the mesh.
@@ -115,7 +128,9 @@ CONFIG
                 `capDiameter`, the chain `radius`, the visible `travel` (crown to flush), the `squish` the chain
                 allows (travel plus the sink past flush) and the bone length. maxSquish is squish over length.
                 validate() refuses caps leaving the face, overlapping, or whose joint sphere's cut at face level
-                reaches a neighbouring cap in either row.
+                reaches a neighbouring button cap. The selector row is exempt from that reach refusal by the
+                operator's acceptance: its segments are wider than the sphere's reach, so the outer ~10 mm of each is
+                dead (a press there dips it and its neighbour and stamps neither).
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every cap
                 receiver is at or below `release`; emitted as readings over the box's depth.
   boxMargin     the cap receiver box is `squish` plus the sender's diameter plus this deep, so the sender stays inside
@@ -128,16 +143,19 @@ CONFIG
   retractTime   seconds the caps and knobs take to rise or sink when <internal>/Live changes (the Live crossfade).
   sliders       shared by every slider. `y` the chain's height (the box's vertical centre, so a grab from above or below the face reads); `radius`
                 the chain radius (the capsule along the bone is the grab surface); `boxMargin` m past each track end;
-                `senderRadius` r of the tip sphere; `restOffset` the tip's rest past the high track end + m, refused
-                at or under r (a sender straddling the +Z face reads 1 and would hold every client in Held for
-                ever); `boxAcross`, `boxHeight` the box's extent across the track and through `y`, centred on it (contact size
+                `senderRadius` r of the tip sphere; `restOffset` the tip's rest past the high track end + m (the
+                box's -Z face), refused unless the resting sphere is wholly beyond that face (a sender inside the box
+                reads above 0 and would hold every client in Held for ever); `boxAcross`, `boxHeight` the box's extent across the track and through `y`, centred on it (contact size
                 limit 6 m); `knobY` the knob bone's rest height; `channelDepth` the knob channel's depth and the knob's
                 retract; `settle` [EMPIRICAL] Settle's dwell, the wire plus IK delay between the grabber's release and
                 the wearer's last stamp arriving. A slider box may overlap the cap receivers: the tags differ, so neither reads
                 the other's sender.
   tag           the cap rows' sender/receiver tag (private).
-Derived per slider (rig()['sliders']): run = x_hi - x_lo; box size run + 2m; readings r_lo = (m + r)/(run + 2m),
-r_hi = (run + m + r)/(run + 2m), floor = (m/2 + r)/(run + 2m); tip rest x_hi + m + restOffset; bone length
+Derived per slider (rig()['sliders']): run = x_hi - x_lo; box size run + 2m. The face-mode reading is
+(size/2 + d + r)/size, d the sender's offset from the box centre along +Z; +Z is -X, so d = (x_lo + x_hi)/2 - x.
+Readings r_lo = (m + r)/(run + 2m) at x_hi, r_hi = (run + m + r)/(run + 2m) at x_lo; floor = (m/2 + r)/(run + 2m)
+at x_hi + m/2; the squish limit x_lo - m/2 reads (run + 1.5m + r)/(run + 2m), inside the +Z face while r < m/2
+(refused otherwise); tip rest x_hi + m + restOffset; bone length
 L = (run + 1.5 m + restOffset)/0.9; root at tip rest - L; maxStretch = sqrt(L^2 + (boxHeight/2)^2)/L - 1, the largest
 over the sliders, since they share one component.
 """
@@ -151,6 +169,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FRAME = 1 / 60
 SQUISH = 0.9     # the Sliders chain's maxSquish: the tip reaches the low track end's squish limit at this fraction
 RAZOR = 0.0001   # the knob memory's razor width below `floor`
+# A slider box's Unity Euler rotation: local +Z to panel -X, the track's low end. A release springs the tip past the
+# high end, and it must leave through the -Z face, which reads 0 at once; leaving through +Z reads 1.0 for a step.
+BOX_ROTATION = [0, -90, 0]
 
 CONFIG = {
     "controller": "ControlPanelControls_Fx",
@@ -162,7 +183,7 @@ CONFIG = {
     "face": 0.34,
     "controls": [
         {"kind": "buttons", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.11},
-        {"kind": "selector", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.04},
+        {"kind": "selector", "x": (-0.09, -0.03, 0.03, 0.09), "z": 0.04, "segmentWidth": 0.056},
         {"kind": "slider", "name": "Slot", "N": 5, "hysteresis": 0.02, "x": (-0.1, 0.1), "z": -0.04,
          "tag": "ControlPanelSlot"},
         {"kind": "smooth", "name": "Level", "x": (-0.1, 0.1), "z": -0.12, "tag": "ControlPanelLevel"},
@@ -227,6 +248,8 @@ def slider_geometry(c, s):
     size = run + 2 * m
     tip = hi + m + g["restOffset"]
     length = (run + m / 2 + m + g["restOffset"]) / SQUISH
+    # The box's +Z face points to -X (BOX_ROTATION): the reading (size/2 + d + r)/size, d = centre - x, falls as x
+    # rises. rHi at x_lo, rLo at x_hi, floor at x_hi + m/2 (half a margin past the high end, toward the -Z face).
     return {"run": run, "size": size, "rLo": (m + r) / size, "rHi": (run + m + r) / size, "floor": (m / 2 + r) / size,
             "tipRestX": tip, "boneLength": length, "rootX": tip - length,
             "maxStretch": math.sqrt(length ** 2 + h ** 2) / length - 1, "centre": ((lo + hi) / 2, g["y"], s["z"])}
@@ -289,16 +312,24 @@ def validate(c):
         lo_n = 2 if kind == "selector" else 1
         if not lo_n <= len(row["x"]) <= 8:
             refuse(f"the {kind} row carries {lo_n} to eight caps.")
-        if any(abs(x) + b["capDiameter"] / 2 > c["face"] / 2 for x in row["x"]):
-            refuse(f"a {kind} cap leaves the panel face: |x| + capDiameter / 2 is past face / 2.")
+        # A button cap is capDiameter wide along X; a selector segment is the row's own segmentWidth.
+        width = row.get("segmentWidth", 0) if kind == "selector" else b["capDiameter"]
+        if not width > 0:
+            refuse("the selector row carries a positive segmentWidth (each segment's extent along X).")
+        if any(abs(x) + width / 2 > c["face"] / 2 for x in row["x"]):
+            refuse(f"the {kind} row leaves the panel face: |x| + its cap width / 2 is past face / 2"
+                   + (" (the selector's shared tray spans its outer segments' ends)." if kind == "selector" else "."))
         xs = sorted(row["x"])
         if len(xs) > 1:
             gap = min(x1 - x0 for x0, x1 in zip(xs, xs[1:]))
-            if gap < b["capDiameter"]:
-                refuse(f"neighbouring {kind} caps overlap: the closest centres are nearer than one capDiameter.")
+            if gap <= width:
+                refuse(f"neighbouring {kind} caps overlap or touch: the closest centres are no farther apart than one cap width"
+                       + (" (segmentWidth; the seam between segments must be positive)." if kind == "selector" else "."))
             if c["boxWidth"] >= gap:
                 refuse(f"{kind} receiver boxes overlap their neighbours' across X.")
-            if reach + b["capDiameter"] / 2 >= gap:
+            # Relaxed for the selector by the operator's acceptance: a segment is wider than its joint sphere's reach,
+            # so the outer ~10 mm of each is dead (a press there dips it and its neighbour and stamps neither).
+            if kind != "selector" and reach + width / 2 >= gap:
                 refuse(f"a {kind} joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
     (k1, row1, *_), (k2, row2, *_) = crs
     dz = abs(row1["z"] - row2["z"])
@@ -312,9 +343,9 @@ def validate(c):
     for k in ("radius", "boxMargin", "senderRadius", "boxAcross", "boxHeight", "channelDepth", "settle"):
         if g[k] <= 0:
             refuse(f"sliders.{k} is positive.")
-    if g["restOffset"] <= g["senderRadius"]:
-        refuse("sliders.restOffset is at or under senderRadius: the resting tip's sphere straddles the box's +Z face, "
-               "which reads 1 and would hold every client in Held for ever.")
+    if g["senderRadius"] >= g["boxMargin"] / 2:
+        refuse("sliders.senderRadius is at or over boxMargin / 2: at the squish limit (x_lo - boxMargin/2) the tip's sphere "
+               "would reach the box's +Z face, which reads 1 while straddled.")
     if g["boxAcross"] > 6 or g["boxHeight"] > 6:
         refuse("a slider box side is past the 6 m contact size limit.")
     names, tags = [], [c["tag"]]
@@ -326,10 +357,14 @@ def validate(c):
         tags.append(s.get("tag"))
         lo, hi = s["x"]
         if not lo < hi:
-            refuse(f"slider {name}: x is (x_lo, x_hi) with x_lo < x_hi: the reading grows with x.")
+            refuse(f"slider {name}: x is (x_lo, x_hi) with x_lo < x_hi: the knob value grows with x (the reading falls).")
         if max(abs(lo), abs(hi)) > c["face"] / 2:
             refuse(f"slider {name}: the track leaves the face (|x| past face / 2).")
         geo = slider_geometry(c, s)
+        if geo["tipRestX"] - g["senderRadius"] <= hi + g["boxMargin"]:
+            refuse(f"slider {name}: the resting tip's sphere (x {geo['tipRestX']:.4f}, radius {g['senderRadius']}) is not wholly "
+                   f"beyond the box's -Z face at x_hi + boxMargin ({hi + g['boxMargin']:.4f}): a sender inside the box reads above "
+                   "0 and would hold every client in Held for ever (restOffset must exceed senderRadius).")
         if geo["size"] > 6:
             refuse(f"slider {name}: the box's run + 2 boxMargin is past the 6 m contact size limit.")
         if s["kind"] == "slider":
@@ -390,7 +425,7 @@ def rig(c):
              "tipRestX": r6(geo["tipRestX"]), "knobY": g["knobY"], "channelDepth": g["channelDepth"],
              "rLo": r6(geo["rLo"]), "rHi": r6(geo["rHi"]), "floor": r6(geo["floor"]),
              "receiver": {"shape": "Box", "useFaceProximity": True, "size": [r6(g["boxAcross"]), r6(g["boxHeight"]), r6(geo["size"])],
-                          "position": [r6(v) for v in geo["centre"]], "rotation": [0, 90, 0], "localOnly": False,
+                          "position": [r6(v) for v in geo["centre"]], "rotation": BOX_ROTATION, "localOnly": False,
                           "allowSelf": True, "allowOthers": False, "tag": s["tag"], "param": f"{I}/{n}_Read"},
              "sender": {"shape": "Sphere", "radius": g["senderRadius"], "position": [0, 0, 0], "localOnly": False,
                         "tag": s["tag"]}}
@@ -398,8 +433,9 @@ def rig(c):
         if s["kind"] == "slider":
             N, h = s["N"], s["hysteresis"]
             e["N"] = N
-            e["up"] = {bb: r6(geo["rLo"] + (bb / N + h) * span_r) for bb in range(1, N)}
-            e["down"] = {bb: r6(geo["rLo"] + (bb / N - h) * span_r) for bb in range(1, N)}
+            # Track fraction f = (rHi - reading)/span: f past b/N + h is the reading under rHi - (b/N + h) span.
+            e["up"] = {bb: r6(geo["rHi"] - (bb / N + h) * span_r) for bb in range(1, N)}
+            e["down"] = {bb: r6(geo["rHi"] - (bb / N - h) * span_r) for bb in range(1, N)}
         out_sliders.append(e)
     sel_root_z = r6(sum(row["z"] for _, row, *_ in crs) / len(crs))
     s0 = out_sliders
@@ -463,7 +499,8 @@ def document(c):
     o(f"# Cap press accepted at receiver reading {press}, held until every reading is under {release} (depth {c['press']} / {c['release']}")
     o(f"# of travel over a box {r['receiver']['size'][2]} m deep). Arm {c['arm']} s, cooldown {c['cooldown']} s.")
     for e in SL:
-        o(f"# {e['name']}: readings r_lo {e['rLo']} at x {e['x'][0]}, r_hi {e['rHi']} at x {e['x'][1]}, floor {e['floor']}.")
+        o(f"# {e['name']}: the box's +Z face points to -X, so the reading falls as the knob rises: r_hi {e['rHi']} at x {e['x'][0]},")
+        o(f"# r_lo {e['rLo']} at x {e['x'][1]}, floor {e['floor']}.")
     o("")
     o("schema: 1")
     o(f"controller: {c['controller']}")
@@ -578,17 +615,18 @@ def document(c):
                         f"          - {{ to: Settle, when: [ {e['read']} less {e['floor']} ] }}"]
         if e["kind"] == "slider":
             N, V = e["N"], e["value"]
-            o(f"      # Boundary b/N between slot b-1 and slot b, crossed by the hysteresis: up rungs highest b first,")
-            o("      # down rungs lowest b first, so a jump lands on the slot the reading is in.")
+            o(f"      # Boundary b/N between slot b-1 and slot b, crossed by the hysteresis; the reading falls as the slot")
+            o("      # rises. Up rungs highest b first, down rungs lowest b first, so a jump lands on the slot the reading")
+            o("      # is in; the Settle rungs above catch a released 0 first.")
             o(f"      Held_{e['name']}:")
             o("        motion: { clip: settling_on }")
             o("        transitions:")
             for ln in settle_rungs:
                 o(ln)
             for bb in range(N - 1, 0, -1):
-                o(f"          - {{ to: Stamp_{e['name']}_{bb}, when: [ IsLocal is true, {gate}, {e['read']} greater {e['up'][bb]}, {V} less {bb - 0.5} ] }}")
+                o(f"          - {{ to: Stamp_{e['name']}_{bb}, when: [ IsLocal is true, {gate}, {e['read']} less {e['up'][bb]}, {V} less {bb - 0.5} ] }}")
             for bb in range(1, N):
-                o(f"          - {{ to: Stamp_{e['name']}_{bb - 1}, when: [ IsLocal is true, {gate}, {e['read']} less {e['down'][bb]}, {V} greater {bb - 0.5} ] }}")
+                o(f"          - {{ to: Stamp_{e['name']}_{bb - 1}, when: [ IsLocal is true, {gate}, {e['read']} greater {e['down'][bb]}, {V} greater {bb - 0.5} ] }}")
             for k in range(N):
                 o(f"      Stamp_{e['name']}_{k}:")
                 o("        motion: { clip: settling_tick }")
@@ -601,7 +639,7 @@ def document(c):
                 o(f"      Held_{e['name']}{this}:")
                 o("        motion: { clip: settling_on }")
                 o(f"        behaviours: [ {{ driver: {{ localOnly: true, copy: {{ {e['value']}: {{ source: {e['read']}, "
-                  f"sourceMin: {e['rLo']}, sourceMax: {e['rHi']}, destMin: 0, destMax: 1 }} }} }} }} ]")
+                  f"sourceMin: {e['rLo']}, sourceMax: {e['rHi']}, destMin: 1, destMax: 0 }} }} }} }} ]")
                 o("        transitions:")
                 for ln in settle_rungs:
                     o(ln)
@@ -681,7 +719,7 @@ def document(c):
             tree1d(ind, f"{n}_Released", SETTLING, [(fv, 0), (hd, 1)], False, t)
 
         def held(ind, t, e=e, n=n, lo=lo):
-            tree1d(ind, f"{n}_Held", e["read"], [(f"{lo}_knob0", e["rLo"]), (f"{lo}_knob1", e["rHi"])], False, t)
+            tree1d(ind, f"{n}_Held", e["read"], [(f"{lo}_knob1", e["rLo"]), (f"{lo}_knob0", e["rHi"])], False, t)
 
         o(f"            # {n}'s knob memory: the razor on the reading; below it the settle hold, then the synced value.")
         tree1d(12, f"{n}_Memory", e["read"], [(released, r6(e["floor"] - RAZOR)), (held, e["floor"])])
