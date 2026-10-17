@@ -3,7 +3,7 @@
 # Published (synced, unsaved, wearer-stamped): ControlPanel/Btn1, ControlPanel/Btn2, ControlPanel/Btn3, ControlPanel/Btn4 (bool on the wire) and ControlPanel/Slot (int on the wire); both
 # float in the animator, because the lamp trees read them as blend parameters.
 # Press accepted at receiver reading 0.307692, held until every reading is under 0.192308 (depth 0.8 / 0.5 of
-# travel over a box 0.026 m deep). Arm 0.1 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
+# travel over a box 0.026 m deep). Arm 0.15 s, cooldown 0.5 s. Slot hysteresis 0.02 of the slider's length.
 
 schema: 1
 controller: ControlPanelControls_Fx
@@ -231,7 +231,7 @@ layers:
 
 clips:
   tick: { seconds: 0.016667 }
-  arm: { seconds: 0.1 }
+  arm: { seconds: 0.15 }
   cooldown: { seconds: 0.5 }
   btn1_off: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 0 } }
   btn1_on: { set: { "TwoHandProp/Body/Display/Panel/ControlPanel/SkinnedMeshRenderer.blendShape.Lamp_Btn1": 100 } }
