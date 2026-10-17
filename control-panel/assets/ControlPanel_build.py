@@ -315,7 +315,7 @@ PARTS = []
 pv, pp = build_plate()
 PARTS.append((pv, pp, plate_swatch, NAMES["root"], None))
 (kv, kp), kfn = build_knob()
-PARTS.append((kv, kp, kfn, NAMES["knob"], None))
+PARTS.append((kv, kp, kfn, NAMES["sliderEnd"], None))   # the knob rides the slider tip rigidly
 for i, x in enumerate(B["x"]):
     v, p = build_cap(x)
     PARTS.append((v, p, lambda c: "cap", NAMES["buttonEnds"][i], None))
@@ -376,15 +376,15 @@ def add(p, d, s):
 bones = [(NAMES["root"], None, (0.0, 0.0, 0.0), UP, 0.02, ACROSS),
          (NAMES["buttonsRoot"], NAMES["root"], (0.0, TOP, B["z"]), UP, 0.01, ACROSS)]
 for i, x in enumerate(B["x"]):
-    head = (x, B["capTop"] - B["boneLength"], B["z"])
+    # The tip sits chainRadius inside the dome, so the chain's radius reaches exactly the cap's top.
+    head = (x, B["capTop"] - B["chainRadius"] - B["boneLength"], B["z"])
     bones.append((NAMES["buttons"][i], NAMES["buttonsRoot"], head, UP, B["boneLength"], ACROSS))
     bones.append((NAMES["buttonEnds"][i], NAMES["buttons"][i], add(head, UP, B["boneLength"]), UP, TINY, ACROSS))
 slider_head = (S["rootX"], TOP, SZ)
 slider_tip = add(slider_head, ALONG, S["boneLength"])
 assert abs(slider_tip[0] - SX0) < 1e-9, "slider rootX + boneLength must land on the slot's start"
 bones += [(NAMES["slider"], NAMES["root"], slider_head, ALONG, S["boneLength"], UP),
-          (NAMES["sliderEnd"], NAMES["slider"], slider_tip, ALONG, TINY, UP),
-          (NAMES["knob"], NAMES["root"], (SX0, TOP, SZ), ALONG, 0.01, UP)]
+          (NAMES["sliderEnd"], NAMES["slider"], slider_tip, ALONG, TINY, UP)]
 
 arm_data = bpy.data.armatures.new("Armature")
 arm = bpy.data.objects.new("Armature", arm_data)
