@@ -126,8 +126,8 @@ CONFIG
                 allows (travel plus the sink past flush) and the bone length. maxSquish is squish over length.
                 validate() refuses caps leaving the face, overlapping, or whose joint sphere's cut at face level
                 reaches a neighbouring button cap. The selector row is exempt from that reach refusal by the
-                operator's acceptance: its segments are wider than the sphere's reach, so its outer few millimetres (past
-                about 23 mm from its centre) are
+                operator's acceptance: its segments are wider than the sphere's reach, so its outer few millimetres (past the joint
+                sphere's face-level reach from its centre) are
                 dead (a press there dips it and its neighbour and stamps neither).
   press, release   press depth fractions of travel: a press is accepted at or above `press`, held until every cap
                 receiver is at or below `release`; emitted as readings over the box's depth.
@@ -285,6 +285,8 @@ def validate(c):
         refuse(f"controls kinds are {ROW_KINDS + SLIDER_KINDS} (got {kinds}).")
     if kinds.count("buttons") != 1 or kinds.count("selector") != 1:
         refuse("controls carries exactly one buttons row and one selector row: the Buttons ladder and its Hold are built for those two.")
+    if kinds.count("slider") > 1:
+        refuse("controls carries at most one discrete slider: its segment lamps are named Lamp_Seg<k> with no slider name, so a second would write the same shapes.")
     if not sliders(c):
         refuse("controls carries at least one slider (kind slider or smooth).")
     b = c["caps"]
@@ -326,7 +328,7 @@ def validate(c):
             if c["boxWidth"] >= gap:
                 refuse(f"{kind} receiver boxes overlap their neighbours' across X.")
             # Relaxed for the selector by the operator's acceptance: a segment is wider than its joint sphere's reach,
-            # so its outer few millimetres (past about 23 mm from its centre) are dead (a press there dips it and its neighbour and stamps neither).
+            # so its outer few millimetres (past the joint sphere's face-level reach from its centre) are dead (a press there dips it and its neighbour and stamps neither).
             if kind != "selector" and reach + width / 2 >= gap:
                 refuse(f"a {kind} joint sphere reaches the neighbouring cap at face level: a finger on one cap would press the next.")
     (k1, row1, *_), (k2, row2, *_) = crs
