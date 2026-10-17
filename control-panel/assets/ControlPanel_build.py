@@ -8,7 +8,7 @@ Frame: authored throughout in the **Unity** panel frame that `rig.json` states -
 (handle A at -X), +Y the face normal, +Z the far edge, metres - and converted once, per vertex and per bone, by
 `u2b`. The conversion carries the X negation absolute-grip-prop's `Hands_build.py` documents: an armature FBX
 export (`bake_space_transform` off) maps Blender (x, y, z) to Unity (-x, z, -y), so a part authored at Unity -X
-must sit at Blender +X. The panel is chiral (the slider chains root at -X, the offline lamp sits at +X), so a
+must sit at Blender +X. The panel is chiral (the slider chains root at -X), so a
 dropped negation shows as a mirrored panel. Verify after any exporter change by re-importing the FBX and
 reading bone heads in the Unity frame, never the Blender ones.
 
@@ -40,7 +40,7 @@ knobs ride bones that only translate, so a bind-space key holds at any chain or 
 key and stays lit when retracted; it lies outside the knob's channel, so the retract never meets it.
 
 Colour: a palette atlas of flat swatches, one material slot. Every face's UVs sit on one swatch centre, so a
-consumer recolours a part by repainting its square. The emission atlas is black except the two lamp swatches.
+consumer recolours a part by repainting its square. The emission atlas is black except the two lamp swatches (amber and the unused red).
 
 Run: blender --background --factory-startup --python ControlPanel_build.py -- <rig.json> <out.blend> [<atlas dir>]
 The atlas PNGs land in <atlas dir>, default beside the .blend.
@@ -56,7 +56,7 @@ with open(rig_path, encoding="utf-8") as f:
 PX0, PX1 = R["plate"]["x"]; PZ0, PZ1 = R["plate"]["z"]
 TOP, BOTTOM = R["plate"]["top"], R["plate"]["bottom"]
 GX, GR = R["grips"]["x"], R["grips"]["radius"]; GZ0, GZ1 = R["grips"]["z"]
-B = R["buttons"]; BL = R["buttonLamps"]; SEL = R["selector"]; SL = R["sliders"]; OFF = R["offline"]
+B = R["buttons"]; BL = R["buttonLamps"]; SEL = R["selector"]; SL = R["sliders"]
 LAMP = R["lamps"]; RET = R["controlsRetract"]; NAMES = R["bones"]; REST = R["restPoses"]
 for what, lst, n in (("bones.buttons", NAMES["buttons"], len(B["x"])), ("bones.buttonEnds", NAMES["buttonEnds"], len(B["x"])),
                      ("buttonLamps.shapes", BL["shapes"], len(B["x"])), ("bones.selector", NAMES["selector"], len(SEL["x"])),
@@ -101,7 +101,7 @@ SWATCHES = {   # name: (index, albedo sRGB, emission sRGB)
     "cap":   (2, (226, 222, 210), None),
     "knob":  (3, (64, 124, 128), None),
     "amber": (4, (255, 170, 40), (255, 160, 30)),
-    "red":   (5, (235, 45, 35), (255, 40, 25)),
+    "red":   (5, (235, 45, 35), (255, 40, 25)),   # unused since the offline lamp was dropped; kept so the atlas holds
     "label": (6, (140, 143, 148), None),   # unused since the label strip was dropped; kept so the atlas holds
     "tick":  (7, (210, 208, 196), None),
     "well":  (8, (24, 27, 31), None),
@@ -356,8 +356,6 @@ def footprints():
     out += [(f"selector lamp {x}", x - r, x + r, SEL["lamps"]["z"] - r, SEL["lamps"]["z"] + r) for x in SEL["x"]]
     r = BL["diameter"] / 2
     out += [(f"button lamp {x}", x - r, x + r, BL["z"] - r, BL["z"] + r) for x in B["x"]]
-    r = OFF["diameter"] / 2
-    out.append(("offline lamp", OFF["x"] - r, OFF["x"] + r, OFF["z"] - r, OFF["z"] + r))
     for s, L in zip(SL, SLY):
         e = L["chx"] + CH_CHAMFER
         out.append((f"{s['name']} channel", L["cx"] - e, L["cx"] + e, L["z"] - L["chz"] - CH_CHAMFER, L["z"] + L["chz"] + CH_CHAMFER))
@@ -535,11 +533,9 @@ for s, L in zip(SL, SLY):
         v, p = build_bar(L["lo"] + (i + 0.5) * L["pitch"], L["lamps"]["z"], L["pitch"] * L["lamps"]["widthFraction"],
                          L["lamps"]["depth"])
         PARTS.append((v, p, lambda c: "amber", NAMES["root"], [(shape, LAMP_DY)]))
-v, p = build_disc(OFF["x"], OFF["z"], OFF["diameter"])
-PARTS.append((v, p, lambda c: "red", NAMES["root"], [(OFF["shape"], LAMP_DY)]))
 
 SHAPES = (BL["shapes"] + SEL["shapes"] + [sh for L in SLY if L["lamps"] for sh in L["lamps"]["shapes"]]
-          + [OFF["shape"], RET["shape"]])
+          + [RET["shape"]])
 assert len(set(SHAPES)) == len(SHAPES), "a shape name repeats"
 
 bm = bmesh.new()

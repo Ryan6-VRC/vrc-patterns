@@ -102,11 +102,8 @@ THE LAYERS
               them. Disabling Sliders breaks a grab network-wide. The press and slider rungs also require Live, so a
               stamp never lands while a chain is off. A consumer lifting the controls without the glue must write
               <internal>/Live itself: at its default 0 the controls stay sunk and dead.
-  Offline     Online / Offline writing Lamp_Offline: offline on a remote copy until object-sync's word is
-              trustworthy (not IsLocal, and ObjectSync/Enable or OS/Ready low). A state machine because a tree
-              cannot read IsLocal without declaring it float.
 Every state keys every binding its layer owns: Buttons owns none, Sliders CP/Settling, Lamps the lamp shapes, the
-knob AAPs and the knob transforms, Live Controls_Retract and both physbones' m_Enabled, Offline Lamp_Offline.
+knob AAPs and the knob transforms, Live Controls_Retract and both physbones' m_Enabled.
 
 CONFIG
 ------
@@ -395,7 +392,7 @@ def names(c):
 def shapes(c):
     out = {"buttons": [f"Lamp_Btn{i + 1}" for i in range(len(rows(c, "buttons")[0]["x"]))],
            "selector": [f"Lamp_Sel{k + 1}" for k in range(len(rows(c, "selector")[0]["x"]))],
-           "offline": "Lamp_Offline", "retract": "Controls_Retract"}
+           "retract": "Controls_Retract"}
     for s in rows(c, "slider"):
         out[s["name"]] = [f"Lamp_Seg{k}" for k in range(s["N"])]
     return out
@@ -484,7 +481,6 @@ def document(c):
     press, release = r["thresholds"]["press"], r["thresholds"]["release"]
     shape = f"{M}/{c['mesh']}/SkinnedMeshRenderer.blendShape."
     bone = f"{M}/{c['armature']}/Panel"
-    LO = f"{shape}{sh['offline']}"
     RETRACT = f"{shape}{sh['retract']}"
     CHAINS = [f"{bone}/{nm['buttonsRoot']}/VRCPhysBone.m_Enabled", f"{bone}/{nm['slidersRoot']}/VRCPhysBone.m_Enabled"]
     SL = r["sliders"]
@@ -527,9 +523,6 @@ def document(c):
     o(f"  {SETTLING}: {{ type: float, default: 0, aap: true }}   # the Sliders layer's one output: 1 while held or settling")
     for e in SL:
         o(f"  {e['knobParam']}: {{ type: float, default: 0, aap: true }}   # the knob memory, track fraction 0..1")
-    o("  # Shared with the object-sync build through the one component; declarations match the entry's.")
-    o("  ObjectSync/Enable: { type: float, default: 1, vrc: { type: bool, synced: true, saved: false } }")
-    o("  OS/Ready: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }")
     o("  IsLocal: bool   # VRC built-in")
     o("")
     o("layers:")
@@ -747,27 +740,6 @@ def document(c):
     o("      any: [50, 40]")
     o("      exit: [50, 80]")
     o("")
-    # ---- Offline ----
-    o("  # A remote shows the offline lamp until object-sync's word is trustworthy; the wearer never does.")
-    o("  - name: Offline")
-    o("    states:")
-    o("      Offline:")
-    o("        motion: { clip: offline }")
-    o("        transitions:")
-    o("          - { to: Online, when: [ IsLocal is true ] }")
-    o("          - { to: Online, when: [ ObjectSync/Enable greater 0.5, OS/Ready greater 0.5 ] }")
-    o("      Online:")
-    o("        motion: { clip: online }")
-    o("        transitions:")
-    o("          - { to: Offline, when: [ IsLocal is false, ObjectSync/Enable less 0.5 ] }")
-    o("          - { to: Offline, when: [ IsLocal is false, OS/Ready less 0.5 ] }")
-    o("    default: Offline")
-    o("    layout:")
-    o("      nodes: { Offline: [30, 180], Online: [270, 180] }")
-    o("      entry: [50, 120]")
-    o("      any: [50, 40]")
-    o("      exit: [50, 80]")
-    o("")
     o("clips:")
     o(f"  tick: {{ seconds: {r6(FRAME)} }}")
     if arm:
@@ -808,8 +780,6 @@ def document(c):
                 o(f'      "{kp}.{ax}": {v}')
     o(f'  inert: {{ set: {{ "{RETRACT}": 100, {", ".join(f"{chr(34)}{ch}{chr(34)}: 0" for ch in CHAINS)} }} }}')
     o(f'  live: {{ set: {{ "{RETRACT}": 0, {", ".join(f"{chr(34)}{ch}{chr(34)}: 1" for ch in CHAINS)} }} }}')
-    o(f'  offline: {{ set: {{ "{LO}": 100 }} }}')
-    o(f'  online: {{ set: {{ "{LO}": 0 }} }}')
     return "\n".join(L) + "\n"
 
 

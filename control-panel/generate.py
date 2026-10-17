@@ -10,7 +10,7 @@ Edit CONFIG, rerun, then recompile `built/` and `object-sync/built/` as units in
 `Packages/com.ryan6vrc.patterns/control-panel/...`. The controls subtree has its own generator
 (`controls/generate.py`); this one reads its `controls` rows, `face` and rig() (every cap, slider and knob
 number, the bone and shape names, the bone rest poses) and keeps only the frame's own geometry: plate, grips,
-lamp placement and size, offline lamp. rig.json is the mesh builder's whole input
+lamp placement and size. rig.json is the mesh builder's whole input
 (assets/ControlPanel_build.py); its `restPoses` are the positions `controls/generate.py --check` holds the
 imported bones to.
 
@@ -150,7 +150,6 @@ CONFIG = {
     # A smooth slider's strip: always lit from atlas swatch `swatch` (the mesh builder refuses one without
     # emission). It has no shape and no geometry of its own here: rig() places it in `segments`' row geometry.
     "strip": {"swatch": "amber"},
-    "offline": {"x": 0.14, "z": 0.145, "diameter": 0.01},
     "mesh": "ControlPanel",
     "material": "ControlPanel",
 }
@@ -239,7 +238,6 @@ def rig(c, ctl):
                                "diameter": c["buttonLamps"]["diameter"]}, "shapes": sh["selector"]},
         "sliders": sliders,
         "controlsRetract": {"shape": sh["retract"], "capDepth": cb["travel"], "channelDepth": cc["sliders"]["channelDepth"]},
-        "offline": dict(c["offline"], shape=sh["offline"]),
         "bones": nm,
         "restPoses": cr["bones"],
         "mesh": c["mesh"],
