@@ -51,10 +51,15 @@ The prefab is the artifact; this is the recipe it was made by, and `--check` hol
   TwoHandProp      nested ../two-hand-prop/TwoHandProp_Full.prefab. Removed: its FullController and
                    Toggle (the glue plays its chords), its FreezeToWorld node (the root pin owns the world
                    frame), Body/Display/Payload, GripA, GripB (the panel model carries its own grips).
-                   Overridden: Body's position and rotation constraint source0 -> Park; the handle spacing
-                   to CONFIG handleSpacing on every copy site two-hand-prop's README §Knobs lists (RestA/B,
-                   CarryA/B, OffA/B, AimNode, HolderA/B and the PositionAtRest of the constraints on
-                   CarryA/B, AimNode, HolderA/B). Added: a connected instance of controls/Panel.prefab
+                   Overridden: Body's position and rotation constraint source0 -> Park; the handle places
+                   on every copy site two-hand-prop's README §Knobs lists (the positions of RestA/B,
+                   CarryA/B, OffA/B, AimNode, HolderA/B and HandleA/B_End, and the PositionAtRest of the
+                   constraints on CarryA/B, AimNode, HolderA/B). Each handle's chain runs the mesh's grip:
+                   in the panel frame HandleX_Root at (-+X, 0, grips.z[0]) and HandleX_End, the tip and so
+                   the handle's place, at (-+X, 0, grips.z[1]), X = handleSpacing / 2 + grabOffset; in
+                   Body's frame each is that point turned `tilt` about X. So RestX = the root, HolderX =
+                   Body's position + RestX, CarryX = AimNode (A) = the tip, OffX = -tip, HandleX_End's
+                   local position tip - root (HandleX_Root stays at its holder's origin). Added: a connected instance of controls/Panel.prefab
                    under Body/Display, named Panel, at the origin rotated CONFIG tilt about X (the lift unit; its bindings
                    resolve here).
   Park             as above, four sources; Locked, zero offsets, rest weights HOME. Its rotation constraint's
@@ -89,6 +94,8 @@ GLUE_DOC = os.path.join(HERE, "controller.yaml")
 SYNC_OUT = os.path.join(HERE, "object-sync", "controller.yaml")
 RIG_OUT = os.path.join(HERE, "rig.json")
 SYNC_MOUNT = "ObjectSync"
+# The least margin by which each handle's grab capsule must reach past its visible grip's farthest surface, metres.
+GRIP_COVER = 0.005
 CELL = "TwoHandProp"
 
 CONFIG = {
@@ -137,6 +144,10 @@ CONFIG = {
     # builder asserts it clears the underside.
     "plate": {"x": [-0.17, 0.17], "z": [-0.17, 0.17], "top": 0.02, "bottom": -0.02},
     "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
+    # How far each handle's grab chain sits outward along X from its grip's axis, at x = +-(handleSpacing / 2 +
+    # grabOffset); the grip mesh stays put. A wider offset moves the grab volume off the controls between the
+    # handles; --check holds that each capsule still covers its whole visible grip with GRIP_COVER to spare.
+    "grabOffset": 0,
     # The rows (cap positions and joint, slider tracks, chains, knob rest, channel depth) are the controls CONFIG's;
     # rig() reads them from there. Only the mesh-only numbers are here. Every lamp parks `parked` under the face and
     # its shape raises it to `raised`.
@@ -501,7 +512,7 @@ def removed_of(sb, nm, body):
 
 
 def check_cell(c, ls, P, A):
-    """The nested two-hand-prop: its removals, the Park repoint, the handle spacing."""
+    """The nested two-hand-prop: its removals, the Park repoint, the handle places and their grip coverage."""
     got = nested(ls, P, "two-hand-prop/TwoHandProp_Full.prefab")
     if not A(got, "ControlPanel.prefab nests two-hand-prop/TwoHandProp_Full.prefab once"):
         return
@@ -525,25 +536,66 @@ def check_cell(c, ls, P, A):
         A("Sources.totalLength" not in rows and not [p for p in rows if not p.startswith("Sources.source0.")],
           f"Body {label} constraint: only source0 overridden, no source added ({sorted(rows)})")
 
-    # Handle spacing on every copy site (two-hand-prop README §Knobs), A at -X and B at +X.
-    h = c["handleSpacing"] / 2
-    sites = {"RestA": -h, "RestB": h, "CarryA": -h, "CarryB": h, "OffA": h, "OffB": -h, "AimNode": -h,
-             "HolderA": -h, "HolderB": h}
-    tf = {}
+    # The handle places and chains on every copy site (two-hand-prop README §Knobs), A at -X and B at +X: each grab
+    # chain runs its grip, root at grips.z[0] and tip, the handle's place, at grips.z[1], at panel y 0 and
+    # x = +-(handleSpacing / 2 + grabOffset), rotated into Body's frame by the tilt about X. An axis the instance
+    # does not override keeps the cell prefab's value, so each site is read as override-else-prefab.
+    hx, gz, th = c["handleSpacing"] / 2 + c["grabOffset"], c["grips"]["z"], math.radians(c["tilt"])
+
+    def body_of(x, z):
+        return (x, -z * math.sin(th), z * math.cos(th))
+
+    at = {}
     for f, g, pp, v, ref in mods:
-        n = nm(f, g)
-        if n in sites and pp == "m_LocalPosition.x" and "m_Father" in body(f, g):
-            tf[n] = float(v)
-    bad = {n: tf.get(n) for n, x in sites.items() if tf.get(n) is None or abs(tf[n] - x) > 1e-6}
-    A(not bad, f"handle spacing {c['handleSpacing']}: transform x on {sorted(sites)} (off: {bad})")
-    rest = {}
-    for f, g, pp, v, ref in mods:
-        n = nm(f, g)
-        if n in ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB") and pp == "PositionAtRest.x":
-            rest[n] = float(v)
-    want_rest = {n: sites[n] for n in ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB")}
-    bad = {n: rest.get(n) for n, x in want_rest.items() if rest.get(n) is None or abs(rest[n] - x) > 1e-6}
-    A(not bad, f"handle spacing: PositionAtRest.x on CarryA/B, AimNode, HolderA/B (off: {bad})")
+        n, d = nm(f, g), body(f, g)
+        for key, kind in (("m_LocalPosition", "tf"), ("PositionAtRest", "rest")):
+            if pp.startswith(key + ".") and (kind == "rest" or "m_Father" in d):
+                base = ls.vec(d, key)
+                cur = at.setdefault((kind, n), list(base) if base else [float("nan")] * 3)
+                cur["xyz".index(pp[-1])] = float(v)
+    body_pos = tuple(at.get(("tf", "Body"), ls.vec(cell_doc("Body"), "m_LocalPosition")))
+    sites = {}
+    for k, sx in (("A", -1), ("B", 1)):
+        end, root = body_of(sx * hx, gz[1]), body_of(sx * hx, gz[0])
+        sites[f"Rest{k}"] = root
+        sites[f"Carry{k}"] = end
+        sites[f"Off{k}"] = tuple(-v for v in end)
+        sites[f"Holder{k}"] = tuple(b + v for b, v in zip(body_pos, root))
+        sites[f"Handle{k}_End"] = tuple(e - r for e, r in zip(end, root))
+    sites["AimNode"] = sites["CarryA"]
+    off = lambda kind, names: {n: at.get((kind, n)) for n in names
+                               if not at.get((kind, n)) or any(not abs(a - w) <= 1e-6 for a, w in zip(at[(kind, n)], sites[n]))}
+    bad = off("tf", sites)
+    A(not bad, f"handle places (spacing {c['handleSpacing']}, grabOffset {c['grabOffset']}, chains along grips.z {gz}): "
+               f"transform position on {sorted(sites)} (off: {bad})")
+    bad = off("rest", ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB"))
+    A(not bad, f"handle places: PositionAtRest on CarryA/B, AimNode, HolderA/B (off: {bad})")
+    # Each grab capsule covers its whole visible grip with GRIP_COVER to spare: the grip (a cylinder of grips.radius
+    # about x = +-grips.x, spanning grips.z) lies within the capsule's radius of its axis, which spans the same z at
+    # x = +-hx, and the capsule's ends reach a radius past the grip's.
+    rad = {}
+    for n in ("HandleA_Root", "HandleB_Root"):
+        d = cell_doc(n, "allowGrabbing:")
+        flat = d and re.search(r"^  radiusCurve:\n    serializedVersion: \d+\n    m_Curve: \[\]", d, re.M)
+        r = [float(v) for f, g, pp, v, ref in mods if nm(f, g) == n and pp == "radius"]
+        curved = any(nm(f, g) == n and pp.startswith("radiusCurve.") for f, g, pp, v, ref in mods)
+        if flat and not curved:
+            rad[n] = r[-1] if r else float(ls.field(d, "radius"))
+    reach = abs(hx - c["grips"]["x"]) + c["grips"]["radius"]
+    A(len(rad) == 2 and min(rad.values()) - reach >= GRIP_COVER - 1e-9,
+      f"each handle's grab capsule (radius {rad}, axis x +-{hx:g}) covers its whole grip (axis x +-{c['grips']['x']}, "
+      f"radius {c['grips']['radius']}): farthest grip surface {reach:.4f} m from the axis, wanted at least {GRIP_COVER} "
+      "inside the radius (a radius curve counts as no radius)")
+
+
+def cell_doc(name, has="m_LocalPosition:"):
+    """The document on GameObject `name` in two-hand-prop's TwoHandProp_Yaw.prefab (TwoHandProp_Full's base) that
+    carries `has`, or None: the value an axis the nested instance does not override keeps."""
+    text = open(os.path.join(ROOT, "two-hand-prop", "TwoHandProp_Yaw.prefab"), encoding="utf-8").read()
+    docs = re.findall(r"^--- !u!(\d+) &(-?\d+)\n(.*?)(?=^--- |\Z)", text, re.M | re.S)
+    go = {i for cls, i, d in docs if cls == "1" and re.search(rf"^  m_Name: {re.escape(name)}$", d, re.M)}
+    owner = lambda d: (re.search(r"^  m_GameObject: \{fileID: (-?\d+)\}", d, re.M) or [None, None])[1]
+    return next((d for cls, i, d in docs if has in d and owner(d) in go), None)
 
 
 def check_panel(ls, P, A, c):

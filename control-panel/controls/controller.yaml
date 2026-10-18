@@ -5,10 +5,10 @@
 # ControlPanel/Slot (int), ControlPanel/Level (float 0..1).
 # Cap press accepted at receiver reading 0.288462, held until every reading is under 0.115385 (depth 0.75 / 0.3
 # of travel over a box 0.026 m deep). Arm 0 s, cooldown 0.25 s.
-# Slot: the box's +Z face points to -X, so the reading falls as the knob rises: r_hi 0.9375 at x -0.1,
-# r_lo 0.104167 at x 0.1, floor 0.0625.
-# Level: the box's +Z face points to -X, so the reading falls as the knob rises: r_hi 0.9375 at x -0.1,
-# r_lo 0.104167 at x 0.1, floor 0.0625.
+# Slot: the box's +Z face points to -X, so the reading falls as the knob rises: r_hi 0.952586 at x -0.1,
+# r_lo 0.090517 at x 0.1, floor 0.056034.
+# Level: the box's +Z face points to -X, so the reading falls as the knob rises: r_hi 0.952586 at x -0.1,
+# r_lo 0.090517 at x 0.1, floor 0.056034.
 
 schema: 1
 controller: ControlPanelControls_Fx
@@ -152,8 +152,8 @@ layers:
       Idle:
         motion: { clip: settling_off }
         transitions:
-          - { to: Held_Slot, when: [ CP/Live greater 0.5, CP/Slot_Read greater 0.0625 ] }
-          - { to: Held_LevelA, when: [ CP/Live greater 0.5, CP/Level_Read greater 0.0625 ] }
+          - { to: Held_Slot, when: [ CP/Live greater 0.5, CP/Slot_Read greater 0.056034 ] }
+          - { to: Held_LevelA, when: [ CP/Live greater 0.5, CP/Level_Read greater 0.056034 ] }
       # Boundary b/N between slot b-1 and slot b, crossed by the hysteresis; the reading falls as the slot
       # rises. Up rungs highest b first, down rungs lowest b first, so a jump lands on the slot the reading
       # is in; the Settle rungs above catch a released 0 first.
@@ -161,15 +161,15 @@ layers:
         motion: { clip: settling_on }
         transitions:
           - { to: Settle, when: [ CP/Live less 0.5 ] }
-          - { to: Settle, when: [ CP/Slot_Read less 0.0625 ] }
-          - { to: Stamp_Slot_4, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.254167, ControlPanel/Slot less 3.5 ] }
-          - { to: Stamp_Slot_3, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.420833, ControlPanel/Slot less 2.5 ] }
-          - { to: Stamp_Slot_2, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.5875, ControlPanel/Slot less 1.5 ] }
-          - { to: Stamp_Slot_1, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.754167, ControlPanel/Slot less 0.5 ] }
-          - { to: Stamp_Slot_0, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.7875, ControlPanel/Slot greater 0.5 ] }
-          - { to: Stamp_Slot_1, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.620833, ControlPanel/Slot greater 1.5 ] }
-          - { to: Stamp_Slot_2, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.454167, ControlPanel/Slot greater 2.5 ] }
-          - { to: Stamp_Slot_3, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.2875, ControlPanel/Slot greater 3.5 ] }
+          - { to: Settle, when: [ CP/Slot_Read less 0.056034 ] }
+          - { to: Stamp_Slot_4, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.24569, ControlPanel/Slot less 3.5 ] }
+          - { to: Stamp_Slot_3, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.418103, ControlPanel/Slot less 2.5 ] }
+          - { to: Stamp_Slot_2, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.590517, ControlPanel/Slot less 1.5 ] }
+          - { to: Stamp_Slot_1, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read less 0.762931, ControlPanel/Slot less 0.5 ] }
+          - { to: Stamp_Slot_0, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.797414, ControlPanel/Slot greater 0.5 ] }
+          - { to: Stamp_Slot_1, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.625, ControlPanel/Slot greater 1.5 ] }
+          - { to: Stamp_Slot_2, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.452586, ControlPanel/Slot greater 2.5 ] }
+          - { to: Stamp_Slot_3, when: [ IsLocal is true, CP/Live greater 0.5, CP/Slot_Read greater 0.280172, ControlPanel/Slot greater 3.5 ] }
       Stamp_Slot_0:
         motion: { clip: settling_tick }
         behaviours: [ { driver: { localOnly: true, set: { ControlPanel/Slot: 0 } } } ]
@@ -198,24 +198,24 @@ layers:
       # The wearer alternates A <-> B every frame so each entry re-copies the reading; remotes stay in A.
       Held_LevelA:
         motion: { clip: settling_on }
-        behaviours: [ { driver: { localOnly: true, copy: { ControlPanel/Level: { source: CP/Level_Read, sourceMin: 0.104167, sourceMax: 0.9375, destMin: 1, destMax: 0 } } } } ]
+        behaviours: [ { driver: { localOnly: true, copy: { ControlPanel/Level: { source: CP/Level_Read, sourceMin: 0.090517, sourceMax: 0.952586, destMin: 1, destMax: 0 } } } } ]
         transitions:
           - { to: Settle, when: [ CP/Live less 0.5 ] }
-          - { to: Settle, when: [ CP/Level_Read less 0.0625 ] }
+          - { to: Settle, when: [ CP/Level_Read less 0.056034 ] }
           - { to: Held_LevelB, when: [ IsLocal is true, CP/One greater 0.5 ] }
       Held_LevelB:
         motion: { clip: settling_on }
-        behaviours: [ { driver: { localOnly: true, copy: { ControlPanel/Level: { source: CP/Level_Read, sourceMin: 0.104167, sourceMax: 0.9375, destMin: 1, destMax: 0 } } } } ]
+        behaviours: [ { driver: { localOnly: true, copy: { ControlPanel/Level: { source: CP/Level_Read, sourceMin: 0.090517, sourceMax: 0.952586, destMin: 1, destMax: 0 } } } } ]
         transitions:
           - { to: Settle, when: [ CP/Live less 0.5 ] }
-          - { to: Settle, when: [ CP/Level_Read less 0.0625 ] }
+          - { to: Settle, when: [ CP/Level_Read less 0.056034 ] }
           - { to: Held_LevelA, when: [ IsLocal is true, CP/One greater 0.5 ] }
       # The knob holds where the hand let go for the dwell, while the wearer's last stamp crosses the wire.
       Settle:
         motion: { clip: settle }
         transitions:
-          - { to: Held_Slot, when: [ CP/Live greater 0.5, CP/Slot_Read greater 0.0625 ] }
-          - { to: Held_LevelA, when: [ CP/Live greater 0.5, CP/Level_Read greater 0.0625 ] }
+          - { to: Held_Slot, when: [ CP/Live greater 0.5, CP/Slot_Read greater 0.056034 ] }
+          - { to: Held_LevelA, when: [ CP/Live greater 0.5, CP/Level_Read greater 0.056034 ] }
           - { to: Idle, when: [], exitTime: 1.0 }
     default: Idle
     layout:
@@ -353,7 +353,7 @@ layers:
                 - tree: 1d
                   name: Slot_Released
                   param: CP/Settling
-                  threshold: 0.0624
+                  threshold: 0.055934
                   children:
                     - tree: 1d
                       name: Slot_FromValue
@@ -375,10 +375,10 @@ layers:
                 - tree: 1d
                   name: Slot_Held
                   param: CP/Slot_Read
-                  threshold: 0.0625
+                  threshold: 0.056034
                   children:
-                    - { clip: slot_knob1, threshold: 0.104167 }
-                    - { clip: slot_knob0, threshold: 0.9375 }
+                    - { clip: slot_knob1, threshold: 0.090517 }
+                    - { clip: slot_knob0, threshold: 0.952586 }
             - tree: 1d
               name: Slot_Knob
               param: CP/Slot_Knob
@@ -395,7 +395,7 @@ layers:
                 - tree: 1d
                   name: Level_Released
                   param: CP/Settling
-                  threshold: 0.0624
+                  threshold: 0.055934
                   children:
                     - tree: 1d
                       name: Level_FromValue
@@ -414,10 +414,10 @@ layers:
                 - tree: 1d
                   name: Level_Held
                   param: CP/Level_Read
-                  threshold: 0.0625
+                  threshold: 0.056034
                   children:
-                    - { clip: level_knob1, threshold: 0.104167 }
-                    - { clip: level_knob0, threshold: 0.9375 }
+                    - { clip: level_knob1, threshold: 0.090517 }
+                    - { clip: level_knob0, threshold: 0.952586 }
             - tree: 1d
               name: Level_Knob
               param: CP/Level_Knob

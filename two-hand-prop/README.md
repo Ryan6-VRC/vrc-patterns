@@ -4,7 +4,7 @@ A prop with two grab handles that you steer on purpose: one hand carries it with
 
 ## How it works
 
-- Each handle is an invisible grab physbone. Grabs on a physbone are synced by VRChat itself, so every client sees them live at no parameter cost. The prop follows the hands through VRC constraints.
+- Each handle is an invisible grab physbone lying along its grip, so a hand anywhere on the grip takes it. Grabs on a physbone are synced by VRChat itself, so every client sees them live at no parameter cost. The prop follows the hands through VRC constraints.
 - The handle grabbed first is the **primary**. The prop sits on the primary hand, at that handle's place on the prop. The other handle, the **secondary**, only turns it.
 - One hand: the prop follows the hand and does not turn.
 - Both hands: the prop turns to lie along the line between the hands, keeping its up direction pointing up.
@@ -19,7 +19,7 @@ Needs the VRC SDK, VRCFury and Modular Avatar.
 
 1. Pick a prefab. `TwoHandProp_Yaw.prefab` suits anything carried level: a bench, a stretcher, a banner pole carried flat. `TwoHandProp_Full.prefab` also tilts toward the line of your hands, for a staff, a rifle, a pointer. Neither can tell which way to face when your hands are straight above each other (§Traps).
 2. Drop one instance anywhere under the avatar root. Edit the instance or an owned copy, never the package asset. `HomeAnchor` attaches itself to the Hips at build; drag its `Offset` child to place where the prop rests when not in use. At home the prop also takes `Offset`'s rotation, and some bases roll their Hips bone a quarter turn, which puts a rest authored in front at the side with the bar end-on: turn `Offset` as well as moving it.
-3. Swap the placeholder meshes under `Body/Display` for your own: `Payload` (the bar) and the two `Grip` spheres. Keep them under `Display`, the node that hides and shows the prop. The grips are only visual. Where the hands actually grab is the handle spacing, a multi-node edit (§Knobs) if your mesh is longer or shorter.
+3. Swap the placeholder meshes under `Body/Display` for your own: `Payload` (the bar) and the two `Grip` capsules. Keep them under `Display`, the node that hides and shows the prop. The grips are only visual. Where the hands actually grab is the handle chains, which run each grip's length; a mesh whose grips sit elsewhere, or run another way, needs the handle spacing and grip edits in §Knobs.
 4. Add this library's `anti-cull` module to the avatar too; it keeps your animator running for every viewer. A dropped prop stays put only because each client replays the grabs it saw, and a viewer whose client pauses your animator while you are off-screen misses them (`anti-cull` README §Traps, "When a module needs this").
 5. Enter play mode or upload. The expression menu gains a `TwoHandProp` toggle, off by default. §Verifying the install tells a working install from a broken one.
 
@@ -43,7 +43,7 @@ PhysBone Components:  2
 PhysBone Transforms:  4
 Constraints:          9        (depth 6)
 FX Animator Layers:   2        (the controller's one, and one the VRCFury Toggle adds)
-Mesh Renderers:       3        (placeholders: Payload and the two Grip spheres; 3 of Excellent's 4)
+Mesh Renderers:       3        (placeholders: Payload and the two Grip capsules; 3 of Excellent's 4)
 Material Slots:       3        (placeholders, Unity's built-in default; 3 of Excellent's 4)
 Synced parameters:    2 bits   (TwoHandProp/Enable, TwoHandProp/PrimaryB)
 ```
@@ -57,10 +57,12 @@ Each row gives the direction and the relation; the value lives in `controller.ya
 | Handoff weight (`handoffToA`/`handoffToB` clips: the new primary's source weight on `Body`'s position constraint, against `Body`'s own) | How fast the handoff slide closes, per frame. Higher snaps sooner; lower glides longer. A per-frame fraction, so the glide is shorter in seconds at a high frame rate (`spring-damping` README §Framerate dependence). Keep the two clips equal |
 | Handoff dwell (the same clips' length) | How long the slide eases before the snap. Shorter leaves a larger snap at the end, and a low frame rate fits fewer easing frames into it |
 | Remote settle dwell (`timer` clip's length) | As `grab-prop`: how long a remote copy waits for synced values to arrive before acting on them. Retune in-game only |
-| Handle spacing (prefab node positions) | Where the two handles sit on the prop. Copy sites: `Body/RestA`, `Body/Display/GripA`, `Body/CarryA`, `Body/CarryA/OffA` (the negation of `CarryA`), `HolderA` (`Body`'s position plus `RestA`), each mirrored for B; `Body/AimNode` (at A's position, no mirror); `Payload`'s length; and the `PositionAtRest` of every constraint on those nodes. Wider spacing lengthens the handoff slide. Edit your copy of `TwoHandProp_Yaw`; `TwoHandProp_Full` is its variant and inherits the change |
+| Handle spacing (prefab node positions) | Where the two handles sit on the prop, along X. A handle's place is its chain's tip, and the chain's root sits one grip length back. Copy sites, as whole positions: `Body/CarryA` (the tip), `Body/CarryA/OffA` (the tip negated), `Body/RestA` (the root), `HolderA` (`Body`'s position plus `RestA`), each mirrored for B; `Body/AimNode` (A's tip, no mirror); the `PositionAtRest` of the constraints on `CarryA`, `CarryB`, `AimNode`, `HolderA` and `HolderB`; and, for the look, `Body/Display/GripA`, `GripB` and `Payload`'s length. Wider spacing lengthens the handoff slide. Edit your copy of `TwoHandProp_Yaw`; `TwoHandProp_Full` is its variant and inherits the change |
+| Grip axis and length (`HolderA/HandleA_Root/HandleA_End`'s local position, and B's) | The chain runs the visible grip: root at one end, tip at the other, the physbone radius the same along it. So the grab capsule covers the whole grip, with a radius to spare past either end, and the grip's ends are no harder to grab than its middle. A change moves the tip and root, so every handle-spacing copy site but the grip meshes moves with it; turn and scale the placeholder grips to match. Keep `HandleA_Root` at its holder's origin, unrotated |
+| Grab offset (each chain's X less its grip's) | How far each chain sits outward along X from its visible grip, 0 as shipped. A larger offset moves the grab volume off whatever sits between the handles. Every handle-spacing copy site moves with it except the grip meshes and `Payload`, which stay where the grips are seen. The capsule must still cover the whole grip: for a grip lying across X, the physbone radius must be at least the offset plus the grip's radius plus a margin. Nothing here checks it; past it, part of the visible grip cannot be grabbed |
 | Home rest (`HomeAnchor/Offset`) | Where the prop rests on the avatar when not in use |
 
-The handoff weight, the handoff dwell and the handle spacing are feel constants: the emulator shows what they do, and only a headset shows whether they feel right.
+The handoff weight, the handoff dwell, the handle spacing and the grab offset are feel constants: the emulator shows what they do, and only a headset shows whether they feel right.
 
 **Provenance:** the grab cell, the drop, the world-frozen frame, the late-join park and the boot dwell are `grab-prop`'s (VRLabs World-Constraint ancestry). The self-source damper on the handoff is `spring-damping`'s (VRLabs Damping-Constraints, MIT). The yaw and full prefab pair follows `drag-bone`. The two-handle arbitration is this entry's own.
 
@@ -124,15 +126,15 @@ The prefab is the shipped artifact and ships no builder; edit it in place. Every
     ├─ Body                          the prop: a position and a rotation constraint (Y only on the yaw prefab)
     │  ├─ Display                    hidden and shown by the clips — your meshes go here
     │  │  ├─ Payload                 placeholder bar: swap this
-    │  │  ├─ GripA, GripB            placeholder handle spheres, visual only
-    │  ├─ RestA, RestB               where each holder sits, one chain length below its grip
+    │  │  ├─ GripA, GripB            placeholder handle capsules, visual only
+    │  ├─ RestA, RestB               where each holder sits: its chain's root, at the grip's near end
     │  ├─ CarryA                     position ← HandleA_End; under Body on purpose (§Traps)
     │  │  └─ OffA                    where Body sits when A is primary
     │  ├─ CarryB  └─ OffB            the same for B
     │  └─ AimNode                    position ← HandleA_End; aims +X at HandleB_End, up kept up; under Body on purpose
     ├─ HolderA                       parent ← Body/RestA; frozen while A is held
     │  └─ HandleA_Root               VRCPhysBone (parameter HandleA); hidden while the module is off
-    │     └─ HandleA_End             the grabbed tip
+    │     └─ HandleA_End             the grabbed tip, at the grip's far end: the handle's place
     ├─ HolderB  └─ …                 the same for B
     ├─ HomeAnchor                    MA BoneProxy → Hips (AsChildAtRoot)
     │  └─ Offset                     the home rest
