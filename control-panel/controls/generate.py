@@ -39,8 +39,8 @@ buttons, a selector, a discrete slider, a smooth slider.
               one slider on the panel is grabbable at a time. It is a grab surface, not a readout: no angle limit
               (limit 0 does not project the hand onto the axis; it over-reads by about h^2/2d), snapToHand 1 (at 0
               the tip keeps the grab offset), grabMovement 1, pull 1, collision and posing off, no parameter. The tip
-              rests `restOffset` past the box's -Z face (beyond the high track end); maxSquish 0.9 lets it reach `boxMargin/2` below the
-              track's low end, maxStretch lets it reach a hand `boxHeight/2` above or below the far end. Released, it springs to
+              rests `restOffset` past the box's -Z face (beyond the high track end); maxSquish SQUISH lets it reach `boxMargin/2`
+              below the track's low end, maxStretch lets it reach a hand `boxHeight/2` above or below the far end. Released, it springs to
               rest and nothing reads it.
   Sld_<name>_End  a non-local sphere sender tagged per slider (`ControlPanel<name>`; the boxes may overlap).
   slider boxes   two non-local face-mode box receivers on the Panel bone, CP/<name>_Read, rotated Euler (0, -90, 0)
@@ -162,7 +162,7 @@ Derived per slider (rig()['sliders']): run = x_hi - x_lo; box size run + 2m. The
 Readings r_lo = (m + r)/(run + 2m) at x_hi, r_hi = (run + m + r)/(run + 2m) at x_lo; floor = (m/2 + r)/(run + 2m)
 at x_hi + m/2; the squish limit x_lo - m/2 reads (run + 1.5m + r)/(run + 2m), inside the +Z face while r < m/2
 (refused otherwise); tip rest x_hi + m + restOffset; bone length
-L = (run + 1.5 m + restOffset)/0.9; root at tip rest - L; maxStretch = sqrt(L^2 + (boxHeight/2)^2)/L - 1, the largest
+L = (run + 1.5 m + restOffset)/SQUISH; root at tip rest - L; maxStretch = sqrt(L^2 + (boxHeight/2)^2)/L - 1, the largest
 over the sliders, since they share one component.
 """
 
@@ -173,7 +173,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FRAME = 1 / 60
-SQUISH = 0.9     # the Sliders chain's maxSquish: the tip reaches the low track end's squish limit at this fraction
+# The Sliders chain's maxSquish: the tip reaches the low track end's squish limit at this fraction of the bone, so it
+# sets the bone length and with it the root's overhang past the low track end, which is grab surface reaching toward
+# handle A. Never nearer 1: the bone's direction degenerates at the squish limit, undefined at 1.0 (the bone flips),
+# and at 0.99 a hand a few mm past the limit swings it 83 degrees or flips it.
+SQUISH = 0.98
 RAZOR = 0.0001   # the knob memory's razor width below `floor`
 # A slider box's Unity Euler rotation: local +Z to panel -X, the track's low end. A release springs the tip past the
 # high end, and it must leave through the -Z face, which reads 0 at once; leaving through +Z reads 1.0 for a step.
@@ -205,7 +209,7 @@ CONFIG = {
     "cooldown": 0.25,
     "retractTime": 0.25,
     "selectorKeep": 0.8,
-    "sliders": {"y": 0.02, "radius": 0.02, "boxMargin": 0.02, "senderRadius": 0.005, "restOffset": 0.015,
+    "sliders": {"y": 0.02, "radius": 0.02, "boxMargin": 0.016, "senderRadius": 0.005, "restOffset": 0.008,
                 "boxAcross": 0.25, "boxHeight": 0.2, "knobY": 0.02, "channelDepth": 0.012, "settle": 0.5},
     "tag": "ControlPanelPress",
 }
