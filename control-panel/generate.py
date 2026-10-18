@@ -147,7 +147,8 @@ CONFIG = {
     # How far each handle's grab chain sits outward along X from its grip's axis, at x = +-(handleSpacing / 2 +
     # grabOffset); the grip mesh stays put. A wider offset moves the grab volume off the controls between the
     # handles; --check holds that each capsule still covers its whole visible grip with GRIP_COVER to spare.
-    "grabOffset": 0,
+    # 0.05 takes the grab volume off the slider ends and still covers the grip; felt in the client on a consuming panel.
+    "grabOffset": 0.05,
     # The rows (cap positions and joint, slider tracks, chains, knob rest, channel depth) are the controls CONFIG's;
     # rig() reads them from there. Only the mesh-only numbers are here. Every lamp parks `parked` under the face and
     # its shape raises it to `raised`.
