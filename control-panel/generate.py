@@ -95,7 +95,8 @@ SYNC_OUT = os.path.join(HERE, "object-sync", "controller.yaml")
 RIG_OUT = os.path.join(HERE, "rig.json")
 SYNC_MOUNT = "ObjectSync"
 # The least margin by which each handle's grab capsule must reach past its visible grip's farthest surface, metres.
-GRIP_COVER = 0.005
+# 4 mm, not more: the shipped grabOffset was felt in the client, and its true margin over the ridges is about 4.5 mm.
+GRIP_COVER = 0.004
 CELL = "TwoHandProp"
 
 CONFIG = {
@@ -143,7 +144,9 @@ CONFIG = {
     # its skirt reaches `travel` below the face (capTop - travel), so it bottoms at capTop - 3 travel - squish; the mesh
     # builder asserts it clears the underside.
     "plate": {"x": [-0.17, 0.17], "z": [-0.17, 0.17], "top": 0.02, "bottom": -0.02},
-    "grips": {"x": 0.2, "radius": 0.018, "z": [-0.07, 0.07]},
+    # grips.x must be handleSpacing / 2 (validate() refuses otherwise). `ridge` is how far the grip's ridges stand
+    # proud of `radius`: the mesh builder raises them by it and --check's coverage counts it, so both read it here.
+    "grips": {"x": 0.2, "radius": 0.018, "ridge": 0.0025, "z": [-0.07, 0.07]},
     # How far each handle's grab chain sits outward along X from its grip's axis, at x = +-(handleSpacing / 2 +
     # grabOffset); the grip mesh stays put. A wider offset moves the grab volume off the controls between the
     # handles; --check holds that each capsule still covers its whole visible grip with GRIP_COVER to spare.
@@ -170,6 +173,13 @@ CONFIG = {
 
 def refuse(msg):
     raise SystemExit("REFUSE: " + msg)
+
+
+def validate(c):
+    """Refuses a CONFIG whose handle chains would not run their grips."""
+    if abs(c["handleSpacing"] / 2 - c["grips"]["x"]) > 1e-6:
+        refuse(f"grips.x is {c['grips']['x']} but handleSpacing / 2 is {c['handleSpacing'] / 2}: the chains sit at "
+               "handleSpacing / 2 + grabOffset and the mesh's grips at grips.x, so they must be equal.")
 
 
 def load(path, name):
@@ -546,34 +556,42 @@ def check_cell(c, ls, P, A):
     def body_of(x, z):
         return (x, -z * math.sin(th), z * math.cos(th))
 
-    at = {}
-    for f, g, pp, v, ref in mods:
-        n, d = nm(f, g), body(f, g)
-        for key, kind in (("m_LocalPosition", "tf"), ("PositionAtRest", "rest")):
-            if pp.startswith(key + ".") and (kind == "rest" or "m_Father" in d):
-                base = ls.vec(d, key)
-                cur = at.setdefault((kind, n), list(base) if base else [float("nan")] * 3)
-                cur["xyz".index(pp[-1])] = float(v)
-    body_pos = tuple(at.get(("tf", "Body"), ls.vec(cell_doc("Body"), "m_LocalPosition")))
     sites = {}
     for k, sx in (("A", -1), ("B", 1)):
         end, root = body_of(sx * hx, gz[1]), body_of(sx * hx, gz[0])
         sites[f"Rest{k}"] = root
         sites[f"Carry{k}"] = end
         sites[f"Off{k}"] = tuple(-v for v in end)
-        sites[f"Holder{k}"] = tuple(b + v for b, v in zip(body_pos, root))
         sites[f"Handle{k}_End"] = tuple(e - r for e, r in zip(end, root))
     sites["AimNode"] = sites["CarryA"]
+    rests = ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB")
+    # Every required vector starts as the cell's inherited value, then the instance's overrides apply axis by axis.
+    at = {}
+    for kind, key, names in (("tf", "m_LocalPosition", list(sites) + ["HolderA", "HolderB", "Body"]), ("rest", "PositionAtRest", rests)):
+        for n in names:
+            base = ls.vec(cell_doc(n, key + ":") or "", key)
+            at[(kind, n)] = list(base) if base else [float("nan")] * 3
+    for f, g, pp, v, ref in mods:
+        n, d = nm(f, g), body(f, g)
+        for key, kind in (("m_LocalPosition", "tf"), ("PositionAtRest", "rest")):
+            if pp.startswith(key + ".") and (kind == "rest" or "m_Father" in d):
+                if (kind, n) not in at:
+                    base = ls.vec(d, key)
+                    at[(kind, n)] = list(base) if base else [float("nan")] * 3
+                at[(kind, n)]["xyz".index(pp[-1])] = float(v)
+    body_pos = tuple(at[("tf", "Body")])
+    for k in ("A", "B"):
+        sites[f"Holder{k}"] = tuple(b + v for b, v in zip(body_pos, sites[f"Rest{k}"]))
     off = lambda kind, names: {n: at.get((kind, n)) for n in names
                                if not at.get((kind, n)) or any(not abs(a - w) <= 1e-6 for a, w in zip(at[(kind, n)], sites[n]))}
     bad = off("tf", sites)
     A(not bad, f"handle places (spacing {c['handleSpacing']}, grabOffset {c['grabOffset']}, chains along grips.z {gz}): "
                f"transform position on {sorted(sites)} (off: {bad})")
-    bad = off("rest", ("CarryA", "CarryB", "AimNode", "HolderA", "HolderB"))
+    bad = off("rest", rests)
     A(not bad, f"handle places: PositionAtRest on CarryA/B, AimNode, HolderA/B (off: {bad})")
-    # Each grab capsule covers its whole visible grip with GRIP_COVER to spare: the grip (a cylinder of grips.radius
-    # about x = +-grips.x, spanning grips.z) lies within the capsule's radius of its axis, which spans the same z at
-    # x = +-hx, and the capsule's ends reach a radius past the grip's.
+    # Each grab capsule covers its whole visible grip with GRIP_COVER to spare: the grip (within a cylinder of
+    # grips.radius + grips.ridge, its ridges' outer radius, about x = +-grips.x, spanning grips.z) lies within the
+    # capsule's radius of its axis, which spans the same z at x = +-hx, and the capsule's ends reach a radius past the grip's.
     rad = {}
     for n in ("HandleA_Root", "HandleB_Root"):
         d = cell_doc(n, "allowGrabbing:")
@@ -582,10 +600,11 @@ def check_cell(c, ls, P, A):
         curved = any(nm(f, g) == n and pp.startswith("radiusCurve.") for f, g, pp, v, ref in mods)
         if flat and not curved:
             rad[n] = r[-1] if r else float(ls.field(d, "radius"))
-    reach = abs(hx - c["grips"]["x"]) + c["grips"]["radius"]
+    outer = c["grips"]["radius"] + c["grips"]["ridge"]
+    reach = abs(hx - c["grips"]["x"]) + outer
     A(len(rad) == 2 and min(rad.values()) - reach >= GRIP_COVER - 1e-9,
       f"each handle's grab capsule (radius {rad}, axis x +-{hx:g}) covers its whole grip (axis x +-{c['grips']['x']}, "
-      f"radius {c['grips']['radius']}): farthest grip surface {reach:.4f} m from the axis, wanted at least {GRIP_COVER} "
+      f"outer radius {outer:g}, ridges included): farthest grip surface {reach:.4f} m from the axis, wanted at least {GRIP_COVER} "
       "inside the radius (a radius curve counts as no radius)")
 
 
@@ -666,6 +685,7 @@ def check_sync(c, og, ls, P, A):
 
 def main():
     c = CONFIG
+    validate(c)
     if "--check" in sys.argv:
         sys.exit(0 if check(c) else 1)
     og = sync_gen()

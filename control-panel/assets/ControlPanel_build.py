@@ -56,6 +56,7 @@ with open(rig_path, encoding="utf-8") as f:
 PX0, PX1 = R["plate"]["x"]; PZ0, PZ1 = R["plate"]["z"]
 TOP, BOTTOM = R["plate"]["top"], R["plate"]["bottom"]
 GX, GR = R["grips"]["x"], R["grips"]["radius"]; GZ0, GZ1 = R["grips"]["z"]
+RIDGE_R = R["grips"]["ridge"]   # the ridges' height proud of GR; generate.py's grip coverage check counts it
 B = R["buttons"]; BL = R["buttonLamps"]; SEL = R["selector"]; SL = R["sliders"]
 LAMP = R["lamps"]; RET = R["controlsRetract"]; NAMES = R["bones"]; REST = R["restPoses"]
 for what, lst, n in (("bones.buttons", NAMES["buttons"], len(B["x"])), ("bones.buttonEnds", NAMES["buttonEnds"], len(B["x"])),
@@ -90,7 +91,7 @@ TICK_W, TICK_D, TICK_GAP, TICK_LEN = 0.002, 0.0015, 0.003, 0.006   # detent tick
 LAMP_THICK = 0.002
 STRIP_LEAD = 0.005        # the strip's far end past the knob's centre: its length at x_lo, so it is never degenerate
 GRIP_END_CHAMFER = 0.004
-RIDGES, RIDGE_W, RIDGE_GAP, RIDGE_R = 5, 0.007, 0.011, 0.0025   # count, width, gap, extra radius
+RIDGES, RIDGE_W, RIDGE_GAP = 5, 0.007, 0.011   # count, width, gap (their height, RIDGE_R, is rig.json's)
 NECK_HALF_Y, NECK_HALF_Z, NECK_Z, NECK_INTO = 0.007, 0.006, 0.058, 0.006
 
 # ---- atlas -----------------------------------------------------------------------------------------------
