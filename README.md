@@ -56,7 +56,7 @@ Runnable arrangements of two or more entries, committed as prefabs because an ar
 
 ## Using an entry
 
-- **Agent, in-workspace:** the interface is the source — read the entry's `controller.yaml` (or `generate.py`) and its prefab, and lift/adapt from them. The README is orientation, traps, and measurements, never a substitute for reading them (CLAUDE.md rule 10).
+- **Agent, in-workspace:** the interface is the source — read the entry's `controller.yaml` (or `generate.py`) and its prefab, and lift/adapt from them. The README is orientation, traps, and measurements, never a substitute for reading them (CLAUDE.md rule 8).
 - **Unity:** a project takes it as a package dependency (AvatarProject uses a `file:` ref in `Packages/manifest.json`); entries import at `Packages/com.ryan6vrc.patterns/<entry>/`.
 
 ## Gate
