@@ -78,7 +78,7 @@ parameters:
   SelectiveAnimation/Clear:   { type: float, aap: true }
   # The two-stage gate on Clear. Each is read one evaluation after it is written (a clip's write is
   # invisible until the next evaluation), so chaining them holds Clear at 0 for two frames after the rig
-  # comes up. See the Compute layer -- this is what makes a frozen sensing set unreachable.
+  # comes up. See the Compute layer -- this is what keeps a stale sensing set from committing.
   SelectiveAnimation/Casting: { type: float, aap: true }
   SelectiveAnimation/Armed:   { type: float, aap: true }
   # The export. Written by the Latch states (localOnly false: every client stamps its own) so a consumer
@@ -131,10 +131,10 @@ layers:
             - { clip: sa_armed, directWeight: SelectiveAnimation/Casting }
             # Clearance = Wall_Ratio - Ray_Ratio. The sign lives in the clip's curve value, never in the
             # weight -- Unity clamps a directWeight to >=0 (vrc-patterns/blendtree-math §Subtract).
-            # Gated on Armed rather than One, and that gate is the entry's one real safety mechanism: a
-            # disabled raycast FREEZES its parameters at their last values rather than zeroing them, so
-            # pressing Tag while pointing at nothing would otherwise commit the previous press's hit on
-            # the first frame. Two frames of zeroed Clear outlast the rig's activation latency.
+            # Gated on Armed rather than One, and that gate is the entry's one real safety mechanism: in
+            # av3emu a disabled raycast writes its miss (two SnapToEnd misses subtract to 0), but whether
+            # the client does is not established, and a held hit would commit the previous press on the
+            # first frame. Two frames of zeroed Clear outlast the rig's activation latency.
             - tree: direct
               name: Clearance
               directWeight: SelectiveAnimation/Armed
