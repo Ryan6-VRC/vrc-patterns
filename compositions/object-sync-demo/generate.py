@@ -25,7 +25,7 @@ and committed unmodified, and its one departure from the entry's shipped posture
 THE WIRE
 --------
 `numberSlots` 4 / `boolSlots` 16 against the shipped 144-bit word table — 3
-batches, 50 wire bits, 0.350 s full refresh, 11 sync states. 16 bool slots is
+batches, 50 wire bits, 0.350 s full refresh, 10 sync states. 16 bool slots is
 the size the table wants: at 144 bits the worst batch pins exactly 16 bool
 words, so a wider slot set rides every batch idle. The entry's 28-bit default
 stays for composed avatars that cannot afford more; this avatar carries no

@@ -71,7 +71,7 @@
 # resume it would LERP the prop the whole way, a smooth glide across the map that reads as the prop
 # flying to its new home. Undamped, the reconstruction lands on one frame and the cull looks like
 # what it is — the prop vanishing with the avatar and reappearing where it now is. `Ch/Acquired` is
-# what makes the resume visible to this layer at all: the Reset layer zeroes it on the pause, so the
+# what makes the resume visible to this layer at all: the entry's Certify layer zeroes it on the pause, so the
 # `Acquired less 0.5` exit below drops the damper before the jump and re-arms it once the table
 # re-certifies. That exit reads as a bug because `Follow` LATCHES through the same
 # resume and so the two layers disagree during it. They are answering different questions — Follow
@@ -134,8 +134,7 @@ parameters:
   ObjectSync/Enable:      { type: float, default: 1, vrc: { type: bool, synced: true,  saved: false } }
   # "This client's receiver has applied a complete word table" — the transport's own correctness
   # output, emitted by word-channel inside the entry's document. FALSE ON THE WEARER FOREVER, which
-  # is why every consumer of it below pairs it with IsLocal. Gate on this, never on a Ch/Cycle
-  # threshold: the counter is liveness and its thresholds are apply-discipline-dependent. A float in
+  # is why every consumer of it below pairs it with IsLocal. A float in
   # the animator (bool to VRC), which is what lets the tablet read it as a Direct weight instead of
   # a decode ladder — a weight is a read, not a binding, so no driver is displaced.
   OSCh/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
@@ -156,8 +155,7 @@ parameters:
   OS/D/Prop/PY/F: { type: float, scratch: true }
   OS/D/Prop/PZ/C: { type: float, scratch: true }
   OS/D/Prop/PZ/F: { type: float, scratch: true }
-  # The synced batch id the SENDER stamps, MSB-first. Not `Cycle`, which the receive logic
-  # increments and so never leaves 0 on the wearer.
+  # The synced batch id the SENDER stamps, MSB-first, so it reads the same on the wearer and remotes.
   OS/Ch/Wire/Idx0: { type: bool, scratch: true }
   OS/Ch/Wire/Idx1: { type: bool, scratch: true }
 
