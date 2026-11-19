@@ -1029,12 +1029,11 @@ def floatify_layer(doc, c, numbers, bools):
     single driver frame — so every limb reaches the decode one frame later
     TOGETHER and the assembled pair can never mix old and new.
 
-    `<channel>/Acquired` rides the same copy for the same reason: word-channel's
-    Certify layer can raise it on the very frame the last unseen batch's words
-    land, so a gate reading it raw can fire one frame before the copies of
-    those words do — and the Follow engage would render that group fully stale
-    for that frame. Engaging on the copy keeps the gate and the decode's inputs
-    on one latency path.
+    `<channel>/Acquired` rides the same copy so the gate and the decode's inputs
+    share one latency path. Under word-channel's batch receiver the raw param
+    already trails the last batch's words by a frame (the Certify rung reads the
+    Seen flag an evaluation after the apply that set it), so it never leads the
+    copies; the copy keeps that true whatever the transport does.
 
     That copy is `<internal>/Ready` — sealed like everything but `Enable`, and
     still the one limb here that is not scratch: a same-component consumer's
@@ -1269,11 +1268,8 @@ def follow_layer(doc, c):
     cold join engages within one loop when nothing is lost.
 
     The engage rung reads `Acquired` through its Floatify copy, never raw. The
-    raw param can rise on the frame the last unseen batch's words land, a
-    frame ahead of the decode's `B/` inputs — engaging on it renders that
-    group stale for the certifying frame. The copy puts the gate on the
-    decode's own latency path; `floatify_layer`'s docstring carries the
-    mechanism.
+    copy puts the gate on the decode's own latency path; `floatify_layer`'s
+    docstring carries the mechanism.
 
     That copy is `<internal>/Ready` — sealed, read by a consumer through the
     same-component merge, so their engage still reads the same param — at the
