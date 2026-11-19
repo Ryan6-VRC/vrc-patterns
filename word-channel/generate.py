@@ -30,13 +30,20 @@ fixture):
    params exist every tick regardless), and refuses when declaration order
    makes alignment impossible.
 
-Under `atomic: batch` the receiver re-locks from Lost at ANY exact counter
-value, not only a loop head: applies are per-batch and the counter alone names
-the batch, so a missed sync tick costs ~one batch of staleness instead of a
-full loop. `set` keeps loop-head-only re-locking — a whole-table apply needs
-one coherent loop. Re-lock/re-sync is the internal sense throughout this file:
-it names the receiver leaving Lost, which is not proof any table landed. The
-emitted `<channel>/Acquired` is the public name and means something stronger.
+The two disciplines receive differently. Under `set` the receiver walks: it
+re-locks from `Lost` only at a loop head, advances only on the exact successor
+value and falls to `Lost` on any other, because a whole-table apply needs one
+coherent loop. Re-lock is that `set` sense throughout this file — the receiver
+leaving `Lost`, which is not proof any table landed; the emitted
+`<channel>/Acquired` is the public name and means something stronger. Under
+`batch` the receiver holds no position: an AnyState ladder, one rung per
+counter value gated on `IsLocal is false`, re-enters `Recv<s>`
+(`canTransitionToSelf`) on every frame the wire names that value, so each
+batch applies whenever it arrives, in any order, and a remote waits in `Split`
+until the index first names one. A missed sync tick costs only that batch's
+staleness until its next appearance, and the self re-entry is what re-applies
+a batch seen twice running with every batch between lost — no phase bit. The
+price is the named batch's driver running every frame on every remote.
 
 VRLabs Custom-Object-Sync (MIT) is the studied ancestor for the receive side's
 other trap: its multi-frame receiver decode walks are what a culling pause
@@ -46,45 +53,67 @@ structure is the batch loop itself, re-derived from the wire counter alone.
 `<channel>/Acquired` is the emitted correctness output and the one name a
 consumer outside this module is meant to read: false on animator load, false
 after a distance-cull pause, true once the receiver has applied a COMPLETE word
-table since then. Four drivers carry it — every head state (batch 0) sets
-`SawHead`, every tail (last batch) does `Acquired := SawHead`, `Lost` does
-`SawHead := Acquired`, and a two-state reset layer zeroes both when
-`IsAnimatorEnabled` goes false. `Lost` copying rather than clearing is what
-stops a dropped counter value from knocking a real table's flag down: cold,
-`Acquired` is 0 so `Lost` writes 0 and certification then demands a genuinely
-contiguous head->tail walk; once certified, `Lost` writes 1 back and the next
-tail restores it. It cannot lie — the only write of true into `Acquired` is a
-tail copying `SawHead`; `SawHead` is true at a tail only via a head, or via a
-`Lost` that read an already-true `Acquired`; and every reset zeroes both at
-once, so no path from a reset to true skips a full walk.
+table since then.
 
-Three load-bearing assumptions behind that emit:
+Under `set` four drivers carry it — every head state (batch 0) sets
+`SawHead`, every tail (last batch) does `Acquired := SawHead`, `Lost` does
+`SawHead := Acquired`, and a two-state `<channel>/Reset` layer zeroes both
+when `IsAnimatorEnabled` goes false. `Lost` copying rather than clearing is
+what stops a dropped counter value from knocking a real table's flag down:
+cold, `Acquired` is 0 so `Lost` writes 0 and certification then demands a
+genuinely contiguous head->tail walk; once certified, `Lost` writes 1 back and
+the next tail restores it. It cannot lie — the only write of true into
+`Acquired` is a tail copying `SawHead`; `SawHead` is true at a tail only via a
+head, or via a `Lost` that read an already-true `Acquired`; and every reset
+zeroes both at once, so no path from a reset to true skips a full walk.
+
+Under `batch` certification is order-free. Each `Recv` driver sets
+`<internal>/Seen<b>` for its batch, and a three-state `<channel>/Certify`
+layer owns `Acquired`: `Cold` -> `Certified` once every Seen flag is true
+(drivers cannot AND; a transition can), whose driver sets `Acquired` 1; from
+either, `IsAnimatorEnabled` false -> `Disabling`, whose driver zeroes
+`Acquired` and every flag, back to `Cold` when it is true again. It cannot lie:
+the only write of true is `Certified`'s, reachable only with every flag set,
+and the reset zeroes every flag with `Acquired`. Order-free is the point. A
+contiguous walk fails a loop with probability 1-(1-p)^N at per-batch loss p,
+which at a slow viewer's loss rate stretched cold certification to seconds,
+tens of seconds at 18 batches (README §Measured — snapshot loss carries the
+figures). What it gives up: a first certification can hold batches from
+different loops, as steady state already does after any loss. A viewer whose
+update interval locked to an exact multiple of the batch dwell, sharing a
+factor with batchCount, would never see some batches and never certify; no
+client has been seen to lock, and at the measured figures the sync tick and
+the dwell are incommensurate.
+
+Load-bearing assumptions behind that emit:
 
 1. At most one transition per layer per frame (`docs/runtime.md` §Animator
-   evaluation) — this is what guarantees `Lost`'s driver gets a frame before
-   the receiver re-locks.
-2. The `Lost` DNF is complete: every non-{cur,next} code routes to `Lost`,
-   including unused codes and the reserved 0. `lost_fallback_rungs` emits it.
-3. `Acquired` and `SawHead` are never clip-bound anywhere in the merged
-   document — a driver on a clip-bound param is refused at compile
+   evaluation) — under `set` this is what guarantees `Lost`'s driver gets a
+   frame before the receiver re-locks.
+2. Under `set`, the `Lost` DNF is complete: every non-{cur,next} code routes
+   to `Lost`, including unused codes and the reserved 0.
+   `lost_fallback_rungs` emits it.
+3. `Acquired`, `SawHead` and the Seen flags are never clip-bound anywhere in
+   the merged document — a driver on a clip-bound param is refused at compile
    (`animator-schema.md`). A Direct-tree *weight* is a read, not a binding.
-The reset layer additionally rests on `IsAnimatorEnabled` going false one
-frame BEFORE the client halts the Animator, which gives the
-`Enabled`->`Disabling` rung a frame to evaluate and its driver a frame to run.
+The reset additionally rests on `IsAnimatorEnabled` going false one frame
+BEFORE the client halts the Animator, which gives the rung into `Disabling` a
+frame to evaluate and its driver a frame to run.
 That ordering is VRChat's documented contract rather than an assumption of
 ours — `docs/runtime.md` §Parameters carries it and the citation — so it is
 not on the list above. It is load-bearing here and for any other rig that
 pre-arms on the same edge, so a session tempted to relitigate it should
 change `runtime.md` first, not this file.
 
-`Acquired` is receiver-scoped: false on the wearer forever, because the wearer
-runs sender layers only. That is correct rather than a gap — the wearer's own
-words ride their source frame for frame and never touch the decode, so a
-wearer-side mux on a decode-validity signal would say nothing.
+`Acquired` is receiver-scoped: false on the wearer forever, because no
+receive state runs on the wearer. That is correct rather than a gap — the
+wearer's own words ride their source frame for frame and never touch the
+decode, so a wearer-side mux on a decode-validity signal would say nothing.
 
 Wire cost = indexBits + 8*numberSlots + boolSlots synced bits.
-State count = 3*batchCount*indexLoops + 4 — +2 for Split and Lost, +2 more for
-the fixed reset layer — independent of word widths.
+State count = 3*batchCount*indexLoops + 4 under either discipline — Split,
+plus Lost and the two-state Reset layer under `set`, or the three-state
+Certify layer under `batch` — independent of word widths.
 
 Fragment mode, for a generator composing this channel into its own controller
 (import via importlib.util.spec_from_file_location — the folder name is not an
@@ -119,7 +148,8 @@ CONFIG = {
     # internal may live under it — `internal` below is where those go.
     "channel": "WordChannel",
     # INTERNAL prefix, required (internal_prefix() refuses its absence): Wire/*,
-    # Latch/*, True, SawHead, Cycle. It must match no published wildcard, which
+    # True, and per discipline Latch/*, SawHead and Cycle (`set`) or the Seen
+    # flags (`batch`). It must match no published wildcard, which
     # is what keeps the wire instance-prefixed on a merged avatar and lets two
     # instances coexist (docs/nondestructive.md rule 2).
     "internal": "WC",
@@ -131,13 +161,15 @@ CONFIG = {
     # How many loops one counter period spans (>=1). Each extra loop divides
     # the pause-alias probability and usually costs one index bit + a state
     # row per batch. Buys nothing under `atomic: batch` — no pause-alias
-    # artifact exists there and Lost re-locks at any counter value, so a
-    # wider counter only costs bits and states. Leave it 1 there.
+    # artifact exists there and the receiver applies any counter value it
+    # sees, so a wider counter only costs bits and states. Leave it 1 there.
     "indexLoops": 2,
     # Seconds each batch holds before the guaranteed extra frame. 0.1 is
-    # VRChat's measured network tick and dropped nothing in-game (empty
-    # instance and 42-player); 0.2 is the community-safe fallback. No in-game
-    # meter decides this — `Cycle` is not readable in-game at all (README
+    # VRChat's measured network tick; 0.2 is the community-safe fallback. What
+    # 0.1 loses depends on the viewer's frame rate, nothing at 60 fps and
+    # climbing steeply once a frame outlasts the ~83 ms sync tick (README
+    # §Measured — snapshot loss). No in-game meter decides this — `Cycle`,
+    # which only `set` emits, is not readable in-game at all (README
     # §Verifying) — so the trigger is observed staleness on remote copies.
     "batchSeconds": 0.1,
     # Apply discipline on the receiver:
@@ -149,8 +181,10 @@ CONFIG = {
     #   batch — each batch applies directly on receipt; no latches. Coherence
     #           unit is the batch (= any group), always; cross-batch values
     #           may lag each other up to one loop, pause or no pause, and no
-    #           pause-specific artifact exists. Lost re-locks at any
-    #           counter value (docstring), so a missed tick costs ~one batch.
+    #           pause-specific artifact exists. The receiver applies each
+    #           batch whenever the counter names it and certifies once all
+    #           have landed, in any order (docstring), so a missed tick
+    #           costs that batch one loop of staleness.
     # Toggle-bus payloads want set (partial outfits flicker otherwise);
     # grouped measurement payloads usually want batch.
     "atomic": "set",
@@ -319,7 +353,8 @@ BUILTINS = ("IsLocal", "IsAnimatorEnabled")
 
 def internal_prefix(c):
     """The channel's internal namespace. REQUIRED, with no default: `Wire/*`,
-    `Latch/*`, `True`, `SawHead` and `Cycle` live under it, which is what lets a
+    `True` and the receiver's bookkeeping (`Latch/*`, `SawHead`, `Cycle` under
+    `set`; `Seen<b>` under `batch`) live under it, which is what lets a
     consumer publish the interface as a wildcard while the wire keeps its
     instance prefix. A default would make the collapsed shape reachable by
     omission — `channel` carrying both, where `<channel>/*` publishes the wire
@@ -327,8 +362,8 @@ def internal_prefix(c):
     ip = (c.get("internal") or "").strip()
     if not ip:
         raise SystemExit(
-            "REFUSE: `internal` is required. It is the prefix for Wire/Latch/"
-            "True/SawHead/Cycle; without it they share `channel` with the "
+            "REFUSE: `internal` is required. It is the prefix for the wire and "
+            "the receiver's bookkeeping; without it they share `channel` with the "
             "published Acquired, and no wildcard can publish the interface "
             "without also publishing the wire.")
     # A value that is not usable AS a prefix is worse than a missing one: it
@@ -457,12 +492,16 @@ def build(config):
     o(f"# VRCFury's trick), then each batch holds {batch_seconds}s plus one guaranteed frame (the Extra")
     o("# states; an exit-time alone can fire early and outrun the sync tick, losing a")
     if atomic == "batch":
-        o("# snapshot). Receiver (!IsLocal): routes purely on the wire counter — re-locks")
-        o("# from Lost at ANY exact counter value (applies are per-batch and the counter alone")
-        o("# names the batch, so a missed tick costs ~one batch of staleness, not a loop),")
-        o("# advances only on the exact successor value, falls to Lost on any other, and")
-        o("# applies each batch directly on receipt. No latches exist; the coherence unit is")
-        o("# the batch, so a pause can never mix or split a group.")
+        o("# snapshot). Receiver (!IsLocal): an AnyState ladder routes purely on the wire")
+        o("# counter, re-entering the named batch's Recv state every frame the wire names it, so")
+        o("# each batch applies directly on receipt, in any order, and a missed tick costs that")
+        o("# batch one loop of staleness. No latches exist; the coherence unit is the batch, so a")
+        o("# pause can never mix or split a group.")
+        o("#")
+        o("# Each Recv also sets its batch's Seen flag; the Certify layer sets Acquired once every")
+        o("# flag is set (correctness — every batch has landed on this client since the last")
+        o("# reset, in any order) and zeroes Acquired and the flags when IsAnimatorEnabled goes")
+        o("# false. generate.py's docstring carries the certification argument.")
     else:
         o("# snapshot). Receiver (!IsLocal): routes purely on the wire counter — enters only at")
         o("# a loop head from Lost, advances only on the exact successor value, falls to Lost on")
@@ -470,12 +509,12 @@ def build(config):
         o("# resumed from a culling pause re-derives its position from the counter; only a pause")
         o(f"# spanning exactly the counter period (P ~ 1/{period} per resume) can slip one mixed apply")
         o("# through, whole words only, corrected at the next apply.")
-    o("#")
-    o("# Each loop tail also adds 1 to Cycle (liveness — a per-client rate, running vs wedged)")
-    o("# and copies SawHead into Acquired (correctness — a complete table has landed on this")
-    o("# client since the last reset). Heads set SawHead, Lost copies Acquired back into it, and")
-    o("# the Reset layer zeroes both when IsAnimatorEnabled goes false; generate.py's docstring")
-    o("# carries why Lost copies rather than clears.")
+        o("#")
+        o("# Each loop tail also adds 1 to Cycle (liveness — a per-client rate, running vs wedged)")
+        o("# and copies SawHead into Acquired (correctness — a complete table has landed on this")
+        o("# client since the last reset). Heads set SawHead, Lost copies Acquired back into it, and")
+        o("# the Reset layer zeroes both when IsAnimatorEnabled goes false; generate.py's docstring")
+        o("# carries why Lost copies rather than clears.")
 
     params = []
     o = params.append
@@ -502,13 +541,19 @@ def build(config):
     o("  # client's receiver has applied a complete word table since then. The interface")
     o("  # output a consumer gates on; false on the wearer forever (sender layers only).")
     o(f"  {p}/Acquired: {{ type: float, default: 0, vrc: {{ type: bool, synced: false, saved: false }} }}")
-    o(f"  {ip}/SawHead: {{ type: bool, scratch: true }}   # internal: a head has been walked since the last reset")
-    o(f"  {ip}/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own")
-    o("  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits")
-    o("  # under the internal prefix, so no published wildcard reaches it and a host avatar")
-    o("  # declaring the name cannot capture it — structural, not a list entry. Float because a")
-    o("  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that")
-    o("  # reaches synced Ints only and this is unsynced.")
+    if atomic == "batch":
+        o("  # Internal: batch b has been applied on this client since the last reset. Acquired")
+        o("  # rises once every one is set (the Certify layer).")
+        for b in range(batch_count):
+            o(f"  {ip}/Seen{b}: {{ type: bool, scratch: true }}")
+    else:
+        o(f"  {ip}/SawHead: {{ type: bool, scratch: true }}   # internal: a head has been walked since the last reset")
+        o(f"  {ip}/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own")
+        o("  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits")
+        o("  # under the internal prefix, so no published wildcard reaches it and a host avatar")
+        o("  # declaring the name cannot capture it — structural, not a list entry. Float because a")
+        o("  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that")
+        o("  # reaches synced Ints only and this is unsynced.")
     o("  # Wire — the only synced params.")
     for i in idx:
         o(f"  {i}: {{ type: bool, vrc: {{ synced: true, saved: false }} }}")
@@ -532,7 +577,9 @@ def build(config):
     o("      Split:")
     o("        motion: ~")
     o("        transitions:")
-    o("          - { to: Lost, when: [ IsLocal is false ] }")
+    if atomic == "set":
+        o("          - { to: Lost, when: [ IsLocal is false ] }")
+    # Under batch a remote waits here until the AnyState ladder routes it.
     o("          - { to: Send0, when: [ IsLocal is true ] }")
     # Sender states: one per counter value
     for s in range(period):
@@ -577,55 +624,76 @@ def build(config):
         o("        transitions:")
         o(f"          - {{ to: Send{(s + 1) % period}, when: [ {ip}/True is true ] }}   # conditional hop = the guaranteed +1 frame")
     # Receiver states: one per counter value
-    o("      Lost:")
-    o("        motion: ~")
-    o("        behaviours:")
-    o("          # Copy, never clear: cold this writes 0 and the next certification needs a")
-    o("          # contiguous head->tail walk; already certified it writes 1 back, so a dropped")
-    o("          # counter value cannot knock a real table's flag down. Only the Reset layer")
-    o("          # zeroes the pair (docstring).")
-    o("          - driver:")
-    o("              copy:")
-    o(f"                {ip}/SawHead: {p}/Acquired")
-    o("        transitions:")
     if atomic == "batch":
+        for s in range(period):
+            b = s % batch_count
+            ns, bs = batch_words(b)
+            o(f"      Recv{s}:")
+            o("        motion: ~")
+            o("        behaviours:")
+            o("          - driver:")
+            o("              set:")
+            o(f"                {ip}/Seen{b}: 1")
+            if ns or bs:
+                o("              copy:")
+            for k, w in enumerate(ns):
+                if w["kind"] == "float":
+                    o(f"                {w['name']}: {{ source: {nwire[k]}, sourceMin: 0, sourceMax: 254, destMin: {w['min']}, destMax: {w['max']} }}")
+                else:
+                    o(f"                {w['name']}: {nwire[k]}")
+            for k, x in enumerate(bs):
+                o(f"                {x}: {bwire[k]}")
+        # The whole receiver. Self re-entry is deliberate: the named batch is
+        # re-applied every frame it stays on the wire, so the receiver holds no
+        # position and a batch seen twice running with every one between lost
+        # still lands fresh.
+        o("    any:")
         for s in range(period):
             pat = id_pattern(s + 1, bits)
             conds = ", ".join(cond(idx[k], pat[k]) for k in range(bits))
-            note = "   # re-lock at any exact counter value (batch applies need no coherent loop)" if s == 0 else ""
-            o(f"          - {{ to: Recv{s}, when: [ {conds} ] }}{note}")
+            o(f"      - {{ to: Recv{s}, when: [ IsLocal is false, {conds} ], canTransitionToSelf: true }}")
     else:
+        o("      Lost:")
+        o("        motion: ~")
+        o("        behaviours:")
+        o("          # Copy, never clear: cold this writes 0 and the next certification needs a")
+        o("          # contiguous head->tail walk; already certified it writes 1 back, so a dropped")
+        o("          # counter value cannot knock a real table's flag down. Only the Reset layer")
+        o("          # zeroes the pair (docstring).")
+        o("          - driver:")
+        o("              copy:")
+        o(f"                {ip}/SawHead: {p}/Acquired")
+        o("        transitions:")
         for lp in range(loops):
             head_id = lp * batch_count + 1
             pat = id_pattern(head_id, bits)
             conds = ", ".join(cond(idx[k], pat[k]) for k in range(bits))
             o(f"          - {{ to: Recv{lp * batch_count}, when: [ {conds} ] }}   # re-lock only at a loop head")
-    for s in range(period):
-        b = s % batch_count
-        ns, bs = batch_words(b)
-        last = b == batch_count - 1
-        cur = id_pattern(s + 1, bits)
-        nxt_s = (s + 1) % period
-        nxt = id_pattern(nxt_s + 1, bits)
-        o(f"      Recv{s}:")
-        o("        motion: ~")
-        o("        behaviours:")
-        o("          - driver:")
-        if b == 0:
-            o("              set:")
-            o(f"                {ip}/SawHead: 1   # head of a batch walk")
-        o("              copy:")
-        for k, w in enumerate(ns):
-            dst = w["name"] if (last or atomic == "batch") else latch(w["name"])
-            if w["kind"] == "float":
-                o(f"                {dst}: {{ source: {nwire[k]}, sourceMin: 0, sourceMax: 254, destMin: {w['min']}, destMax: {w['max']} }}")
-            else:
-                o(f"                {dst}: {nwire[k]}")
-        for k, x in enumerate(bs):
-            dst = x if (last or atomic == "batch") else latch(x)
-            o(f"                {dst}: {bwire[k]}")
-        if last:
-            if atomic == "set":
+        for s in range(period):
+            b = s % batch_count
+            ns, bs = batch_words(b)
+            last = b == batch_count - 1
+            cur = id_pattern(s + 1, bits)
+            nxt_s = (s + 1) % period
+            nxt = id_pattern(nxt_s + 1, bits)
+            o(f"      Recv{s}:")
+            o("        motion: ~")
+            o("        behaviours:")
+            o("          - driver:")
+            if b == 0:
+                o("              set:")
+                o(f"                {ip}/SawHead: 1   # head of a batch walk")
+            o("              copy:")
+            for k, w in enumerate(ns):
+                dst = w["name"] if last else latch(w["name"])
+                if w["kind"] == "float":
+                    o(f"                {dst}: {{ source: {nwire[k]}, sourceMin: 0, sourceMax: 254, destMin: {w['min']}, destMax: {w['max']} }}")
+                else:
+                    o(f"                {dst}: {nwire[k]}")
+            for k, x in enumerate(bs):
+                dst = x if last else latch(x)
+                o(f"                {dst}: {bwire[k]}")
+            if last:
                 o("                # atomic apply: the earlier batches' buffered words land with this batch's")
                 for j in range(batch_count - 1):
                     jns, jbs = batch_words(j)
@@ -633,20 +701,21 @@ def build(config):
                         o(f"                {w['name']}: {latch(w['name'])}")
                     for x in jbs:
                         o(f"                {x}: {latch(x)}")
-            o("          - driver:")
-            o(f"              add: {{ {ip}/Cycle: 1 }}")
-            o("              copy:")
-            o(f"                {p}/Acquired: {ip}/SawHead   # tail of a walk that began at a head")
-        o("        transitions:")
-        adv = ", ".join(cond(idx[k], nxt[k]) for k in range(bits))
-        o(f"          - {{ to: Recv{nxt_s}, when: [ {adv} ] }}")
-        for rung in lost_fallback_rungs(cur, nxt, idx):
-            o(f"          - {{ to: Lost, when: [ {', '.join(rung)} ] }}")
+                o("          - driver:")
+                o(f"              add: {{ {ip}/Cycle: 1 }}")
+                o("              copy:")
+                o(f"                {p}/Acquired: {ip}/SawHead   # tail of a walk that began at a head")
+            o("        transitions:")
+            adv = ", ".join(cond(idx[k], nxt[k]) for k in range(bits))
+            o(f"          - {{ to: Recv{nxt_s}, when: [ {adv} ] }}")
+            for rung in lost_fallback_rungs(cur, nxt, idx):
+                o(f"          - {{ to: Lost, when: [ {', '.join(rung)} ] }}")
     o("    default: Split")
     o("    layout:")
     o("      nodes:")
     o("        Split:  [30, 180]")
-    o("        Lost:   [510, 180]")
+    if atomic == "set":
+        o("        Lost:   [510, 180]")
     for s in range(period):
         y = 260 + 90 * s
         o(f"        Send{s}: [-330, {y}]")
@@ -658,41 +727,85 @@ def build(config):
 
     # Emitted immediately after Sync and INSIDE the fragment, because ordering
     # within the fragment is the only ordering this generator owns — an importer
-    # decides where the fragment lands in its own document. Sync-then-Reset is
-    # safety-critical, not stylistic: on the pause frame a tail may fire
-    # `Acquired := SawHead` while Reset fires `Acquired: 0`, and Sync first is
-    # what lets the reset win that frame — do not reorder these two.
+    # decides where the fragment lands in its own document. Sync first is
+    # safety-critical, not stylistic: on the pause frame a `set` tail may fire
+    # `Acquired := SawHead`, or a `batch` Recv set its Seen flag, while
+    # Disabling zeroes them, and Sync first is what lets the reset win that
+    # frame — do not reorder these two.
     reset = []
     o = reset.append
-    o(f"  - name: {p}/Reset")
-    o("    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the")
-    o("    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds")
-    o("    # the animator instead, restarting Sync at Split -> Lost with both params at their")
-    o("    # defaults, so it is covered without a signal. View cull does neither and is the")
-    o("    # consumer's to close by composing anti-cull. Partial coverage, declared (see the")
-    o("    # coverage table in docs/runtime.md).")
-    o("    states:")
-    o("      Enabled:")
-    o("        motion: ~")
-    o("        transitions:")
-    o("          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }")
-    o("      Disabling:")
-    o("        motion: ~")
-    o("        behaviours:")
-    o("          - driver:")
-    o("              set:")
-    o(f"                {p}/Acquired: 0")
-    o(f"                {ip}/SawHead: 0")
-    o("        transitions:")
-    o("          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }")
-    o("    default: Enabled")
-    o("    layout:")
-    o("      nodes:")
-    o("        Enabled:   [30, 180]")
-    o("        Disabling: [270, 180]")
-    o("      entry: [50, 120]")
-    o("      any:   [50, 40]")
-    o("      exit:  [50, 80]")
+    if atomic == "batch":
+        o(f"  - name: {p}/Certify")
+        o("    # Acquired's whole lifecycle: it rises once every batch has been applied since the")
+        o("    # last reset, and the pause reset zeroes it with the flags. A distance-hide fires")
+        o("    # IsAnimatorEnabled false one frame before the animator stops, which is the frame")
+        o("    # Disabling's driver lands on; a manual hide/show rebuilds the animator instead, so")
+        o("    # every flag restarts at its default. View cull does neither and is the consumer's")
+        o("    # to close by composing anti-cull (the coverage table in docs/runtime.md).")
+        o("    states:")
+        o("      Cold:")
+        o("        motion: ~")
+        o("        transitions:")
+        o("          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }")
+        seen = ", ".join(f"{ip}/Seen{b} is true" for b in range(batch_count))
+        o(f"          - {{ to: Certified, when: [ {seen} ] }}")
+        o("      Certified:")
+        o("        motion: ~")
+        o("        behaviours:")
+        o("          - driver:")
+        o("              set:")
+        o(f"                {p}/Acquired: 1")
+        o("        transitions:")
+        o("          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }")
+        o("      Disabling:")
+        o("        motion: ~")
+        o("        behaviours:")
+        o("          - driver:")
+        o("              set:")
+        o(f"                {p}/Acquired: 0")
+        for b in range(batch_count):
+            o(f"                {ip}/Seen{b}: 0")
+        o("        transitions:")
+        o("          - { to: Cold, when: [ IsAnimatorEnabled is true ] }")
+        o("    default: Cold")
+        o("    layout:")
+        o("      nodes:")
+        o("        Cold:      [30, 180]")
+        o("        Certified: [270, 100]")
+        o("        Disabling: [270, 260]")
+        o("      entry: [50, 120]")
+        o("      any:   [50, 40]")
+        o("      exit:  [50, 80]")
+    else:
+        o(f"  - name: {p}/Reset")
+        o("    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the")
+        o("    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds")
+        o("    # the animator instead, restarting Sync at Split -> Lost with both params at their")
+        o("    # defaults, so it is covered without a signal. View cull does neither and is the")
+        o("    # consumer's to close by composing anti-cull. Partial coverage, declared (see the")
+        o("    # coverage table in docs/runtime.md).")
+        o("    states:")
+        o("      Enabled:")
+        o("        motion: ~")
+        o("        transitions:")
+        o("          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }")
+        o("      Disabling:")
+        o("        motion: ~")
+        o("        behaviours:")
+        o("          - driver:")
+        o("              set:")
+        o(f"                {p}/Acquired: 0")
+        o(f"                {ip}/SawHead: 0")
+        o("        transitions:")
+        o("          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }")
+        o("    default: Enabled")
+        o("    layout:")
+        o("      nodes:")
+        o("        Enabled:   [30, 180]")
+        o("        Disabling: [270, 180]")
+        o("      entry: [50, 120]")
+        o("      any:   [50, 40]")
+        o("      exit:  [50, 80]")
 
     layers = [sync, reset]
     if c["assemble"]:

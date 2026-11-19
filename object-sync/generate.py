@@ -234,10 +234,10 @@ CONFIG = {
 
     # Passed to word-channel's build(). Neither `atomic` nor `indexLoops` is a
     # knob here: the discipline is batch (module docstring), and indexLoops is
-    # inert under batch — there is no pause-alias probability to divide and Lost
-    # re-locks at any counter value, so a wider counter would buy nothing and
-    # cost an index bit plus three Sync states per batch (word-channel's CONFIG
-    # carries the same note at the knob).
+    # inert under batch — there is no pause-alias probability to divide and the
+    # receiver applies any counter value it sees, so a wider counter would buy
+    # nothing and cost an index bit plus three Sync states per batch
+    # (word-channel's CONFIG carries the same note at the knob).
     "wire": {
         "numberSlots": 2,
         # 8, not 9: at 12+12 bits a position group's bool tail is exactly 4+4,
@@ -1029,12 +1029,11 @@ def floatify_layer(doc, c, numbers, bools):
     single driver frame — so every limb reaches the decode one frame later
     TOGETHER and the assembled pair can never mix old and new.
 
-    `<channel>/Acquired` rides the same copy for the same reason: the receiver
-    certifies it in the very driver that applies the final batch's words, so a
-    gate reading it raw fires one frame before the copies of those words land —
-    and on a head-landing cold join the Follow engage would render the last
-    group fully stale for that frame. Engaging on the copy keeps the gate and
-    the decode's inputs on one latency path.
+    `<channel>/Acquired` rides the same copy so the gate and the decode's inputs
+    share one latency path. Under word-channel's batch receiver the raw param
+    already trails the last batch's words by a frame (the Certify rung reads the
+    Seen flag an evaluation after the apply that set it), so it never leads the
+    copies; the copy keeps that true whatever the transport does.
 
     That copy is `<internal>/Ready` — sealed like everything but `Enable`, and
     still the one limb here that is not scratch: a same-component consumer's
@@ -1264,24 +1263,13 @@ def follow_layer(doc, c):
     fresh clone starts with every word at 0, 0 quantizes to cell 0, and cell 0 is
     the far corner of the range — so engaging before the first full word table
     arrives would put the prop at the corner in front of a late joiner.
-    `<channel>/Acquired` is exactly that proposition and carries no mode
-    dependence: a `Cycle` threshold would, because under `atomic: batch` a
-    receiver re-locks from Lost at any counter value and can enter AT a tail,
-    taking its first increment after one batch. What a cold join costs depends
-    on where in the loop it re-locks, and under `batch` that is any counter
-    value: land on a head (1 of batchCount phases) and the first tail certifies;
-    land anywhere else and `Lost` handed the walk a false SawHead, so the first
-    tail copies false and certification waits for the SECOND — the same tail a
-    two-tail counter test would have engaged on. So `Acquired` is never slower
-    than that test and is one loop faster on the head phase; it is the mode
-    independence that is the reason to prefer it, not a latency win.
+    `<channel>/Acquired` is exactly that proposition: it rises once this
+    client has applied every batch since the last reset, in any order, so a
+    cold join engages within one loop when nothing is lost.
 
     The engage rung reads `Acquired` through its Floatify copy, never raw. The
-    receiver certifies `Acquired` in the same driver that applies the final
-    batch's words, so the raw param leads the decode's `B/` inputs by one frame
-    — engaging on it renders the last group stale for the certifying frame of a
-    head-landing cold join. The copy puts the gate on the decode's own latency
-    path; `floatify_layer`'s docstring carries the mechanism.
+    copy puts the gate on the decode's own latency path; `floatify_layer`'s
+    docstring carries the mechanism.
 
     That copy is `<internal>/Ready` — sealed, read by a consumer through the
     same-component merge, so their engage still reads the same param — at the
@@ -1291,8 +1279,8 @@ def follow_layer(doc, c):
     Releasing does not test `Acquired` — its only exit tests `Enable` alone, and
     the engage rung is an AnyState rung with `canTransitionToSelf: false`, which
     together are what make `Follow` LATCH: once engaged it stays engaged until
-    Enable goes off, so a receiver falling to `Lost` mid-session does not drop
-    the prop back to its target. Do not add a rung here without deciding what
+    Enable goes off, so `Acquired` falling mid-session (the pause reset) does
+    not drop the prop back to its target. Do not add a rung here without deciding what
     that does to the latch. The same latching is why flipping `Enable` on with a
     table already acquired snaps immediately instead of waiting a cycle —
     `Enable` never gated the wire, so the receiver keeps decoding through the

@@ -220,13 +220,24 @@ parameters:
   # client's receiver has applied a complete word table since then. The interface
   # output a consumer gates on; false on the wearer forever (sender layers only).
   OSCh/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
-  OS/Ch/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
-  OS/Ch/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
-  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits
-  # under the internal prefix, so no published wildcard reaches it and a host avatar
-  # declaring the name cannot capture it — structural, not a list entry. Float because a
-  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that
-  # reaches synced Ints only and this is unsynced.
+  # Internal: batch b has been applied on this client since the last reset. Acquired
+  # rises once every one is set (the Certify layer).
+  OS/Ch/Seen0: { type: bool, scratch: true }
+  OS/Ch/Seen1: { type: bool, scratch: true }
+  OS/Ch/Seen2: { type: bool, scratch: true }
+  OS/Ch/Seen3: { type: bool, scratch: true }
+  OS/Ch/Seen4: { type: bool, scratch: true }
+  OS/Ch/Seen5: { type: bool, scratch: true }
+  OS/Ch/Seen6: { type: bool, scratch: true }
+  OS/Ch/Seen7: { type: bool, scratch: true }
+  OS/Ch/Seen8: { type: bool, scratch: true }
+  OS/Ch/Seen9: { type: bool, scratch: true }
+  OS/Ch/Seen10: { type: bool, scratch: true }
+  OS/Ch/Seen11: { type: bool, scratch: true }
+  OS/Ch/Seen12: { type: bool, scratch: true }
+  OS/Ch/Seen13: { type: bool, scratch: true }
+  OS/Ch/Seen14: { type: bool, scratch: true }
+  OS/Ch/Seen15: { type: bool, scratch: true }
   # Wire — the only synced params.
   OS/Ch/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   OS/Ch/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
@@ -518,7 +529,6 @@ layers:
       Split:
         motion: ~
         transitions:
-          - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
       # counter 1/16 = batch 1/16: PropA/PX/C, PropA/PX/F, PropA/PX/C0, PropA/PX/C1, PropA/PX/C2, PropA/PX/C3, PropA/PX/F0, PropA/PX/F1, PropA/PX/F2, PropA/PX/F3
       Send0:
@@ -968,39 +978,12 @@ layers:
         motion: ~
         transitions:
           - { to: Send0, when: [ OS/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      Lost:
-        motion: ~
-        behaviours:
-          # Copy, never clear: cold this writes 0 and the next certification needs a
-          # contiguous head->tail walk; already certified it writes 1 back, so a dropped
-          # counter value cannot knock a real table's flag down. Only the Reset layer
-          # zeroes the pair (docstring).
-          - driver:
-              copy:
-                OS/Ch/SawHead: OSCh/Acquired
-        transitions:
-          - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }   # re-lock at any exact counter value (batch applies need no coherent loop)
-          - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv2, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv3, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv4, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv5, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv6, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv7, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv8, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv9, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv10, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv11, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv12, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv13, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Recv14, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Recv15, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
       Recv0:
         motion: ~
         behaviours:
           - driver:
               set:
-                OS/Ch/SawHead: 1   # head of a batch walk
+                OS/Ch/Seen0: 1
               copy:
                 PropA/PX/C: OS/Ch/Wire/Num0
                 PropA/PX/F: OS/Ch/Wire/Num1
@@ -1012,17 +995,12 @@ layers:
                 PropA/PX/F1: OS/Ch/Wire/Bool5
                 PropA/PX/F2: OS/Ch/Wire/Bool6
                 PropA/PX/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
       Recv1:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen1: 1
               copy:
                 PropA/PY/C: OS/Ch/Wire/Num0
                 PropA/PY/F: OS/Ch/Wire/Num1
@@ -1034,16 +1012,12 @@ layers:
                 PropA/PY/F1: OS/Ch/Wire/Bool5
                 PropA/PY/F2: OS/Ch/Wire/Bool6
                 PropA/PY/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv2, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false ] }
       Recv2:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen2: 1
               copy:
                 PropA/PZ/C: OS/Ch/Wire/Num0
                 PropA/PZ/F: OS/Ch/Wire/Num1
@@ -1055,20 +1029,12 @@ layers:
                 PropA/PZ/F1: OS/Ch/Wire/Bool5
                 PropA/PZ/F2: OS/Ch/Wire/Bool6
                 PropA/PZ/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv3, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
       Recv3:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen3: 1
               copy:
                 PropA/RA/X: OS/Ch/Wire/Num0
                 PropA/RA/Z: OS/Ch/Wire/Num1
@@ -1080,16 +1046,12 @@ layers:
                 PropA/RA/Z/B1: OS/Ch/Wire/Bool5
                 PropA/RA/Z/B2: OS/Ch/Wire/Bool6
                 PropA/RA/Z/B3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv4, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true ] }
       Recv4:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen4: 1
               copy:
                 PropB/PX/C: OS/Ch/Wire/Num0
                 PropB/PX/F: OS/Ch/Wire/Num1
@@ -1101,17 +1063,12 @@ layers:
                 PropB/PX/F1: OS/Ch/Wire/Bool5
                 PropB/PX/F2: OS/Ch/Wire/Bool6
                 PropB/PX/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv5, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
       Recv5:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen5: 1
               copy:
                 PropB/PY/C: OS/Ch/Wire/Num0
                 PropB/PY/F: OS/Ch/Wire/Num1
@@ -1123,16 +1080,12 @@ layers:
                 PropB/PY/F1: OS/Ch/Wire/Bool5
                 PropB/PY/F2: OS/Ch/Wire/Bool6
                 PropB/PY/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv6, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false ] }
       Recv6:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen6: 1
               copy:
                 PropB/PZ/C: OS/Ch/Wire/Num0
                 PropB/PZ/F: OS/Ch/Wire/Num1
@@ -1144,25 +1097,12 @@ layers:
                 PropB/PZ/F1: OS/Ch/Wire/Bool5
                 PropB/PZ/F2: OS/Ch/Wire/Bool6
                 PropB/PZ/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv7, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
       Recv7:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen7: 1
               copy:
                 PropB/RA/X: OS/Ch/Wire/Num0
                 PropB/RA/Z: OS/Ch/Wire/Num1
@@ -1174,16 +1114,12 @@ layers:
                 PropB/RA/Z/B1: OS/Ch/Wire/Bool5
                 PropB/RA/Z/B2: OS/Ch/Wire/Bool6
                 PropB/RA/Z/B3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv8, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true ] }
       Recv8:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen8: 1
               copy:
                 PropC/PX/C: OS/Ch/Wire/Num0
                 PropC/PX/F: OS/Ch/Wire/Num1
@@ -1195,17 +1131,12 @@ layers:
                 PropC/PX/F1: OS/Ch/Wire/Bool5
                 PropC/PX/F2: OS/Ch/Wire/Bool6
                 PropC/PX/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv9, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
       Recv9:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen9: 1
               copy:
                 PropC/PY/C: OS/Ch/Wire/Num0
                 PropC/PY/F: OS/Ch/Wire/Num1
@@ -1217,16 +1148,12 @@ layers:
                 PropC/PY/F1: OS/Ch/Wire/Bool5
                 PropC/PY/F2: OS/Ch/Wire/Bool6
                 PropC/PY/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv10, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false ] }
       Recv10:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen10: 1
               copy:
                 PropC/PZ/C: OS/Ch/Wire/Num0
                 PropC/PZ/F: OS/Ch/Wire/Num1
@@ -1238,20 +1165,12 @@ layers:
                 PropC/PZ/F1: OS/Ch/Wire/Bool5
                 PropC/PZ/F2: OS/Ch/Wire/Bool6
                 PropC/PZ/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv11, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
       Recv11:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen11: 1
               copy:
                 PropC/RA/X: OS/Ch/Wire/Num0
                 PropC/RA/Z: OS/Ch/Wire/Num1
@@ -1263,16 +1182,12 @@ layers:
                 PropC/RA/Z/B1: OS/Ch/Wire/Bool5
                 PropC/RA/Z/B2: OS/Ch/Wire/Bool6
                 PropC/RA/Z/B3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv12, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true ] }
       Recv12:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen12: 1
               copy:
                 PropD/PX/C: OS/Ch/Wire/Num0
                 PropD/PX/F: OS/Ch/Wire/Num1
@@ -1284,17 +1199,12 @@ layers:
                 PropD/PX/F1: OS/Ch/Wire/Bool5
                 PropD/PX/F2: OS/Ch/Wire/Bool6
                 PropD/PX/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv13, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
       Recv13:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen13: 1
               copy:
                 PropD/PY/C: OS/Ch/Wire/Num0
                 PropD/PY/F: OS/Ch/Wire/Num1
@@ -1306,16 +1216,12 @@ layers:
                 PropD/PY/F1: OS/Ch/Wire/Bool5
                 PropD/PY/F2: OS/Ch/Wire/Bool6
                 PropD/PY/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv14, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false ] }
       Recv14:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen14: 1
               copy:
                 PropD/PZ/C: OS/Ch/Wire/Num0
                 PropD/PZ/F: OS/Ch/Wire/Num1
@@ -1327,32 +1233,12 @@ layers:
                 PropD/PZ/F1: OS/Ch/Wire/Bool5
                 PropD/PZ/F2: OS/Ch/Wire/Bool6
                 PropD/PZ/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv15, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ] }
       Recv15:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen15: 1
               copy:
                 PropD/RA/X: OS/Ch/Wire/Num0
                 PropD/RA/Z: OS/Ch/Wire/Num1
@@ -1364,22 +1250,27 @@ layers:
                 PropD/RA/Z/B1: OS/Ch/Wire/Bool5
                 PropD/RA/Z/B2: OS/Ch/Wire/Bool6
                 PropD/RA/Z/B3: OS/Ch/Wire/Bool7
-          - driver:
-              add: { OS/Ch/Cycle: 1 }
-              copy:
-                OSCh/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
-        transitions:
-          - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx3 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx4 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx4 is true ] }
+    any:
+      - { to: Recv0, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv1, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv2, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv3, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv4, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv5, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv6, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv7, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv8, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv9, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv10, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv11, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv12, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv13, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
+      - { to: Recv14, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true, OS/Ch/Wire/Idx3 is true, OS/Ch/Wire/Idx4 is true ], canTransitionToSelf: true }
+      - { to: Recv15, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false, OS/Ch/Wire/Idx3 is false, OS/Ch/Wire/Idx4 is false ], canTransitionToSelf: true }
     default: Split
     layout:
       nodes:
         Split:  [30, 180]
-        Lost:   [510, 180]
         Send0: [-330, 260]
         Extra0: [-570, 260]
         Recv0: [270, 260]
@@ -1431,16 +1322,25 @@ layers:
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-  - name: OSCh/Reset
-    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
-    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
-    # the animator instead, restarting Sync at Split -> Lost with both params at their
-    # defaults, so it is covered without a signal. View cull does neither and is the
-    # consumer's to close by composing anti-cull. Partial coverage, declared (see the
-    # coverage table in docs/runtime.md).
+  - name: OSCh/Certify
+    # Acquired's whole lifecycle: it rises once every batch has been applied since the
+    # last reset, and the pause reset zeroes it with the flags. A distance-hide fires
+    # IsAnimatorEnabled false one frame before the animator stops, which is the frame
+    # Disabling's driver lands on; a manual hide/show rebuilds the animator instead, so
+    # every flag restarts at its default. View cull does neither and is the consumer's
+    # to close by composing anti-cull (the coverage table in docs/runtime.md).
     states:
-      Enabled:
+      Cold:
         motion: ~
+        transitions:
+          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
+          - { to: Certified, when: [ OS/Ch/Seen0 is true, OS/Ch/Seen1 is true, OS/Ch/Seen2 is true, OS/Ch/Seen3 is true, OS/Ch/Seen4 is true, OS/Ch/Seen5 is true, OS/Ch/Seen6 is true, OS/Ch/Seen7 is true, OS/Ch/Seen8 is true, OS/Ch/Seen9 is true, OS/Ch/Seen10 is true, OS/Ch/Seen11 is true, OS/Ch/Seen12 is true, OS/Ch/Seen13 is true, OS/Ch/Seen14 is true, OS/Ch/Seen15 is true ] }
+      Certified:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                OSCh/Acquired: 1
         transitions:
           - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
       Disabling:
@@ -1449,14 +1349,30 @@ layers:
           - driver:
               set:
                 OSCh/Acquired: 0
-                OS/Ch/SawHead: 0
+                OS/Ch/Seen0: 0
+                OS/Ch/Seen1: 0
+                OS/Ch/Seen2: 0
+                OS/Ch/Seen3: 0
+                OS/Ch/Seen4: 0
+                OS/Ch/Seen5: 0
+                OS/Ch/Seen6: 0
+                OS/Ch/Seen7: 0
+                OS/Ch/Seen8: 0
+                OS/Ch/Seen9: 0
+                OS/Ch/Seen10: 0
+                OS/Ch/Seen11: 0
+                OS/Ch/Seen12: 0
+                OS/Ch/Seen13: 0
+                OS/Ch/Seen14: 0
+                OS/Ch/Seen15: 0
         transitions:
-          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
-    default: Enabled
+          - { to: Cold, when: [ IsAnimatorEnabled is true ] }
+    default: Cold
     layout:
       nodes:
-        Enabled:   [30, 180]
-        Disabling: [270, 180]
+        Cold:      [30, 180]
+        Certified: [270, 100]
+        Disabling: [270, 260]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]

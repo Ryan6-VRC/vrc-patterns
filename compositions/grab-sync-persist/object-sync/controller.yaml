@@ -95,13 +95,12 @@ parameters:
   # client's receiver has applied a complete word table since then. The interface
   # output a consumer gates on; false on the wearer forever (sender layers only).
   OSCh/Acquired: { type: float, default: 0, vrc: { type: bool, synced: false, saved: false } }
-  OS/Ch/SawHead: { type: bool, scratch: true }   # internal: a head has been walked since the last reset
-  OS/Ch/Cycle: float           # liveness, not correctness: +1 per loop tail on each client's own
-  # receiver, so a rate distinguishes running from wedged where Acquired cannot. It sits
-  # under the internal prefix, so no published wildcard reaches it and a host avatar
-  # declaring the name cannot capture it — structural, not a list entry. Float because a
-  # driver `add` on a bool is nonsense — no clip-at-255 rationale is involved, that
-  # reaches synced Ints only and this is unsynced.
+  # Internal: batch b has been applied on this client since the last reset. Acquired
+  # rises once every one is set (the Certify layer).
+  OS/Ch/Seen0: { type: bool, scratch: true }
+  OS/Ch/Seen1: { type: bool, scratch: true }
+  OS/Ch/Seen2: { type: bool, scratch: true }
+  OS/Ch/Seen3: { type: bool, scratch: true }
   # Wire — the only synced params.
   OS/Ch/Wire/Idx0: { type: bool, vrc: { synced: true, saved: false } }
   OS/Ch/Wire/Idx1: { type: bool, vrc: { synced: true, saved: false } }
@@ -238,7 +237,6 @@ layers:
       Split:
         motion: ~
         transitions:
-          - { to: Lost, when: [ IsLocal is false ] }
           - { to: Send0, when: [ IsLocal is true ] }
       # counter 1/4 = batch 1/4: BridgePersist/GrabSyncPersist/Prop/PX/C, BridgePersist/GrabSyncPersist/Prop/PX/F, BridgePersist/GrabSyncPersist/Prop/PX/C0, BridgePersist/GrabSyncPersist/Prop/PX/C1, BridgePersist/GrabSyncPersist/Prop/PX/C2, BridgePersist/GrabSyncPersist/Prop/PX/C3, BridgePersist/GrabSyncPersist/Prop/PX/F0, BridgePersist/GrabSyncPersist/Prop/PX/F1, BridgePersist/GrabSyncPersist/Prop/PX/F2, BridgePersist/GrabSyncPersist/Prop/PX/F3
       Send0:
@@ -344,27 +342,12 @@ layers:
         motion: ~
         transitions:
           - { to: Send0, when: [ OS/Ch/True is true ] }   # conditional hop = the guaranteed +1 frame
-      Lost:
-        motion: ~
-        behaviours:
-          # Copy, never clear: cold this writes 0 and the next certification needs a
-          # contiguous head->tail walk; already certified it writes 1 back, so a dropped
-          # counter value cannot knock a real table's flag down. Only the Reset layer
-          # zeroes the pair (docstring).
-          - driver:
-              copy:
-                OS/Ch/SawHead: OSCh/Acquired
-        transitions:
-          - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }   # re-lock at any exact counter value (batch applies need no coherent loop)
-          - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Recv2, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Recv3, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false ] }
       Recv0:
         motion: ~
         behaviours:
           - driver:
               set:
-                OS/Ch/SawHead: 1   # head of a batch walk
+                OS/Ch/Seen0: 1
               copy:
                 BridgePersist/GrabSyncPersist/Prop/PX/C: OS/Ch/Wire/Num0
                 BridgePersist/GrabSyncPersist/Prop/PX/F: OS/Ch/Wire/Num1
@@ -376,15 +359,12 @@ layers:
                 BridgePersist/GrabSyncPersist/Prop/PX/F1: OS/Ch/Wire/Bool5
                 BridgePersist/GrabSyncPersist/Prop/PX/F2: OS/Ch/Wire/Bool6
                 BridgePersist/GrabSyncPersist/Prop/PX/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv1, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true ] }
       Recv1:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen1: 1
               copy:
                 BridgePersist/GrabSyncPersist/Prop/PY/C: OS/Ch/Wire/Num0
                 BridgePersist/GrabSyncPersist/Prop/PY/F: OS/Ch/Wire/Num1
@@ -396,14 +376,12 @@ layers:
                 BridgePersist/GrabSyncPersist/Prop/PY/F1: OS/Ch/Wire/Bool5
                 BridgePersist/GrabSyncPersist/Prop/PY/F2: OS/Ch/Wire/Bool6
                 BridgePersist/GrabSyncPersist/Prop/PY/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv2, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false ] }
       Recv2:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen2: 1
               copy:
                 BridgePersist/GrabSyncPersist/Prop/PZ/C: OS/Ch/Wire/Num0
                 BridgePersist/GrabSyncPersist/Prop/PZ/F: OS/Ch/Wire/Num1
@@ -415,18 +393,12 @@ layers:
                 BridgePersist/GrabSyncPersist/Prop/PZ/F1: OS/Ch/Wire/Bool5
                 BridgePersist/GrabSyncPersist/Prop/PZ/F2: OS/Ch/Wire/Bool6
                 BridgePersist/GrabSyncPersist/Prop/PZ/F3: OS/Ch/Wire/Bool7
-        transitions:
-          - { to: Recv3, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ] }
       Recv3:
         motion: ~
         behaviours:
           - driver:
+              set:
+                OS/Ch/Seen3: 1
               copy:
                 BridgePersist/GrabSyncPersist/Prop/RA/X: OS/Ch/Wire/Num0
                 BridgePersist/GrabSyncPersist/Prop/RA/Z: OS/Ch/Wire/Num1
@@ -438,20 +410,15 @@ layers:
                 BridgePersist/GrabSyncPersist/Prop/RA/Z/B1: OS/Ch/Wire/Bool5
                 BridgePersist/GrabSyncPersist/Prop/RA/Z/B2: OS/Ch/Wire/Bool6
                 BridgePersist/GrabSyncPersist/Prop/RA/Z/B3: OS/Ch/Wire/Bool7
-          - driver:
-              add: { OS/Ch/Cycle: 1 }
-              copy:
-                OSCh/Acquired: OS/Ch/SawHead   # tail of a walk that began at a head
-        transitions:
-          - { to: Recv0, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx1 is true ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx2 is false ] }
-          - { to: Lost, when: [ OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx2 is true ] }
+    any:
+      - { to: Recv0, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is true ], canTransitionToSelf: true }
+      - { to: Recv1, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is false ], canTransitionToSelf: true }
+      - { to: Recv2, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is false, OS/Ch/Wire/Idx1 is true, OS/Ch/Wire/Idx2 is true ], canTransitionToSelf: true }
+      - { to: Recv3, when: [ IsLocal is false, OS/Ch/Wire/Idx0 is true, OS/Ch/Wire/Idx1 is false, OS/Ch/Wire/Idx2 is false ], canTransitionToSelf: true }
     default: Split
     layout:
       nodes:
         Split:  [30, 180]
-        Lost:   [510, 180]
         Send0: [-330, 260]
         Extra0: [-570, 260]
         Recv0: [270, 260]
@@ -467,16 +434,25 @@ layers:
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
-  - name: OSCh/Reset
-    # The pause reset. A distance-hide fires IsAnimatorEnabled false one frame before the
-    # animator stops, which is the frame this driver lands on; a manual hide/show rebuilds
-    # the animator instead, restarting Sync at Split -> Lost with both params at their
-    # defaults, so it is covered without a signal. View cull does neither and is the
-    # consumer's to close by composing anti-cull. Partial coverage, declared (see the
-    # coverage table in docs/runtime.md).
+  - name: OSCh/Certify
+    # Acquired's whole lifecycle: it rises once every batch has been applied since the
+    # last reset, and the pause reset zeroes it with the flags. A distance-hide fires
+    # IsAnimatorEnabled false one frame before the animator stops, which is the frame
+    # Disabling's driver lands on; a manual hide/show rebuilds the animator instead, so
+    # every flag restarts at its default. View cull does neither and is the consumer's
+    # to close by composing anti-cull (the coverage table in docs/runtime.md).
     states:
-      Enabled:
+      Cold:
         motion: ~
+        transitions:
+          - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
+          - { to: Certified, when: [ OS/Ch/Seen0 is true, OS/Ch/Seen1 is true, OS/Ch/Seen2 is true, OS/Ch/Seen3 is true ] }
+      Certified:
+        motion: ~
+        behaviours:
+          - driver:
+              set:
+                OSCh/Acquired: 1
         transitions:
           - { to: Disabling, when: [ IsAnimatorEnabled is false ] }
       Disabling:
@@ -485,14 +461,18 @@ layers:
           - driver:
               set:
                 OSCh/Acquired: 0
-                OS/Ch/SawHead: 0
+                OS/Ch/Seen0: 0
+                OS/Ch/Seen1: 0
+                OS/Ch/Seen2: 0
+                OS/Ch/Seen3: 0
         transitions:
-          - { to: Enabled, when: [ IsAnimatorEnabled is true ] }
-    default: Enabled
+          - { to: Cold, when: [ IsAnimatorEnabled is true ] }
+    default: Cold
     layout:
       nodes:
-        Enabled:   [30, 180]
-        Disabling: [270, 180]
+        Cold:      [30, 180]
+        Certified: [270, 100]
+        Disabling: [270, 260]
       entry: [50, 120]
       any:   [50, 40]
       exit:  [50, 80]
