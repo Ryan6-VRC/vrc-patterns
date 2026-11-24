@@ -49,6 +49,10 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // [ToggleUI], not [Toggle(...)]: an animator drives this per frame, and a keyword would add a
         // shader variant per pass for it.
         [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
+
+        // Off for a material queued above 2500: there the skybox has already painted the pixels the fill
+        // exists to initialise, and the fill would black out sky the wall never hid.
+        [ToggleUI] _SkyFill("Fill sky behind the wall", Float) = 1
     }
 
     SubShader
@@ -97,8 +101,9 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // that mirror. Black rather than a reflection-probe sample, by decision: an avatar shader cannot
         // read the world's skybox material, and too few worlds carry a probe good enough to stand in.
         //
-        // It bails exactly where the wall does. A fill whose wall bailed is overdrawn by the skybox and
-        // costs only fill rate, but the two guards are one decision: keep them in step.
+        // It bails exactly where the wall does, and wherever _SkyFill is off. A fill whose wall bailed is
+        // overdrawn by the skybox and costs only fill rate, but the two guards are one decision: keep them
+        // in step.
         // ────────────────────────────────────────────────────────────────────────────────────────────
         Pass
         {
@@ -123,6 +128,7 @@ Shader "Ryan6VRC/Overlay/TransClip"
             // As in DEPTH_WALL: crystal_shell.hlsl is not included here, so these redefine nothing.
             uniform float _HideInMirror;
             uniform float _VRChatMirrorMode;
+            uniform float _SkyFill;
 
             struct FillVertexInput
             {
@@ -141,7 +147,7 @@ Shader "Ryan6VRC/Overlay/TransClip"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                if (_HideInMirror > 0.5 && _VRChatMirrorMode != 0)
+                if (_SkyFill < 0.5 || (_HideInMirror > 0.5 && _VRChatMirrorMode != 0))
                 {
                     output.position = float4(0, 0, 0, 0);
                     return;

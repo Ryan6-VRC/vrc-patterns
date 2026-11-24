@@ -128,13 +128,13 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
         /// How much of the grade this render takes: 1 everywhere except a VRChat handheld-camera or
         /// screenshot render with the fade set, where it ramps from 0 to 1 by the camera's distance to
-        /// the sphere centre. One value per draw, so it is a vertex-stage quantity. Measured from the
-        /// camera doing the rendering: whether VRChat sets the camera mode inside a mirror that such a
-        /// camera sees is not established, and if it does, that mirror's distance is the reflected
-        /// camera's.
-        float camera_fade_factor(float3 sphere_center_ws, float aoe_scale)
+        /// the sphere centre. One value per draw, so it is a vertex-stage quantity. A mirror render never
+        /// fades: the mirror branch decides its own grade, and whether VRChat sets the camera mode inside
+        /// a mirror that such a camera sees is not established. The caller passes the mirror test because
+        /// each pass declares _VRChatMirrorMode in its own scope.
+        float camera_fade_factor(float3 sphere_center_ws, float aoe_scale, bool in_mirror)
         {
-            if (_VRChatCameraMode == 0 || _CameraFade_MaxDistance <= 0) return 1.0;
+            if (in_mirror || _VRChatCameraMode == 0 || _CameraFade_MaxDistance <= 0) return 1.0;
             float fade_min = max(_CameraFade_MinDistance, 0.0) * aoe_scale;
             float fade_max = max(_CameraFade_MaxDistance * aoe_scale, fade_min + 0.001);
             return smoothstep(fade_min, fade_max, distance(dbg_camera_center_ws(), sphere_center_ws));
@@ -269,7 +269,7 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                     unity_ObjectToWorld._m23
                 );
                 output.aoe_scale = aoe_scale_factor();
-                output.camera_fade = camera_fade_factor(output.sphere_center_ws, output.aoe_scale);
+                output.camera_fade = camera_fade_factor(output.sphere_center_ws, output.aoe_scale, _VRChatMirrorMode != 0);
                 output.mirror_ray_ws = float3(0, 0, 0);
                 output.mirror_plane = float4(0, 0, 0, 0);
 
@@ -563,7 +563,7 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 float3 sphere_center_ws = float3(unity_ObjectToWorld._m03,
                                                  unity_ObjectToWorld._m13,
                                                  unity_ObjectToWorld._m23);
-                output.camera_fade = camera_fade_factor(sphere_center_ws, aoe_scale_factor());
+                output.camera_fade = camera_fade_factor(sphere_center_ws, aoe_scale_factor(), _VRChatMirrorMode != 0);
             }
 
             half4 shell_fragment_stage(GradedShellFragmentInput graded) : SV_Target
