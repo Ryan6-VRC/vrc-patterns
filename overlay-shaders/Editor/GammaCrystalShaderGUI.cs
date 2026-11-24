@@ -26,6 +26,7 @@ namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
         static readonly string[] AoEProps =
             { "_AoE_Scale_Relative", "_AoE_MinDistance", "_AoE_MaxDistance", "_Core_Radius",
               "_Core_Intensity" };
+        static readonly string[] CameraFadeProps = { "_CameraFade_MinDistance", "_CameraFade_MaxDistance" };
         static readonly string[] GradingResistProps = { "_Shell_Grading_Resist" };
 
         static bool _showGrading = true;
@@ -38,7 +39,7 @@ namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
                 return base.ClaimedProperties
                     .Concat(GammaProps).Concat(ExposureToggleProps).Concat(ExposureProps)
                     .Concat(ScotopicToggleProps).Concat(ScotopicProps)
-                    .Concat(AoEProps).Concat(GradingResistProps);
+                    .Concat(AoEProps).Concat(CameraFadeProps).Concat(GradingResistProps);
             }
         }
 
@@ -77,7 +78,14 @@ namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
             if (Section("Area of effect", "How far the grading reaches, and the dense core inside it",
                         ref _showAoE))
                 using (Body())
+                {
                     DrawNamed(materialEditor, properties, AoEProps);
+                    Line();
+                    // In the area-of-effect fold because both values are distances in its units, scaled
+                    // by the same switch; the shader's Properties block owns what they do.
+                    EditorGUILayout.LabelField("VRChat camera fade", EditorStyles.boldLabel);
+                    DrawNamed(materialEditor, properties, CameraFadeProps);
+                }
 
             DrawShellSection(materialEditor, properties, mat);
             // Not inside the shell fold: it governs how much of the scene grading the shell receives, so it
@@ -119,6 +127,18 @@ namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
                              "zero-strength distance (" + max.ToString("0.###") + " m). The shader clamps " +
                              "the maximum up to keep the falloff finite, so the bubble gets a hard edge " +
                              "instead of a smooth one.");
+
+            float fadeMin = GetFloat(mat, "_CameraFade_MinDistance", 0f);
+            float fadeMax = GetFloat(mat, "_CameraFade_MaxDistance", 0f);
+            if (fadeMax <= 0f && fadeMin > 0f)
+                warnings.Add("The camera fade's near distance is set but its far distance is 0, which is " +
+                             "the fade's off switch, so VRChat's camera takes the full grade at every " +
+                             "distance. Set the far distance to turn the fade on.");
+            else if (fadeMax > 0f && fadeMin >= fadeMax)
+                warnings.Add("The camera fade's near distance (" + fadeMin.ToString("0.###") + " m) is at " +
+                             "or past its far distance (" + fadeMax.ToString("0.###") + " m). The shader " +
+                             "clamps the far distance up, so the grade switches on at a hard distance in " +
+                             "VRChat's camera instead of fading in.");
 
             if (warnings.Count > 0)
                 EditorGUILayout.HelpBox(string.Join("\n\n", warnings), MessageType.Warning);

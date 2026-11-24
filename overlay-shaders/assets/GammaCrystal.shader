@@ -47,6 +47,16 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
         _Core_Radius("Core radius (m)", Float) = 0.15
         _Core_Intensity("Core intensity", Range(0, 0.5)) = 0.15
 
+        // Read only in VRChat's handheld camera and screenshot renders; the direct view never consults
+        // them. Metres AT UNIT SCALE from that camera to the sphere centre, scaled like the distances
+        // above: no grade nearer than the first, the full grade beyond the second, and 0 on the second
+        // turns the fade off so the grade reaches every camera -- the default, because a scene grade is
+        // what a photo should capture. A bubble worn around the photographer is the case for setting
+        // them: a photo taken inside it is graded by the camera, then graded again when it is looked at
+        // through the same bubble.
+        _CameraFade_MinDistance("No grade nearer than (m)", Float) = 0
+        _CameraFade_MaxDistance("Full grade beyond (m)", Float) = 0
+
         [Toggle(_SHELL_ON)] _Shell_Enabled("Shell enabled", Float) = 1
         [HDR] _Shell_Reflection_Color("Color / Mask", Color) = (1,1,1,1)
         [NoScaleOffset] _Shell_ReflectionCube("Reflection cubemap", Cube) = "" {}
@@ -91,6 +101,46 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
         GrabPass { "_GammaAdjustGrabTexture" }
 
+        // Shared by both passes, so the grade and the shell's echo of it read one scale and one fade.
+        CGINCLUDE
+        #include "UnityCG.cginc"
+        #include "stereo_camera.hlsl"
+
+        uniform float _AoE_Scale_Relative;
+        uniform float _CameraFade_MinDistance;
+        uniform float _CameraFade_MaxDistance;
+
+        // VRChat-set, and deliberately absent from Properties; debug_display_common.hlsl owns the reason
+        // and the values (0 normal, 1 VR handheld camera, 2 desktop handheld camera, 3 screenshot).
+        uniform float _VRChatCameraMode;
+
+        /// Mean of the object's three axis scales, or 1 with scale-relative off. A SINGLE SCALAR, never
+        /// per-axis: the area of effect is spherical by construction, so a per-axis factor would ask for
+        /// an ellipsoid the rest of the maths cannot express.
+        float aoe_scale_factor()
+        {
+            if (_AoE_Scale_Relative == 0) return 1.0;
+            float3 axes = float3(length(unity_ObjectToWorld._m00_m10_m20),
+                                 length(unity_ObjectToWorld._m01_m11_m21),
+                                 length(unity_ObjectToWorld._m02_m12_m22));
+            return (axes.x + axes.y + axes.z) / 3.0;
+        }
+
+        /// How much of the grade this render takes: 1 everywhere except a VRChat handheld-camera or
+        /// screenshot render with the fade set, where it ramps from 0 to 1 by the camera's distance to
+        /// the sphere centre. One value per draw, so it is a vertex-stage quantity. Measured from the
+        /// camera doing the rendering: whether VRChat sets the camera mode inside a mirror that such a
+        /// camera sees is not established, and if it does, that mirror's distance is the reflected
+        /// camera's.
+        float camera_fade_factor(float3 sphere_center_ws, float aoe_scale)
+        {
+            if (_VRChatCameraMode == 0 || _CameraFade_MaxDistance <= 0) return 1.0;
+            float fade_min = max(_CameraFade_MinDistance, 0.0) * aoe_scale;
+            float fade_max = max(_CameraFade_MaxDistance * aoe_scale, fade_min + 0.001);
+            return smoothstep(fade_min, fade_max, distance(dbg_camera_center_ws(), sphere_center_ws));
+        }
+        ENDCG
+
         // ────────────────────────────────────────────────────────────────────────────────────────────
         // PASS 1: the grading, over a localized area of effect
         // ────────────────────────────────────────────────────────────────────────────────────────────
@@ -122,7 +172,6 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
             uniform float _Gamma_Adjust_Value;
             uniform float _Transmit_Emission;
-            uniform float _AoE_Scale_Relative;
             uniform float _AoE_MinDistance;
             uniform float _AoE_MaxDistance;
             uniform float _Core_Radius;
@@ -160,6 +209,9 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 // Carried rather than recomputed so the vertex stage's own re-projection radius and the
                 // fragment's distance thresholds cannot disagree.
                 nointerpolation float aoe_scale : AOE_SCALE;
+                // camera_fade_factor(), carried for the same reason: the vertex stage collapses the proxy
+                // on 0, and the fragment must scale by the value that decision was made on.
+                nointerpolation float camera_fade : CAMERA_FADE;
                 // Mirror renders only (zero otherwise): the world-space view ray through this pixel, and the
                 // mirror plane. See the MIRROR comment in vertex_stage.
                 float3 mirror_ray_ws : MIRROR_RAY;
@@ -202,17 +254,8 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 return false;
             }
 
-            /// Mean of the object's three axis scales, or 1 with scale-relative off. A SINGLE SCALAR, never
-            /// per-axis: the area of effect is spherical by construction, so a per-axis factor would ask for
-            /// an ellipsoid the rest of the maths cannot express.
-            float aoe_scale_factor()
-            {
-                if (_AoE_Scale_Relative == 0) return 1.0;
-                float3 axes = float3(length(unity_ObjectToWorld._m00_m10_m20),
-                                     length(unity_ObjectToWorld._m01_m11_m21),
-                                     length(unity_ObjectToWorld._m02_m12_m22));
-                return (axes.x + axes.y + axes.z) / 3.0;
-            }
+            /// The largest colour this pass reads or writes, just under the half-float maximum (65504).
+            static const float GRADE_MAX_COLOR = 64000.0;
 
             void vertex_stage(VertexInput input, out FragmentInput output)
             {
@@ -226,8 +269,17 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                     unity_ObjectToWorld._m23
                 );
                 output.aoe_scale = aoe_scale_factor();
+                output.camera_fade = camera_fade_factor(output.sphere_center_ws, output.aoe_scale);
                 output.mirror_ray_ws = float3(0, 0, 0);
                 output.mirror_plane = float4(0, 0, 0, 0);
+
+                // A VRChat camera inside the fade's near distance takes no grade, so it draws no proxy.
+                if (output.camera_fade <= 0.0)
+                {
+                    output.position = float4(0, 0, 0, 0);
+                    output.grab_screen_pos = float4(0, 0, 0, 0);
+                    return;
+                }
 
                 // MIRROR. A VRChat mirror is a separate camera that renders BEFORE the direct view, so
                 // nothing in it is graded unless this pass grades it. Whether the direct view's grade then
@@ -300,6 +352,12 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                     input.grab_screen_pos.xy / input.grab_screen_pos.w,
                     0
                 );
+
+                // Finite and non-negative before any arithmetic, the early exit's return included. An
+                // infinite pixel otherwise turns NaN in the scotopic lerp at any strength, zero included
+                // (Inf + t * (Inf - Inf)), and a NaN or negative one passes straight through the emission
+                // term. On D3D max(NaN, 0) is 0, so the lower bound is also the NaN guard.
+                scene_color.rgb = clamp(scene_color.rgb, 0.0, GRADE_MAX_COLOR);
 
                 // Early exit: every effect neutral. The material inspector warns about this state, because
                 // on screen it is indistinguishable from a broken install.
@@ -388,13 +446,14 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                     }
                 }
 
-                float strength = 1.0 - smoothstep(aoe_min, aoe_max, closest_dist);
+                float strength = (1.0 - smoothstep(aoe_min, aoe_max, closest_dist)) * input.camera_fade;
 
                 // Core emphasis: rays passing through the core get an extra dim/brighten applied AFTER
                 // grading, as a plain multiply, which is perceptually uniform whatever the gamma. A 1 cm
                 // feather (at unit scale) gives the silhouette a clean anti-aliased edge.
                 float core_feather_inner = max(core_radius - 0.01 * input.aoe_scale, 0.0);
-                float core = 1.0 - smoothstep(core_feather_inner, core_radius, closest_dist);
+                float core = (1.0 - smoothstep(core_feather_inner, core_radius, closest_dist))
+                           * input.camera_fade;
 
                 half3 current_rgb = scene_color.rgb;
 
@@ -431,6 +490,10 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 float core_factor = 1.0 - sign(effect_dir) * core_amount;
                 final_rgb *= core_factor;
 
+                // The brightening stages can carry a bright pixel past what a half-float target holds,
+                // where it is stored as infinity.
+                final_rgb = clamp(final_rgb, 0.0, GRADE_MAX_COLOR);
+
                 // A mirror keeps the grabbed alpha: the avatars-only personal mirror composites by it, and
                 // alpha 1 would stamp the bubble's whole footprint over the world behind the mirror.
                 return half4(final_rgb, _VRChatMirrorMode != 0 ? scene_color.a : 1);
@@ -460,7 +523,7 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
             #pragma warning (error : 3206)
 
             #pragma target 5.0
-            #pragma vertex shell_vertex_stage
+            #pragma vertex graded_shell_vertex_stage
             #pragma fragment shell_fragment_stage
             #pragma multi_compile_instancing
             #pragma shader_feature_local _SHELL_ON
@@ -479,8 +542,34 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 uniform half4 _Scotopic_Tint;
             #endif
 
-            half4 shell_fragment_stage(ShellFragmentInput input) : SV_Target
+            // The family's vertex output plus the one value this shell needs that its siblings do not: the
+            // grading pass's camera fade, so a VRChat camera that takes no scene grade sees an ungraded
+            // shell rather than a dimmed one over an untouched scene. The shell itself always draws.
+            //
+            // ONE STRUCT FOR BOTH STAGES, never a loose `out float : CAMERA_FADE` beside the family's
+            // struct: the compiler packs a loose float into a free component of a TEXCOORD register on
+            // the vertex side and, once the fragment side marks it nointerpolation, into a register of
+            // its own there. D3D links stages by register, so the fragment then reads 0 with no error.
+            struct GradedShellFragmentInput
             {
+                ShellFragmentInput shell;
+                nointerpolation float camera_fade : CAMERA_FADE;
+            };
+
+            void graded_shell_vertex_stage(ShellVertexInput input, out GradedShellFragmentInput output)
+            {
+                shell_vertex_stage(input, output.shell);
+
+                float3 sphere_center_ws = float3(unity_ObjectToWorld._m03,
+                                                 unity_ObjectToWorld._m13,
+                                                 unity_ObjectToWorld._m23);
+                output.camera_fade = camera_fade_factor(sphere_center_ws, aoe_scale_factor());
+            }
+
+            half4 shell_fragment_stage(GradedShellFragmentInput graded) : SV_Target
+            {
+                ShellFragmentInput input = graded.shell;
+                float camera_fade = graded.camera_fade;
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
             #if !defined(_SHELL_ON)
@@ -489,20 +578,22 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
                 half3 shell = shell_rgb(input.normal_ws, input.position_ws);
 
                 // resist 1 -> shell ignores all grading; 0 -> obeys it fully and disappears in the dark;
-                // 0.5 -> takes half the darkening, legible but not jarring. Mechanically: lerp each grading
-                // exponent/multiplier back toward identity by the resist fraction before applying it.
+                // 0.5 -> takes half the darkening, legible but not jarring. Mechanically: each grading
+                // exponent/multiplier is applied at the fraction of its full value the resist leaves,
+                // scaled again by the camera fade.
                 float resist = saturate(_Shell_Grading_Resist);
+                float grade = (1.0 - resist) * camera_fade;
 
                 #ifdef _EXPOSURE_ENABLED
                 {
                     float full_mult = exp2(_Exposure_Value);
-                    shell *= lerp(full_mult, 1.0, resist);
+                    shell *= lerp(1.0, full_mult, grade);
                 }
                 #endif
 
                 {
                     float full_gamma = exp(_Gamma_Adjust_Value);
-                    float shell_gamma = lerp(full_gamma, 1.0, resist);
+                    float shell_gamma = lerp(1.0, full_gamma, grade);
                     half3 clamped = saturate(shell);
                     half3 emission = max(0, shell - clamped);
                     shell = pow(clamped, (half)shell_gamma) + emission;
@@ -510,10 +601,11 @@ Shader "Ryan6VRC/Overlay/GammaCrystal"
 
                 #ifdef _SCOTOPIC_ENABLED
                 {
-                    // A hue/chroma shift rather than a brightness crush, so it applies at full strength and
-                    // the shell's colours match the scene tint.
+                    // A hue/chroma shift rather than a brightness crush, so the resist does not reach it
+                    // and the shell's colours match the scene tint; only the camera fade scales it.
                     half luma = dot(shell, half3(0.299, 0.587, 0.114));
-                    shell = lerp(shell, luma * _Scotopic_Tint.rgb, saturate(_Scotopic_Strength));
+                    shell = lerp(shell, luma * _Scotopic_Tint.rgb,
+                                 saturate(_Scotopic_Strength) * camera_fade);
                 }
                 #endif
 
