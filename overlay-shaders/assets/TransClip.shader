@@ -1,6 +1,7 @@
 // Ryan6VRC/Overlay/TransClip -- a depth wall with a front-face shell: the family's crystal sphere, which also
 // writes depth early so every transparent material behind its surface is skipped. Put your head inside it
-// and the view renders geometry only, with no shell in the way.
+// and the view renders geometry only, with no shell in the way. The wall skips the skybox too, so sky seen
+// through it is filled black (SKY_FILL).
 //
 // TransClip is short for transparent-clip, and keeps the name of the lilToon alpha-clip material it
 // replaces recognizable while saying what the effect is rather than how that material reached it -- an alpha
@@ -10,8 +11,8 @@
 // two ColorMask 0 passes (Overlay_Debug_Lighting.shader) set and clear a stencil and share nothing with a
 // depth prepass. What it inherits from the family is the shared includes -- crystal_shell.hlsl's shell and
 // rim, stereo_camera.hlsl's stereo-correct camera positions -- both of which are ours as well. The family's
-// ancestry is real and travels with those files; it does not reach this shader's own two passes. Full split
-// in the entry README.
+// ancestry is real and travels with those files; it does not reach this shader's own passes. Full split in
+// the entry README.
 //
 // Namespaced under Ryan6VRC/ rather than plain Overlay/ for the family's reason: upstream ships an Overlay/*
 // family in a VPM package a consumer could install alongside this one, and a name collision resolves
@@ -48,6 +49,10 @@ Shader "Ryan6VRC/Overlay/TransClip"
         // [ToggleUI], not [Toggle(...)]: an animator drives this per frame, and a keyword would add a
         // shader variant per pass for it.
         [ToggleUI] _HideInMirror("Hide in mirror", Float) = 0
+
+        // Off for a material queued above 2500: there the skybox has already painted the pixels the fill
+        // exists to initialise, and the fill would black out sky the wall never hid.
+        [ToggleUI] _SkyFill("Fill sky behind the wall", Float) = 1
     }
 
     SubShader
@@ -76,12 +81,97 @@ Shader "Ryan6VRC/Overlay/TransClip"
             "IgnoreProjector" = "True"
             // No "DisableBatching" here, deliberately, and it is the only member of the family without it:
             // neither pass reads the object matrix (GammaCrystal's reason) and neither builds geometry from
-            // SV_VertexID (DebugOverlay's reason). Batching two of these together still draws the wall pass
-            // for both before the shell pass for both, which is the order the effect needs.
+            // SV_VertexID (DebugOverlay's reason). Batching two of these together still draws each pass for
+            // both before the next pass for either, which is the order the effect needs.
         }
 
         // ────────────────────────────────────────────────────────────────────────────────────────────
-        // PASS 1: DEPTH_WALL
+        // PASS 1: SKY_FILL
+        //
+        // Black, into exactly the pixels of the wall's footprint that nothing opaque has drawn. The wall
+        // is queued before the skybox, so the skybox is depth-rejected behind it and nothing else paints
+        // those pixels. In the Editor a camera clearing to Skybox leaves colour uncleared, so they hold
+        // whatever the target last held and the shell's Blend One One adds to it every frame; that the
+        // VRChat client leaves them the same way is not established.
+        //
+        // The wall's own geometry with its depth forced to the far plane, so ZTest LEqual passes only
+        // where the buffer still holds its clear value, and ZWrite Off leaves that value for the wall.
+        // ColorMask RGB, never RGBA: VRChat's avatars-only personal mirror clears to transparent black and
+        // composites by alpha, so a written alpha would stamp the silhouette opaque over the world behind
+        // that mirror. Black rather than a reflection-probe sample, by decision: an avatar shader cannot
+        // read the world's skybox material, and too few worlds carry a probe good enough to stand in.
+        //
+        // It bails exactly where the wall does, and wherever _SkyFill is off. A fill whose wall bailed is
+        // overdrawn by the skybox and costs only fill rate, but the two guards are one decision: keep them
+        // in step.
+        // ────────────────────────────────────────────────────────────────────────────────────────────
+        Pass
+        {
+            Name "SKY_FILL"
+
+            Cull Off
+            ZWrite Off
+            ZTest LEqual
+            ColorMask RGB
+
+            CGPROGRAM
+            #pragma warning (error : 3205)
+            #pragma warning (error : 3206)
+
+            #pragma target 5.0
+            #pragma multi_compile_instancing
+            #pragma vertex fill_vertex_stage
+            #pragma fragment fill_fragment_stage
+
+            #include "UnityCG.cginc"
+
+            // As in DEPTH_WALL: crystal_shell.hlsl is not included here, so these redefine nothing.
+            uniform float _HideInMirror;
+            uniform float _VRChatMirrorMode;
+            uniform float _SkyFill;
+
+            struct FillVertexInput
+            {
+                float4 position_os : POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct FillFragmentInput
+            {
+                float4 position : SV_POSITION;
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            void fill_vertex_stage(FillVertexInput input, out FillFragmentInput output)
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+                if (_SkyFill < 0.5 || (_HideInMirror > 0.5 && _VRChatMirrorMode != 0))
+                {
+                    output.position = float4(0, 0, 0, 0);
+                    return;
+                }
+
+                output.position = UnityObjectToClipPos(input.position_os);
+                // Far plane in clip space: z/w is 0 under reversed Z and 1 on every other convention.
+            #if defined(UNITY_REVERSED_Z)
+                output.position.z = 0;
+            #else
+                output.position.z = output.position.w;
+            #endif
+            }
+
+            half4 fill_fragment_stage(FillFragmentInput input) : SV_Target
+            {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                return half4(0, 0, 0, 0);
+            }
+            ENDCG
+        }
+
+        // ────────────────────────────────────────────────────────────────────────────────────────────
+        // PASS 2: DEPTH_WALL
         //
         // The whole effect. Cull Off so the nearest surface wins whichever way it faces, ZWrite On to put
         // that depth in the buffer, ColorMask 0 so not one pixel of colour is written -- no rim, no
@@ -142,8 +232,9 @@ Shader "Ryan6VRC/Overlay/TransClip"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                // Matches the shell's guard in crystal_shell.hlsl exactly, so one animated float takes
-                // wall and shell out of the reflection together. Keep the two expressions in step.
+                // Matches the shell's guard in crystal_shell.hlsl and SKY_FILL's exactly, so one animated
+                // float takes fill, wall and shell out of the reflection together. Keep the three
+                // expressions in step.
                 if (_HideInMirror > 0.5 && _VRChatMirrorMode != 0)
                 {
                     output.position = float4(0, 0, 0, 0);
@@ -165,7 +256,7 @@ Shader "Ryan6VRC/Overlay/TransClip"
         }
 
         // ────────────────────────────────────────────────────────────────────────────────────────────
-        // PASS 2: CRYSTAL_SHELL
+        // PASS 3: CRYSTAL_SHELL
         //
         // The family's shell, verbatim: Blend One One, half4(shell_rgb, 0), the same pass DebugOverlay and
         // DebugDisplay draw, so this sphere looks exactly like its siblings and is found the same way. Cull

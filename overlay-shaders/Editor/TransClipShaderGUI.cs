@@ -64,8 +64,9 @@ namespace Ryan6Vrc.Patterns.OverlayShaders.Editor
             var warnings = new List<string>();
 
             if (GetFloat(mat, "_Shell_Enabled", 1f) == 0f)
-                warnings.Add("The shell is off, so this material draws no colour at all and the object is " +
-                             "invisible from every angle. That is a legitimate setting — it is also " +
+                warnings.Add("The shell is off, so this material draws no colour beyond the black it puts " +
+                             "where sky shows through, and against anything else the object is invisible " +
+                             "from every angle. That is a legitimate setting — it is also " +
                              "indistinguishable from a broken install, so expect to verify it by what " +
                              "disappears behind the object rather than by looking at the object.");
 
